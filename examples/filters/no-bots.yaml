@@ -1,0 +1,11 @@
+# A reusable filter set. Copy to ~/.munin/filters/no-bots.yaml.
+# Rules are applied in order; an item is kept only if it satisfies every
+# inclusive (include) rule and matches no exclusive (exclude) rule.
+name: no-bots
+rules:
+  # Exclusive: drop messages whose author looks like a bot.
+  - field: meta.author
+    exclude: "(?i)bot$|-automation$"
+  # Inclusive: keep only items whose body mentions something worth reading.
+  - field: body
+    include: "deploy|incident|blocker|release"

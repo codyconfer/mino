@@ -1,0 +1,10 @@
+# A saved, named query. Copy to ~/.munin/queries/slack-standup.yaml and run it
+# with: munin query slack-standup
+name: slack-standup
+signal: slack
+params:
+  channel: eng-standup       # channel name (or ID); '#' optional
+  limit: "100"               # pull up to 100 recent messages
+filters:
+  - no-bots                  # reference the saved filter set by name
+  - exclude: "^:tada:|has joined the channel"   # inline exclusive rule (body)

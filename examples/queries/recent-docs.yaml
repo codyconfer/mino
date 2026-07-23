@@ -1,0 +1,4 @@
+name: recent-docs
+signal: docs
+params:
+  recent: "5"

@@ -1,0 +1,4 @@
+name: loki-errors
+signal: github
+params:
+  query: "is:open label:loki label:bug"

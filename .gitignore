@@ -1,0 +1,4 @@
+.claude/
+*.duckdb
+*.duckdb.wal
+/dist/

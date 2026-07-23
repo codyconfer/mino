@@ -1,0 +1,2 @@
+name: default
+queries: [my-open-prs, today, unread-mail, recent-docs, slack-standup]

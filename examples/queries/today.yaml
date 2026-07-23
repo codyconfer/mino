@@ -1,0 +1,5 @@
+name: today
+signal: calendar
+params:
+  calendar_id: primary
+  window: 12h

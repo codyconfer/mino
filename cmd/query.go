@@ -1,0 +1,113 @@
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
+
+	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/filter"
+)
+
+func buildQueryJob(name string) (job, error) {
+	q, ok := shared.directives.Queries[name]
+	if !ok {
+		return job{}, errs.Newf(errs.KindUsage, "no saved query named %q", name).WithHint("run `munin query list` to see saved queries")
+	}
+	src, err := buildSignal(q.Signal, q.Params)
+	if err != nil {
+		return job{}, errs.Wrapf(errs.KindSignal, err, "query %q", name)
+	}
+	resolved, err := shared.directives.Resolve(q)
+	if err != nil {
+		return job{}, err
+	}
+	compiled, err := filter.CompileAll(resolved)
+	if err != nil {
+		return job{}, err
+	}
+	return job{label: name, src: src, filters: compiled}, nil
+}
+
+func newQueryCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "query [name]",
+		Short: "Run a saved query by name (or list/show to inspect)",
+		Long: "Run a saved query from ~/.munin/queries by name: `munin query <name>`.\n" +
+			"With no name it lists the saved queries. Use `munin query show <name>` to\n" +
+			"print a query's definition.\n\n" +
+			"For an ad-hoc, one-off query against a single signal, use the signal's own\n" +
+			"query subcommand instead, e.g. `munin github query` or `munin slack query`.",
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeQueryNames,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return listQueries(cmd)
+			}
+			name := args[0]
+			if _, ok := shared.directives.Queries[name]; ok && !access().QueryVisible(name) {
+				return notInRoleError("query", name)
+			}
+			j, err := buildQueryJob(name)
+			if err != nil {
+				return err
+			}
+			return emit(fetchJobs(cmd.Context(), []job{j}, 0))
+		},
+	}
+	c.AddCommand(newQueryListCmd(), newQueryShowCmd())
+	return c
+}
+
+func newQueryListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List saved query names",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return listQueries(cmd)
+		},
+	}
+}
+
+func newQueryShowCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:               "show <name>",
+		Short:             "Show a saved query's definition",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeQueryNames,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			q, ok := shared.directives.Queries[args[0]]
+			if !ok {
+				return errs.Newf(errs.KindUsage, "no saved query named %q", args[0]).WithHint("run `munin query list` to see saved queries")
+			}
+			out, err := yaml.Marshal(q)
+			if err != nil {
+				return err
+			}
+			fmt.Fprint(cmd.OutOrStdout(), string(out))
+			return nil
+		},
+	}
+}
+
+func listQueries(cmd *cobra.Command) error {
+	names := visibleQueryNames()
+	if len(names) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "no saved queries visible (check --role, or add YAML files under ~/.munin/queries)")
+		return nil
+	}
+	for _, n := range names {
+		q := shared.directives.Queries[n]
+		fmt.Fprintf(cmd.OutOrStdout(), "%-24s signal=%s\n", n, q.Signal)
+	}
+	return nil
+}
+
+func completeQueryNames(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	if len(args) != 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return visibleQueryNames(), cobra.ShellCompDirectiveNoFileComp
+}
