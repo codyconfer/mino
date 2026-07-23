@@ -37,12 +37,12 @@ func Panels(f layout.Frame, sections []signals.Section) string {
 		if title == "" {
 			title = s.Signal
 		}
-		title = fmt.Sprintf("%s  (%d)", title, len(s.Items))
+		title = fmt.Sprintf("%s  (%d)", signals.Clean(title), len(s.Items))
 
 		var lines []string
 		switch {
 		case s.Err != nil:
-			errLines := strings.Split(s.Err.Error(), "\n")
+			errLines := strings.Split(signals.Clean(s.Err.Error()), "\n")
 			lines = append(lines, th.Cant.Render("⚠ "+errLines[0]))
 			for _, l := range errLines[1:] {
 				lines = append(lines, th.Dim.Render(l))
@@ -54,19 +54,19 @@ func Panels(f layout.Frame, sections []signals.Section) string {
 				lines = append(lines, itemLines(f, th, it)...)
 			}
 		}
-		blocks = append(blocks, f.Panel(title, lines...))
+		blocks = append(blocks, TitledBox(f, false, title, lines...))
 	}
 	return layout.Stack(blocks...)
 }
 
 func LoadingPanel(title, status string) string {
-	return layout.NewFrame(theme.BodyWidth).Panel(title, theme.Cur().Dim.Render(status))
+	return TitledBox(layout.NewFrame(theme.BodyWidth), false, title, theme.Cur().Dim.Render(status))
 }
 
 func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
-	head := th.Val.Render(it.Title)
+	head := th.Val.Render(signals.Clean(it.Title))
 	if it.Subtitle != "" {
-		head += "  " + th.Dim.Render(it.Subtitle)
+		head += "  " + th.Dim.Render(signals.Clean(it.Subtitle))
 	}
 	var lines []string
 	if !it.Timestamp.IsZero() {
@@ -75,7 +75,7 @@ func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
 		lines = append(lines, head)
 	}
 	if it.URL != "" {
-		lines = append(lines, th.Dim.Render(it.URL))
+		lines = append(lines, th.Dim.Render(signals.Clean(it.URL)))
 	}
 	return lines
 }

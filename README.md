@@ -26,10 +26,14 @@ Bootstrap a config directory (with a sample query, filter, and flight), then run
 
 ```sh
 munin install                 # create ~/.munin with defaults
+munin onboard                 # one-time: GitHub auth + a GitHub-verified GPG key
 munin fly                     # run the default flight
 munin github query            # ad-hoc: your open PRs + review requests
 munin fly morning -o json | jq .
 ```
+
+Munin is locked until you complete [onboarding](#onboarding); the setup commands
+above (and `login`/`verify`/`--help`) stay available while it is.
 
 Munin reuses tools you already have for authentication — the `gh` CLI, `gcloud`
 ADC, `$SLACK_TOKEN` — and falls back to `munin login <service>` when they are
@@ -92,6 +96,30 @@ active role with `--role`, `$MUNIN_ROLE`, or `role:` in config, and inspect your
 context with `munin role`.
 
 → [How to create a role config](#create-a-role-config)
+
+## Realtime & daemon mode
+
+Signals come in two flavors: **passive** (REST, pulled on demand — the default
+`fly`/`query` path) and **active** (a live stream). `munin serve [flight]` runs
+long-running: it opens every active signal in the flight, fans their events into one
+loop, and emits a notification per new item. Only **Slack** is a true websocket
+(Socket Mode); **GitHub**, **Calendar**, and **Tasks** have no client websocket,
+so they're polled at `--interval`; signals with no realtime support are skipped.
+
+Run it in the foreground (Ctrl-C exits), add `--desktop` for OS desktop
+notifications and/or `--tray` for a system-tray icon that reflects state
+(inactive → running → notify → warn → error), or manage it as a system daemon:
+
+```sh
+munin serve install [flight]        # systemd user unit (Linux) / launchd agent (macOS)
+munin serve start | stop | status   # (also restart, uninstall)
+```
+
+Tray/notification icons are embedded (raven, dark + light — pick with `--theme`)
+and overridable by dropping `~/.munin/icons/<state>.png`. Slack Socket Mode needs
+an app-level `xapp-` token + a bot `xoxb-` token (env-var names configurable via
+`slack.app_token_env` / `slack.bot_token_env`); without them Slack is skipped.
+All `serve` defaults live under `daemon:` in config and are overridden by flags.
 
 ## Create a query and filter config
 
@@ -179,6 +207,7 @@ Config lives under `~/.munin/`:
   filters/*.yaml     # named, reusable regex filter sets
   flights/*.yaml     # named flights (one per file)
   roles/*.yaml       # role definitions (one per file)
+  icons/*.png        # optional per-state tray/notification icon overrides
   config.duckdb      # versioned store: source of truth for config + the four directive kinds
   audit.duckdb       # run history (see Audit trail)
   tokens.duckdb      # cached OAuth credentials
@@ -210,7 +239,46 @@ session". Any file value can be overridden per-run by a `MUNIN_*` env var (e.g.
 `$MUNIN_THEME`) selects a viewkit theme (default `retro-dark`); `munin verify`
 validates the key.
 
+**Service defaults** for `munin serve` live under `daemon:` in `config.yaml`
+(`interval`, `bell`, `desktop`, `tray`, `theme`); command flags override them.
+Editing config in the TUI (**Settings → Edit config**) merges into the existing
+file, preserving sections it doesn't touch.
+
 See [`examples/`](examples/) for copy-paste starters.
+
+### Onboarding
+
+Before Munin runs any signal command it requires a one-time onboarding: GitHub
+authenticated **and** a GPG signing key that git uses and GitHub has verified.
+Until then every command except the setup ones is locked.
+
+```sh
+munin onboard            # guided check + fix instructions, loops until ready
+munin onboard --status   # print the checklist without changing anything
+munin onboard --reset    # clear the marker (re-onboard on the next run)
+```
+
+`onboard` checks four things and, for any gap, prints the exact commands to fix it
+(it never generates keys or edits your git config): (1) GitHub auth — `gh` CLI or a
+cached token; (2) `git config user.signingkey` is set; (3) that secret key is in
+your local GPG keyring; (4) the key's public half is registered on your GitHub
+account, so signed commits show **Verified**. `munin verify onboarding` reports the
+same checklist. `login`, `verify`, `install`/`clean`/`nuke`, and `--help` stay
+usable while locked; everything else is gated. The onboarded state lives in
+`settings.yaml`.
+
+**Domain-locked builds.** A distribution can be compiled to onboard *only* when the
+signing key has a GitHub-verified identity in a specific email domain:
+
+```sh
+make package EMAIL_DOMAIN=example.com   # only unlocks for @example.com identities
+```
+
+This adds a fifth onboarding check (a verified `@example.com` email on the
+registered key) and stamps the domain into the marker, so a binary built for one
+domain won't accept an onboarding done by an unrestricted build. Built without the
+flag, Munin has no domain restriction. Note this is a distribution-policy control,
+not a hardened security boundary — `settings.yaml` is user-writable.
 
 ### Authentication
 
@@ -287,12 +355,15 @@ DB.
 |---|---|
 | `munin fly [flight]` | Run a named flight (defaults to the role's flight / `default`). |
 | `munin query [name]` | Run a saved query by name; no name lists saved queries. |
+| `munin serve [flight]` | Run long-running, watching active signals in realtime; `--desktop`/`--tray`/`--interval`/`--theme`. |
+| `munin serve install/uninstall/start/stop/restart/status` | Manage munin as a system daemon (systemd user unit / launchd agent). |
 | `munin query show <name>` | Show a saved query's definition. |
 | `munin <signal> query` | Ad-hoc one-off query against a single signal. |
 | `munin history` / `history show <id>` | List past runs / recall a run's results. |
 | `munin config` / `config history` | Show the active (DB-backed) config / prior versions. |
 | `munin backup` / `restore <file>` | Write / restore an encrypted backup of the DuckDB databases. |
-| `munin verify [target]` | Validate config/roles/flights/queries (colorized, masks secrets). |
+| `munin verify [target]` | Validate config/roles/flights/queries/onboarding (colorized, masks secrets). |
+| `munin onboard [--status\|--reset]` | One-time setup gate: GitHub auth + a GitHub-verified GPG signing key. |
 | `munin install` | Create the config directory and initialize it with defaults. |
 | `munin clean` | Archive config/query/filter files into `.archive/<timestamp>/`. |
 | `munin nuke [--yes]` | Delete the config directory and DuckDB, then reinstall defaults. |

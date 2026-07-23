@@ -34,7 +34,7 @@ type Signal interface {
 	Fetch(ctx context.Context) ([]Section, error)
 }
 
-type ColdSignal = Signal
+type PassiveSignal = Signal
 
 type Event struct {
 	Source  string
@@ -42,7 +42,7 @@ type Event struct {
 	At      time.Time
 }
 
-type HotSignal interface {
+type ActiveSignal interface {
 	Name() string
 	Stream(ctx context.Context) (<-chan Event, error)
 	LatencyFloor() time.Duration

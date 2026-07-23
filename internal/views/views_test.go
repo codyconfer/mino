@@ -5,11 +5,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/codyconfer/sisyphus"
+
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/tui"
-	"github.com/codyconfer/sisyphus"
 )
 
 func testKit(t *testing.T) *Kit {

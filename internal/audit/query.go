@@ -3,8 +3,9 @@ package audit
 import (
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/sisyphus/journal"
+
+	"github.com/codyconfer/munin/internal/errs"
 )
 
 type FlightRow struct {

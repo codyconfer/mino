@@ -19,8 +19,9 @@ func newLoginCmd() *cobra.Command {
 			"`github` (device flow), `google`, and `slack` (browser loopback). Each needs\n" +
 			"its OAuth client credentials in config. Tokens are cached under <home>/tokens\n" +
 			"and used by the signal's direct API client.",
-		Args:      cobra.ExactArgs(1),
-		ValidArgs: []string{"github", "google", "slack"},
+		Args:        cobra.ExactArgs(1),
+		ValidArgs:   []string{"github", "google", "slack"},
+		Annotations: map[string]string{annoSkipOnboarding: "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch args[0] {
 			case "github":

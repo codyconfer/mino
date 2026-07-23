@@ -41,6 +41,34 @@ func SlackToken(store TokenStore, envName string) (string, error) {
 		WithHint("export a user token ($%s=xoxp-…) or run `munin login slack`", envName)
 }
 
+func SlackAppToken(store TokenStore, envName string) (string, error) {
+	if envName == "" {
+		envName = "SLACK_APP_TOKEN"
+	}
+	if tok := os.Getenv(envName); tok != "" {
+		return tok, nil
+	}
+	if c, ok := getCred(store, "slack-app"); ok {
+		return c.AccessToken, nil
+	}
+	return "", errs.New(errs.KindAuth, "no Slack app-level token available").
+		WithHint("export an app-level token ($%s=xapp-…) with connections:write to enable Socket Mode", envName)
+}
+
+func SlackBotToken(store TokenStore, envName string) (string, error) {
+	if envName == "" {
+		envName = "SLACK_BOT_TOKEN"
+	}
+	if tok := os.Getenv(envName); tok != "" {
+		return tok, nil
+	}
+	if c, ok := getCred(store, "slack-bot"); ok {
+		return c.AccessToken, nil
+	}
+	return "", errs.New(errs.KindAuth, "no Slack bot token available").
+		WithHint("export a bot token ($%s=xoxb-…) to enable Socket Mode", envName)
+}
+
 func SlackLogin(ctx context.Context, sa SlackAuth, w io.Writer) error {
 	if sa.ClientID == "" || sa.ClientSecret == "" {
 		return errs.New(errs.KindConfig, "missing Slack OAuth app client credentials").

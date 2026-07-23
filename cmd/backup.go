@@ -4,18 +4,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/sisyphus"
+
+	"github.com/codyconfer/munin/internal/backup"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals/gdrive"
-	"github.com/codyconfer/sisyphus"
 )
-
-const backupPrefix = "munin-backup-"
 
 const secretService = "munin"
 
@@ -58,7 +56,7 @@ func runBackup(cmd *cobra.Command, outDir string) error {
 			WithHint("configure a secret backend (backup.secret_backend) or ensure the OS keyring is available")
 	}
 
-	name := fmt.Sprintf("%s%s.tar.enc", backupPrefix, time.Now().Format("20060102-150405"))
+	name := fmt.Sprintf("%s%s.tar.enc", backup.Prefix, time.Now().Format("20060102-150405"))
 	out := cmd.OutOrStdout()
 	keep := shared.cfg.Backup.Keep
 
@@ -68,7 +66,7 @@ func runBackup(cmd *cobra.Command, outDir string) error {
 			return errs.Wrap(errs.KindBackup, err, "uploading backup to Google Drive")
 		}
 		fmt.Fprintf(out, "encrypted backup uploaded to Google Drive app data: %s (key in %s)\n", item.Title, storeName)
-		if deleted, err := gdrive.PruneAppData(cmd.Context(), googleAuth(), backupPrefix, keep); err != nil {
+		if deleted, err := gdrive.PruneAppData(cmd.Context(), googleAuth(), backup.Prefix, keep); err != nil {
 			verbosef("backup retention: %v", err)
 		} else if len(deleted) > 0 {
 			fmt.Fprintf(out, "pruned %d old backup(s) (keep=%d)\n", len(deleted), keep)
@@ -81,34 +79,10 @@ func runBackup(cmd *cobra.Command, outDir string) error {
 		return errs.Wrapf(errs.KindBackup, err, "writing backup to %s", path)
 	}
 	fmt.Fprintf(out, "encrypted backup written to %s (%d bytes; key in %s)\n", path, len(sealed), storeName)
-	if pruned := pruneLocalBackups(outDir, keep); len(pruned) > 0 {
+	if pruned := backup.PruneLocal(outDir, keep); len(pruned) > 0 {
 		fmt.Fprintf(out, "pruned %d old backup(s) (keep=%d)\n", len(pruned), keep)
 	}
 	return nil
-}
-
-func pruneLocalBackups(dir string, keep int) []string {
-	if keep <= 0 {
-		return nil
-	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	var files []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), backupPrefix) && strings.HasSuffix(e.Name(), ".tar.enc") {
-			files = append(files, e.Name())
-		}
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(files)))
-	var deleted []string
-	for i := keep; i < len(files); i++ {
-		if os.Remove(filepath.Join(dir, files[i])) == nil {
-			deleted = append(deleted, files[i])
-		}
-	}
-	return deleted
 }
 
 func closeDBs() {
@@ -122,5 +96,6 @@ func closeDBs() {
 	}
 	if shared.mgr != nil {
 		_ = shared.mgr.Close()
+		shared.mgr = nil
 	}
 }

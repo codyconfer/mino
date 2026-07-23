@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/munin/internal/active"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/gtasks"
@@ -72,4 +73,9 @@ func resolveWriteTarget(what, setting, configured, requested string) (string, er
 		return configured, nil
 	}
 	return "", errs.Newf(errs.KindUsage, "%s %q is read-only; only %q is writable (%s)", what, requested, configured, setting)
+}
+
+func buildActiveTasks(params map[string]string, state *active.State) (signals.ActiveSignal, error) {
+	interval := paramDuration(params, "interval", 60*time.Second)
+	return gtasks.NewActive(googleAuth(), shared.cfg.Tasks.Lists, shared.cfg.Tasks.ShowCompleted, interval, state), nil
 }

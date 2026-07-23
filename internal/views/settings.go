@@ -1,6 +1,7 @@
 package views
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,12 +14,13 @@ import (
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
+	sconfig "github.com/codyconfer/sisyphus/config"
+	"github.com/codyconfer/sisyphus/redact"
+
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/tui"
-	sconfig "github.com/codyconfer/sisyphus/config"
-	"github.com/codyconfer/sisyphus/redact"
 )
 
 func (k *Kit) Settings() tui.View {
@@ -81,6 +83,11 @@ func (k *Kit) setvEditConfigView() tui.View {
 		forms.Field{Key: "timeout", Label: "timeout", Kind: forms.FieldText, Text: c.Timeout},
 		forms.Field{Key: "backup.destination", Label: "backup.destination", Kind: forms.FieldSelect, Options: setvFirst([]string{"local", "gdrive"}, c.Backup.Destination)},
 		forms.Field{Key: "backup.keep", Label: "backup.keep", Kind: forms.FieldText, Text: strconv.Itoa(c.Backup.Keep)},
+		forms.Field{Key: "daemon.interval", Label: "daemon.interval", Kind: forms.FieldText, Text: c.Daemon.Interval},
+		forms.Field{Key: "daemon.bell", Label: "daemon.bell", Kind: forms.FieldToggle, On: c.Daemon.Bell},
+		forms.Field{Key: "daemon.desktop", Label: "daemon.desktop", Kind: forms.FieldToggle, On: c.Daemon.Desktop},
+		forms.Field{Key: "daemon.tray", Label: "daemon.tray", Kind: forms.FieldToggle, On: c.Daemon.Tray},
+		forms.Field{Key: "daemon.theme", Label: "daemon.theme", Kind: forms.FieldSelect, Options: setvFirst([]string{"dark", "light"}, c.Daemon.Theme)},
 	)
 	return &setvEditForm{k: k, form: form}
 }
@@ -121,29 +128,60 @@ func (v *setvEditForm) Update(a *tui.App, msg tea.Msg) tea.Cmd {
 
 func (v *setvEditForm) submit(a *tui.App) tea.Cmd {
 	vals := v.form.Values()
-	keep, _ := strconv.Atoi(setvString(vals["backup.keep"]))
-	m := map[string]any{
-		"output":  setvString(vals["output"]),
-		"timeout": setvString(vals["timeout"]),
-		"audit": map[string]any{
-			"enabled": setvBool(vals["audit.enabled"]),
-		},
-		"backup": map[string]any{
-			"destination": setvString(vals["backup.destination"]),
-			"keep":        keep,
-		},
-	}
-	out, err := yaml.Marshal(m)
+	home, raw, format, err := config.ReadConfigFile("")
 	if err != nil {
 		return a.Push(v.k.setvRed("edit config", err.Error()))
 	}
-	path, err := sconfig.WriteConfigFile(v.k.d.Home(), out, "yaml")
+	doc := map[string]any{}
+	if len(raw) > 0 {
+		if format == "json" {
+			err = json.Unmarshal(raw, &doc)
+		} else {
+			err = yaml.Unmarshal(raw, &doc)
+		}
+		if err != nil {
+			return a.Push(v.k.setvRed("edit config", err.Error()))
+		}
+	}
+
+	keep, _ := strconv.Atoi(setvString(vals["backup.keep"]))
+	doc["output"] = setvString(vals["output"])
+	doc["timeout"] = setvString(vals["timeout"])
+	setvSetChild(doc, "audit", "enabled", setvBool(vals["audit.enabled"]))
+	setvSetChild(doc, "backup", "destination", setvString(vals["backup.destination"]))
+	setvSetChild(doc, "backup", "keep", keep)
+	setvSetChild(doc, "daemon", "interval", setvString(vals["daemon.interval"]))
+	setvSetChild(doc, "daemon", "bell", setvBool(vals["daemon.bell"]))
+	setvSetChild(doc, "daemon", "desktop", setvBool(vals["daemon.desktop"]))
+	setvSetChild(doc, "daemon", "tray", setvBool(vals["daemon.tray"]))
+	setvSetChild(doc, "daemon", "theme", setvString(vals["daemon.theme"]))
+
+	var out []byte
+	if format == "json" {
+		out, err = json.MarshalIndent(doc, "", "  ")
+	} else {
+		format = "yaml"
+		out, err = yaml.Marshal(doc)
+	}
+	if err != nil {
+		return a.Push(v.k.setvRed("edit config", err.Error()))
+	}
+	path, err := sconfig.WriteConfigFile(home, out, format)
 	if err != nil {
 		return a.Push(v.k.setvRed("edit config", err.Error()))
 	}
 	pop := a.Pop()
 	push := a.Push(tui.NewMessage("edit config", "wrote "+path, v.k.setvCtx()))
 	return tea.Batch(pop, push)
+}
+
+func setvSetChild(doc map[string]any, parent, key string, val any) {
+	child, ok := doc[parent].(map[string]any)
+	if !ok {
+		child = map[string]any{}
+		doc[parent] = child
+	}
+	child[key] = val
 }
 
 type setvAppearanceForm struct {

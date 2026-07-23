@@ -1,4 +1,4 @@
-package cmd
+package provision
 
 import (
 	"os"
@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestDoInstallPermissions(t *testing.T) {
+func TestInstallPermissions(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "munin")
-	if _, err := doInstall(home, false); err != nil {
-		t.Fatalf("doInstall: %v", err)
+	if _, err := Install(home, false); err != nil {
+		t.Fatalf("Install: %v", err)
 	}
 
 	di, err := os.Stat(home)

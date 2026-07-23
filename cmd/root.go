@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
+
+	"github.com/codyconfer/sisyphus"
 
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/token"
-	"github.com/codyconfer/sisyphus"
 )
 
 type app struct {
@@ -45,7 +47,8 @@ func newRootCmd() *cobra.Command {
 			if home, err := config.Home(flagHome); err == nil {
 				_ = os.Chmod(home, 0o700)
 			}
-			cfg, directives, mgr, err := loadConfigAndDirectives()
+			interactive := term.IsTerminal(int(os.Stdin.Fd()))
+			cfg, directives, mgr, err := config.LoadConfigAndDirectives(flagHome, flagConfigFile, interactive, os.Stdin, os.Stderr)
 			if err != nil {
 				return err
 			}
@@ -63,7 +66,7 @@ func newRootCmd() *cobra.Command {
 			shared.mgr = mgr
 			openTokens()
 			openAudit()
-			return nil
+			return enforceOnboarding(cmd)
 		},
 	}
 
@@ -85,11 +88,12 @@ func newRootCmd() *cobra.Command {
 		newBackupCmd(),
 		newRestoreCmd(),
 		newVerifyCmd(),
+		newOnboardCmd(),
 		newInstallCmd(),
 		newCleanCmd(),
 		newNukeCmd(),
 		newTuiCmd(),
-		newServiceCmd(),
+		newDaemonCmd(),
 		newSettingsCmd(),
 		newExportCmd(),
 		newImportCmd(),

@@ -6,10 +6,12 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
+
+	"github.com/codyconfer/munin/internal/keymap"
+	"github.com/codyconfer/munin/internal/render"
 )
 
 type MenuItem struct {
@@ -72,7 +74,7 @@ func (m *Menu) Body(width, _ int) string {
 		cursor := "  "
 		label := th.Val.Render(it.Label)
 		if i == m.cursor {
-			cursor = th.Key.Render("▶ ")
+			cursor = th.Key.Render("▸ ")
 			label = th.Key.Render(it.Label)
 		}
 		row := cursor + label
@@ -81,7 +83,7 @@ func (m *Menu) Body(width, _ int) string {
 		}
 		lines = append(lines, row)
 	}
-	return f.Panel("", lines...)
+	return render.TitledBox(f, true, strings.ToUpper(m.title), lines...)
 }
 
 type Content struct {
@@ -115,10 +117,7 @@ func (c *Content) Init() tea.Cmd {
 func (c *Content) Update(a *App, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
-		h := m.Height - chromeReserve
-		if h < 1 {
-			h = 1
-		}
+		h := max(m.Height-chromeReserve, 1)
 		if !c.ready {
 			c.vp = viewport.New(m.Width, h)
 			c.ready = true
@@ -187,5 +186,6 @@ func (m *Message) Update(a *App, msg tea.Msg) tea.Cmd {
 	return nil
 }
 func (m *Message) Body(width, _ int) string {
-	return layout.ScreenFrame(width).Panel("", strings.Split(m.body, "\n")...)
+	f := layout.ScreenFrame(width)
+	return render.TitledBox(f, true, strings.ToUpper(m.title), strings.Split(m.body, "\n")...)
 }

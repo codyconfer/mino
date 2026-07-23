@@ -44,3 +44,18 @@ func buildSlack(params map[string]string) (signals.Signal, error) {
 	limit := paramInt(params, "limit", shared.cfg.Slack.Limit)
 	return slacksrc.New(token, channel, limit), nil
 }
+
+func buildActiveSlack(params map[string]string) (signals.ActiveSignal, error) {
+	appToken, err := auth.SlackAppToken(shared.tokens, shared.cfg.Slack.AppTokenEnv)
+	if err != nil {
+		return nil, errNoActiveSignal
+	}
+	botToken, err := auth.SlackBotToken(shared.tokens, shared.cfg.Slack.BotTokenEnv)
+	if err != nil {
+		return nil, errNoActiveSignal
+	}
+	if appToken == "" || botToken == "" {
+		return nil, errNoActiveSignal
+	}
+	return slacksrc.NewActive(botToken, appToken), nil
+}

@@ -6,11 +6,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
+
+	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/keymap"
 )
 
 type View interface {
@@ -100,25 +101,23 @@ func (a *App) View() string {
 	v := a.top()
 	header := a.header(v)
 	footer := a.footer(v)
-	bodyHeight := a.height - layout.CountLines(header) - layout.CountLines(footer) - 1
-	if bodyHeight < 1 {
-		bodyHeight = 1
-	}
+	bodyHeight := max(a.height-layout.CountLines(header)-layout.CountLines(footer)-1, 1)
 	return layout.StackTight(header, v.Body(a.width, bodyHeight), footer)
 }
 
 func (a *App) header(v View) string {
 	f := layout.ScreenFrame(a.width)
+	full := f.BodyWidth() + 4
 	th := theme.Cur()
-	brand := th.Accent.Render("▚▚ MUNIN") + th.Dim.Render("  ono-sendai deck")
-	clock := th.Key.Render("▓▒░ ") + th.Accent.Render(a.clock)
-	line := f.Spread(brand, clock)
+	brand := th.Accent.Render("▚▚ MUNIN") + th.Dim.Render(" · ono-sendai deck")
+	clock := th.Key.Render("◰ ") + th.Accent.Render(a.clock)
+	line := layout.Spread(brand, clock, full)
 
 	title := th.PanelTitle.Render(strings.ToUpper(v.Title()))
 	ctx := contextLine(v.Context())
 	head := title
 	if ctx != "" {
-		head = f.Spread(title, ctx)
+		head = layout.Spread(title, ctx, full)
 	}
 	return layout.StackTight(line, head, f.Rule())
 }

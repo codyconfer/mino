@@ -61,6 +61,7 @@ func loopbackAuthCode(ctx context.Context, w io.Writer, service string, buildURL
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		q := r.URL.Query()
 		if e := q.Get("error"); e != "" {
 			fmt.Fprintf(rw, "Authorization failed: %s. You can close this window.", e)
@@ -76,7 +77,7 @@ func loopbackAuthCode(ctx context.Context, w io.Writer, service string, buildURL
 		resCh <- result{code: q.Get("code")}
 	})
 	srv := &http.Server{Handler: mux}
-	go srv.Serve(ln)
+	go func() { _ = srv.Serve(ln) }()
 	defer srv.Close()
 
 	authURL := buildURL(redirect, state)

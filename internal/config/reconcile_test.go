@@ -1,4 +1,4 @@
-package cmd
+package config
 
 import (
 	"testing"
@@ -9,31 +9,31 @@ import (
 func TestReconcileResolver(t *testing.T) {
 	tests := []struct {
 		name     string
-		resolver reconcileResolver
+		resolver Resolver
 		rec      sisyphus.Reconciliation
 		want     sisyphus.Action
 	}{
 		{
 			name:     "no db version imports even when interactive",
-			resolver: reconcileResolver{interactive: true},
+			resolver: Resolver{interactive: true},
 			rec:      sisyphus.Reconciliation{Name: "config", HasDB: false},
 			want:     sisyphus.ActionImport,
 		},
 		{
 			name:     "no db version imports non-interactive",
-			resolver: reconcileResolver{interactive: false},
+			resolver: Resolver{interactive: false},
 			rec:      sisyphus.Reconciliation{Name: "config", HasDB: false},
 			want:     sisyphus.ActionImport,
 		},
 		{
 			name:     "db conflict non-interactive prefers db",
-			resolver: reconcileResolver{interactive: false, preferDB: true},
+			resolver: Resolver{interactive: false, preferDB: true},
 			rec:      sisyphus.Reconciliation{Name: "config", HasDB: true},
 			want:     sisyphus.ActionUseDB,
 		},
 		{
 			name:     "db conflict non-interactive uses file by default",
-			resolver: reconcileResolver{interactive: false},
+			resolver: Resolver{interactive: false},
 			rec:      sisyphus.Reconciliation{Name: "config", HasDB: true},
 			want:     sisyphus.ActionUseFile,
 		},

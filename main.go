@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
+	"github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/munin/cmd"
@@ -23,7 +22,7 @@ func main() {
 	applyLogLevel()
 	applyLogColor()
 	defer cmd.Shutdown()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := daemon.Context(context.Background())
 	defer stop()
 	if err := cmd.Root().ExecuteContext(ctx); err != nil {
 		fmt.Fprint(os.Stderr, errs.Render(err))

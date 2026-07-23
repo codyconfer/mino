@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/munin/internal/active"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/gcal"
 )
@@ -30,4 +31,10 @@ func parseWindow(s string, def time.Duration) time.Duration {
 		return d
 	}
 	return def
+}
+
+func buildActiveCalendar(params map[string]string, state *active.State) (signals.ActiveSignal, error) {
+	calID := paramStr(params, "calendar_id", shared.cfg.Cal.CalendarID)
+	interval := paramDuration(params, "interval", 60*time.Second)
+	return gcal.NewActive(calID, googleAuth(), interval, state), nil
 }

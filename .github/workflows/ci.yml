@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      # munin's go.mod uses `replace` directives pointing at sibling repos
+      # (../sisyphus, ../viewkit), so CI lays them out next to munin for the
+      # relative paths to resolve. Private repos need a token with read access.
+      - uses: actions/checkout@v4
+        with:
+          path: munin
+      - uses: actions/checkout@v4
+        with:
+          repository: codyconfer/sisyphus
+          path: sisyphus
+      - uses: actions/checkout@v4
+        with:
+          repository: codyconfer/viewkit
+          path: viewkit
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: munin/go.mod
+          cache: true
+      - name: make ci
+        working-directory: munin
+        run: make ci

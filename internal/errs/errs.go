@@ -20,6 +20,8 @@ const (
 	KindSignal   Kind = "signal"
 	KindBackup   Kind = "backup"
 	KindInternal Kind = "internal"
+
+	KindOnboarding Kind = "onboarding"
 )
 
 type Error struct {

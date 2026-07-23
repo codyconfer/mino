@@ -7,8 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/sisyphus"
+
+	"github.com/codyconfer/munin/internal/errs"
 )
 
 func newRestoreCmd() *cobra.Command {

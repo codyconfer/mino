@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"time"
+
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/munin/internal/active"
 	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
@@ -30,8 +33,25 @@ func githubBackend() (gh.Backend, error) {
 		return gh.CLIBackend{}, nil
 	}
 	if tok, origin := auth.GitHubToken(shared.tokens); tok != "" {
+		base, err := gh.NormalizeAPIURL(shared.cfg.GitHub.APIURL)
+		if err != nil {
+			return nil, err
+		}
 		verbosef("github: gh CLI not found; using %s via the REST API", origin)
-		return gh.APIBackend{Token: tok, BaseURL: shared.cfg.GitHub.APIURL}, nil
+		return gh.APIBackend{Token: tok, BaseURL: base}, nil
 	}
 	return nil, errs.New(errs.KindAuth, "no GitHub authentication available").WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `munin login github`")
+}
+
+func buildActiveGithub(params map[string]string, state *active.State) (signals.ActiveSignal, error) {
+	tok, _ := auth.GitHubToken(shared.tokens)
+	if tok == "" {
+		return nil, errNoActiveSignal
+	}
+	base, err := gh.NormalizeAPIURL(shared.cfg.GitHub.APIURL)
+	if err != nil {
+		return nil, err
+	}
+	interval := paramDuration(params, "interval", 60*time.Second)
+	return gh.NewActive(tok, base, interval, state), nil
 }

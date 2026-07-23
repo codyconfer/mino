@@ -32,6 +32,14 @@ role: ""
 # examples/roles/*.yaml, examples/flights/*.yaml, examples/queries/*.yaml, and
 # examples/filters/*.yaml (each a DuckDB-backed store).
 
+# Long-running daemon defaults (`munin serve`). Command flags override these.
+daemon:
+  interval: 60s     # poll floor for polled (non-websocket) signals
+  bell: true        # ring the terminal bell on each notification
+  desktop: false    # send OS desktop notifications
+  tray: false       # show a system-tray icon reflecting state (foreground only)
+  theme: dark       # tray/notification icon theme: dark or light
+
 # Per-signal defaults. A saved query may override any of these via its `params`.
 github:
   queries:

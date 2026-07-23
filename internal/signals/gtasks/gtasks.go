@@ -135,6 +135,12 @@ func taskToItem(t *tasksapi.Task, listTitle string) signals.Item {
 		ts, _ = time.Parse(time.RFC3339, t.Updated)
 	}
 	meta := map[string]string{}
+	if t.Id != "" {
+		meta["id"] = t.Id
+	}
+	if t.Updated != "" {
+		meta["updated"] = t.Updated
+	}
 	if t.Status != "" {
 		meta["status"] = t.Status
 	}

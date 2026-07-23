@@ -3,12 +3,14 @@ package token
 import (
 	"encoding/base64"
 	"encoding/json"
+	"sync"
 
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/sisyphus/backup"
 	"github.com/codyconfer/sisyphus/kv"
 	"github.com/codyconfer/sisyphus/secret"
+
+	"github.com/codyconfer/munin/internal/auth"
+	"github.com/codyconfer/munin/internal/errs"
 )
 
 const (
@@ -40,6 +42,7 @@ func keyringKey() ([]byte, error) {
 type Store struct {
 	kv          *kv.Store
 	keyProvider func() ([]byte, error)
+	keyMu       sync.Mutex
 	key         []byte
 }
 
@@ -62,6 +65,8 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) encryptionKey() ([]byte, error) {
+	s.keyMu.Lock()
+	defer s.keyMu.Unlock()
 	if s.key != nil {
 		return s.key, nil
 	}

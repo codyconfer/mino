@@ -10,14 +10,16 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
+	"github.com/codyconfer/sisyphus"
+	sconfig "github.com/codyconfer/sisyphus/config"
+
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/tui"
+	"github.com/codyconfer/munin/internal/verify"
 	"github.com/codyconfer/munin/internal/views"
-	"github.com/codyconfer/sisyphus"
-	sconfig "github.com/codyconfer/sisyphus/config"
 )
 
 func newTuiCmd() *cobra.Command {
@@ -85,18 +87,18 @@ func runFlightAuditedBody(name string) string {
 }
 
 func verifyFindings(kind string) []views.Finding {
-	var raw []finding
+	var raw []verify.Finding
 	switch kind {
 	case "queries":
-		raw = verifyQueries()
+		raw = verify.Queries(shared.directives)
 	case "flights":
-		raw = verifyFlights()
+		raw = verify.Flights(shared.directives)
 	case "roles":
-		raw = verifyRoles()
+		raw = verify.Roles(shared.directives)
 	}
 	out := make([]views.Finding, 0, len(raw))
 	for _, f := range raw {
-		out = append(out, views.Finding{Name: f.name, Msg: f.msg, OK: f.ok, Warn: f.warn})
+		out = append(out, views.Finding{Name: f.Name, Msg: f.Msg, OK: f.OK, Warn: f.Warn})
 	}
 	return out
 }

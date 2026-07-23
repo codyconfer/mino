@@ -6,8 +6,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/errs"
 	sconfig "github.com/codyconfer/sisyphus/config"
+
+	"github.com/codyconfer/munin/internal/errs"
 )
 
 const (
@@ -31,6 +32,15 @@ type Config struct {
 	Drive   DriveConfig    `koanf:"drive"`
 	Tasks   TasksConfig    `koanf:"tasks"`
 	Slack   SlackConfig    `koanf:"slack"`
+	Daemon  DaemonConfig   `koanf:"daemon"`
+}
+
+type DaemonConfig struct {
+	Interval string `koanf:"interval"`
+	Bell     bool   `koanf:"bell"`
+	Desktop  bool   `koanf:"desktop"`
+	Tray     bool   `koanf:"tray"`
+	Theme    string `koanf:"theme"`
 }
 
 type DriveConfig struct {
@@ -139,6 +149,8 @@ type DocsConfig struct {
 
 type SlackConfig struct {
 	TokenEnv          string `koanf:"token_env"`
+	AppTokenEnv       string `koanf:"app_token_env"`
+	BotTokenEnv       string `koanf:"bot_token_env"`
 	OAuthClientID     string `koanf:"oauth_client_id"`
 	OAuthClientSecret string `koanf:"oauth_client_secret"`
 	UserScopes        string `koanf:"user_scopes"`
@@ -161,12 +173,14 @@ func Home(override string) (string, error) {
 }
 
 type GlobalSettings struct {
-	Home     string `yaml:"home"`
-	Theme    string `yaml:"theme"`
-	Keys     string `yaml:"keys"`
-	PreferDB bool   `yaml:"prefer_duckdb"`
-	LogLevel string `yaml:"log_level"`
-	LogColor string `yaml:"log_color"`
+	Home            string `yaml:"home"`
+	Theme           string `yaml:"theme"`
+	Keys            string `yaml:"keys"`
+	PreferDB        bool   `yaml:"prefer_duckdb"`
+	LogLevel        string `yaml:"log_level"`
+	LogColor        string `yaml:"log_color"`
+	Onboarded       bool   `yaml:"onboarded"`
+	OnboardedDomain string `yaml:"onboarded_domain"`
 }
 
 func GlobalSettingsPath() string {
@@ -200,10 +214,10 @@ func SaveGlobalSettings(gs GlobalSettings) error {
 	if err != nil {
 		return errs.Wrap(errs.KindInternal, err, "marshal global settings")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return errs.Wrap(errs.KindInternal, err, "create global settings dir")
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return errs.Wrap(errs.KindInternal, err, "write global settings")
 	}
 	return nil
@@ -223,7 +237,8 @@ func Defaults() *Config {
 		Docs:    DocsConfig{Recent: 10},
 		Drive:   DriveConfig{Recent: 20},
 		Tasks:   TasksConfig{Max: 100},
-		Slack:   SlackConfig{TokenEnv: "SLACK_TOKEN", Limit: 50},
+		Slack:   SlackConfig{TokenEnv: "SLACK_TOKEN", AppTokenEnv: "SLACK_APP_TOKEN", BotTokenEnv: "SLACK_BOT_TOKEN", Limit: 50},
+		Daemon:  DaemonConfig{Interval: "60s", Bell: true, Theme: "dark"},
 	}
 }
 

@@ -15,7 +15,7 @@ import (
 func FromEvent(ev signals.Event) (vnotify.Notification, bool) {
 	sec := ev.Section
 	if sec.Err != nil {
-		return vnotify.Negative(ev.Source+": error", sec.ErrString()), true
+		return vnotify.Negative(ev.Source+": error", signals.Clean(sec.ErrString())), true
 	}
 	if len(sec.Items) == 0 {
 		return vnotify.Notification{}, false
@@ -32,7 +32,7 @@ func FromEvent(ev signals.Event) (vnotify.Notification, bool) {
 	if n := len(sec.Items); n > 1 {
 		msg = fmt.Sprintf("%s (+%d more)", msg, n-1)
 	}
-	return vnotify.Note(tone(first), title, msg), true
+	return vnotify.Note(tone(first), signals.Clean(title), signals.Clean(msg)), true
 }
 
 func tone(it signals.Item) vnotify.Tone {

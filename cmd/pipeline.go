@@ -82,3 +82,7 @@ func fetchJobs(ctx context.Context, jobs []job, parentID int64) []signals.Sectio
 func verbosef(format string, args ...any) {
 	log.Debugf(format, args...)
 }
+
+func warnf(format string, args ...any) {
+	log.Warnf(format, args...)
+}

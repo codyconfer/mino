@@ -9,10 +9,11 @@ import (
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
+	"github.com/codyconfer/sisyphus"
+
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/tui"
-	"github.com/codyconfer/sisyphus"
 )
 
 type Finding struct {

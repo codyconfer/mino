@@ -13,11 +13,12 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	sconfig "github.com/codyconfer/sisyphus/config"
+
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/tui"
-	sconfig "github.com/codyconfer/sisyphus/config"
 )
 
 type directiveKind int

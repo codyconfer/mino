@@ -1,4 +1,4 @@
-package cmd
+package backup
 
 import (
 	"os"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestPruneLocalBackups(t *testing.T) {
+func TestPruneLocal(t *testing.T) {
 	dir := t.TempDir()
 	names := []string{
 		"munin-backup-20260101-000000.tar.enc",
@@ -22,11 +22,11 @@ func TestPruneLocalBackups(t *testing.T) {
 		}
 	}
 
-	if got := pruneLocalBackups(dir, 0); got != nil {
+	if got := PruneLocal(dir, 0); got != nil {
 		t.Errorf("keep=0 should prune nothing, got %v", got)
 	}
 
-	deleted := pruneLocalBackups(dir, 2)
+	deleted := PruneLocal(dir, 2)
 	sort.Strings(deleted)
 	if len(deleted) != 2 ||
 		deleted[0] != "munin-backup-20260101-000000.tar.enc" ||

@@ -1,8 +1,41 @@
-.PHONY: build run test vet staticcheck govulncheck lint check package clean
+.PHONY: build run test fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w
+
+# EMAIL_DOMAIN, when set, compiles a locked-down build that only completes
+# onboarding (and thus unlocks munin) if the git signing key has a GitHub-verified
+# identity in that domain, e.g. `make package EMAIL_DOMAIN=grafana.com`. Left empty,
+# munin builds with no domain restriction.
+EMAIL_DOMAIN ?=
+ifneq ($(EMAIL_DOMAIN),)
+LDFLAGS += -X 'github.com/codyconfer/munin/internal/onboard.RequiredEmailDomain=$(EMAIL_DOMAIN)'
+endif
+
+# Regenerate the embedded system-tray / notification state icons from the raven
+# SVGs in internal/icons/svg into internal/icons/data/<theme>/<state>.png.
+# Uses rsvg-convert if present (best), else ImageMagick. Override size with
+# ICON_SIZE=NN. SVG state names map to munin daemon states.
+ICON_SVG  := internal/icons/svg
+ICON_DATA := internal/icons/data
+ICON_SIZE ?= 128
+icons:
+	@render() { \
+	  if command -v rsvg-convert >/dev/null 2>&1; then \
+	    rsvg-convert -w $(ICON_SIZE) -h $(ICON_SIZE) "$$1" -o "$$2"; \
+	  elif command -v magick >/dev/null 2>&1; then \
+	    magick -background none "$$1" -resize $(ICON_SIZE)x$(ICON_SIZE) "$$2"; \
+	  else echo "need rsvg-convert (librsvg2-bin) or imagemagick"; exit 1; fi; }; \
+	for theme in dark light; do \
+	  out="$(ICON_DATA)/$$theme"; mkdir -p "$$out"; \
+	  render "$(ICON_SVG)/munin--$$theme--dimmed.svg"      "$$out/inactive.png"; \
+	  render "$(ICON_SVG)/munin--$$theme--standard.svg"    "$$out/running.png"; \
+	  render "$(ICON_SVG)/munin--$$theme--highlighted.svg" "$$out/notify.png"; \
+	  render "$(ICON_SVG)/munin--$$theme--warning.svg"     "$$out/warn.png"; \
+	  render "$(ICON_SVG)/munin--$$theme--error.svg"       "$$out/error.png"; \
+	done; \
+	echo "wrote $(ICON_DATA)/{dark,light}/{inactive,running,notify,warn,error}.png"
 
 # Supported target matrix. Fixed by the prebuilt duckdb-go-bindings shipped in
 # go.mod: adding a platform here without a matching bindings package won't link.
@@ -12,9 +45,28 @@ PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64
 build:
 	go build ./...
 
-# Run munin: opens the interactive TUI.
+# Run munin's TUI, streaming stderr to a SECOND terminal window so logs aren't
+# swallowed by the alt-screen. Honors $TERMINAL, else tries common emulators
+# (Linux) or Terminal.app (macOS); falls back to a temp file if none is found.
 run:
-	go run . tui
+	@err="$$(mktemp "$${TMPDIR:-/tmp}/munin-stderr.XXXXXX")"; \
+	tailcmd="tail -n +1 -f '$$err'"; \
+	launch() { \
+	  if [ -n "$$TERMINAL" ] && command -v "$$TERMINAL" >/dev/null 2>&1; then "$$TERMINAL" -e sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; fi; \
+	  if command -v gnome-terminal >/dev/null 2>&1; then gnome-terminal --title=munin-stderr -- sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; fi; \
+	  if command -v kitty >/dev/null 2>&1; then kitty --title munin-stderr sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; fi; \
+	  if command -v wezterm >/dev/null 2>&1; then wezterm start -- sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; fi; \
+	  for t in konsole x-terminal-emulator alacritty foot xterm; do \
+	    command -v $$t >/dev/null 2>&1 && { $$t -e sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; }; \
+	  done; \
+	  if command -v osascript >/dev/null 2>&1; then \
+	    osascript -e "tell application \"Terminal\" to do script \"$$tailcmd\"" >/dev/null 2>&1 & return 0; fi; \
+	  return 1; \
+	}; \
+	if launch; then echo "munin: stderr -> new terminal window ($$err)"; \
+	else echo "munin: no terminal emulator found; stderr -> $$err (run: tail -f $$err)"; fi; \
+	trap 'rm -f "$$err"' EXIT INT TERM; \
+	go run . tui 2>"$$err"
 
 # Cross-compile release binaries for every supported platform/arch into $(DIST).
 #
@@ -66,20 +118,28 @@ clean:
 test:
 	go test ./...
 
+# Format all Go source in place (gofmt + goimports via golangci-lint).
+fmt:
+	go tool golangci-lint fmt
+
+# Verify all Go source is formatted; fail (showing the diff) if not.
+fmt-check:
+	go tool golangci-lint fmt --diff
+
 # go vet: the standard toolchain analyzers.
 vet:
 	go vet ./...
 
-# staticcheck: open-source static analysis (honnef.co/go/tools).
-staticcheck:
-	go tool staticcheck ./...
+# golangci-lint: aggregate static analysis (govet, staticcheck, errcheck, ...).
+lint:
+	go tool golangci-lint run
 
 # govulncheck: report known vulnerabilities in dependencies and reachable code.
 govulncheck:
 	go tool govulncheck ./...
 
-# All static analysis: vet + staticcheck + govulncheck.
-lint: vet staticcheck govulncheck
+# Full gate: build, format check, lint, vulncheck, test.
+check: build fmt-check lint govulncheck test
 
-# Full gate: build, lint, test.
-check: build lint test
+# CI entrypoint: identical to the full gate.
+ci: check

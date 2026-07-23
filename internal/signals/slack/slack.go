@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	slackapi "github.com/slack-go/slack"
+
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
-	slackapi "github.com/slack-go/slack"
 )
 
 const defaultLimit = 50

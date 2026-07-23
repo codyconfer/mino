@@ -6,11 +6,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/sisyphus/configdb"
 	"github.com/codyconfer/sisyphus/redact"
+
+	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/errs"
 )
 
 func storeDB() (*configdb.Store, error) {
@@ -45,25 +46,26 @@ func validateDirectiveArg(name string) error {
 
 func newExportCmd() *cobra.Command {
 	var out string
-	var redactSecrets bool
+	var includeSecrets bool
 	c := &cobra.Command{
 		Use:   "export <directive>",
 		Short: "Write a directive's current version from the DuckDB store to files",
 		Long: "Materializes the current version of a directive held in the DuckDB store back\n" +
 			"onto disk. <directive> is one of: config, queries, filters, flights, roles, all.\n" +
 			"config is written as config.yaml/config.json; each collection is written as\n" +
-			"individual files under <out>/<directive>/. Defaults to the munin home directory.",
+			"individual files under <out>/<directive>/. Defaults to the munin home directory.\n" +
+			"Secret values in config are masked unless --include-secrets is set.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runExport(cmd, args[0], out, redactSecrets)
+			return runExport(cmd, args[0], out, includeSecrets)
 		},
 	}
 	c.Flags().StringVar(&out, "out", "", "output directory (default: munin home)")
-	c.Flags().BoolVar(&redactSecrets, "redact", false, "mask secret values in exported config (not re-importable)")
+	c.Flags().BoolVar(&includeSecrets, "include-secrets", false, "write secret values in cleartext (default: masked; cleartext is not safe to share)")
 	return c
 }
 
-func runExport(cmd *cobra.Command, directive, out string, redactSecrets bool) error {
+func runExport(cmd *cobra.Command, directive, out string, includeSecrets bool) error {
 	if err := validateDirectiveArg(directive); err != nil {
 		return err
 	}
@@ -77,7 +79,7 @@ func runExport(cmd *cobra.Command, directive, out string, redactSecrets bool) er
 
 	switch directive {
 	case "all":
-		if err := exportConfig(cmd, db, out, false, redactSecrets); err != nil {
+		if err := exportConfig(cmd, db, out, false, includeSecrets); err != nil {
 			return err
 		}
 		for _, name := range collectionDirectives() {
@@ -86,14 +88,14 @@ func runExport(cmd *cobra.Command, directive, out string, redactSecrets bool) er
 			}
 		}
 	case storeConfig:
-		return exportConfig(cmd, db, out, true, redactSecrets)
+		return exportConfig(cmd, db, out, true, includeSecrets)
 	default:
 		return exportCollection(cmd, db, out, directive, true)
 	}
 	return nil
 }
 
-func exportConfig(cmd *cobra.Command, db *configdb.Store, out string, single, redactSecrets bool) error {
+func exportConfig(cmd *cobra.Command, db *configdb.Store, out string, single, includeSecrets bool) error {
 	v, ok, err := db.Current(storeConfig)
 	if err != nil {
 		return errs.Wrap(errs.KindStore, err, "reading config from store")
@@ -107,10 +109,10 @@ func exportConfig(cmd *cobra.Command, db *configdb.Store, out string, single, re
 		return nil
 	}
 	content := v.Content
-	if redactSecrets {
-		content = redact.Config([]byte(v.Content), v.Format)
-	} else {
+	if includeSecrets {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning: exported config contains secret values in cleartext")
+	} else {
+		content = redact.Config([]byte(v.Content), v.Format)
 	}
 	path, err := sconfig.WriteConfigFile(out, []byte(content), v.Format)
 	if err != nil {
