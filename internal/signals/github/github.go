@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"time"
 
@@ -11,6 +12,43 @@ import (
 )
 
 const defaultPerPage = 30
+
+const githubAuthHintPrefix = "your GitHub token may be missing or lack "
+const githubAuthHintSuffix = "; run `munin login github` or set $GITHUB_TOKEN"
+
+func githubAuthHint(scope string) string {
+	return githubAuthHintPrefix + scope + githubAuthHintSuffix
+}
+
+func githubBaseURL(raw string) string {
+	base := strings.TrimRight(raw, "/")
+	if base == "" {
+		base = "https://api.github.com"
+	}
+	return base
+}
+
+func newGitHubRequest(ctx context.Context, base, path, token string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubBaseURL(base)+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	return req, nil
+}
+
+func checkGitHubStatus(resp *http.Response, body []byte, missingScope string) error {
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, strings.TrimSpace(string(body))).
+			WithHint("%s", githubAuthHint(missingScope))
+	}
+	if resp.StatusCode >= 400 {
+		return errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	return nil
+}
 
 type query struct {
 	q     string

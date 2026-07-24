@@ -38,6 +38,7 @@ queries: [standup, my-prs]
 `)
 	write(t, filepath.Join(home, DirRoles, "triage.yaml"), `
 name: triage
+home: morning
 flights: [morning]
 queries: [standup]
 filters: [no-bots]
@@ -143,7 +144,7 @@ func TestSerializeDirRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rd, ok := roles["triage"]; !ok || len(rd.Flights) != 1 || rd.Flights[0] != "morning" {
+	if rd, ok := roles["triage"]; !ok || len(rd.Flights) != 1 || rd.Flights[0] != "morning" || rd.Home != "morning" {
 		t.Errorf("ParseRoles round-trip wrong: %#v", roles)
 	}
 

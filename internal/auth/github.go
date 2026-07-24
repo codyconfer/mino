@@ -37,6 +37,18 @@ func CacheGitHubToken(store TokenStore, token, scope string) error {
 	return store.Put("github", Credential{AccessToken: token, Scope: scope})
 }
 
+func GitHubAuthStatus(ctx context.Context, store TokenStore) (ok bool, detail string) {
+	if GHAvailable() {
+		if _, err := GH(ctx, "auth", "status"); err == nil {
+			return true, "gh CLI is logged in"
+		}
+	}
+	if tok, origin := GitHubToken(store); tok != "" {
+		return true, "using " + origin
+	}
+	return false, ""
+}
+
 var (
 	githubDeviceCodeURL  = "https://github.com/login/device/code"
 	githubAccessTokenURL = "https://github.com/login/oauth/access_token"

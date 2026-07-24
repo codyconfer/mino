@@ -7,15 +7,15 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.7
-	github.com/codyconfer/sisyphus v0.0.2
-	github.com/codyconfer/viewkit v0.0.2
+	github.com/charmbracelet/x/term v0.2.2
+	github.com/codyconfer/sisyphus v0.0.3
+	github.com/codyconfer/viewkit v0.0.4
 	github.com/marcboeker/go-duckdb/v2 v2.4.3
 	github.com/muesli/termenv v0.16.0
 	github.com/slack-go/slack v0.27.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.22.0
-	golang.org/x/term v0.45.0
 	google.golang.org/api v0.290.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -74,7 +74,6 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20251205161215-1948445e3318 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
-	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
 	github.com/ckaznocha/intrange v0.3.1 // indirect

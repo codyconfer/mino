@@ -2,24 +2,22 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
-	"github.com/codyconfer/viewkit/theme"
-
-	"github.com/codyconfer/sisyphus"
-	sconfig "github.com/codyconfer/sisyphus/config"
-
-	"github.com/codyconfer/munin/internal/audit"
+	"github.com/codyconfer/munin/internal/app/onboard"
+	"github.com/codyconfer/munin/internal/app/verify"
+	"github.com/codyconfer/munin/internal/app/views"
+	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/tui"
-	"github.com/codyconfer/munin/internal/verify"
-	"github.com/codyconfer/munin/internal/views"
+	"github.com/codyconfer/munin/internal/signals"
+	gh "github.com/codyconfer/munin/internal/signals/github"
 )
 
 func newTuiCmd() *cobra.Command {
@@ -29,114 +27,168 @@ func newTuiCmd() *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeFlightNames,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !term.IsTerminal(int(os.Stdout.Fd())) {
+			if !term.IsTerminal(os.Stdout.Fd()) {
 				return errs.New(errs.KindUsage, "tui requires an interactive terminal")
 			}
 			kit := buildViews()
 			if len(args) == 1 {
 				name := args[0]
-				if _, ok := shared.directives.Flights[name]; !ok {
+				if _, ok := shared.Directives.Flights[name]; !ok {
 					return errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix())
 				}
-				return tui.Run(kit.FlightResults(name))
+				return deck.Run(kit.FlightResults(name), deck.WithStatus(statusProvider()))
 			}
-			return tui.Run(kit.MainMenu())
+			return deck.Run(kit.Home(), deck.WithStatus(statusProvider()))
 		},
 	}
 }
 
 func buildViews() *views.Kit {
 	return views.New(views.Deps{
-		Home:           func() string { return shared.cfg.Home },
-		Role:           func() string { return access().Role },
-		Directives:     func() *config.Directives { return shared.directives },
-		Config:         func() *config.Config { return shared.cfg },
-		Mgr:            func() *sisyphus.Manager { return shared.mgr },
-		Audit:          func() *audit.Store { return shared.audit },
-		VisibleFlights: visibleFlightNames,
-		RunQuery:       runQueryBody,
-		RunFlight:      runFlightBody,
-		RunFlightAudited: func(name string) string {
-			return runFlightAuditedBody(name)
-		},
-		Verify:           verifyFindings,
-		ExportDirectives: exportDirectivesToFiles,
+		App:                shared,
+		FetchQuery:         fetchQuerySections,
+		FetchFlight:        fetchFlightSections,
+		FetchFlightAudited: fetchFlightAuditedSections,
+		FetchHomeFlight:    fetchHomeFlightSections,
+		Verify:             verifyFindings,
+		ExportDirectives:   exportDirectivesToFiles,
 	})
 }
 
-func runQueryBody(name string) string {
-	j, err := buildQueryJob(name)
+func fetchQuerySections(name string) []signals.Section {
+	q, err := buildQuery(name)
 	if err != nil {
-		return theme.Cur().Cant.Render("error: " + err.Error())
+		return []signals.Section{{Signal: name, Title: name, Err: err}}
 	}
-	return render.RenderTerminalString(fetchJobs(context.Background(), []job{j}, 0))
+	return fetchQueries(context.Background(), []query{q}, 0)
 }
 
-func runFlightBody(name string) string {
-	fl := shared.directives.Flights[name]
-	return render.RenderTerminalString(fetchJobs(context.Background(), flightJobs(name, fl.Queries), 0))
+func fetchFlightSections(name string) []signals.Section {
+	fl := shared.Directives.Flights[name]
+	return fetchQueries(context.Background(), flightQueries(name, fl.Queries), 0)
 }
 
-func runFlightAuditedBody(name string) string {
-	fl := shared.directives.Flights[name]
-	jobs := flightJobs(name, fl.Queries)
-	fid := shared.audit.StartFlight(name, shared.cfg.Role)
-	sections := fetchJobs(context.Background(), jobs, fid)
-	shared.audit.FinishFlight(fid)
-	return render.RenderTerminalString(sections)
+func fetchFlightAuditedSections(name string) []signals.Section {
+	fl := shared.Directives.Flights[name]
+	queries := flightQueries(name, fl.Queries)
+	fid := shared.Audit.StartFlight(name, shared.Cfg.Role)
+	sections := fetchQueries(context.Background(), queries, fid)
+	shared.Audit.FinishFlight(fid)
+	return sections
 }
 
-func verifyFindings(kind string) []views.Finding {
-	var raw []verify.Finding
+func fetchHomeFlightSections(name string) []signals.Section {
+	fl := shared.Directives.Flights[name]
+	queries := flightQueries(name, fl.Queries)
+	fid := shared.Audit.StartFlight(name, shared.Cfg.Role)
+	sections := fetchQueries(context.Background(), queries, fid)
+	shared.Audit.FinishFlight(fid)
+	return sections
+}
+
+func verifyFindings(kind string) []verify.Finding {
 	switch kind {
 	case "queries":
-		raw = verify.Queries(shared.directives)
+		return verify.Queries(shared.Directives)
 	case "flights":
-		raw = verify.Flights(shared.directives)
+		return verify.Flights(shared.Directives)
 	case "roles":
-		raw = verify.Roles(shared.directives)
+		return verify.Roles(shared.Directives)
 	}
-	out := make([]views.Finding, 0, len(raw))
-	for _, f := range raw {
-		out = append(out, views.Finding{Name: f.Name, Msg: f.Msg, OK: f.OK, Warn: f.Warn})
-	}
-	return out
+	return nil
 }
 
 func exportDirectivesToFiles() ([]string, error) {
-	if shared.mgr == nil {
+	if shared.Mgr == nil {
 		return nil, errs.New(errs.KindInternal, "config DB unavailable")
 	}
-	home := shared.cfg.Home
-	db := shared.mgr.DB()
-	var written []string
+	return config.ExportAllToFiles(shared.Mgr.DB(), shared.Cfg.Home)
+}
 
-	if cur, ok, err := db.Current("config"); err != nil {
-		return nil, err
-	} else if ok {
-		path, err := sconfig.WriteConfigFile(home, []byte(cur.Content), cur.Format)
-		if err != nil {
-			return nil, err
-		}
-		written = append(written, path)
-	}
+func statusProvider() deck.StatusFunc {
+	return func(ctx context.Context) deck.StatusInfo {
+		apiURL, _ := gh.NormalizeAPIURL(shared.Cfg.GitHub.APIURL)
+		var info deck.StatusInfo
 
-	for _, name := range []string{config.DirQueries, config.DirFilters, config.DirFlights, config.DirRoles} {
-		cur, ok, err := db.Current(name)
-		if err != nil {
-			return nil, err
+		user, rate, ghOK := githubStatus(ctx, apiURL)
+		info.GitHubUser = user
+		info.Services = append(info.Services, rate)
+
+		if ghOK {
+			st := onboard.Check(ctx, shared.Tokens, apiURL)
+			info.SigningVerified = signingVerified(st)
 		}
-		if !ok {
-			continue
+
+		slackLevel := deck.StatusMuted
+		if _, err := auth.SlackToken(shared.Tokens, ""); err == nil {
+			slackLevel = deck.StatusOK
 		}
-		dir := filepath.Join(home, name)
-		names, err := sconfig.WriteCollection(dir, []byte(cur.Content))
-		if err != nil {
-			return nil, err
+		info.Services = append(info.Services, deck.ServiceStatus{Name: "slack", Level: slackLevel})
+
+		googleLevel := deck.StatusMuted
+		if auth.GoogleAuthed(shared.Tokens) {
+			googleLevel = deck.StatusOK
 		}
-		for _, fn := range names {
-			written = append(written, filepath.Join(dir, fn))
+		for _, name := range []string{"calendar", "gmail", "docs", "drive", "tasks"} {
+			info.Services = append(info.Services, deck.ServiceStatus{Name: name, Level: googleLevel})
+		}
+		return info
+	}
+}
+
+func githubStatus(ctx context.Context, apiURL string) (user string, svc deck.ServiceStatus, ok bool) {
+	svc = deck.ServiceStatus{Name: "github"}
+	raw, err := auth.GHAPIGet(ctx, shared.Tokens, apiURL, "user")
+	if err != nil {
+		svc.Level = deck.StatusBad
+		return "", svc, false
+	}
+	var u struct {
+		Login string `json:"login"`
+	}
+	_ = json.Unmarshal(raw, &u)
+
+	limit, remaining, rateOK := githubRate(ctx, apiURL)
+	if !rateOK {
+		svc.Level = deck.StatusOK
+		return u.Login, svc, true
+	}
+	svc.Detail = fmt.Sprintf("%d/%d", remaining, limit)
+	switch {
+	case remaining == 0:
+		svc.Level = deck.StatusBad
+	case remaining*5 < limit:
+		svc.Level = deck.StatusWarn
+	default:
+		svc.Level = deck.StatusOK
+	}
+	return u.Login, svc, true
+}
+
+func githubRate(ctx context.Context, apiURL string) (limit, remaining int, ok bool) {
+	raw, err := auth.GHAPIGet(ctx, shared.Tokens, apiURL, "rate_limit")
+	if err != nil {
+		return 0, 0, false
+	}
+	var r struct {
+		Resources struct {
+			Core struct {
+				Limit     int `json:"limit"`
+				Remaining int `json:"remaining"`
+			} `json:"core"`
+		} `json:"resources"`
+	}
+	if err := json.Unmarshal(raw, &r); err != nil || r.Resources.Core.Limit == 0 {
+		return 0, 0, false
+	}
+	return r.Resources.Core.Limit, r.Resources.Core.Remaining, true
+}
+
+func signingVerified(st onboard.Status) bool {
+	for _, r := range st.Results {
+		if r.Step == onboard.StepGPGGitHub || r.Step == onboard.StepSSHGitHub {
+			return r.OK
 		}
 	}
-	return written, nil
+	return false
 }

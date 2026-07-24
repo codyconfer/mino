@@ -27,46 +27,35 @@ type SlackAuth struct {
 	UserScopes   string
 }
 
-func SlackToken(store TokenStore, envName string) (string, error) {
+func slackTokenFor(store TokenStore, envName, defaultEnv, credKey, notAvailMsg, hint string) (string, error) {
 	if envName == "" {
-		envName = "SLACK_TOKEN"
+		envName = defaultEnv
 	}
 	if tok := os.Getenv(envName); tok != "" {
 		return tok, nil
 	}
-	if c, ok := getCred(store, "slack"); ok {
+	if c, ok := getCred(store, credKey); ok {
 		return c.AccessToken, nil
 	}
-	return "", errs.New(errs.KindAuth, "no Slack token available").
-		WithHint("export a user token ($%s=xoxp-…) or run `munin login slack`", envName)
+	return "", errs.New(errs.KindAuth, notAvailMsg).WithHint(hint, envName)
+}
+
+func SlackToken(store TokenStore, envName string) (string, error) {
+	return slackTokenFor(store, envName, "SLACK_TOKEN", "slack",
+		"no Slack token available",
+		"export a user token ($%s=xoxp-…) or run `munin login slack`")
 }
 
 func SlackAppToken(store TokenStore, envName string) (string, error) {
-	if envName == "" {
-		envName = "SLACK_APP_TOKEN"
-	}
-	if tok := os.Getenv(envName); tok != "" {
-		return tok, nil
-	}
-	if c, ok := getCred(store, "slack-app"); ok {
-		return c.AccessToken, nil
-	}
-	return "", errs.New(errs.KindAuth, "no Slack app-level token available").
-		WithHint("export an app-level token ($%s=xapp-…) with connections:write to enable Socket Mode", envName)
+	return slackTokenFor(store, envName, "SLACK_APP_TOKEN", "slack-app",
+		"no Slack app-level token available",
+		"export an app-level token ($%s=xapp-…) with connections:write to enable Socket Mode")
 }
 
 func SlackBotToken(store TokenStore, envName string) (string, error) {
-	if envName == "" {
-		envName = "SLACK_BOT_TOKEN"
-	}
-	if tok := os.Getenv(envName); tok != "" {
-		return tok, nil
-	}
-	if c, ok := getCred(store, "slack-bot"); ok {
-		return c.AccessToken, nil
-	}
-	return "", errs.New(errs.KindAuth, "no Slack bot token available").
-		WithHint("export a bot token ($%s=xoxb-…) to enable Socket Mode", envName)
+	return slackTokenFor(store, envName, "SLACK_BOT_TOKEN", "slack-bot",
+		"no Slack bot token available",
+		"export a bot token ($%s=xoxb-…) to enable Socket Mode")
 }
 
 func SlackLogin(ctx context.Context, sa SlackAuth, w io.Writer) error {

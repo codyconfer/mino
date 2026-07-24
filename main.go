@@ -14,10 +14,12 @@ import (
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/render"
+	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
 func main() {
 	applyTheme()
+	glyph.Resolve()
 	keymap.Install()
 	applyLogLevel()
 	applyLogColor()

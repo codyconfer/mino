@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codyconfer/munin/internal/active"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/signals/active"
 )
 
 type activeSignal struct {
@@ -38,17 +38,10 @@ func (h *activeSignal) Stream(ctx context.Context) (<-chan signals.Event, error)
 	lastModified := cursor.Load()
 	seen := h.state.Seen("github:notifications")
 	step := func(ctx context.Context) ([]signals.Item, time.Duration, error) {
-		base := strings.TrimRight(h.baseURL, "/")
-		if base == "" {
-			base = "https://api.github.com"
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/notifications?all=false", nil)
+		req, err := newGitHubRequest(ctx, h.baseURL, "/notifications?all=false", h.token)
 		if err != nil {
 			return nil, 0, errs.Wrap(errs.KindSignal, err, "github: building notifications request")
 		}
-		req.Header.Set("Authorization", "Bearer "+h.token)
-		req.Header.Set("Accept", "application/vnd.github+json")
-		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 		if lastModified != "" {
 			req.Header.Set("If-Modified-Since", lastModified)
 		}
@@ -66,12 +59,8 @@ func (h *activeSignal) Stream(ctx context.Context) (<-chan signals.Event, error)
 			return nil, next, nil
 		}
 		body, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-			return nil, next, errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, strings.TrimSpace(string(body))).
-				WithHint("your GitHub token may be missing or lack the notifications scope; run `munin login github` or set $GITHUB_TOKEN")
-		}
-		if resp.StatusCode >= 400 {
-			return nil, next, errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		if err := checkGitHubStatus(resp, body, "the notifications scope"); err != nil {
+			return nil, next, err
 		}
 		if lm := resp.Header.Get("Last-Modified"); lm != "" && lm != lastModified {
 			lastModified = lm

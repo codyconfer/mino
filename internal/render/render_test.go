@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codyconfer/munin/internal/render/glyph"
 	"github.com/codyconfer/munin/internal/signals"
 )
 
@@ -65,7 +66,7 @@ func TestTerminalRendererPlain(t *testing.T) {
 		"org/repo",
 		"https://github.com/org/repo/pull/1",
 		"nothing to show",
-		"⚠ token expired",
+		glyph.Warn() + " token expired",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("terminal output missing %q\n---\n%s", want, out)

@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/verify"
+	"github.com/codyconfer/munin/internal/app/verify"
 )
 
 func newVerifyCmd() *cobra.Command {
@@ -19,7 +19,7 @@ func newVerifyCmd() *cobra.Command {
 			if len(args) == 1 {
 				target = args[0]
 			}
-			return verify.Run(cmd.Context(), cmd.OutOrStdout(), shared.cfg, shared.directives, shared.tokens, target)
+			return verify.Run(cmd.Context(), cmd.OutOrStdout(), shared.Cfg, shared.Directives, shared.Tokens, target)
 		},
 	}
 }

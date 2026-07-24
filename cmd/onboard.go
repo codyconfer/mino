@@ -6,14 +6,15 @@ import (
 	"os"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
+	"github.com/codyconfer/munin/internal/app/onboard"
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/onboard"
+	"github.com/codyconfer/munin/internal/render/glyph"
 	gh "github.com/codyconfer/munin/internal/signals/github"
-	"github.com/codyconfer/munin/internal/ui"
 )
 
 const annoSkipOnboarding = "munin_skip_onboarding"
@@ -45,11 +46,19 @@ func enforceOnboarding(cmd *cobra.Command) error {
 	return errs.New(errs.KindOnboarding, "munin is not onboarded yet").WithHint("%s", onboardHint())
 }
 
+func requireOnboarding(cmd *cobra.Command) error {
+	err := enforceOnboarding(cmd)
+	if err != nil && errs.KindOf(err) == errs.KindOnboarding && term.IsTerminal(os.Stdout.Fd()) {
+		return runOnboard(cmd, false)
+	}
+	return err
+}
+
 func onboardHint() string {
 	if onboard.RequiredEmailDomain != "" {
-		return "run `munin onboard` to finish setup (GitHub auth + a GitHub-verified GPG signing key with a verified @" + onboard.RequiredEmailDomain + " identity)"
+		return "run `munin onboard` to finish setup (GitHub auth + a GitHub-verified GPG or SSH signing key with a verified @" + onboard.RequiredEmailDomain + " identity)"
 	}
-	return "run `munin onboard` to finish setup (GitHub auth + a GitHub-verified GPG signing key)"
+	return "run `munin onboard` to finish setup (GitHub auth + a GitHub-verified GPG or SSH signing key)"
 }
 
 func newOnboardCmd() *cobra.Command {
@@ -88,14 +97,14 @@ func resetOnboarding(cmd *cobra.Command) error {
 func runOnboard(cmd *cobra.Command, statusOnly bool) error {
 	w := cmd.OutOrStdout()
 	sty := newOnboardStyles(w)
-	apiURL, err := gh.NormalizeAPIURL(shared.cfg.GitHub.APIURL)
+	apiURL, err := gh.NormalizeAPIURL(shared.Cfg.GitHub.APIURL)
 	if err != nil {
 		return err
 	}
 
-	interactive := !statusOnly && term.IsTerminal(int(os.Stdout.Fd()))
+	interactive := !statusOnly && term.IsTerminal(os.Stdout.Fd())
 	for {
-		st := onboard.Check(cmd.Context(), shared.tokens, apiURL)
+		st := onboard.Check(cmd.Context(), shared.Tokens, apiURL)
 		printOnboardStatus(w, sty, st)
 
 		if st.Ready() {
@@ -118,7 +127,7 @@ func runOnboard(cmd *cobra.Command, statusOnly bool) error {
 				WithHint("resolve the steps above, then run `munin onboard` again")
 		}
 
-		again, err := ui.Confirm("Onboarding incomplete",
+		again, err := deck.Confirm("Onboarding incomplete",
 			"Run the commands above in another shell, then re-check. Re-check now?",
 			"Re-check", "Quit")
 		if err != nil {
@@ -150,16 +159,16 @@ func newOnboardStyles(w io.Writer) onboardStyles {
 func printOnboardStatus(w io.Writer, s onboardStyles, st onboard.Status) {
 	fmt.Fprintln(w, s.title.Render("Onboarding"))
 	for _, r := range st.Results {
-		mark := s.ok.Render("✓")
+		mark := s.ok.Render(glyph.Check())
 		if !r.OK {
-			mark = s.bad.Render("✗")
+			mark = s.bad.Render(glyph.Cross())
 		}
 		fmt.Fprintf(w, "  %s %s\n", mark, s.name.Render(r.Title))
 		if r.Detail != "" {
 			fmt.Fprintf(w, "      %s\n", s.dim.Render(r.Detail))
 		}
 		for _, f := range r.Fix {
-			fmt.Fprintf(w, "      %s %s\n", s.fix.Render("→"), f)
+			fmt.Fprintf(w, "      %s %s\n", s.fix.Render(glyph.Arrow()), f)
 		}
 	}
 	fmt.Fprintln(w)

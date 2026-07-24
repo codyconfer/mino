@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
 type Kind string
@@ -83,7 +84,7 @@ func Render(err error) string {
 		return ""
 	}
 	r := log.Renderer()
-	mark := r.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render("✗")
+	mark := r.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render(glyph.Cross())
 	kindSty := r.NewStyle().Faint(true)
 	hintSty := r.NewStyle().Foreground(lipgloss.Color("12"))
 

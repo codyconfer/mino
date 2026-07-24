@@ -5,17 +5,19 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/tui"
+	"github.com/codyconfer/munin/internal/deck"
 )
 
 func TestBuildViewsHistoryLoads(t *testing.T) {
-	shared.cfg = &config.Config{Home: t.TempDir()}
-	shared.directives = &config.Directives{}
-	shared.audit = nil
+	shared = &app.App{
+		Cfg:        &config.Config{Home: t.TempDir()},
+		Directives: &config.Directives{},
+	}
 
 	kit := buildViews()
-	app := tui.New(kit.MainMenu())
+	app := deck.New(kit.MainMenu())
 
 	app, _ = update(app, tea.KeyMsg{Type: tea.KeyDown})
 	_, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
@@ -30,9 +32,9 @@ func TestBuildViewsHistoryLoads(t *testing.T) {
 	}
 }
 
-func update(a *tui.App, msg tea.Msg) (*tui.App, tea.Cmd) {
+func update(a *deck.State, msg tea.Msg) (*deck.State, tea.Cmd) {
 	m, cmd := a.Update(msg)
-	return m.(*tui.App), cmd
+	return m.(*deck.State), cmd
 }
 
 func collectCmds(msg tea.Msg) []tea.Cmd {

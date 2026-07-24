@@ -6,28 +6,31 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/codyconfer/viewkit/theme"
+
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
-func buildQueryJob(name string) (job, error) {
-	q, ok := shared.directives.Queries[name]
+func buildQuery(name string) (query, error) {
+	q, ok := shared.Directives.Queries[name]
 	if !ok {
-		return job{}, errs.Newf(errs.KindUsage, "no saved query named %q", name).WithHint("run `munin query list` to see saved queries")
+		return query{}, errs.Newf(errs.KindUsage, "no saved query named %q", name).WithHint("run `munin query list` to see saved queries")
 	}
 	src, err := buildSignal(q.Signal, q.Params)
 	if err != nil {
-		return job{}, errs.Wrapf(errs.KindSignal, err, "query %q", name)
+		return query{}, errs.Wrapf(errs.KindSignal, err, "query %q", name)
 	}
-	resolved, err := shared.directives.Resolve(q)
+	resolved, err := shared.Directives.Resolve(q)
 	if err != nil {
-		return job{}, err
+		return query{}, err
 	}
 	compiled, err := filter.CompileAll(resolved)
 	if err != nil {
-		return job{}, err
+		return query{}, err
 	}
-	return job{label: name, src: src, filters: compiled}, nil
+	return query{Label: name, Src: src, Filters: compiled}, nil
 }
 
 func newQueryCmd() *cobra.Command {
@@ -46,14 +49,14 @@ func newQueryCmd() *cobra.Command {
 				return listQueries(cmd)
 			}
 			name := args[0]
-			if _, ok := shared.directives.Queries[name]; ok && !access().QueryVisible(name) {
+			if _, ok := shared.Directives.Queries[name]; ok && !access().QueryVisible(name) {
 				return notInRoleError("query", name)
 			}
-			j, err := buildQueryJob(name)
+			j, err := buildQuery(name)
 			if err != nil {
 				return err
 			}
-			return emit(fetchJobs(cmd.Context(), []job{j}, 0))
+			return runQueries(cmd.Context(), cmd.OutOrStdout(), []query{j}, 0)
 		},
 	}
 	c.AddCommand(newQueryListCmd(), newQueryShowCmd())
@@ -78,7 +81,7 @@ func newQueryShowCmd() *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeQueryNames,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			q, ok := shared.directives.Queries[args[0]]
+			q, ok := shared.Directives.Queries[args[0]]
 			if !ok {
 				return errs.Newf(errs.KindUsage, "no saved query named %q", args[0]).WithHint("run `munin query list` to see saved queries")
 			}
@@ -98,9 +101,10 @@ func listQueries(cmd *cobra.Command) error {
 		fmt.Fprintln(cmd.OutOrStdout(), "no saved queries visible (check --role, or add YAML files under ~/.munin/queries)")
 		return nil
 	}
+	marker := theme.Cur().Accent.Render(glyph.Bullet())
 	for _, n := range names {
-		q := shared.directives.Queries[n]
-		fmt.Fprintf(cmd.OutOrStdout(), "%-24s signal=%s\n", n, q.Signal)
+		q := shared.Directives.Queries[n]
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %-24s signal=%s\n", marker, n, q.Signal)
 	}
 	return nil
 }

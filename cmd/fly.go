@@ -1,18 +1,18 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
+
+	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/ui"
+	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
 const defaultFlight = "default"
@@ -34,7 +34,7 @@ func newFlyCmd() *cobra.Command {
 				name = args[0]
 			}
 
-			flight, ok := shared.directives.Flights[name]
+			flight, ok := shared.Directives.Flights[name]
 			if !ok {
 				if len(args) == 0 {
 					return listFlights(cmd)
@@ -49,51 +49,40 @@ func newFlyCmd() *cobra.Command {
 				return nil
 			}
 
-			jobs := flightJobs(name, flight.Queries)
+			queries := flightQueries(name, flight.Queries)
 
-			flightID := shared.audit.StartFlight(name, shared.cfg.Role)
-			defer shared.audit.FinishFlight(flightID)
+			flightID := shared.Audit.StartFlight(name, shared.Cfg.Role)
+			defer shared.Audit.FinishFlight(flightID)
 
-			if interactiveTTY() {
-				tasks := make([]ui.Task, len(jobs))
-				for i, j := range jobs {
-					j := j
-					tasks[i] = ui.Task{
-						Label: j.label,
-						Run:   func(ctx context.Context) []signals.Section { return fetchOne(ctx, j, flightID) },
-					}
-				}
-				return ui.RunFlight(cmd.Context(), tasks)
-			}
-			return emit(fetchJobs(cmd.Context(), jobs, flightID))
+			return runQueries(cmd.Context(), cmd.OutOrStdout(), queries, flightID)
 		},
 	}
 }
 
-func flightJobs(flight string, queries []string) []job {
-	jobs := make([]job, 0, len(queries))
-	for _, q := range queries {
-		j, err := buildQueryJob(q)
+func flightQueries(flight string, names []string) []query {
+	out := make([]query, 0, len(names))
+	for _, name := range names {
+		q, err := buildQuery(name)
 		if err != nil {
 			verbosef("flight %q: %v", flight, err)
-			jobs = append(jobs, job{label: q, src: errSignal{name: q, err: err}})
+			out = append(out, query{Label: name, Src: errSignal{name: name, err: err}})
 			continue
 		}
-		jobs = append(jobs, j)
+		out = append(out, q)
 	}
-	return jobs
+	return out
 }
 
 func defaultFlightName() string {
-	if rd, ok := shared.directives.Roles[shared.cfg.Role]; ok && len(rd.Flights) > 0 {
+	if rd, ok := shared.Directives.Roles[shared.Cfg.Role]; ok && len(rd.Flights) > 0 {
 		return rd.Flights[0]
 	}
 	return defaultFlight
 }
 
 func interactiveTTY() bool {
-	return render.Format(shared.cfg.Output) == render.FormatTerminal &&
-		term.IsTerminal(int(os.Stdout.Fd()))
+	return render.Format(shared.Cfg.Output) == render.FormatTerminal &&
+		term.IsTerminal(os.Stdout.Fd())
 }
 
 func listFlights(cmd *cobra.Command) error {
@@ -104,8 +93,9 @@ func listFlights(cmd *cobra.Command) error {
 		return nil
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), "available flights:")
+	marker := theme.Cur().Accent.Render(glyph.Flight())
 	for _, n := range names {
-		fmt.Fprintf(cmd.OutOrStdout(), "  %-16s %s\n", n, strings.Join(shared.directives.Flights[n].Queries, ", "))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %-16s %s\n", marker, n, strings.Join(shared.Directives.Flights[n].Queries, ", "))
 	}
 	return nil
 }

@@ -3,7 +3,6 @@ package auth
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"os/exec"
@@ -12,13 +11,19 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-func GH(ctx context.Context, args ...string) ([]byte, error) {
-	if _, err := exec.LookPath("gh"); err != nil {
-		return nil, errs.New(errs.KindAuth, "the GitHub CLI `gh` is not installed or not on PATH").
-			WithHint("install gh and run `gh auth login`, or run `munin login github`")
+func runTool(ctx context.Context, bins []string, name string, kind errs.Kind, notInstalledMsg, notInstalledHint, runHint string, args ...string) ([]byte, error) {
+	bin := ""
+	for _, b := range bins {
+		if _, err := exec.LookPath(b); err == nil {
+			bin = b
+			break
+		}
+	}
+	if bin == "" {
+		return nil, errs.New(kind, notInstalledMsg).WithHint("%s", notInstalledHint)
 	}
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "gh", args...)
+	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
@@ -26,10 +31,21 @@ func GH(ctx context.Context, args ...string) ([]byte, error) {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return nil, errs.Wrapf(errs.KindAuth, err, "gh %s: %s", strings.Join(args, " "), msg).
-			WithHint("run `gh auth login` or `munin login github` to (re)authenticate")
+		e := errs.Wrapf(kind, err, "%s %s: %s", name, strings.Join(args, " "), msg)
+		if runHint != "" {
+			e = e.WithHint("%s", runHint)
+		}
+		return nil, e
 	}
 	return stdout.Bytes(), nil
+}
+
+func GH(ctx context.Context, args ...string) ([]byte, error) {
+	return runTool(ctx, []string{"gh"}, "gh", errs.KindAuth,
+		"the GitHub CLI `gh` is not installed or not on PATH",
+		"install gh and run `gh auth login`, or run `munin login github`",
+		"run `gh auth login` or `munin login github` to (re)authenticate",
+		args...)
 }
 
 func GHAPIGet(ctx context.Context, store TokenStore, apiURL, path string) ([]byte, error) {
@@ -67,25 +83,4 @@ func GHAPIGet(ctx context.Context, store TokenStore, apiURL, path string) ([]byt
 		return nil, errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 	return body, nil
-}
-
-func GHGraphQL(ctx context.Context, query string, vars map[string]string, out any) error {
-	args := []string{"api", "graphql", "-f", "query=" + query}
-	for k, v := range vars {
-		args = append(args, "-f", k+"="+v)
-	}
-	raw, err := GH(ctx, args...)
-	if err != nil {
-		return err
-	}
-	var envelope struct {
-		Data json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return errs.Wrap(errs.KindSignal, err, "decoding gh graphql response")
-	}
-	if err := json.Unmarshal(envelope.Data, out); err != nil {
-		return errs.Wrap(errs.KindSignal, err, "decoding gh graphql data")
-	}
-	return nil
 }

@@ -3,17 +3,15 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
-	sconfig "github.com/codyconfer/sisyphus/config"
-
+	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/provision"
-	"github.com/codyconfer/munin/internal/ui"
+	"github.com/codyconfer/munin/internal/render"
 )
 
 var lifecycleHome string
@@ -35,11 +33,11 @@ func newInstallCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		PersistentPreRunE: lifecyclePreRun,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			created, err := provision.Install(lifecycleHome, force)
+			created, err := app.Install(lifecycleHome, force)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "installed munin in %s:\n", lifecycleHome)
+			fmt.Fprintln(cmd.OutOrStdout(), render.Success(fmt.Sprintf("installed munin in %s:", lifecycleHome)))
 			for _, p := range created {
 				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", p)
 			}
@@ -57,7 +55,7 @@ func newCleanCmd() *cobra.Command {
 		Args:              cobra.NoArgs,
 		PersistentPreRunE: lifecyclePreRun,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runClean(cmd, lifecycleHome)
+			return app.Clean(cmd.OutOrStdout(), lifecycleHome)
 		},
 	}
 	return c
@@ -78,30 +76,13 @@ func newNukeCmd() *cobra.Command {
 	return c
 }
 
-func runClean(cmd *cobra.Command, home string) error {
-	entries := []string{
-		"config.yaml", "config.yml", "config.json",
-		config.DirQueries, config.DirFilters, config.DirFlights, config.DirRoles,
-	}
-	dest, moved, err := sconfig.Archive(home, entries)
-	if err != nil {
-		return err
-	}
-	if len(moved) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "nothing to clean (no config/query/filter files present)")
-		return nil
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "archived %s to %s\n", strings.Join(moved, ", "), dest)
-	return nil
-}
-
 func runNuke(cmd *cobra.Command, home string, yes bool) error {
 	if !yes {
-		if !term.IsTerminal(int(os.Stdout.Fd())) {
+		if !term.IsTerminal(os.Stdout.Fd()) {
 			return errs.New(errs.KindUsage, "refusing to nuke without --yes (no terminal for confirmation)").
 				WithHint("pass --yes to skip the confirmation prompt")
 		}
-		ok, err := ui.Confirm("Nuke config directory?",
+		ok, err := deck.Confirm("Nuke config directory?",
 			fmt.Sprintf("Permanently delete %s and ALL contents (config, queries, filters, DuckDB)?", home),
 			"Delete", "Cancel")
 		if err != nil {
@@ -111,13 +92,5 @@ func runNuke(cmd *cobra.Command, home string, yes bool) error {
 			return errs.New(errs.KindUsage, "aborted")
 		}
 	}
-	if err := sconfig.RemoveAll(home); err != nil {
-		return errs.Wrapf(errs.KindInternal, err, "removing %s", home)
-	}
-	created, err := provision.Install(home, true)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "nuked and reinstalled %s (%d files)\n", home, len(created))
-	return nil
+	return app.Nuke(cmd.OutOrStdout(), home)
 }

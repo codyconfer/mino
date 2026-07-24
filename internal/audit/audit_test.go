@@ -38,12 +38,12 @@ func TestRecordAndRecallFlight(t *testing.T) {
 	s.RecordQuery(flightID, "incidents", "oncall", start, time.Now(), sections)
 	s.FinishFlight(flightID)
 
-	top, err := s.RecentRuns(10)
+	top, err := s.RecentEntries(10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(top) != 1 || top[0].Kind != "flight" || top[0].Name != "triage" {
-		t.Fatalf("RecentRuns = %+v", top)
+		t.Fatalf("RecentEntries = %+v", top)
 	}
 	if top[0].ItemCount != 2 {
 		t.Errorf("flight item_count = %d, want 2 (rolled up from children)", top[0].ItemCount)
@@ -52,12 +52,12 @@ func TestRecordAndRecallFlight(t *testing.T) {
 		t.Error("flight should have a finished_at after FinishFlight")
 	}
 
-	children, err := s.ChildRuns(flightID)
+	children, err := s.Children(flightID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(children) != 1 || children[0].Name != "incidents" || children[0].ItemCount != 2 {
-		t.Fatalf("ChildRuns = %+v", children)
+		t.Fatalf("Children = %+v", children)
 	}
 	items, err := s.Items(children[0].ID)
 	if err != nil {
@@ -74,7 +74,7 @@ func TestRecordQueryError(t *testing.T) {
 	bad := []signals.Section{{Signal: "slack", Title: "slack", Err: errString("no token")}}
 	s.RecordQuery(0, "slack-standup", "", now, now, bad)
 
-	top, err := s.RecentRuns(10)
+	top, err := s.RecentEntries(10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,8 +91,8 @@ func TestNilStoreIsNoop(t *testing.T) {
 	}
 	s.RecordQuery(0, "x", "", time.Now(), time.Now(), nil)
 	s.FinishFlight(1)
-	if runs, err := s.RecentRuns(5); err != nil || runs != nil {
-		t.Errorf("nil RecentRuns = %v, %v", runs, err)
+	if runs, err := s.RecentEntries(5); err != nil || runs != nil {
+		t.Errorf("nil RecentEntries = %v, %v", runs, err)
 	}
 }
 

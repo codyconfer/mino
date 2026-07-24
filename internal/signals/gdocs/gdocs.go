@@ -2,13 +2,13 @@ package gdocs
 
 import (
 	"context"
-	"time"
 
 	drive "google.golang.org/api/drive/v3"
 
 	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/signals/gdrive"
 )
 
 const defaultRecent = 10
@@ -25,13 +25,9 @@ func New(recent int, ga auth.GoogleAuth) signals.Signal {
 func (s *gdocsSignal) Name() string { return "docs" }
 
 func (s *gdocsSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
-	opt, err := auth.GoogleClientOption(ctx, s.auth, drive.DriveMetadataReadonlyScope)
+	svc, err := auth.GoogleService(ctx, s.auth, "docs", drive.DriveMetadataReadonlyScope, drive.NewService)
 	if err != nil {
 		return nil, err
-	}
-	svc, err := drive.NewService(ctx, opt)
-	if err != nil {
-		return nil, errs.Wrap(errs.KindSignal, err, "docs: creating service")
 	}
 
 	recent := s.recent
@@ -52,7 +48,7 @@ func (s *gdocsSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 
 	items := make([]signals.Item, 0, len(res.Files))
 	for _, f := range res.Files {
-		items = append(items, fileToItem(f))
+		items = append(items, docItem(f))
 	}
 
 	return []signals.Section{{
@@ -62,24 +58,9 @@ func (s *gdocsSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 	}}, nil
 }
 
-func fileToItem(f *drive.File) signals.Item {
-	item := signals.Item{
-		Kind:  "doc",
-		Title: f.Name,
-		Body:  "",
-		URL:   f.WebViewLink,
-		Meta:  map[string]string{},
-	}
-
-	if len(f.Owners) > 0 && f.Owners[0] != nil {
-		item.Subtitle = f.Owners[0].DisplayName
-	}
-
-	if f.ModifiedTime != "" {
-		if t, err := time.Parse(time.RFC3339, f.ModifiedTime); err == nil {
-			item.Timestamp = t
-		}
-	}
-
+func docItem(f *drive.File) signals.Item {
+	item := gdrive.FileToItem(f)
+	item.Kind = "doc"
+	item.Meta = map[string]string{}
 	return item
 }

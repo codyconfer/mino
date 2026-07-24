@@ -5,7 +5,18 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/codyconfer/viewkit/theme"
+
+	"github.com/codyconfer/munin/internal/render/glyph"
 )
+
+func dashRole(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
 
 func newRoleCmd() *cobra.Command {
 	return &cobra.Command{
@@ -26,20 +37,20 @@ func newRoleCmd() *cobra.Command {
 			}
 			fmt.Fprintf(out, "active role:  %s\n", role)
 
-			names := shared.directives.RoleNames()
+			names := shared.Directives.RoleNames()
 			if len(names) == 0 {
 				fmt.Fprintln(out, "\nno roles defined (add files under roles/)")
 				return nil
 			}
 			fmt.Fprintln(out, "\ndefined roles:")
 			for _, n := range names {
-				rd := shared.directives.Roles[n]
+				rd := shared.Directives.Roles[n]
 				marker := "  "
 				if n == a.Role {
-					marker = "* "
+					marker = theme.Cur().Can.Render(glyph.StatusOK()) + " "
 				}
-				fmt.Fprintf(out, "%s%-12s flights=[%s] queries=[%s] filters=[%s]\n",
-					marker, n,
+				fmt.Fprintf(out, "%s%-12s home=%s flights=[%s] queries=[%s] filters=[%s]\n",
+					marker, n, dashRole(rd.Home),
 					strings.Join(rd.Flights, ", "),
 					strings.Join(rd.Queries, ", "),
 					strings.Join(rd.Filters, ", "))

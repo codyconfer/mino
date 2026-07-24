@@ -25,7 +25,7 @@ func newFilterCmd() *cobra.Command {
 					return nil
 				}
 				for _, n := range names {
-					f := shared.directives.Filters[n]
+					f := shared.Directives.Filters[n]
 					fmt.Fprintf(cmd.OutOrStdout(), "%-24s %d rule(s)\n", n, len(f.Rules))
 				}
 				return nil
@@ -36,7 +36,7 @@ func newFilterCmd() *cobra.Command {
 			Short: "Show a saved filter's rules",
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				f, ok := shared.directives.Filters[args[0]]
+				f, ok := shared.Directives.Filters[args[0]]
 				if !ok {
 					return errs.Newf(errs.KindUsage, "no saved filter named %q", args[0]).WithHint("run `munin filter list` to see saved filters")
 				}

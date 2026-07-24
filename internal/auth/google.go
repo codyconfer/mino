@@ -50,6 +50,18 @@ func GoogleClientOption(ctx context.Context, ga GoogleAuth, scopes ...string) (o
 	return nil, adcErr
 }
 
+func GoogleService[T any](ctx context.Context, ga GoogleAuth, name, scope string, newSvc func(context.Context, ...option.ClientOption) (*T, error)) (*T, error) {
+	opt, err := GoogleClientOption(ctx, ga, scope)
+	if err != nil {
+		return nil, err
+	}
+	svc, err := newSvc(ctx, opt)
+	if err != nil {
+		return nil, errs.Wrap(errs.KindSignal, err, name+": creating service")
+	}
+	return svc, nil
+}
+
 func adcOption(ctx context.Context, scopes []string) (option.ClientOption, error) {
 	creds, err := google.FindDefaultCredentials(ctx, scopes...)
 	if err != nil {
@@ -139,6 +151,10 @@ func cacheGoogleToken(store TokenStore, tok *oauth2.Token) error {
 		Scope:        strings.Join(GoogleLoginScopes, " "),
 		Expiry:       tok.Expiry,
 	})
+}
+
+func GoogleAuthed(store TokenStore) bool {
+	return readGoogleToken(store) != nil
 }
 
 func readGoogleToken(store TokenStore) *oauth2.Token {

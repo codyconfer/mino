@@ -3,11 +3,11 @@ package cmd
 import (
 	"os"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
+	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/tui"
 )
 
 func newSettingsCmd() *cobra.Command {
@@ -18,10 +18,10 @@ func newSettingsCmd() *cobra.Command {
 			"to the shell (not the main menu).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !term.IsTerminal(int(os.Stdout.Fd())) {
+			if !term.IsTerminal(os.Stdout.Fd()) {
 				return errs.New(errs.KindUsage, "settings requires an interactive terminal")
 			}
-			return tui.Run(buildViews().Settings())
+			return deck.Run(buildViews().Settings(), deck.WithStatus(statusProvider()))
 		},
 	}
 }

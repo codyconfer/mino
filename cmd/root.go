@@ -2,26 +2,12 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
-	"github.com/codyconfer/sisyphus"
-
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/token"
+	"github.com/codyconfer/munin/internal/app"
 )
-
-type app struct {
-	cfg        *config.Config
-	directives *config.Directives
-	audit      *audit.Store
-	tokens     *token.Store
-	mgr        *sisyphus.Manager
-}
 
 var (
 	flagOutput     string
@@ -32,7 +18,7 @@ var (
 	flagVerbose    bool
 )
 
-var shared app
+var shared *app.App
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
@@ -43,30 +29,22 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			log.SetVerbose(flagVerbose)
-			if home, err := config.Home(flagHome); err == nil {
-				_ = os.Chmod(home, 0o700)
-			}
-			interactive := term.IsTerminal(int(os.Stdin.Fd()))
-			cfg, directives, mgr, err := config.LoadConfigAndDirectives(flagHome, flagConfigFile, interactive, os.Stdin, os.Stderr)
+			a, err := app.Load(app.Options{
+				Home:        flagHome,
+				ConfigFile:  flagConfigFile,
+				Output:      flagOutput,
+				Role:        flagRole,
+				Timeout:     flagTimeout,
+				Verbose:     flagVerbose,
+				Interactive: term.IsTerminal(os.Stdin.Fd()),
+				In:          os.Stdin,
+				Out:         os.Stderr,
+			})
 			if err != nil {
 				return err
 			}
-			if flagOutput != "" {
-				cfg.Output = flagOutput
-			}
-			if flagRole != "" {
-				cfg.Role = flagRole
-			}
-			if flagTimeout != "" {
-				cfg.Timeout = flagTimeout
-			}
-			shared.cfg = cfg
-			shared.directives = directives
-			shared.mgr = mgr
-			openTokens()
-			openAudit()
-			return enforceOnboarding(cmd)
+			shared = a
+			return requireOnboarding(cmd)
 		},
 	}
 
@@ -111,39 +89,4 @@ func newRootCmd() *cobra.Command {
 
 func Root() *cobra.Command { return newRootCmd() }
 
-func Shutdown() {
-	if shared.audit != nil {
-		_ = shared.audit.Close()
-	}
-	if shared.tokens != nil {
-		_ = shared.tokens.Close()
-	}
-	if shared.mgr != nil {
-		_ = shared.mgr.Close()
-	}
-}
-
-func openTokens() {
-	ts, err := token.Open(filepath.Join(shared.cfg.Home, "tokens.duckdb"))
-	if err != nil {
-		verbosef("token store unavailable: %v", err)
-		return
-	}
-	shared.tokens = ts
-}
-
-func openAudit() {
-	if !shared.cfg.Audit.Enabled {
-		return
-	}
-	path := shared.cfg.Audit.Path
-	if path == "" {
-		path = filepath.Join(shared.cfg.Home, "audit.duckdb")
-	}
-	st, err := audit.Open(path)
-	if err != nil {
-		verbosef("audit disabled: %v", err)
-		return
-	}
-	shared.audit = st
-}
+func Shutdown() { shared.Shutdown() }

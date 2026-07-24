@@ -10,10 +10,10 @@ import (
 
 	calendar "google.golang.org/api/calendar/v3"
 
-	"github.com/codyconfer/munin/internal/active"
 	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/signals/active"
 )
 
 func NewActive(calendarID string, ga auth.GoogleAuth, interval time.Duration, state *active.State) signals.ActiveSignal {
@@ -50,13 +50,9 @@ func (h *gcalActive) Stream(ctx context.Context) (<-chan signals.Event, error) {
 		if svc != nil {
 			return nil
 		}
-		opt, err := auth.GoogleClientOption(ctx, h.auth, calendar.CalendarReadonlyScope)
+		s, err := auth.GoogleService(ctx, h.auth, "calendar", calendar.CalendarReadonlyScope, calendar.NewService)
 		if err != nil {
 			return err
-		}
-		s, err := calendar.NewService(ctx, opt)
-		if err != nil {
-			return errs.Wrap(errs.KindSignal, err, "calendar: creating service")
 		}
 		svc = s
 		return nil

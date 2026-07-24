@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/munin/internal/app/onboard"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/onboard"
 )
 
 func isolateSettings(t *testing.T) {

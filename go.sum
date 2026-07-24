@@ -182,10 +182,10 @@ github.com/clipperhouse/displaywidth v0.11.0/go.mod h1:bkrFNkf81G8HyVqmKGxsPufD3
 github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJv2v7Vk=
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
-github.com/codyconfer/sisyphus v0.0.2 h1:yZkILKdnSk20o1gZ+HG+Z2elZM2GFVfw6nthjKL1q8Q=
-github.com/codyconfer/sisyphus v0.0.2/go.mod h1:RHlxiMQ2xfveBf4cEGZmUaWJHV6REhDJnwK+6YziZkA=
-github.com/codyconfer/viewkit v0.0.2 h1:GoLtxOmnt9lwVipICeGyHOxfDEry9VSFBVV63A/jqvg=
-github.com/codyconfer/viewkit v0.0.2/go.mod h1:O9/F0of3jppnlP7bajoPwmEkz94/dcvxLBHm6Dm3C6k=
+github.com/codyconfer/sisyphus v0.0.3 h1:wIiy6jl/imaIy9y8OqvO4M78tzZSKjupl/JaG41lhD4=
+github.com/codyconfer/sisyphus v0.0.3/go.mod h1:RHlxiMQ2xfveBf4cEGZmUaWJHV6REhDJnwK+6YziZkA=
+github.com/codyconfer/viewkit v0.0.4 h1:vA7JYxAWYeqy/Fs2u/gLus7x8oGlsaXombgflVwUm8g=
+github.com/codyconfer/viewkit v0.0.4/go.mod h1:uYCa2RbKnVXyqtOJVmEr0uO5gqIoytvn0VGiW8aXBjA=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/curioswitch/go-reassign v0.3.0 h1:dh3kpQHuADL3cobV/sSGETA8DOv457dwl+fbBAhrQPs=
 github.com/curioswitch/go-reassign v0.3.0/go.mod h1:nApPCCTtqLJN/s8HfItCcKV0jIPwluBOvZP+dsJGA88=
@@ -965,8 +965,6 @@ golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959/go.mod h1:LV7u5Oco+Z/g
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
 golang.org/x/term v0.5.0/go.mod h1:jMB1sMXY+tzblOD4FWmEbocvup2/aLOaQEp7JmGp78k=
-golang.org/x/term v0.45.0 h1:NwWyBmoJCbfTHpxrWoZ9C6/VxOf7ic219I8xZZFdrf0=
-golang.org/x/term v0.45.0/go.mod h1:9aqxs0blBcrm/n0L9QW0aRVD+ktan8ssZromtqJC43w=
 golang.org/x/text v0.0.0-20170915032832-14c0d48ead0c/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=

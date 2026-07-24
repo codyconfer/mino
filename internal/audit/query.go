@@ -8,7 +8,7 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-type FlightRow struct {
+type AuditRow struct {
 	ID        int64
 	Kind      string
 	Name      string
@@ -28,40 +28,40 @@ type IntelRow struct {
 	Ts       time.Time
 }
 
-func (s *Store) RecentRuns(limit int) ([]FlightRow, error) {
+func (s *Store) RecentEntries(limit int) ([]AuditRow, error) {
 	if s == nil {
 		return nil, nil
 	}
 	runs, err := s.j.Recent(limit)
 	if err != nil {
-		return toFlightRows(runs), errs.Wrap(errs.KindStore, err, "list recent runs")
+		return toAuditRows(runs), errs.Wrap(errs.KindStore, err, "list recent runs")
 	}
-	return toFlightRows(runs), nil
+	return toAuditRows(runs), nil
 }
 
-func (s *Store) ChildRuns(parentID int64) ([]FlightRow, error) {
+func (s *Store) Children(parentID int64) ([]AuditRow, error) {
 	if s == nil {
 		return nil, nil
 	}
 	runs, err := s.j.Children(parentID)
 	if err != nil {
-		return toFlightRows(runs), errs.Wrap(errs.KindStore, err, "list child runs")
+		return toAuditRows(runs), errs.Wrap(errs.KindStore, err, "list child runs")
 	}
-	return toFlightRows(runs), nil
+	return toAuditRows(runs), nil
 }
 
-func (s *Store) Run(id int64) (FlightRow, bool, error) {
+func (s *Store) Entry(id int64) (AuditRow, bool, error) {
 	if s == nil {
-		return FlightRow{}, false, nil
+		return AuditRow{}, false, nil
 	}
 	r, ok, err := s.j.Get(id)
 	if err != nil {
-		return FlightRow{}, ok, errs.Wrap(errs.KindStore, err, "get run")
+		return AuditRow{}, ok, errs.Wrap(errs.KindStore, err, "get run")
 	}
 	if !ok {
-		return FlightRow{}, false, nil
+		return AuditRow{}, false, nil
 	}
-	return toFlightRow(r), true, nil
+	return toAuditRow(r), true, nil
 }
 
 func (s *Store) Items(runID int64) ([]IntelRow, error) {
@@ -87,16 +87,16 @@ func (s *Store) Items(runID int64) ([]IntelRow, error) {
 	return out, nil
 }
 
-func toFlightRows(runs []journal.Run) []FlightRow {
-	out := make([]FlightRow, 0, len(runs))
+func toAuditRows(runs []journal.Run) []AuditRow {
+	out := make([]AuditRow, 0, len(runs))
 	for _, r := range runs {
-		out = append(out, toFlightRow(r))
+		out = append(out, toAuditRow(r))
 	}
 	return out
 }
 
-func toFlightRow(r journal.Run) FlightRow {
-	return FlightRow{
+func toAuditRow(r journal.Run) AuditRow {
+	return AuditRow{
 		ID:        r.ID,
 		Kind:      r.Kind,
 		Name:      r.Name,

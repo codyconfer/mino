@@ -63,7 +63,7 @@ func (s *gdriveSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 
 	sec := signals.Section{Signal: "drive", Title: "Drive"}
 	for _, f := range res.Files {
-		sec.Items = append(sec.Items, fileToItem(f))
+		sec.Items = append(sec.Items, FileToItem(f))
 	}
 	return []signals.Section{sec}, nil
 }
@@ -91,7 +91,7 @@ func CreateFile(ctx context.Context, ga auth.GoogleAuth, dirRef, name, content, 
 	if err != nil {
 		return signals.Item{}, errs.Wrapf(errs.KindSignal, err, "drive: creating file in %q", dirName)
 	}
-	item := fileToItem(created)
+	item := FileToItem(created)
 	if item.Subtitle == "" {
 		item.Subtitle = dirName
 	}
@@ -131,25 +131,13 @@ func resolveFolders(ctx context.Context, svc *drive.Service, refs []string) ([]s
 }
 
 func newService(ctx context.Context, ga auth.GoogleAuth) (*drive.Service, error) {
-	opt, err := auth.GoogleClientOption(ctx, ga, drive.DriveScope)
-	if err != nil {
-		return nil, err
-	}
-	svc, err := drive.NewService(ctx, opt)
-	if err != nil {
-		return nil, errs.Wrap(errs.KindSignal, err, "drive: creating service")
-	}
-	return svc, nil
+	return auth.GoogleService(ctx, ga, "drive", drive.DriveScope, drive.NewService)
 }
 
 func UploadAppData(ctx context.Context, ga auth.GoogleAuth, name string, content []byte, mime string) (signals.Item, error) {
-	opt, err := auth.GoogleClientOption(ctx, ga, drive.DriveAppdataScope)
+	svc, err := auth.GoogleService(ctx, ga, "drive", drive.DriveAppdataScope, drive.NewService)
 	if err != nil {
 		return signals.Item{}, err
-	}
-	svc, err := drive.NewService(ctx, opt)
-	if err != nil {
-		return signals.Item{}, errs.Wrap(errs.KindSignal, err, "drive: creating service")
 	}
 	f := &drive.File{Name: name, Parents: []string{"appDataFolder"}}
 	if mime != "" {
@@ -162,7 +150,7 @@ func UploadAppData(ctx context.Context, ga auth.GoogleAuth, name string, content
 	if err != nil {
 		return signals.Item{}, errs.Wrap(errs.KindSignal, err, "drive: uploading to app data folder")
 	}
-	item := fileToItem(created)
+	item := FileToItem(created)
 	item.Subtitle = "Drive app data (private)"
 	return item, nil
 }
@@ -171,13 +159,9 @@ func PruneAppData(ctx context.Context, ga auth.GoogleAuth, namePrefix string, ke
 	if keep <= 0 {
 		return nil, nil
 	}
-	opt, err := auth.GoogleClientOption(ctx, ga, drive.DriveAppdataScope)
+	svc, err := auth.GoogleService(ctx, ga, "drive", drive.DriveAppdataScope, drive.NewService)
 	if err != nil {
 		return nil, err
-	}
-	svc, err := drive.NewService(ctx, opt)
-	if err != nil {
-		return nil, errs.Wrap(errs.KindSignal, err, "drive: creating service")
 	}
 	res, err := svc.Files.List().
 		Spaces("appDataFolder").
@@ -204,7 +188,7 @@ func PruneAppData(ctx context.Context, ga auth.GoogleAuth, namePrefix string, ke
 	return deleted, nil
 }
 
-func fileToItem(f *drive.File) signals.Item {
+func FileToItem(f *drive.File) signals.Item {
 	var ts time.Time
 	if f.ModifiedTime != "" {
 		ts, _ = time.Parse(time.RFC3339, f.ModifiedTime)

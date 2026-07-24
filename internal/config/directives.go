@@ -125,95 +125,51 @@ func LoadDirectivesFromFiles(home string) (*Directives, error) {
 	return NewDirectives(q, f, fl, r)
 }
 
-func ParseQueries(blob []byte) (map[string]Query, error) {
+func parseCollection[T any](blob []byte, kind string, name func(*T) *string, validate func(T) error) (map[string]T, error) {
 	c, err := decodeCollection(blob)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string]Query, len(c))
+	out := make(map[string]T, len(c))
 	for _, fn := range sortedKeys(c) {
-		var q Query
-		if err := decodeBytes(fn, []byte(c[fn]), &q); err != nil {
+		var v T
+		if err := decodeBytes(fn, []byte(c[fn]), &v); err != nil {
 			return nil, err
 		}
-		if q.Name == "" {
-			q.Name = baseName(fn)
+		np := name(&v)
+		if *np == "" {
+			*np = baseName(fn)
 		}
-		if _, dup := out[q.Name]; dup {
-			return nil, errs.Newf(errs.KindConfig, "duplicate query name %q", q.Name).WithHint("defined again in %s", fn)
+		if _, dup := out[*np]; dup {
+			return nil, errs.Newf(errs.KindConfig, "duplicate %s name %q", kind, *np).WithHint("defined again in %s", fn)
 		}
-		out[q.Name] = q
+		if validate != nil {
+			if err := validate(v); err != nil {
+				return nil, err
+			}
+		}
+		out[*np] = v
 	}
 	return out, nil
+}
+
+func ParseQueries(blob []byte) (map[string]Query, error) {
+	return parseCollection(blob, "query", func(q *Query) *string { return &q.Name }, nil)
 }
 
 func ParseFilters(blob []byte) (map[string]filter.Filter, error) {
-	c, err := decodeCollection(blob)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[string]filter.Filter, len(c))
-	for _, fn := range sortedKeys(c) {
-		var f filter.Filter
-		if err := decodeBytes(fn, []byte(c[fn]), &f); err != nil {
-			return nil, err
-		}
-		if f.Name == "" {
-			f.Name = baseName(fn)
-		}
-		if _, dup := out[f.Name]; dup {
-			return nil, errs.Newf(errs.KindConfig, "duplicate filter name %q", f.Name).WithHint("defined again in %s", fn)
-		}
-		if _, err := filter.Compile(f); err != nil {
-			return nil, err
-		}
-		out[f.Name] = f
-	}
-	return out, nil
+	return parseCollection(blob, "filter", func(f *filter.Filter) *string { return &f.Name }, func(f filter.Filter) error {
+		_, err := filter.Compile(f)
+		return err
+	})
 }
 
 func ParseFlights(blob []byte) (map[string]Flight, error) {
-	c, err := decodeCollection(blob)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[string]Flight, len(c))
-	for _, fn := range sortedKeys(c) {
-		var fl Flight
-		if err := decodeBytes(fn, []byte(c[fn]), &fl); err != nil {
-			return nil, err
-		}
-		if fl.Name == "" {
-			fl.Name = baseName(fn)
-		}
-		if _, dup := out[fl.Name]; dup {
-			return nil, errs.Newf(errs.KindConfig, "duplicate flight name %q", fl.Name).WithHint("defined again in %s", fn)
-		}
-		out[fl.Name] = fl
-	}
-	return out, nil
+	return parseCollection(blob, "flight", func(fl *Flight) *string { return &fl.Name }, nil)
 }
 
 func ParseRoles(blob []byte) (map[string]RoleDef, error) {
-	c, err := decodeCollection(blob)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[string]RoleDef, len(c))
-	for _, fn := range sortedKeys(c) {
-		var rd RoleDef
-		if err := decodeBytes(fn, []byte(c[fn]), &rd); err != nil {
-			return nil, err
-		}
-		if rd.Name == "" {
-			rd.Name = baseName(fn)
-		}
-		if _, dup := out[rd.Name]; dup {
-			return nil, errs.Newf(errs.KindConfig, "duplicate role name %q", rd.Name).WithHint("defined again in %s", fn)
-		}
-		out[rd.Name] = rd
-	}
-	return out, nil
+	return parseCollection(blob, "role", func(rd *RoleDef) *string { return &rd.Name }, nil)
 }
 
 func (s *Directives) Resolve(q Query) ([]filter.Filter, error) {

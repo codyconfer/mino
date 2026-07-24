@@ -34,13 +34,9 @@ func (g *gmailSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 		max = 15
 	}
 
-	opt, err := auth.GoogleClientOption(ctx, g.auth, gmailapi.GmailReadonlyScope)
+	svc, err := auth.GoogleService(ctx, g.auth, "gmail", gmailapi.GmailReadonlyScope, gmailapi.NewService)
 	if err != nil {
 		return nil, err
-	}
-	svc, err := gmailapi.NewService(ctx, opt)
-	if err != nil {
-		return nil, errs.Wrap(errs.KindSignal, err, "gmail: creating service")
 	}
 
 	list, err := svc.Users.Messages.List("me").Q(query).MaxResults(int64(max)).Context(ctx).Do()

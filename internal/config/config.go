@@ -75,6 +75,7 @@ type BackupConfig struct {
 
 type RoleDef struct {
 	Name    string   `yaml:"name" json:"name"`
+	Home    string   `yaml:"home" json:"home"`
 	Flights []string `yaml:"flights" json:"flights"`
 	Queries []string `yaml:"queries" json:"queries"`
 	Filters []string `yaml:"filters" json:"filters"`

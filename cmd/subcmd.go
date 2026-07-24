@@ -23,7 +23,7 @@ func (ff *filterFlags) bind(cmd *cobra.Command) {
 func (ff *filterFlags) compile() ([]filter.Compiled, error) {
 	var sets []filter.Filter
 	for _, n := range ff.names {
-		f, ok := shared.directives.Filters[n]
+		f, ok := shared.Directives.Filters[n]
 		if !ok {
 			return nil, errs.Newf(errs.KindUsage, "unknown filter %q", n).
 				WithHint("see `munin filter list`")
@@ -69,5 +69,5 @@ func runSignal(cmd *cobra.Command, name string, params map[string]string, ff *fi
 	if err != nil {
 		return err
 	}
-	return emit(fetchJobs(cmd.Context(), []job{{label: name, src: src, filters: compiled}}, 0))
+	return runQueries(cmd.Context(), cmd.OutOrStdout(), []query{{Label: name, Src: src, Filters: compiled}}, 0)
 }

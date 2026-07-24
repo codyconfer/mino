@@ -6,9 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/active"
-	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/signals/build"
 	"github.com/codyconfer/munin/internal/signals/gtasks"
 )
 
@@ -46,12 +45,8 @@ func newTasksCmd() *cobra.Command {
 	return parent
 }
 
-func buildTasks(params map[string]string) (signals.Signal, error) {
-	return gtasks.New(googleAuth(), shared.cfg.Tasks.Lists, shared.cfg.Tasks.ShowCompleted, shared.cfg.Tasks.Max), nil
-}
-
 func addTask(cmd *cobra.Command, title, notes, due, list string) error {
-	target, err := resolveWriteTarget("task list", "tasks.list", shared.cfg.Tasks.List, list)
+	target, err := build.ResolveWriteTarget("task list", "tasks.list", shared.Cfg.Tasks.List, list)
 	if err != nil {
 		return err
 	}
@@ -61,21 +56,6 @@ func addTask(cmd *cobra.Command, title, notes, due, list string) error {
 		return err
 	}
 	sections := []signals.Section{{Signal: "tasks", Title: "Created task in " + target, Items: []signals.Item{item}}}
-	shared.audit.RecordAction("tasks add", shared.cfg.Role, started, time.Now(), sections)
-	return emit(sections)
-}
-
-func resolveWriteTarget(what, setting, configured, requested string) (string, error) {
-	if configured == "" {
-		return "", errs.Newf(errs.KindConfig, "no writable %s configured", what).WithHint("set `%s` in config", setting)
-	}
-	if requested == "" || strings.EqualFold(requested, configured) {
-		return configured, nil
-	}
-	return "", errs.Newf(errs.KindUsage, "%s %q is read-only; only %q is writable (%s)", what, requested, configured, setting)
-}
-
-func buildActiveTasks(params map[string]string, state *active.State) (signals.ActiveSignal, error) {
-	interval := paramDuration(params, "interval", 60*time.Second)
-	return gtasks.NewActive(googleAuth(), shared.cfg.Tasks.Lists, shared.cfg.Tasks.ShowCompleted, interval, state), nil
+	shared.Audit.RecordAction("tasks add", shared.Cfg.Role, started, time.Now(), sections)
+	return emit(cmd.OutOrStdout(), sections)
 }

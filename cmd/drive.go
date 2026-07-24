@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/signals/build"
 	"github.com/codyconfer/munin/internal/signals/gdrive"
 )
 
@@ -44,12 +45,8 @@ func newDriveCmd() *cobra.Command {
 	return parent
 }
 
-func buildDrive(params map[string]string) (signals.Signal, error) {
-	return gdrive.New(googleAuth(), shared.cfg.Drive.Folders, shared.cfg.Drive.Recent), nil
-}
-
 func addDriveFile(cmd *cobra.Command, name, content, mime, dir string) error {
-	target, err := resolveWriteTarget("directory", "drive.dir", shared.cfg.Drive.Dir, dir)
+	target, err := build.ResolveWriteTarget("directory", "drive.dir", shared.Cfg.Drive.Dir, dir)
 	if err != nil {
 		return err
 	}
@@ -59,6 +56,6 @@ func addDriveFile(cmd *cobra.Command, name, content, mime, dir string) error {
 		return err
 	}
 	sections := []signals.Section{{Signal: "drive", Title: "Created file in " + target, Items: []signals.Item{item}}}
-	shared.audit.RecordAction("drive add", shared.cfg.Role, started, time.Now(), sections)
-	return emit(sections)
+	shared.Audit.RecordAction("drive add", shared.Cfg.Role, started, time.Now(), sections)
+	return emit(cmd.OutOrStdout(), sections)
 }

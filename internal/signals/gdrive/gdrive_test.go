@@ -9,7 +9,7 @@ import (
 
 func TestFileToItem(t *testing.T) {
 	mod := "2026-07-22T10:00:00Z"
-	item := fileToItem(&drive.File{
+	item := FileToItem(&drive.File{
 		Id:           "abc",
 		Name:         "notes.txt",
 		MimeType:     "text/plain",
@@ -36,7 +36,7 @@ func TestFileToItem(t *testing.T) {
 }
 
 func TestFileToItemFallsBackToMime(t *testing.T) {
-	item := fileToItem(&drive.File{Name: "x", MimeType: "application/pdf"})
+	item := FileToItem(&drive.File{Name: "x", MimeType: "application/pdf"})
 	if item.Subtitle != "application/pdf" {
 		t.Errorf("subtitle should fall back to mime, got %q", item.Subtitle)
 	}

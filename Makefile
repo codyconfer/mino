@@ -1,4 +1,4 @@
-.PHONY: build run test fmt fmt-check vet lint govulncheck check ci package clean icons
+.PHONY: build run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -10,7 +10,7 @@ LDFLAGS := -s -w
 # munin builds with no domain restriction.
 EMAIL_DOMAIN ?=
 ifneq ($(EMAIL_DOMAIN),)
-LDFLAGS += -X 'github.com/codyconfer/munin/internal/onboard.RequiredEmailDomain=$(EMAIL_DOMAIN)'
+LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.RequiredEmailDomain=$(EMAIL_DOMAIN)'
 endif
 
 # Regenerate the embedded system-tray / notification state icons from the raven
@@ -50,23 +50,24 @@ build:
 # (Linux) or Terminal.app (macOS); falls back to a temp file if none is found.
 run:
 	@err="$$(mktemp "$${TMPDIR:-/tmp}/munin-stderr.XXXXXX")"; \
-	tailcmd="tail -n +1 -f '$$err'"; \
-	launch() { \
-	  if [ -n "$$TERMINAL" ] && command -v "$$TERMINAL" >/dev/null 2>&1; then "$$TERMINAL" -e sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; fi; \
-	  if command -v gnome-terminal >/dev/null 2>&1; then gnome-terminal --title=munin-stderr -- sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; fi; \
-	  if command -v kitty >/dev/null 2>&1; then kitty --title munin-stderr sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; fi; \
-	  if command -v wezterm >/dev/null 2>&1; then wezterm start -- sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; fi; \
-	  for t in konsole x-terminal-emulator alacritty foot xterm; do \
-	    command -v $$t >/dev/null 2>&1 && { $$t -e sh -c "$$tailcmd" >/dev/null 2>&1 & return 0; }; \
-	  done; \
-	  if command -v osascript >/dev/null 2>&1; then \
-	    osascript -e "tell application \"Terminal\" to do script \"$$tailcmd\"" >/dev/null 2>&1 & return 0; fi; \
-	  return 1; \
-	}; \
-	if launch; then echo "munin: stderr -> new terminal window ($$err)"; \
-	else echo "munin: no terminal emulator found; stderr -> $$err (run: tail -f $$err)"; fi; \
-	trap 'rm -f "$$err"' EXIT INT TERM; \
+	echo "munin: stderr -> $$err (run: tail -f $$err)"; \
+	trap 'code=$$?; [ $$code -ne 0 ] && cat "$$err" >&2; rm -f "$$err"' EXIT INT TERM; \
 	go run . tui 2>"$$err"
+
+# Start the realtime daemon and attach the live-notification GUI in one process.
+# `serve --tui` starts an in-process daemon watching the default flight (or
+# attaches if one already owns the socket) and renders the live inbox. Stderr is
+# routed to a temp file like `run` so the alt-screen doesn't swallow daemon logs.
+serve:
+	@err="$$(mktemp "$${TMPDIR:-/tmp}/munin-stderr.XXXXXX")"; \
+	echo "munin: stderr -> $$err (run: tail -f $$err)"; \
+	trap 'code=$$?; [ $$code -ne 0 ] && cat "$$err" >&2; rm -f "$$err"' EXIT INT TERM; \
+	go run . serve --tui 2>"$$err"
+
+# Run the headless realtime daemon (no GUI) watching the default flight. No
+# alt-screen here, so stderr goes straight to the terminal.
+daemon:
+	go run . serve
 
 # Cross-compile release binaries for every supported platform/arch into $(DIST).
 #

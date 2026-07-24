@@ -9,28 +9,16 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os/exec"
-	"runtime"
 	"time"
+
+	"github.com/codyconfer/viewkit/browser"
 
 	"github.com/codyconfer/munin/internal/errs"
 )
 
 const loopbackTimeout = 3 * time.Minute
 
-var openBrowser = func(url string) error {
-	var name string
-	var args []string
-	switch runtime.GOOS {
-	case "darwin":
-		name, args = "open", []string{url}
-	case "windows":
-		name, args = "rundll32", []string{"url.dll,FileProtocolHandler", url}
-	default:
-		name, args = "xdg-open", []string{url}
-	}
-	return exec.Command(name, args...).Start()
-}
+var openBrowser = browser.Open
 
 func randomState() (string, error) {
 	b := make([]byte, 16)

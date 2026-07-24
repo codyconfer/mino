@@ -2,6 +2,8 @@ package signals
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -29,12 +31,42 @@ func (s Section) ErrString() string {
 	return s.Err.Error()
 }
 
+type wireSection struct {
+	Signal string `json:"signal"`
+	Title  string `json:"title"`
+	Items  []Item `json:"items"`
+	Err    string `json:"err,omitempty"`
+}
+
+func (s Section) MarshalJSON() ([]byte, error) {
+	return json.Marshal(wireSection{
+		Signal: s.Signal,
+		Title:  s.Title,
+		Items:  s.Items,
+		Err:    s.ErrString(),
+	})
+}
+
+func (s *Section) UnmarshalJSON(b []byte) error {
+	var w wireSection
+	if err := json.Unmarshal(b, &w); err != nil {
+		return err
+	}
+	s.Signal = w.Signal
+	s.Title = w.Title
+	s.Items = w.Items
+	if w.Err != "" {
+		s.Err = errors.New(w.Err)
+	} else {
+		s.Err = nil
+	}
+	return nil
+}
+
 type Signal interface {
 	Name() string
 	Fetch(ctx context.Context) ([]Section, error)
 }
-
-type PassiveSignal = Signal
 
 type Event struct {
 	Source  string

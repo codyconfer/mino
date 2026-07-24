@@ -17,7 +17,7 @@ func TestFileToItem(t *testing.T) {
 		},
 	}
 
-	item := fileToItem(f)
+	item := docItem(f)
 
 	if item.Kind != "doc" {
 		t.Errorf("Kind = %q, want %q", item.Kind, "doc")
@@ -44,7 +44,7 @@ func TestFileToItemNoOwners(t *testing.T) {
 		WebViewLink: "https://docs.google.com/document/d/xyz/edit",
 	}
 
-	item := fileToItem(f)
+	item := docItem(f)
 
 	if item.Subtitle != "" {
 		t.Errorf("Subtitle = %q, want empty for no owners", item.Subtitle)

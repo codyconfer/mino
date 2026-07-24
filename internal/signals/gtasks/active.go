@@ -7,10 +7,10 @@ import (
 
 	tasksapi "google.golang.org/api/tasks/v1"
 
-	"github.com/codyconfer/munin/internal/active"
 	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/signals/active"
 )
 
 type activeTasks struct {
