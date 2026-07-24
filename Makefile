@@ -1,8 +1,18 @@
-.PHONY: build run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
+.PHONY: build dev command run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
+BIN     ?= $(DIST)/munin
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w
+
+# Runtime + build knobs for the mode targets (command/serve/daemon/run):
+#   ARGS  — forwarded verbatim to munin, e.g. `make command ARGS="fly work -o json"`
+#   RACE  — set to build with the race detector, e.g. `make run RACE=1`
+#   TAGS  — extra build tags, e.g. `make build TAGS=demo`
+ARGS ?=
+RACE ?=
+TAGS ?=
+GOFLAGS_DEV := $(if $(RACE),-race,) $(if $(TAGS),-tags "$(TAGS)",)
 
 # EMAIL_DOMAIN, when set, compiles a locked-down build that only completes
 # onboarding (and thus unlocks munin) if the git signing key has a GitHub-verified
@@ -11,6 +21,14 @@ LDFLAGS := -s -w
 EMAIL_DOMAIN ?=
 ifneq ($(EMAIL_DOMAIN),)
 LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.RequiredEmailDomain=$(EMAIL_DOMAIN)'
+endif
+
+# ENFORCE_AUTH, when set, compiles a build where cli directives HARD-BLOCK when
+# GitHub is authenticated but not fully authorized (missing signing verification,
+# scope, or onboarding), instead of warning and continuing.
+ENFORCE_AUTH ?=
+ifneq ($(ENFORCE_AUTH),)
+LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.EnforceAuthorized=true'
 endif
 
 # Regenerate the embedded system-tray / notification state icons from the raven
@@ -45,29 +63,32 @@ PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64
 build:
 	go build ./...
 
-# Run munin's TUI, streaming stderr to a SECOND terminal window so logs aren't
-# swallowed by the alt-screen. Honors $TERMINAL, else tries common emulators
-# (Linux) or Terminal.app (macOS); falls back to a temp file if none is found.
-run:
-	@err="$$(mktemp "$${TMPDIR:-/tmp}/munin-stderr.XXXXXX")"; \
-	echo "munin: stderr -> $$err (run: tail -f $$err)"; \
-	trap 'code=$$?; [ $$code -ne 0 ] && cat "$$err" >&2; rm -f "$$err"' EXIT INT TERM; \
-	go run . tui 2>"$$err"
+# Build a dev binary to $(BIN) honoring RACE/TAGS/EMAIL_DOMAIN/ENFORCE_AUTH.
+# Phony so it always rebuilds (go build is incremental) before a mode target runs.
+dev:
+	@mkdir -p $(dir $(BIN))
+	@go build $(GOFLAGS_DEV) -ldflags "$(LDFLAGS)" -o $(BIN) .
 
-# Start the realtime daemon and attach the live-notification GUI in one process.
-# `serve --tui` starts an in-process daemon watching the default flight (or
-# attaches if one already owns the socket) and renders the live inbox. Stderr is
-# routed to a temp file like `run` so the alt-screen doesn't swallow daemon logs.
-serve:
-	@err="$$(mktemp "$${TMPDIR:-/tmp}/munin-stderr.XXXXXX")"; \
-	echo "munin: stderr -> $$err (run: tail -f $$err)"; \
-	trap 'code=$$?; [ $$code -ne 0 ] && cat "$$err" >&2; rm -f "$$err"' EXIT INT TERM; \
-	go run . serve --tui 2>"$$err"
+# cli mode: run a directive and print formatted output. e.g.
+#   make command ARGS="fly work -o json"
+command: dev
+	@$(BIN) $(ARGS)
 
-# Run the headless realtime daemon (no GUI) watching the default flight. No
-# alt-screen here, so stderr goes straight to the terminal.
-daemon:
-	go run . serve
+# serve mode: foreground realtime watcher in the CURRENT shell (Ctrl-C exits).
+# No OS integration; logs stream to the shell and the log dir. e.g.
+#   make serve ARGS="work --interval 30s"
+serve: dev
+	@$(BIN) serve $(ARGS)
+
+# daemon mode: install munin as an OS service if needed, then start it (idempotent).
+#   make daemon ARGS="work"
+daemon: dev
+	@$(BIN) daemon $(ARGS)
+
+# deck mode: the interactive TUI (attaches to a running daemon, else spawns a
+# serve provider in a new terminal). e.g. `make run` or `make run ARGS="work"`.
+run: dev
+	@$(BIN) deck $(ARGS)
 
 # Cross-compile release binaries for every supported platform/arch into $(DIST).
 #

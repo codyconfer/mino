@@ -12,6 +12,8 @@ import (
 
 var RequiredEmailDomain string
 
+var EnforceAuthorized string
+
 type StepID string
 
 const (

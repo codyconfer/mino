@@ -1,7 +1,6 @@
 package render
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -26,8 +25,16 @@ func (tr *TerminalRenderer) Render(w io.Writer, sections []signals.Section) erro
 	return nil
 }
 
-func RenderTerminalString(sections []signals.Section) string {
-	return Panels(layout.NewFrame(theme.BodyWidth), sections)
+func RenderTerminalStringTitled(root string, sections []signals.Section) string {
+	return treeString(FlightTree(layout.NewFrame(theme.BodyWidth), root, sections))
+}
+
+func treeString(rows []treeRow) string {
+	lines := make([]string, 0, len(rows))
+	for _, r := range rows {
+		lines = append(lines, r.Lines...)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func sectionGlyph(s signals.Section) string {
@@ -46,69 +53,28 @@ func sectionGlyph(s signals.Section) string {
 }
 
 func Panels(f layout.Frame, sections []signals.Section) string {
-	th := theme.Cur()
-	blocks := make([]string, 0, len(sections))
-	for i, s := range sections {
-		title := s.Title
-		if title == "" {
-			title = s.Signal
-		}
-		title = fmt.Sprintf("%s  (%d)", signals.Clean(title), len(s.Items))
-		icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
-
-		var lines []string
-		switch {
-		case s.Err != nil:
-			errLines := strings.Split(signals.Clean(s.Err.Error()), "\n")
-			lines = append(lines, th.Cant.Render(glyph.Warn()+" "+errLines[0]))
-			for _, l := range errLines[1:] {
-				lines = append(lines, th.Dim.Render(l))
-			}
-		case len(s.Items) == 0:
-			lines = append(lines, th.Dim.Render("nothing to show"))
-		default:
-			for _, it := range s.Items {
-				lines = append(lines, itemLines(f, th, it)...)
-			}
-		}
-		blocks = append(blocks, TitledBoxIcon(f, false, icon, title, lines...))
-	}
-	return layout.StackTight(blocks...)
+	return treeString(FlightTree(f, "flight", sections))
 }
 
 func SectionItems(f layout.Frame, sections []signals.Section) []list.Item {
-	th := theme.Cur()
-	var items []list.Item
-	for i, s := range sections {
-		title := s.Title
-		if title == "" {
-			title = s.Signal
+	rows := FlightTree(f, "flight", sections)
+	items := make([]list.Item, 0, len(rows))
+	for _, r := range rows {
+		block := strings.Join(r.Lines, "\n")
+		if !r.Selectable {
+			block = indentLines(block, "  ")
 		}
-		title = fmt.Sprintf("%s  (%d)", signals.Clean(title), len(s.Items))
-		icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
-		items = append(items, list.Item{Block: icon + th.Title.Render(title)})
-
-		switch {
-		case s.Err != nil:
-			errLines := strings.Split(signals.Clean(s.Err.Error()), "\n")
-			block := []string{th.Cant.Render(glyph.Warn() + " " + errLines[0])}
-			for _, l := range errLines[1:] {
-				block = append(block, th.Dim.Render(l))
-			}
-			items = append(items, list.Item{Block: strings.Join(block, "\n")})
-		case len(s.Items) == 0:
-			items = append(items, list.Item{Block: th.Dim.Render("nothing to show")})
-		default:
-			for _, it := range s.Items {
-				items = append(items, list.Item{
-					Block:      strings.Join(itemLines(f, th, it), "\n"),
-					Key:        it.URL,
-					Selectable: it.URL != "",
-				})
-			}
-		}
+		items = append(items, list.Item{Block: block, Key: r.Key, Selectable: r.Selectable})
 	}
 	return items
+}
+
+func indentLines(block, pad string) string {
+	lines := strings.Split(block, "\n")
+	for i, l := range lines {
+		lines[i] = pad + l
+	}
+	return strings.Join(lines, "\n")
 }
 
 func Success(msg string) string { return theme.Success(msg) }

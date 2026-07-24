@@ -77,7 +77,7 @@ func (m model) Init() tea.Cmd {
 func (m model) runTask(i int) tea.Cmd {
 	return func() tea.Msg {
 		sections := m.tasks[i].Run(m.ctx)
-		return doneMsg{idx: i, content: render.RenderTerminalString(sections)}
+		return doneMsg{idx: i, content: render.RenderTerminalStringTitled(m.tasks[i].Label, sections)}
 	}
 }
 

@@ -241,7 +241,7 @@ func (s *Server) Attach(ctx context.Context) error {
 	events, ok := s.Dial(ctx)
 	if !ok {
 		return errs.Newf(errs.KindUsage, "no running munin daemon at %s", s.SocketPath()).
-			WithHint("start one with `munin serve <flight>` or `munin serve start`, or run `munin serve <flight> --tui`")
+			WithHint("start one with `munin serve <flight>` (foreground) or `munin daemon` (installed service), or open `munin deck`")
 	}
 	return s.WatchAttached(events)
 }

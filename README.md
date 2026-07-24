@@ -32,27 +32,40 @@ munin github query            # ad-hoc: your open PRs + review requests
 munin fly morning -o json | jq .
 ```
 
-Munin is locked until you complete [onboarding](#onboarding); the setup commands
-above (and `login`/`verify`/`--help`) stay available while it is.
+On first use Munin guides you through [onboarding](#onboarding) — GitHub auth plus a
+GitHub-verified signing key. How it gates depends on the mode: `munin deck` runs the
+guided flow; a bare `munin <directive>` prompts to authenticate when you're
+unauthenticated, and otherwise warns about any remaining gaps and continues (a
+domain-locked or `ENFORCE_AUTH` build blocks instead). `login`, `verify`, and
+`--help` are always available.
 
 Munin reuses tools you already have for authentication — the `gh` CLI, `gcloud`
 ADC, `$SLACK_TOKEN` — and falls back to `munin login <service>` when they are
 absent. See [Authentication](#authentication) for the full resolution order and
 required scopes.
 
-## CLI vs TUI
+## Operating modes
 
-Munin has two front-ends over the same engine:
+Munin runs in one of four modes over the same engine. Each has a `munin` command,
+a matching `make` target (which builds the binary, then runs it — pass runtime
+arguments via `ARGS="…"`), and a fixed stdin/stdout/stderr contract:
 
-- **CLI** (default) — you invoke a command and the result prints as
-  [viewkit](https://github.com/codyconfer/viewkit) panels (color on a TTY, plain
-  text when piped/redirected, or JSON with `-o json`). Interactive prompts stay
-  compact and inline.
-- **TUI** — `munin tui` opens a full-screen interactive deck: a main menu, live
-  flight runs, run **history**, a **directives** browser (view/run/validate/
-  create/edit/delete queries, filters, flights, roles), an ad-hoc read-only **audit
-  query** screen, and **settings**. `munin tui <flight>` jumps straight to a
-  flight; `munin settings` opens just the settings screens.
+| Mode | Command | `make` | What it does | stdout | Logs |
+|---|---|---|---|---|---|
+| **cli** | `munin <directive>` (`fly`, `query`, `github query`, …) | `make command ARGS="fly work"` | Run a directive and print the result | [viewkit](https://github.com/codyconfer/viewkit) panels (color on a TTY, plain when piped, JSON with `-o json`) | log dir |
+| **serve** | `munin serve [flight]` | `make serve ARGS="work"` | Foreground realtime watcher in the current shell (Ctrl-C exits); **no OS integration** | live notification stream | shell **and** log dir |
+| **daemon** | `munin daemon [flight]` | `make daemon ARGS="work"` | Install the OS service if missing, then start it (idempotent) | — | OS logging (journald / launchd / Windows service) |
+| **deck** | `munin deck [flight]` | `make run` | Full-screen interactive TUI; attaches to a running daemon, else spawns a `serve` provider in a new terminal | TUI | log dir |
+
+`munin deck` is the interactive front-end (formerly `munin tui`, still accepted as
+a hidden alias): a main menu, live flight runs, run **history**, a **directives**
+browser (view/run/validate/create/edit/delete queries, filters, flights, roles),
+an ad-hoc read-only **audit query** screen, and **settings**. `munin deck <flight>`
+jumps straight to a flight; `munin settings` opens just the settings screens. Its
+status strip shows whether the background daemon is installed and running.
+
+Flight and query results render as a **git-style tree** — the flight is the trunk,
+each signal a branch, each item a leaf — in both cli output and the deck.
 
 ## How it works
 
@@ -97,29 +110,44 @@ context with `munin role`.
 
 → [How to create a role config](#create-a-role-config)
 
-## Realtime & daemon mode
+## Realtime: serve & daemon
 
 Signals come in two flavors: **passive** (REST, pulled on demand — the default
-`fly`/`query` path) and **active** (a live stream). `munin serve [flight]` runs
-long-running: it opens every active signal in the flight, fans their events into one
-loop, and emits a notification per new item. Only **Slack** is a true websocket
-(Socket Mode); **GitHub**, **Calendar**, and **Tasks** have no client websocket,
-so they're polled at `--interval`; signals with no realtime support are skipped.
+`fly`/`query` path) and **active** (a live stream). Two modes consume active
+signals — a foreground watcher and a managed OS service:
 
-Run it in the foreground (Ctrl-C exits), add `--desktop` for OS desktop
-notifications and/or `--tray` for a system-tray icon that reflects state
-(inactive → running → notify → warn → error), or manage it as a system daemon:
+- **`munin serve [flight]`** runs a long-running watcher in the **current shell**
+  (Ctrl-C exits): it opens every active signal in the flight, fans their events
+  into one loop, and emits a notification per new item. Flags: `--interval`,
+  `--bell`, `--desktop` (OS desktop notifications), `--theme`. It does **not**
+  integrate with the OS or manage any service — its lifecycle is the shell it runs
+  in, and it logs to that shell and the log dir.
+- **`munin daemon [flight]`** runs Munin as a background **OS service** (systemd
+  user unit on Linux, launchd agent on macOS, Windows service), which logs through
+  the OS logging facility. Bare `munin daemon` is idempotent: it installs the
+  service if it isn't installed (after a confirmation; `--yes`/`--system` to
+  script it), then starts it if it isn't running. Manage it explicitly with the
+  subcommands:
 
 ```sh
-munin serve install [flight]        # systemd user unit (Linux) / launchd agent (macOS)
-munin serve start | stop | status   # (also restart, uninstall)
+munin daemon                              # install (if needed), then start
+munin daemon install [flight] [--system]  # install only
+munin daemon start | stop | restart | status | uninstall
+munin daemon attach                       # attach a live-notification TUI to the running daemon
 ```
 
-Tray/notification icons are embedded (raven, dark + light — pick with `--theme`)
-and overridable by dropping `~/.munin/icons/<state>.png`. Slack Socket Mode needs
-an app-level `xapp-` token + a bot `xoxb-` token (env-var names configurable via
-`slack.app_token_env` / `slack.bot_token_env`); without them Slack is skipped.
-All `serve` defaults live under `daemon:` in config and are overridden by flags.
+`munin deck` ties these together: it attaches to a running daemon if one exists,
+otherwise it spawns a `serve` provider in a new terminal window.
+
+Only **Slack** is a true websocket (Socket Mode); **GitHub**, **Calendar**, and
+**Tasks** have no client websocket, so they're polled at `--interval`; signals with
+no realtime support are skipped. Slack Socket Mode needs an app-level `xapp-` token
++ a bot `xoxb-` token (env-var names configurable via `slack.app_token_env` /
+`slack.bot_token_env`); without them Slack is skipped.
+
+Desktop/notification icons are embedded (raven, dark + light — pick with `--theme`)
+and overridable by dropping `~/.munin/icons/<state>.png`. Realtime defaults live
+under `daemon:` in config and are overridden by flags.
 
 ## Create a query and filter config
 
@@ -208,6 +236,7 @@ Config lives under `~/.munin/`:
   flights/*.yaml     # named flights (one per file)
   roles/*.yaml       # role definitions (one per file)
   icons/*.png        # optional per-state tray/notification icon overrides
+  logs/munin.log     # rotating command/serve/deck log sink (cleanable/nukable)
   config.duckdb      # versioned store: source of truth for config + the four directive kinds
   audit.duckdb       # run history (see Audit trail)
   tokens.duckdb      # cached OAuth credentials
@@ -217,6 +246,12 @@ Config lives under `~/.munin/`:
 `home:` in `~/.config/munin/settings.yaml` → `~/.munin`. Bootstrap a fresh
 directory with `munin install`, archive its files with `munin clean`, or reset it
 with `munin nuke`.
+
+**Logs.** Diagnostic logs go to a file so they never corrupt command output or the
+deck's alt-screen: **cli** and **deck** log to the file only, **serve** logs to both
+the shell and the file, and **daemon** logs through the OS logging facility (not the
+file). The log dir resolves as `$MUNIN_LOG_DIR` → `log_dir:` in `settings.yaml` →
+`<home>/logs`; `munin clean` archives it and `munin nuke` removes it.
 
 **DuckDB is the source of truth.** `config.duckdb` is the store holding the live
 state for the config *and* the four directive kinds. On startup Munin
@@ -239,18 +274,26 @@ session". Any file value can be overridden per-run by a `MUNIN_*` env var (e.g.
 `$MUNIN_THEME`) selects a viewkit theme (default `retro-dark`); `munin verify`
 validates the key.
 
-**Service defaults** for `munin serve` live under `daemon:` in `config.yaml`
-(`interval`, `bell`, `desktop`, `tray`, `theme`); command flags override them.
-Editing config in the TUI (**Settings → Edit config**) merges into the existing
-file, preserving sections it doesn't touch.
+**Realtime defaults** for `serve`/`daemon` live under `daemon:` in `config.yaml`
+(`interval`, `bell`, `desktop`, `theme`); command flags override them. Editing
+config in the deck (**Settings → Edit config**) merges into the existing file,
+preserving sections it doesn't touch.
 
 See [`examples/`](examples/) for copy-paste starters.
 
 ### Onboarding
 
-Before Munin runs any signal command it requires a one-time onboarding: GitHub
-authenticated **and** a GPG signing key that git uses and GitHub has verified.
-Until then every command except the setup ones is locked.
+Onboarding requires GitHub authenticated **and** a GPG (or SSH) signing key that git
+uses and GitHub has verified. Munin classifies you as **unauthenticated** (no GitHub
+auth at all), **unauthorized** (authed but a signing/scope/verification gap), or
+**authorized**, and gates each mode differently:
+
+| Mode | unauthenticated | unauthorized | authorized |
+|---|---|---|---|
+| **cli** | prompt to authenticate, then guided setup | warn + continue (or **block** in an `ENFORCE_AUTH` build) | run |
+| **serve** | warn in logs, run anyway | warn in logs, run anyway | run |
+| **daemon** | warn in logs | warn in logs | run |
+| **deck** | run the guided onboarding flow, then continue | run the guided flow, then continue | run |
 
 ```sh
 munin onboard            # guided check + fix instructions, loops until ready
@@ -263,9 +306,8 @@ munin onboard --reset    # clear the marker (re-onboard on the next run)
 cached token; (2) `git config user.signingkey` is set; (3) that secret key is in
 your local GPG keyring; (4) the key's public half is registered on your GitHub
 account, so signed commits show **Verified**. `munin verify onboarding` reports the
-same checklist. `login`, `verify`, `install`/`clean`/`nuke`, and `--help` stay
-usable while locked; everything else is gated. The onboarded state lives in
-`settings.yaml`.
+same checklist. `login`, `verify`, `install`/`clean`/`nuke`, and `--help` skip the
+gate entirely. The onboarded state lives in `settings.yaml`.
 
 **Domain-locked builds.** A distribution can be compiled to onboard *only* when the
 signing key has a GitHub-verified identity in a specific email domain:
@@ -279,6 +321,13 @@ registered key) and stamps the domain into the marker, so a binary built for one
 domain won't accept an onboarding done by an unrestricted build. Built without the
 flag, Munin has no domain restriction. Note this is a distribution-policy control,
 not a hardened security boundary — `settings.yaml` is user-writable.
+
+**Auth-enforced builds.** Compile with `ENFORCE_AUTH=1` to make cli directives
+**hard-block** when you're unauthorized (rather than warn and continue):
+
+```sh
+make command ARGS="fly work" ENFORCE_AUTH=1   # cli refuses to run until fully authorized
+```
 
 ### Authentication
 
@@ -353,10 +402,12 @@ DB.
 
 | Command | Description |
 |---|---|
-| `munin fly [flight]` | Run a named flight (defaults to the role's flight / `default`). |
-| `munin query [name]` | Run a saved query by name; no name lists saved queries. |
-| `munin serve [flight]` | Run long-running, watching active signals in realtime; `--desktop`/`--tray`/`--interval`/`--theme`. |
-| `munin serve install/uninstall/start/stop/restart/status` | Manage munin as a system daemon (systemd user unit / launchd agent). |
+| `munin fly [flight]` | **cli**: run a named flight (defaults to the role's flight / `default`). |
+| `munin query [name]` | **cli**: run a saved query by name; no name lists saved queries. |
+| `munin serve [flight]` | **serve**: foreground realtime watcher in the current shell; `--desktop`/`--interval`/`--bell`/`--theme`. |
+| `munin daemon [flight]` | **daemon**: install (if needed) then start the OS service; idempotent. |
+| `munin daemon install/uninstall/start/stop/restart/status/attach` | Manage the OS service (systemd user unit / launchd agent / Windows service). |
+| `munin deck [flight]` | **deck**: open the interactive TUI (attaches to a running daemon, else spawns a serve provider). Alias: `tui`. |
 | `munin query show <name>` | Show a saved query's definition. |
 | `munin <signal> query` | Ad-hoc one-off query against a single signal. |
 | `munin history` / `history show <id>` | List past runs / recall a run's results. |
@@ -371,7 +422,7 @@ DB.
 | `munin login <service>` | OAuth login for github/google/slack. |
 | `munin filter list` / `filter show <name>` | Inspect saved filters. |
 | `munin export <directive>` / `import <directive>` | Materialize DuckDB → files / files → DuckDB. |
-| `munin tui [flight]` / `munin settings` | Open the interactive TUI / just the settings screens. |
+| `munin settings` | Open just the settings screens of the deck. |
 
 ### Common flags
 
@@ -382,7 +433,7 @@ DB.
 - `--timeout <dur>` — per-signal fetch timeout (e.g. `45s`, `2m`).
 - `--filter <name>` — apply a saved filter set (repeatable).
 - `--include <regex>` / `--exclude <regex>` — ad-hoc filters (repeatable).
-- `--verbose, -v` — log skipped/errored signals to stderr.
+- `--verbose, -v` — raise the log level to debug (logs go to the log dir; see [Logs](#configuration)).
 
 ## Data signals
 
@@ -408,7 +459,7 @@ munin drive add "notes.txt" --content "hello" --mime text/plain
 munin drive add "x" --dir "Some Other Folder"         # → rejected: read-only
 ```
 
-## Old
+## Development & internals
 
 ### Built on sisyphus
 
@@ -421,13 +472,28 @@ own config schema and thin adapters over it: `internal/token` (credentials over
 ### Development
 
 ```sh
-go build ./...
-go vet ./...
-go test ./...
+make build          # go build ./...
+make check          # build + fmt-check + lint + govulncheck + test (CI gate is `make ci`)
+make test           # go test ./...
 ```
 
+Run a mode straight from source — each target builds then runs, forwarding `ARGS`:
+
+```sh
+make command ARGS="fly work -o json"   # cli
+make serve   ARGS="work"               # foreground watcher (current shell)
+make daemon  ARGS="work"               # install + start the OS service
+make run                               # deck (interactive TUI)
+```
+
+Build vars (make variables, not `ARGS`): `RACE=1` (race detector), `TAGS=…` (build
+tags), `EMAIL_DOMAIN=…` (domain-locked build), `ENFORCE_AUTH=1` (hard-block cli when
+unauthorized). `make package` cross-compiles release binaries.
+
 Signal integrations live in `internal/signals/<name>/`, each with offline table
-tests driven by recorded fixtures, so the suite needs no network.
+tests driven by recorded fixtures, so the suite needs no network. The terminal
+launcher `internal/term` opens `serve` in a new window for `deck` (macOS
+Terminal.app/iTerm2, Linux emulators, WSL Windows Terminal).
 
 Munin depends on the **private** module `github.com/codyconfer/sisyphus`, so
 building requires access to that repo and Go configured to fetch it directly

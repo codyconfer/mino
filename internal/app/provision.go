@@ -60,6 +60,7 @@ func Install(home string, force bool) ([]string, error) {
 		filepath.Join(home, config.DirFilters),
 		filepath.Join(home, config.DirFlights),
 		filepath.Join(home, config.DirRoles),
+		filepath.Join(home, config.DirLogs),
 	} {
 		if err := sconfig.EnsureDir(d); err != nil {
 			return nil, err
@@ -109,7 +110,7 @@ func Install(home string, force bool) ([]string, error) {
 func Clean(w io.Writer, home string) error {
 	entries := []string{
 		"config.yaml", "config.yml", "config.json",
-		config.DirQueries, config.DirFilters, config.DirFlights, config.DirRoles,
+		config.DirQueries, config.DirFilters, config.DirFlights, config.DirRoles, config.DirLogs,
 	}
 	dest, moved, err := sconfig.Archive(home, entries)
 	if err != nil {

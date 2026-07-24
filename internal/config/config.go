@@ -13,6 +13,7 @@ import (
 
 const (
 	envHome   = "MUNIN_HOME"
+	envLogDir = "MUNIN_LOG_DIR"
 	homeDir   = ".munin"
 	envPrefix = "MUNIN_"
 )
@@ -180,8 +181,19 @@ type GlobalSettings struct {
 	PreferDB        bool   `yaml:"prefer_duckdb"`
 	LogLevel        string `yaml:"log_level"`
 	LogColor        string `yaml:"log_color"`
+	LogDir          string `yaml:"log_dir"`
 	Onboarded       bool   `yaml:"onboarded"`
 	OnboardedDomain string `yaml:"onboarded_domain"`
+}
+
+func LogDir(home string) string {
+	if d := os.Getenv(envLogDir); d != "" {
+		return d
+	}
+	if d := LoadGlobalSettings().LogDir; d != "" {
+		return d
+	}
+	return filepath.Join(home, DirLogs)
 }
 
 func GlobalSettingsPath() string {

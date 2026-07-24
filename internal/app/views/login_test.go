@@ -57,7 +57,7 @@ func TestLoginFlowMasksClientSecret(t *testing.T) {
 
 	a = step(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("id-123")})
 	a = step(a, tea.KeyMsg{Type: tea.KeyDown})
-	a = step(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("sekret")})
+	step(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("sekret")})
 
 	body := loginAnsi.ReplaceAllString(v.Body(100, 40), "")
 	if strings.Contains(body, "sekret") {

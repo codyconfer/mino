@@ -76,7 +76,7 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 		t.Errorf("flight-focused hints missing tab→menu: %v", home.Hints())
 	}
 
-	app = drive(app, tea.KeyMsg{Type: tea.KeyTab})
+	drive(app, tea.KeyMsg{Type: tea.KeyTab})
 	if home.focus != focusMenu {
 		t.Fatalf("after second tab focus = %d, want menu", home.focus)
 	}
@@ -93,7 +93,7 @@ func TestHomeMenuNavigationRunsItem(t *testing.T) {
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	app = drive(app, key("down"))
-	app = drive(app, key("enter"))
+	drive(app, key("enter"))
 	if !ran {
 		t.Error("expected menu item Do to run after down+enter")
 	}

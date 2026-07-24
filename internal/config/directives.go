@@ -20,6 +20,7 @@ const (
 	DirFilters = "filters"
 	DirFlights = "flights"
 	DirRoles   = "roles"
+	DirLogs    = "logs"
 )
 
 type Query struct {

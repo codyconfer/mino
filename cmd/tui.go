@@ -16,20 +16,25 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/signals"
 	gh "github.com/codyconfer/munin/internal/signals/github"
+	muninterm "github.com/codyconfer/munin/internal/term"
 )
 
-func newTuiCmd() *cobra.Command {
+func newDeckCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:               "tui [flight]",
+		Use:               "deck [flight]",
+		Aliases:           []string{"tui"},
 		Short:             "Open the cyberpunk TUI (main menu, or a flight directly)",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeFlightNames,
+		Annotations:       map[string]string{annoGateMode: modeDeck},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !term.IsTerminal(os.Stdout.Fd()) {
-				return errs.New(errs.KindUsage, "tui requires an interactive terminal")
+				return errs.New(errs.KindUsage, "deck requires an interactive terminal")
 			}
+			ensureLiveProvider(cmd, args)
 			kit := buildViews()
 			if len(args) == 1 {
 				name := args[0]
@@ -40,6 +45,25 @@ func newTuiCmd() *cobra.Command {
 			}
 			return deck.Run(kit.Home(), deck.WithStatus(statusProvider()))
 		},
+	}
+}
+
+func ensureLiveProvider(cmd *cobra.Command, args []string) {
+	srv := serveServer()
+	if _, ok := srv.Dial(cmd.Context()); ok {
+		return
+	}
+	self, err := muninterm.Self()
+	if err != nil {
+		log.Debugf("deck: cannot locate munin binary to start a serve provider: %v", err)
+		return
+	}
+	name := defaultFlightName()
+	if len(args) == 1 {
+		name = args[0]
+	}
+	if err := muninterm.Open([]string{self, "serve", name}); err != nil {
+		log.Debugf("deck: could not open a serve provider window: %v", err)
 	}
 }
 
@@ -132,6 +156,7 @@ func statusProvider() deck.StatusFunc {
 		for _, name := range []string{"calendar", "gmail", "docs", "drive", "tasks"} {
 			info.Services = append(info.Services, deck.ServiceStatus{Name: name, Level: googleLevel})
 		}
+		info.Services = append(info.Services, daemonServiceStatus())
 		return info
 	}
 }

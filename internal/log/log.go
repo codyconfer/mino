@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -32,15 +33,29 @@ var (
 	level = LevelWarn
 	color = ColorAuto
 
+	console io.Writer = os.Stderr
+	file    io.Writer
+
 	r     *lipgloss.Renderer
 	tags  map[Level]string
 	dimSt lipgloss.Style
 )
 
+var plainTags = map[Level]string{
+	LevelError: "error",
+	LevelWarn:  "warn",
+	LevelInfo:  "info",
+	LevelDebug: "debug",
+}
+
 func init() { rebuild() }
 
 func rebuild() {
-	r = lipgloss.NewRenderer(os.Stderr)
+	w := console
+	if w == nil {
+		w = io.Discard
+	}
+	r = lipgloss.NewRenderer(w)
 	switch color {
 	case ColorNever:
 		r.SetColorProfile(termenv.Ascii)
@@ -56,6 +71,31 @@ func rebuild() {
 		LevelDebug: r.NewStyle().Faint(true).Render("debug"),
 	}
 	dimSt = r.NewStyle().Faint(true)
+}
+
+func SetOutput(w io.Writer) {
+	mu.Lock()
+	console = w
+	rebuild()
+	mu.Unlock()
+}
+
+func ClearConsole() {
+	mu.Lock()
+	console = nil
+	rebuild()
+	mu.Unlock()
+}
+
+func SetFileSink(path string) (io.Closer, error) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	mu.Lock()
+	file = f
+	mu.Unlock()
+	return f, nil
 }
 
 func SetLevel(l Level) {
@@ -114,12 +154,19 @@ func logf(l Level, format string, args ...any) {
 	enabled := l <= level
 	tag := tags[l]
 	prefix := dimSt.Render("munin ▸")
+	cw := console
+	fw := file
 	mu.Unlock()
 	if !enabled {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
-	fmt.Fprintln(os.Stderr, prefix+" "+tag+" "+msg)
+	if cw != nil {
+		fmt.Fprintln(cw, prefix+" "+tag+" "+msg)
+	}
+	if fw != nil {
+		fmt.Fprintln(fw, "munin ▸ "+plainTags[l]+" "+msg)
+	}
 }
 
 func Errorf(format string, args ...any) { logf(LevelError, format, args...) }

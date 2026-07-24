@@ -44,7 +44,8 @@ func newRootCmd() *cobra.Command {
 				return err
 			}
 			shared = a
-			return requireOnboarding(cmd)
+			routeLogs(gateMode(cmd))
+			return gate(cmd)
 		},
 	}
 
@@ -70,7 +71,8 @@ func newRootCmd() *cobra.Command {
 		newInstallCmd(),
 		newCleanCmd(),
 		newNukeCmd(),
-		newTuiCmd(),
+		newDeckCmd(),
+		newServeCmd(),
 		newDaemonCmd(),
 		newSettingsCmd(),
 		newExportCmd(),
