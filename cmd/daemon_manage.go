@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/daemon/service"
 
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
@@ -112,7 +112,7 @@ func newDaemonControlCmds() []*cobra.Command {
 	}
 	install.Flags().BoolVar(&system, "system", false, "install a system-wide daemon (default: per-user)")
 
-	ctl := func(use, short string, action func(*daemon.Service) error) *cobra.Command {
+	ctl := func(use, short string, action func(*service.Service) error) *cobra.Command {
 		var sys bool
 		c := &cobra.Command{
 			Use:         use,
@@ -147,10 +147,10 @@ func newDaemonControlCmds() []*cobra.Command {
 		},
 	}
 
-	uninstall := ctl("uninstall", "Remove the installed munin daemon", func(s *daemon.Service) error { return s.Uninstall() })
-	start := ctl("start", "Start the installed munin daemon", func(s *daemon.Service) error { return s.Start() })
-	stop := ctl("stop", "Stop the running munin daemon", func(s *daemon.Service) error { return s.Stop() })
-	restart := ctl("restart", "Restart the munin daemon", func(s *daemon.Service) error { return s.Restart() })
+	uninstall := ctl("uninstall", "Remove the installed munin daemon", func(s *service.Service) error { return s.Uninstall() })
+	start := ctl("start", "Start the installed munin daemon", func(s *service.Service) error { return s.Start() })
+	stop := ctl("stop", "Stop the running munin daemon", func(s *service.Service) error { return s.Stop() })
+	restart := ctl("restart", "Restart the munin daemon", func(s *service.Service) error { return s.Restart() })
 
 	var statusSys bool
 	status := &cobra.Command{

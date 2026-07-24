@@ -145,7 +145,7 @@ func GoogleLogin(ctx context.Context, ga GoogleAuth, w io.Writer) error {
 }
 
 func cacheGoogleToken(store TokenStore, tok *oauth2.Token) error {
-	return store.Put("google", Credential{
+	return store.Put(context.Background(), "google", Credential{
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,
 		Scope:        strings.Join(GoogleLoginScopes, " "),

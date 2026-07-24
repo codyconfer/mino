@@ -14,29 +14,33 @@ concurrency:
 
 jobs:
   check:
-    name: check
-    runs-on: ubuntu-latest
+    name: check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
+    runs-on: ${{ matrix.os }}
     env:
       CGO_ENABLED: "1"
+      GOPRIVATE: github.com/codyconfer/*
+      GONOSUMDB: github.com/codyconfer/*
+      GONOPROXY: github.com/codyconfer/*
     steps:
-      # munin's go.mod uses `replace` directives pointing at sibling repos
-      # (../sisyphus, ../viewkit), so CI lays them out next to munin for the
-      # relative paths to resolve. Private repos need a token with read access.
       - uses: actions/checkout@v4
-        with:
-          path: munin
-      - uses: actions/checkout@v4
-        with:
-          repository: codyconfer/sisyphus
-          path: sisyphus
-      - uses: actions/checkout@v4
-        with:
-          repository: codyconfer/viewkit
-          path: viewkit
       - uses: actions/setup-go@v5
         with:
-          go-version-file: munin/go.mod
+          go-version-file: go.mod
           cache: true
+      - name: Configure private module access
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.GH_READ_TOKEN }}
+        run: |
+          if [ -z "${TOKEN}" ]; then
+            echo "::error::GH_READ_TOKEN secret is required to fetch private modules github.com/codyconfer/{sisyphus,viewkit}"
+            exit 1
+          fi
+          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: make ci
-        working-directory: munin
         run: make ci

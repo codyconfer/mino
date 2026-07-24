@@ -3,12 +3,13 @@ package deck
 import (
 	"context"
 
-	"github.com/charmbracelet/lipgloss"
-
-	"github.com/codyconfer/viewkit/layout"
+	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/theme"
+
+	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
+// StatusLevel aliases theme severity for status chips.
 type StatusLevel = theme.Severity
 
 const (
@@ -18,30 +19,45 @@ const (
 	StatusBad   = theme.SevBad
 )
 
+// ServiceStatus is one right-strip status chip (munin-facing).
 type ServiceStatus struct {
 	Name   string
 	Detail string
 	Level  StatusLevel
 }
 
+// StatusInfo is munin's chrome identity payload.
 type StatusInfo struct {
 	GitHubUser      string
 	SigningVerified bool
 	Services        []ServiceStatus
 }
 
+// StatusFunc loads status asynchronously for the chrome strip.
 type StatusFunc func(context.Context) StatusInfo
 
-func glyphForLevel(level StatusLevel) string { return theme.SeverityGlyph(level) }
+func adaptStatus(info StatusInfo) vkdeck.StatusInfo {
+	out := vkdeck.StatusInfo{Identity: identity(info)}
+	for _, s := range info.Services {
+		out.Services = append(out.Services, vkdeck.ServiceStatus{
+			Name:   s.Name,
+			Detail: s.Detail,
+			Glyph:  glyph.Lead(theme.SeverityGlyph(s.Level)),
+			Color:  theme.SeverityColor(s.Level),
+		})
+	}
+	return out
+}
 
-func statusColor(level StatusLevel) lipgloss.TerminalColor { return theme.SeverityColor(level) }
-
-func stripText(fg lipgloss.TerminalColor, s string) string { return theme.StripText(fg, s) }
-
-func stripBold(fg lipgloss.TerminalColor, s string) string { return theme.StripBold(fg, s) }
-
-func stripBlock(width int, lines ...string) string { return theme.StripBlock(width, lines...) }
-
-func stripLine(width int, left, right string) string {
-	return layout.SpreadBG(theme.StripBg(), left, right, width)
+func identity(info StatusInfo) string {
+	if info.GitHubUser == "" {
+		return ""
+	}
+	th := theme.Cur()
+	mark := theme.StripText(th.Cant.GetForeground(), glyph.SigningBad())
+	if info.SigningVerified {
+		mark = theme.StripText(th.Can.GetForeground(), glyph.SigningOK())
+	}
+	return theme.StripBold(th.Key.GetForeground(), "@"+info.GitHubUser) +
+		theme.StripText(th.Dim.GetForeground(), " ") + mark
 }

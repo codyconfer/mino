@@ -94,6 +94,8 @@ func kindStyle(th *theme.Theme, kind string) lipgloss.Style {
 			return th.Series[2]
 		}
 		return th.Cant
+	case glyph.KindNegative:
+		return th.Cant
 	default:
 		return th.Dim
 	}

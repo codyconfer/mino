@@ -1,7 +1,7 @@
 package views
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -9,8 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
-	_ "github.com/marcboeker/go-duckdb/v2"
-
+	"github.com/codyconfer/sisyphus/store"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
@@ -149,64 +148,11 @@ func auditvReadOnly(query string) bool {
 
 func (me *auditView) exec(query string) (string, error) {
 	path := filepath.Join(me.home, me.db()+".duckdb")
-	db, err := sql.Open("duckdb", path)
+	res, err := store.Query(context.Background(), path, query)
 	if err != nil {
 		return "", err
 	}
-	db.SetMaxOpenConns(1)
-	defer db.Close()
-
-	rows, err := db.Query(query)
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-
-	cols, err := rows.Columns()
-	if err != nil {
-		return "", err
-	}
-
-	var data [][]string
-	for rows.Next() {
-		cells := make([]any, len(cols))
-		ptrs := make([]any, len(cols))
-		for i := range cells {
-			ptrs[i] = &cells[i]
-		}
-		if err := rows.Scan(ptrs...); err != nil {
-			return "", err
-		}
-		row := make([]string, len(cols))
-		for i, c := range cells {
-			row[i] = auditvCell(c)
-		}
-		data = append(data, row)
-	}
-	if err := rows.Err(); err != nil {
-		return "", err
-	}
-	return auditvTable(cols, data), nil
-}
-
-func auditvCell(v any) string {
-	switch t := v.(type) {
-	case nil:
-		return "NULL"
-	case []byte:
-		return auditvOneLine(string(t))
-	case string:
-		return auditvOneLine(t)
-	default:
-		return auditvOneLine(fmt.Sprintf("%v", t))
-	}
-}
-
-func auditvOneLine(s string) string {
-	s = strings.ReplaceAll(s, "\r\n", " ")
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "\t", " ")
-	return s
+	return auditvTable(res.Columns, res.Rows), nil
 }
 
 func auditvTable(cols []string, data [][]string) string {
@@ -243,11 +189,22 @@ func auditvTable(cols []string, data [][]string) string {
 		return b.String()
 	}
 	for _, row := range data {
-		b.WriteString(th.Val.Render(auditvRow(row, widths)))
+		cells := make([]string, len(row))
+		for i, cell := range row {
+			cells[i] = auditvOneLine(cell)
+		}
+		b.WriteString(th.Val.Render(auditvRow(cells, widths)))
 		b.WriteString("\n")
 	}
 	b.WriteString(th.Dim.Render(fmt.Sprintf("(%d rows)", len(data))))
 	return b.String()
+}
+
+func auditvOneLine(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\t", " ")
+	return s
 }
 
 func auditvClamp(n int) int {

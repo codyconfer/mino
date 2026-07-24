@@ -1,6 +1,7 @@
 package views
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
@@ -269,7 +270,7 @@ func (k *Kit) setvImportConfig(a *deck.State) tea.Cmd {
 	if len(raw) == 0 {
 		return a.Push(k.setvRed("overwrite DuckDB", "no config file on disk"))
 	}
-	if err := mgr.DB().Import("config", raw, format); err != nil {
+	if err := mgr.DB().Import(context.Background(), "config", raw, format); err != nil {
 		return a.Push(k.setvRed("overwrite DuckDB", err.Error()))
 	}
 	return a.Push(deck.NewMessage("overwrite DuckDB", "imported config into DuckDB", k.setvCtx()))
@@ -293,7 +294,7 @@ func (k *Kit) setvShowConfigView() deck.View {
 		if mgr == nil {
 			return theme.Cur().Cant.Render("config DB unavailable")
 		}
-		cur, ok, err := mgr.DB().Current("config")
+		cur, ok, err := mgr.DB().Current(context.Background(), "config")
 		if err != nil {
 			return theme.Cur().Cant.Render("error: " + err.Error())
 		}

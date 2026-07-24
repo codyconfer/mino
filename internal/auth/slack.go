@@ -93,7 +93,7 @@ func SlackLogin(ctx context.Context, sa SlackAuth, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return sa.Store.Put("slack", Credential{AccessToken: token, Scope: scopes})
+	return sa.Store.Put(context.Background(), "slack", Credential{AccessToken: token, Scope: scopes})
 }
 
 func slackVerifier() (string, error) {

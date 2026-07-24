@@ -2,8 +2,8 @@ package notify
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/layout"
 	vnotify "github.com/codyconfer/viewkit/notify"
 	"github.com/codyconfer/viewkit/panels"
@@ -32,17 +32,20 @@ func FromEvent(ev signals.Event) (vnotify.Notification, bool) {
 	if n := len(sec.Items); n > 1 {
 		msg = fmt.Sprintf("%s (+%d more)", msg, n-1)
 	}
-	return vnotify.Note(tone(first), signals.Clean(title), signals.Clean(msg)), true
+	return vnotify.Note(toneFor(signals.ClassifyKind(first.Kind)), signals.Clean(title), signals.Clean(msg)), true
 }
 
-func tone(it signals.Item) vnotify.Tone {
-	switch strings.ToLower(it.Kind) {
-	case "mention", "review-requested", "review_requested", "assigned", "alert", "incident":
+func toneFor(sev glyph.Severity) vnotify.Tone {
+	switch sev {
+	case glyph.SeverityWarning:
 		return vnotify.ToneWarning
-	case "merged", "approved", "completed", "resolved", "success", "closed":
+	case glyph.SeverityPositive:
 		return vnotify.TonePositive
+	case glyph.SeverityNegative:
+		return vnotify.ToneNegative
+	default:
+		return vnotify.ToneNeutral
 	}
-	return vnotify.ToneNeutral
 }
 
 func Render(n vnotify.Notification) string {

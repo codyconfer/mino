@@ -1,0 +1,6 @@
+# Seed config embedded for distribution overlays (ADR-8).
+# Overlay repos replace this file with team defaults.
+output: terminal
+
+audit:
+  enabled: true

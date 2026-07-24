@@ -1,13 +1,18 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"io/fs"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
+	"github.com/codyconfer/sisyphus/lifecycle"
 
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
@@ -48,61 +53,116 @@ func ConfigExists(home string) bool {
 	return false
 }
 
-func Install(home string, force bool) ([]string, error) {
-	if ConfigExists(home) && !force {
-		return nil, errs.Newf(errs.KindConfig, "%s already has a config file", home).
-			WithHint("use --force to overwrite, or `munin nuke` to reinstall")
+func installSpec(home string, force bool) lifecycle.InstallSpec {
+	stock := []lifecycle.FileSeed{
+		{RelPath: "config.yaml", Content: []byte(defaultConfigYAML)},
+		{RelPath: path.Join(config.DirQueries, "my-open-prs.yaml"), Content: []byte(sampleQueryYAML)},
+		{RelPath: path.Join(config.DirFilters, "no-bots.yaml"), Content: []byte(sampleFilterYAML)},
+		{RelPath: path.Join(config.DirFlights, "default.yaml"), Content: []byte(sampleFlightYAML)},
 	}
+	return lifecycle.InstallSpec{
+		Home:  home,
+		Force: force,
+		Dirs: []string{
+			config.DirQueries, config.DirFilters, config.DirFlights, config.DirRoles, config.DirLogs,
+		},
+		Files: mergeFileSeeds(stock, walkDefaults(getDefaultsFS())),
+		After: seedStores,
+	}
+}
 
-	for _, d := range []string{
-		home,
-		filepath.Join(home, config.DirQueries),
-		filepath.Join(home, config.DirFilters),
-		filepath.Join(home, config.DirFlights),
-		filepath.Join(home, config.DirRoles),
-		filepath.Join(home, config.DirLogs),
-	} {
-		if err := sconfig.EnsureDir(d); err != nil {
-			return nil, err
-		}
-	}
+func seedRelPath(rel string) string {
+	return path.Clean(strings.ReplaceAll(rel, `\`, "/"))
+}
 
-	var created []string
-	files := []struct{ path, content string }{
-		{filepath.Join(home, "config.yaml"), defaultConfigYAML},
-		{filepath.Join(home, config.DirQueries, "my-open-prs.yaml"), sampleQueryYAML},
-		{filepath.Join(home, config.DirFilters, "no-bots.yaml"), sampleFilterYAML},
-		{filepath.Join(home, config.DirFlights, "default.yaml"), sampleFlightYAML},
+func mergeFileSeeds(base, overlay []lifecycle.FileSeed) []lifecycle.FileSeed {
+	if len(overlay) == 0 {
+		return normalizeFileSeeds(base)
 	}
-	for _, f := range files {
-		if !force && sconfig.IsFile(f.path) {
+	idx := map[string]int{}
+	out := make([]lifecycle.FileSeed, 0, len(base)+len(overlay))
+	for _, f := range base {
+		f.RelPath = seedRelPath(f.RelPath)
+		idx[f.RelPath] = len(out)
+		out = append(out, f)
+	}
+	for _, f := range overlay {
+		f.RelPath = seedRelPath(f.RelPath)
+		if i, ok := idx[f.RelPath]; ok {
+			out[i] = f
 			continue
 		}
-		if _, err := sconfig.WriteItem(filepath.Dir(f.path), filepath.Base(f.path), []byte(f.content)); err != nil {
-			return nil, err
-		}
-		created = append(created, f.path)
+		idx[f.RelPath] = len(out)
+		out = append(out, f)
 	}
+	return out
+}
 
-	if mgr, err := sisyphus.Open(home, sisyphus.Options{Mode: sisyphus.ModeBoth}); err == nil {
+func normalizeFileSeeds(in []lifecycle.FileSeed) []lifecycle.FileSeed {
+	out := make([]lifecycle.FileSeed, len(in))
+	for i, f := range in {
+		f.RelPath = seedRelPath(f.RelPath)
+		out[i] = f
+	}
+	return out
+}
+
+func walkDefaults(fsys fs.FS) []lifecycle.FileSeed {
+	if fsys == nil {
+		return nil
+	}
+	var out []lifecycle.FileSeed
+	_ = fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		base := path.Base(p)
+		if strings.HasPrefix(base, ".") {
+			return nil
+		}
+		b, err := fs.ReadFile(fsys, p)
+		if err != nil {
+			return err
+		}
+		out = append(out, lifecycle.FileSeed{RelPath: path.Clean(p), Content: b})
+		return nil
+	})
+	sort.Slice(out, func(i, j int) bool { return out[i].RelPath < out[j].RelPath })
+	return out
+}
+
+func seedStores(home string, created *[]string) error {
+	if mgr, err := sisyphus.Open(context.Background(), home, sisyphus.Options{Mode: sisyphus.ModeBoth}); err == nil {
 		if raw, format, err := sconfig.ReadFile(home); err == nil && len(raw) > 0 {
-			_ = mgr.DB().Import("config", raw, format)
+			_ = mgr.DB().Import(context.Background(), "config", raw, format)
 		}
 		for _, name := range []string{config.DirQueries, config.DirFilters, config.DirFlights, config.DirRoles} {
 			if blob, has, err := sconfig.SerializeDir(filepath.Join(home, name)); err == nil && has {
-				_ = mgr.DB().Import(name, blob, "collection")
+				_ = mgr.DB().Import(context.Background(), name, blob, "collection")
 			}
 		}
 		_ = mgr.Close()
-		created = append(created, filepath.Join(home, "config.duckdb"))
+		*created = append(*created, filepath.Join(home, "config.duckdb"))
 	}
-	if a, err := audit.Open(filepath.Join(home, "audit.duckdb")); err == nil {
+	if a, err := audit.Open(context.Background(), filepath.Join(home, "audit.duckdb")); err == nil {
 		_ = a.Close()
-		created = append(created, filepath.Join(home, "audit.duckdb"))
+		*created = append(*created, filepath.Join(home, "audit.duckdb"))
 	}
-	if tk, err := token.Open(filepath.Join(home, "tokens.duckdb")); err == nil {
+	if tk, err := token.Open(context.Background(), filepath.Join(home, "tokens.duckdb")); err == nil {
 		_ = tk.Close()
-		created = append(created, filepath.Join(home, "tokens.duckdb"))
+		*created = append(*created, filepath.Join(home, "tokens.duckdb"))
+	}
+	return nil
+}
+
+func Install(home string, force bool) ([]string, error) {
+	if !force && ConfigExists(home) {
+		return nil, errs.Newf(errs.KindConfig, "%s already has a config file", home).
+			WithHint("use --force to overwrite, or `munin nuke` to reinstall")
+	}
+	created, err := lifecycle.Install(installSpec(home, force))
+	if err != nil {
+		return nil, errs.Wrap(errs.KindConfig, err, "install")
 	}
 	return created, nil
 }
@@ -112,7 +172,7 @@ func Clean(w io.Writer, home string) error {
 		"config.yaml", "config.yml", "config.json",
 		config.DirQueries, config.DirFilters, config.DirFlights, config.DirRoles, config.DirLogs,
 	}
-	dest, moved, err := sconfig.Archive(home, entries)
+	dest, moved, err := lifecycle.Clean(home, entries)
 	if err != nil {
 		return err
 	}
@@ -125,12 +185,9 @@ func Clean(w io.Writer, home string) error {
 }
 
 func Nuke(w io.Writer, home string) error {
-	if err := sconfig.RemoveAll(home); err != nil {
-		return errs.Wrapf(errs.KindInternal, err, "removing %s", home)
-	}
-	created, err := Install(home, true)
+	created, err := lifecycle.Nuke(home, installSpec(home, true))
 	if err != nil {
-		return err
+		return errs.Wrapf(errs.KindInternal, err, "nuke %s", home)
 	}
 	fmt.Fprintln(w, render.Success(fmt.Sprintf("nuked and reinstalled %s (%d files)", home, len(created))))
 	return nil

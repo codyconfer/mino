@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/render/glyph"
 	gh "github.com/codyconfer/munin/internal/signals/github"
 )
@@ -96,7 +96,7 @@ func resetOnboarding(cmd *cobra.Command) error {
 
 func runOnboard(cmd *cobra.Command, statusOnly bool) error {
 	w := cmd.OutOrStdout()
-	sty := newOnboardStyles(w)
+	sty := render.NewReportStyles(w)
 	apiURL, err := gh.NormalizeAPIURL(shared.Cfg.GitHub.APIURL)
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func runOnboard(cmd *cobra.Command, statusOnly bool) error {
 
 		if st.Ready() {
 			if statusOnly {
-				fmt.Fprintln(w, sty.ok.Render("✓ all checks pass."))
+				fmt.Fprintln(w, sty.OK.Render("✓ all checks pass."))
 				return nil
 			}
 			gs := config.LoadGlobalSettings()
@@ -118,7 +118,7 @@ func runOnboard(cmd *cobra.Command, statusOnly bool) error {
 			if err := config.SaveGlobalSettings(gs); err != nil {
 				return err
 			}
-			fmt.Fprintln(w, sty.ok.Render("✓ munin is onboarded — all commands are unlocked."))
+			fmt.Fprintln(w, sty.OK.Render("✓ munin is onboarded — all commands are unlocked."))
 			return nil
 		}
 
@@ -140,35 +140,19 @@ func runOnboard(cmd *cobra.Command, statusOnly bool) error {
 	}
 }
 
-type onboardStyles struct {
-	title, ok, bad, name, dim, fix lipgloss.Style
-}
-
-func newOnboardStyles(w io.Writer) onboardStyles {
-	r := lipgloss.NewRenderer(w)
-	return onboardStyles{
-		title: r.NewStyle().Bold(true).Underline(true),
-		ok:    r.NewStyle().Foreground(lipgloss.Color("10")),
-		bad:   r.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),
-		name:  r.NewStyle().Bold(true),
-		dim:   r.NewStyle().Faint(true),
-		fix:   r.NewStyle().Foreground(lipgloss.Color("12")),
-	}
-}
-
-func printOnboardStatus(w io.Writer, s onboardStyles, st onboard.Status) {
-	fmt.Fprintln(w, s.title.Render("Onboarding"))
+func printOnboardStatus(w io.Writer, sty render.ReportStyles, st onboard.Status) {
+	fmt.Fprintln(w, sty.Title.Render("Onboarding"))
 	for _, r := range st.Results {
-		mark := s.ok.Render(glyph.Check())
+		mark := sty.OK.Render(glyph.Check())
 		if !r.OK {
-			mark = s.bad.Render(glyph.Cross())
+			mark = sty.Err.Render(glyph.Cross())
 		}
-		fmt.Fprintf(w, "  %s %s\n", mark, s.name.Render(r.Title))
+		fmt.Fprintf(w, "  %s %s\n", mark, sty.Name.Render(r.Title))
 		if r.Detail != "" {
-			fmt.Fprintf(w, "      %s\n", s.dim.Render(r.Detail))
+			fmt.Fprintf(w, "      %s\n", sty.Dim.Render(r.Detail))
 		}
 		for _, f := range r.Fix {
-			fmt.Fprintf(w, "      %s %s\n", s.fix.Render(glyph.Arrow()), f)
+			fmt.Fprintf(w, "      %s %s\n", sty.Fix.Render(glyph.Arrow()), f)
 		}
 	}
 	fmt.Fprintln(w)

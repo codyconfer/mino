@@ -49,7 +49,15 @@ func NewState(store *kv.Store) *State {
 	if store == nil {
 		return &State{}
 	}
-	return &State{kv: kvAdapter{store}}
+	return &State{kv: store}
+}
+
+// KV returns the underlying persistence surface (may be nil).
+func (s *State) KV() daemon.KV {
+	if s == nil {
+		return nil
+	}
+	return s.kv
 }
 
 func (s *State) Cursor(namespace, key string) *daemon.Cursor {
@@ -66,33 +74,6 @@ func (s *State) Seen(namespace string) *Seen {
 	return &Seen{kv: s.kv, ns: namespace}
 }
 
-type kvAdapter struct{ s *kv.Store }
-
-func (a kvAdapter) Get(namespace, key string) (string, bool, error) {
-	e, ok, err := a.s.Get(namespace, key)
-	return e.Value, ok, err
-}
-
-func (a kvAdapter) Set(namespace, key, value string) error {
-	return a.s.Put(namespace, key, value, time.Time{})
-}
-
-func (a kvAdapter) Delete(namespace, key string) error {
-	return a.s.Delete(namespace, key)
-}
-
-func (a kvAdapter) List(namespace string) (map[string]string, error) {
-	m, err := a.s.List(namespace)
-	if err != nil {
-		return nil, err
-	}
-	out := make(map[string]string, len(m))
-	for k, e := range m {
-		out[k] = e.Value
-	}
-	return out, nil
-}
-
 type Seen struct {
 	d  *daemon.Deduper[signals.Item]
 	kv daemon.KV
@@ -101,13 +82,13 @@ type Seen struct {
 
 func newSeen() *Seen { return &Seen{} }
 
-func (s *Seen) Fresh(items []signals.Item, key func(signals.Item) string) []signals.Item {
+func (s *Seen) Fresh(ctx context.Context, items []signals.Item, key func(signals.Item) string) []signals.Item {
 	if s.d == nil {
 		if s.kv != nil {
-			s.d = daemon.NewPersistentDeduper(key, s.kv, s.ns)
+			s.d = daemon.NewPersistentDeduper(ctx, key, s.kv, s.ns)
 		} else {
 			s.d = daemon.NewDeduper(key)
 		}
 	}
-	return s.d.Fresh(items)
+	return s.d.Fresh(ctx, items)
 }

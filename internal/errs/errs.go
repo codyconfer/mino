@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/viewkit/glyph"
+	"github.com/codyconfer/viewkit/theme"
 )
 
 type Kind string
@@ -83,17 +81,14 @@ func Render(err error) string {
 	if err == nil {
 		return ""
 	}
-	r := log.Renderer()
-	mark := r.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render(glyph.Cross())
-	kindSty := r.NewStyle().Faint(true)
-	hintSty := r.NewStyle().Foreground(lipgloss.Color("12"))
-
+	th := theme.Cur()
+	mark := th.Cant.Bold(true).Render(glyph.Cross())
 	var b strings.Builder
 	var e *Error
 	if errors.As(err, &e) {
-		fmt.Fprintf(&b, "%s %s %s\n", mark, kindSty.Render("["+string(e.Kind)+"]"), err.Error())
+		fmt.Fprintf(&b, "%s %s %s\n", mark, th.Dim.Render("["+string(e.Kind)+"]"), err.Error())
 		if e.Hint != "" {
-			fmt.Fprintf(&b, "  %s %s\n", hintSty.Render("hint:"), e.Hint)
+			fmt.Fprintf(&b, "  %s %s\n", th.Accent.Render("hint:"), e.Hint)
 		}
 		return b.String()
 	}

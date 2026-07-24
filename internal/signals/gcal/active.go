@@ -37,13 +37,13 @@ func (h *gcalActive) LatencyFloor() time.Duration { return h.interval }
 func (h *gcalActive) Stream(ctx context.Context) (<-chan signals.Event, error) {
 	var svc *calendar.Service
 	cursor := h.state.Cursor("calendar", h.calendarID+":sync_token")
-	syncToken := cursor.Load()
+	syncToken := cursor.Load(ctx)
 	setSync := func(v string) {
 		if v == syncToken {
 			return
 		}
 		syncToken = v
-		_ = cursor.Save(v)
+		_ = cursor.Save(ctx, v)
 	}
 
 	ensure := func(ctx context.Context) error {

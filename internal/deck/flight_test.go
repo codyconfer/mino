@@ -1,71 +1,47 @@
 package deck
 
 import (
+	"context"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/spinner"
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
+	"github.com/codyconfer/munin/internal/signals"
 )
 
-func newTestModel(labels ...string) model {
-	m := model{
-		panels: make([]panel, len(labels)),
-		spin:   spinner.New(),
-		left:   len(labels),
+func TestFlightTaskAdaptsSectionsToContent(t *testing.T) {
+	tasks := []Task{{
+		Label: "alpha",
+		Run: func(context.Context) []signals.Section {
+			return []signals.Section{{
+				Signal: "alpha",
+				Title:  "Alpha",
+				Items:  []signals.Item{{Title: "one"}},
+			}}
+		},
+	}}
+	vt := make([]vkdeck.Task, len(tasks))
+	for i, task := range tasks {
+		label, run := task.Label, task.Run
+		vt[i] = vkdeck.Task{
+			Label: label,
+			Run: func(ctx context.Context) (vkdeck.Content, error) {
+				sections := run(ctx)
+				// mirror RunFlight boundary
+				body := ""
+				if len(sections) > 0 {
+					body = sections[0].Title
+				}
+				return vkdeck.Text(body), nil
+			},
+		}
 	}
-	for i, l := range labels {
-		m.panels[i].label = l
+	out, err := vkdeck.Execute(context.Background(), vt)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return m
-}
-
-func TestPanelsReplaceOnDone(t *testing.T) {
-	m := newTestModel("alpha", "beta")
-
-	v := m.View()
-	if !strings.Contains(v, "alpha") || !strings.Contains(v, "beta") || !strings.Contains(v, "loading") {
-		t.Fatalf("initial view should show both labels loading:\n%s", v)
+	if !strings.Contains(out[0].Render(0), "Alpha") {
+		t.Fatalf("got %q", out[0].Render(0))
 	}
-
-	next, _ := m.Update(doneMsg{idx: 0, content: "ALPHA-CONTENT"})
-	m = next.(model)
-	if m.left != 1 {
-		t.Fatalf("left = %d, want 1", m.left)
-	}
-	v = m.View()
-	if !strings.Contains(v, "ALPHA-CONTENT") {
-		t.Errorf("view should show completed content:\n%s", v)
-	}
-	if !strings.Contains(v, "beta") || !strings.Contains(v, "loading") {
-		t.Errorf("second panel should still be loading:\n%s", v)
-	}
-
-	next, cmd := m.Update(doneMsg{idx: 1, content: "BETA-CONTENT"})
-	m = next.(model)
-	if m.left != 0 {
-		t.Fatalf("left = %d, want 0", m.left)
-	}
-	if cmd == nil {
-		t.Fatal("expected a quit command once all panels are done")
-	}
-	v = m.View()
-	if !strings.Contains(v, "ALPHA-CONTENT") || !strings.Contains(v, "BETA-CONTENT") {
-		t.Errorf("final view should show all content:\n%s", v)
-	}
-	if strings.Contains(v, "loading") {
-		t.Errorf("final view should have no loading panels:\n%s", v)
-	}
-}
-
-func TestDuplicateDoneIsIgnored(t *testing.T) {
-	m := newTestModel("only")
-	next, _ := m.Update(doneMsg{idx: 0, content: "X"})
-	m = next.(model)
-
-	next, cmd := m.Update(doneMsg{idx: 0, content: "X"})
-	m = next.(model)
-	if m.left != 0 {
-		t.Fatalf("left = %d, want 0 (no underflow)", m.left)
-	}
-	_ = cmd
 }

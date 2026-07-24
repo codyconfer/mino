@@ -17,7 +17,7 @@ func TestSlackTokenPrecedence(t *testing.T) {
 		t.Fatal("expected error with no token available")
 	}
 
-	if err := store.Put("slack", Credential{AccessToken: "xoxp-cached", Scope: "scopes"}); err != nil {
+	if err := store.Put(context.Background(), "slack", Credential{AccessToken: "xoxp-cached", Scope: "scopes"}); err != nil {
 		t.Fatal(err)
 	}
 	if tok, err := SlackToken(store, "SLACK_TOKEN"); err != nil || tok != "xoxp-cached" {

@@ -19,7 +19,7 @@ import (
 	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/signals"
 	gh "github.com/codyconfer/munin/internal/signals/github"
-	muninterm "github.com/codyconfer/munin/internal/term"
+	muninterm "github.com/codyconfer/viewkit/term"
 )
 
 func newDeckCmd() *cobra.Command {

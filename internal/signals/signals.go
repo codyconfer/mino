@@ -79,3 +79,11 @@ type ActiveSignal interface {
 	Stream(ctx context.Context) (<-chan Event, error)
 	LatencyFloor() time.Duration
 }
+
+// Scheduled is a time-triggered signal capability (ADR-10). Hosts wire this
+// through sisyphus/daemon.Schedule; persistence (watermarks) stays with the plugin.
+type Scheduled interface {
+	Name() string
+	Next(ctx context.Context, now time.Time) (due time.Time, ready bool, err error)
+	Fetch(ctx context.Context) ([]Section, error)
+}

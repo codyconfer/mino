@@ -9,6 +9,14 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/plugin/external/gcx"
+	"github.com/codyconfer/munin/internal/plugin/external/gooseai"
+	"github.com/codyconfer/munin/internal/plugin/external/kubectl"
+	"github.com/codyconfer/munin/internal/plugin/external/ollama"
+	"github.com/codyconfer/munin/internal/plugin/external/opencode"
+	"github.com/codyconfer/munin/internal/plugin/external/pi"
+	"github.com/codyconfer/munin/internal/plugin/ntr"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/active"
 	"github.com/codyconfer/munin/internal/signals/demo"
@@ -21,6 +29,10 @@ import (
 	slacksrc "github.com/codyconfer/munin/internal/signals/slack"
 	"github.com/codyconfer/munin/internal/token"
 )
+
+func init() {
+	plugin.RegisterBuiltins()
+}
 
 var ErrNoActive = errs.New(errs.KindUsage, "signal has no active (streaming) implementation")
 
@@ -60,12 +72,23 @@ var registry = map[string]entry{
 	"drive":    {passive: buildDrive},
 	"tasks":    {passive: buildTasks, active: buildActiveTasks},
 	"slack":    {passive: buildSlack, active: buildActiveSlack},
+	"ntr":      {passive: buildNTR},
+	"kubectl":  {passive: buildKubectl},
+	"gcx":      {passive: buildGCX},
+	"gooseai":  {passive: buildGooseAI},
+	"pi":       {passive: buildPi},
+	"opencode": {passive: buildOpenCode},
+	"ollama":   {passive: buildOllama},
 }
 
 func Signal(name string, params map[string]string, cfg *config.Config, tokens *token.Store) (signals.Signal, error) {
 	e, ok := registry[name]
 	if !ok {
 		return nil, errs.Newf(errs.KindConfig, "unknown signal %q", name)
+	}
+	if !plugin.SignalEnabled(name) {
+		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
+			WithHint("enable with `munin plugins enable` for the backing plugin")
 	}
 	return e.passive(params, cfg, tokens)
 }
@@ -75,10 +98,78 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	if !ok {
 		return nil, errs.Newf(errs.KindConfig, "unknown signal %q", name)
 	}
+	if !plugin.SignalEnabled(name) {
+		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
+			WithHint("enable with `munin plugins enable` for the backing plugin")
+	}
 	if e.active == nil {
+		if plugin.HasCapability(name, plugin.CapStream) {
+			return nil, errs.Newf(errs.KindInternal, "signal %q advertises CapStream but has no active builder", name)
+		}
 		return nil, ErrNoActive
 	}
+	if !plugin.HasCapability(name, plugin.CapStream) {
+		return nil, errs.Newf(errs.KindConfig, "signal %q does not advertise CapStream", name)
+	}
 	return e.active(params, cfg, tokens, state)
+}
+
+// KnownSignals returns config signal names from the plugin registry.
+func KnownSignals() map[string]bool {
+	return plugin.KnownSignals()
+}
+
+// HasBuilder reports whether the host build registry can construct signal.
+func HasBuilder(signal string) bool {
+	_, ok := registry[signal]
+	return ok
+}
+
+// HasActiveBuilder reports whether signal has a Stream/active builder.
+func HasActiveBuilder(signal string) bool {
+	e, ok := registry[signal]
+	return ok && e.active != nil
+}
+
+// BuilderSignals returns signal names present in the host build registry.
+func BuilderSignals() map[string]bool {
+	out := make(map[string]bool, len(registry))
+	for name := range registry {
+		out[name] = true
+	}
+	return out
+}
+
+func buildNTR(_ map[string]string, cfg *config.Config, _ *token.Store) (signals.Signal, error) {
+	role := cfg.Role
+	if role == "" {
+		role = "default"
+	}
+	return ntr.Signal{Home: cfg.Home, Role: role}, nil
+}
+
+func buildKubectl(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
+	return kubectl.Signal{}, nil
+}
+
+func buildGCX(_ map[string]string, _ *config.Config, tokens *token.Store) (signals.Signal, error) {
+	return gcx.NewSignal(tokens), nil
+}
+
+func buildGooseAI(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
+	return gooseai.Signal(), nil
+}
+
+func buildPi(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
+	return pi.Signal(), nil
+}
+
+func buildOpenCode(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
+	return opencode.Signal(), nil
+}
+
+func buildOllama(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
+	return ollama.Signal(), nil
 }
 
 func buildDemo(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {

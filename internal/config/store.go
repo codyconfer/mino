@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -33,7 +34,7 @@ func ValidateDirectiveArg(name string) error {
 }
 
 func PrintCurrentConfig(w io.Writer, db *configdb.Store) error {
-	cur, ok, err := db.Current(ConfigDirective)
+	cur, ok, err := db.Current(context.Background(), ConfigDirective)
 	if err != nil {
 		return err
 	}
@@ -48,7 +49,7 @@ func PrintCurrentConfig(w io.Writer, db *configdb.Store) error {
 }
 
 func PrintConfigHistory(w io.Writer, db *configdb.Store) error {
-	versions, err := db.History(ConfigDirective, 50)
+	versions, err := db.History(context.Background(), ConfigDirective, 50)
 	if err != nil {
 		return err
 	}
@@ -92,7 +93,7 @@ func Export(w io.Writer, db *configdb.Store, home, directive string, includeSecr
 }
 
 func exportConfig(w io.Writer, db *configdb.Store, out string, single, includeSecrets bool) error {
-	v, ok, err := db.Current(ConfigDirective)
+	v, ok, err := db.Current(context.Background(), ConfigDirective)
 	if err != nil {
 		return errs.Wrap(errs.KindStore, err, "reading config from store")
 	}
@@ -119,7 +120,7 @@ func exportConfig(w io.Writer, db *configdb.Store, out string, single, includeSe
 }
 
 func exportCollection(w io.Writer, db *configdb.Store, out, name string, single bool) error {
-	v, ok, err := db.Current(name)
+	v, ok, err := db.Current(context.Background(), name)
 	if err != nil {
 		return errs.Wrapf(errs.KindStore, err, "reading %s from store", name)
 	}
@@ -142,7 +143,7 @@ func exportCollection(w io.Writer, db *configdb.Store, out, name string, single 
 
 func ExportAllToFiles(db *configdb.Store, home string) ([]string, error) {
 	var written []string
-	if cur, ok, err := db.Current(ConfigDirective); err != nil {
+	if cur, ok, err := db.Current(context.Background(), ConfigDirective); err != nil {
 		return nil, err
 	} else if ok {
 		path, err := sconfig.WriteConfigFile(home, []byte(cur.Content), cur.Format)
@@ -152,7 +153,7 @@ func ExportAllToFiles(db *configdb.Store, home string) ([]string, error) {
 		written = append(written, path)
 	}
 	for _, name := range CollectionDirectives() {
-		cur, ok, err := db.Current(name)
+		cur, ok, err := db.Current(context.Background(), name)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +203,7 @@ func importConfig(w io.Writer, db *configdb.Store, home string) error {
 		return errs.Newf(errs.KindConfig, "no config file found in %s", home).
 			WithHint("expected config.yaml, config.yml, or config.json; run `munin install` to create one")
 	}
-	if err := db.Import(ConfigDirective, raw, format); err != nil {
+	if err := db.Import(context.Background(), ConfigDirective, raw, format); err != nil {
 		return errs.Wrap(errs.KindStore, err, "importing config")
 	}
 	fmt.Fprintf(w, "imported config (%s, %d bytes)\n", format, len(raw))
@@ -221,7 +222,7 @@ func importCollection(w io.Writer, db *configdb.Store, home, name string, requir
 		fmt.Fprintf(w, "notice: no %s files, skipping\n", name)
 		return nil
 	}
-	if err := db.Import(name, blob, "collection"); err != nil {
+	if err := db.Import(context.Background(), name, blob, "collection"); err != nil {
 		return errs.Wrapf(errs.KindStore, err, "importing %s", name)
 	}
 	fmt.Fprintf(w, "imported %s (%d bytes)\n", name, len(blob))

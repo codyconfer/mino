@@ -2,9 +2,10 @@ package glyph
 
 import (
 	"os"
-	"strings"
 
 	vk "github.com/codyconfer/viewkit/glyph"
+
+	"github.com/codyconfer/munin/internal/signals"
 )
 
 type Mode = vk.Mode
@@ -58,30 +59,17 @@ func SigningOK() string  { return signingOK.String() }
 func SigningBad() string { return signingBad.String() }
 func Login() string      { return login.String() }
 
-type Kind int
+// Kind is retained as an alias for call sites that still speak in Kind terms.
+type Kind = vk.Severity
 
 const (
-	KindNeutral Kind = iota
-	KindPositive
-	KindWarning
+	KindNeutral  = vk.SeverityNeutral
+	KindPositive = vk.SeverityPositive
+	KindWarning  = vk.SeverityWarning
+	KindNegative = vk.SeverityNegative
 )
 
-func Classify(kind string) Kind {
-	switch strings.ToLower(kind) {
-	case "mention", "review-requested", "review_requested", "assigned", "alert", "incident":
-		return KindWarning
-	case "merged", "approved", "completed", "resolved", "success", "closed":
-		return KindPositive
-	}
-	return KindNeutral
-}
+// Classify delegates to the single signals classifier.
+func Classify(kind string) Kind { return signals.ClassifyKind(kind) }
 
-func ForKind(kind string) string {
-	switch Classify(kind) {
-	case KindPositive:
-		return vk.Check()
-	case KindWarning:
-		return vk.Warn()
-	}
-	return vk.Bullet()
-}
+func ForKind(kind string) string { return vk.GlyphFor(signals.ClassifyKind(kind)) }

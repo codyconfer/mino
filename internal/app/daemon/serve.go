@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/daemon/service"
+	"github.com/codyconfer/sisyphus/daemon/ui"
 	"github.com/codyconfer/sisyphus/kv"
+	"github.com/codyconfer/viewkit/glyph"
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/app/views"
@@ -25,6 +27,9 @@ import (
 )
 
 const daemonName = "munin"
+
+// pipePrefix identifies munin's Windows named pipes (sisyphus carries no app literal).
+const pipePrefix = "munin"
 
 const serveBuffer = 256
 
@@ -46,7 +51,7 @@ type notifySink struct {
 	bell     bool
 	desktop  bool
 	terminal bool
-	tray     *sysdaemon.Tray
+	tray     *ui.Tray
 }
 
 func (n notifySink) handle(ev signals.Event) {
@@ -60,7 +65,7 @@ func (n notifySink) handle(ev signals.Event) {
 	}
 	if n.desktop {
 		icon, _ := sysdaemon.StateIcon(st)
-		_ = sysdaemon.Notify(sysdaemon.Notification{Title: note.Title, Message: note.Message, Icon: icon})
+		_ = ui.Notify(ui.Notification{Title: note.Title, Message: note.Message, Icon: icon})
 	}
 	if n.terminal {
 		if n.bell {
@@ -73,7 +78,7 @@ func (n notifySink) handle(ev signals.Event) {
 func (s *Server) SocketPath() string { return filepath.Join(s.Cfg.Home, "serve.sock") }
 
 func (s *Server) openState() (*active.State, func()) {
-	store, err := kv.Open(filepath.Join(s.Cfg.Home, "serve.duckdb"))
+	store, err := kv.Open(context.Background(), filepath.Join(s.Cfg.Home, "serve.duckdb"))
 	if err != nil {
 		log.Debugf("serve: cursor persistence unavailable: %v", err)
 		return active.NewState(nil), func() {}
@@ -84,10 +89,6 @@ func (s *Server) openState() (*active.State, func()) {
 func (s *Server) events(ctx context.Context, name string, interval time.Duration, state *active.State) (<-chan signals.Event, error) {
 	flight := s.Directives.Flights[name]
 	queries := s.activeQueries(name, flight.Queries, interval, state)
-	if len(queries) == 0 {
-		return nil, errs.Newf(errs.KindUsage, "flight %q has no signals with realtime support", name).
-			WithHint("active signals: slack, github, calendar, tasks, demo")
-	}
 
 	var chans []<-chan signals.Event
 	for _, q := range queries {
@@ -99,8 +100,13 @@ func (s *Server) events(ctx context.Context, name string, interval time.Duration
 		chans = append(chans, applyFilters(ctx, ch, q.filters))
 		fmt.Fprintf(os.Stderr, "watching %-10s %s\n", q.src.Name(), latencyLabel(q.src.LatencyFloor()))
 	}
+	// Scheduled plugins (NTR reminders) share the same notify/audit fan-in.
+	if sch := s.scheduledEvents(ctx, name, flight.Queries, state); sch != nil {
+		chans = append(chans, sch)
+	}
 	if len(chans) == 0 {
-		return nil, errs.New(errs.KindSignal, "no signals could be opened for watching")
+		return nil, errs.Newf(errs.KindUsage, "flight %q has no signals with realtime or scheduled support", name).
+			WithHint("active: slack, github, calendar, tasks, demo; scheduled: ntr")
 	}
 	return sysdaemon.FanIn(ctx, chans...), nil
 }
@@ -212,11 +218,11 @@ func (s *Server) observable(ctx context.Context, name string, interval time.Dura
 
 func (s *Server) socket(ctx context.Context, subj *sysdaemon.Subject[signals.Event]) func() {
 	path := s.SocketPath()
-	if sysdaemon.IsListening(path) {
+	if sysdaemon.IsListening(pipePrefix, path) {
 		log.Debugf("serve: another daemon already owns %s; not exposing a socket", path)
 		return func() {}
 	}
-	ln, err := sysdaemon.Listen(path)
+	ln, err := sysdaemon.Listen(pipePrefix, path)
 	if err != nil {
 		log.Debugf("serve: socket unavailable: %v", err)
 		return func() {}
@@ -226,7 +232,7 @@ func (s *Server) socket(ctx context.Context, subj *sysdaemon.Subject[signals.Eve
 }
 
 func (s *Server) Dial(ctx context.Context) (<-chan signals.Event, bool) {
-	events, err := sysdaemon.Dial(ctx, s.SocketPath(), Decode)
+	events, err := sysdaemon.Dial(ctx, pipePrefix, s.SocketPath(), Decode)
 	if err != nil {
 		return nil, false
 	}
@@ -272,7 +278,7 @@ func (s *Server) RunTUI(ctx context.Context, name string, interval time.Duration
 	return deck.Run(views.NewServeView(name, subj.Subscribe(serveBuffer)))
 }
 
-func (s *Server) Run(ctx context.Context, name string, interval time.Duration, bell, desktop bool, tray *sysdaemon.Tray) error {
+func (s *Server) Run(ctx context.Context, name string, interval time.Duration, bell, desktop bool, tray *ui.Tray) error {
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -303,8 +309,8 @@ func (s *Server) RunTray(parent context.Context, name string, interval time.Dura
 	defer cancel()
 	errCh := make(chan error, 1)
 	ready := make(chan struct{})
-	var tray *sysdaemon.Tray
-	tray = sysdaemon.NewTray(sysdaemon.TrayConfig{
+	var tray *ui.Tray
+	tray = ui.NewTray(ui.TrayConfig{
 		Title:   "munin",
 		Tooltip: "munin",
 		Icons:   sysdaemon.DefaultStateIcons(),
@@ -336,16 +342,23 @@ func stateForEvent(ev signals.Event) sysdaemon.State {
 	if ev.Section.Err != nil {
 		return sysdaemon.StateError
 	}
+	worst := glyph.SeverityNeutral
 	for _, it := range ev.Section.Items {
-		switch strings.ToLower(it.Kind) {
-		case "mention", "review-requested", "review_requested", "assigned", "alert", "incident", "warn", "warning":
-			return sysdaemon.StateWarn
+		if s := signals.ClassifyKind(it.Kind); s > worst {
+			worst = s
 		}
 	}
-	return sysdaemon.StateNotify
+	switch worst {
+	case glyph.SeverityNegative:
+		return sysdaemon.StateError
+	case glyph.SeverityWarning:
+		return sysdaemon.StateWarn
+	default:
+		return sysdaemon.StateNotify
+	}
 }
 
-func (s *Server) Service(name string, interval time.Duration, bell, desktop bool, theme string, userService bool) (*sysdaemon.Service, error) {
+func (s *Server) Service(name string, interval time.Duration, bell, desktop bool, theme string, userService bool) (*service.Service, error) {
 	args := []string{"serve", name, "--interval", interval.String()}
 	if !bell {
 		args = append(args, "--bell=false")
@@ -356,7 +369,7 @@ func (s *Server) Service(name string, interval time.Duration, bell, desktop bool
 	if theme != "" && theme != "dark" {
 		args = append(args, "--theme", theme)
 	}
-	return sysdaemon.NewService(sysdaemon.ServiceConfig{
+	return service.New(service.Config{
 		Name:        daemonName,
 		DisplayName: "munin",
 		Description: "munin realtime signal watcher",

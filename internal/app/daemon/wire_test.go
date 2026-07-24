@@ -51,7 +51,7 @@ func TestWireEventErrorPreserved(t *testing.T) {
 
 func TestServeSocketDeliversToClients(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "serve.sock")
-	ln, err := sysdaemon.Listen(path)
+	ln, err := sysdaemon.Listen("munin", path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,11 +61,11 @@ func TestServeSocketDeliversToClients(t *testing.T) {
 	defer subj.Close()
 	go sysdaemon.Broadcast(t.Context(), ln, subj, 8, Encode)
 
-	a, err := sysdaemon.Dial(t.Context(), path, Decode)
+	a, err := sysdaemon.Dial(t.Context(), "munin", path, Decode)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := sysdaemon.Dial(t.Context(), path, Decode)
+	b, err := sysdaemon.Dial(t.Context(), "munin", path, Decode)
 	if err != nil {
 		t.Fatal(err)
 	}

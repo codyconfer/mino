@@ -1,0 +1,4 @@
+# Scheduled reminders fire when this flight is served (`munin serve ntr`).
+# NTR ReminderJob shares the serve notify sink (tray/desktop/terminal).
+name: ntr
+queries: [ntr-list]

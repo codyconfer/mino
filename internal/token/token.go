@@ -1,13 +1,10 @@
 package token
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"sync"
+	"context"
+	"errors"
 
-	"github.com/codyconfer/sisyphus/backup"
-	"github.com/codyconfer/sisyphus/kv"
-	"github.com/codyconfer/sisyphus/secret"
+	"github.com/codyconfer/sisyphus/sealed"
 
 	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/errs"
@@ -21,124 +18,91 @@ const (
 
 var errUnavailable = errs.New(errs.KindStore, "token store unavailable")
 
-func keyringKey() ([]byte, error) {
-	store, err := secret.Resolve("keyring", keyringService)
-	if err != nil {
-		return nil, err
-	}
-	v, err := secret.GetOrCreate(store, keyName, func() (string, error) {
-		k, err := backup.NewKey()
-		if err != nil {
-			return "", err
-		}
-		return base64.StdEncoding.EncodeToString(k), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return base64.StdEncoding.DecodeString(v)
-}
-
+// Store is munin's credential facade over sisyphus/sealed.
 type Store struct {
-	kv          *kv.Store
-	keyProvider func() ([]byte, error)
-	keyMu       sync.Mutex
-	key         []byte
+	s *sealed.Store
 }
 
-func Open(path string) (*Store, error) {
-	k, err := kv.Open(path)
+func Open(ctx context.Context, path string) (*Store, error) {
+	s, err := sealed.Open(ctx, path, sealed.Options{
+		Namespace:      namespace,
+		KeyringService: keyringService,
+		KeyName:        keyName,
+	})
 	if err != nil {
 		return nil, errs.Wrap(errs.KindStore, err, "open token store")
 	}
-	return &Store{kv: k, keyProvider: keyringKey}, nil
+	return &Store{s: s}, nil
+}
+
+// OpenWithKey is for tests that inject encryption key material.
+func OpenWithKey(ctx context.Context, path string, keyProvider func(context.Context) ([]byte, error)) (*Store, error) {
+	s, err := sealed.Open(ctx, path, sealed.Options{
+		Namespace:   namespace,
+		KeyProvider: keyProvider,
+	})
+	if err != nil {
+		return nil, errs.Wrap(errs.KindStore, err, "open token store")
+	}
+	return &Store{s: s}, nil
 }
 
 func (s *Store) Close() error {
-	if s == nil || s.kv == nil {
+	if s == nil || s.s == nil {
 		return nil
 	}
-	if err := s.kv.Close(); err != nil {
+	if err := s.s.Close(); err != nil {
 		return errs.Wrap(errs.KindStore, err, "close token store")
 	}
 	return nil
 }
 
-func (s *Store) encryptionKey() ([]byte, error) {
-	s.keyMu.Lock()
-	defer s.keyMu.Unlock()
-	if s.key != nil {
-		return s.key, nil
-	}
-	provider := s.keyProvider
-	if provider == nil {
-		provider = keyringKey
-	}
-	k, err := provider()
-	if err != nil {
-		return nil, errs.Wrap(errs.KindStore, err, "acquire token key")
-	}
-	s.key = k
-	return k, nil
-}
-
-func (s *Store) Get(service string) (auth.Credential, bool, error) {
-	if s == nil || s.kv == nil {
+func (s *Store) Get(ctx context.Context, service string) (auth.Credential, bool, error) {
+	if s == nil || s.s == nil {
 		return auth.Credential{}, false, nil
 	}
-	e, ok, err := s.kv.Get(namespace, service)
+	e, ok, err := s.s.Get(ctx, service)
 	if err != nil {
 		return auth.Credential{}, ok, errs.Wrap(errs.KindStore, err, "read token")
 	}
 	if !ok {
 		return auth.Credential{}, false, nil
 	}
-	key, err := s.encryptionKey()
-	if err != nil {
-		return auth.Credential{}, false, err
-	}
-	var c auth.Credential
-	if sealed, derr := base64.StdEncoding.DecodeString(e.Value); derr == nil {
-		if plain, derr := backup.Decrypt(sealed, key); derr == nil {
-			if json.Unmarshal(plain, &c) == nil {
-				return c, true, nil
-			}
-		}
-	}
-	if json.Unmarshal([]byte(e.Value), &c) == nil {
-		return c, true, nil
-	}
-	return auth.Credential{}, false, nil
+	return auth.Credential{
+		AccessToken:  e.AccessToken,
+		RefreshToken: e.RefreshToken,
+		Scope:        e.Scope,
+		Expiry:       e.Expiry,
+	}, true, nil
 }
 
-func (s *Store) Put(service string, c auth.Credential) error {
-	if s == nil || s.kv == nil {
+func (s *Store) Put(ctx context.Context, service string, c auth.Credential) error {
+	if s == nil || s.s == nil {
 		return errUnavailable
 	}
-	key, err := s.encryptionKey()
+	err := s.s.Put(ctx, service, sealed.Entry{
+		AccessToken:  c.AccessToken,
+		RefreshToken: c.RefreshToken,
+		Scope:        c.Scope,
+		Expiry:       c.Expiry,
+	})
 	if err != nil {
-		return err
-	}
-	b, err := json.Marshal(c)
-	if err != nil {
-		return err
-	}
-	sealed, err := backup.Encrypt(b, key)
-	if err != nil {
-		return errs.Wrap(errs.KindStore, err, "encrypt token")
-	}
-	v := base64.StdEncoding.EncodeToString(sealed)
-	if err := s.kv.Put(namespace, service, v, c.Expiry); err != nil {
+		if errors.Is(err, sealed.ErrUnavailable) {
+			return errUnavailable
+		}
 		return errs.Wrap(errs.KindStore, err, "write token")
 	}
 	return nil
 }
 
-func (s *Store) Delete(service string) error {
-	if s == nil || s.kv == nil {
+func (s *Store) Delete(ctx context.Context, service string) error {
+	if s == nil || s.s == nil {
 		return errUnavailable
 	}
-	if err := s.kv.Delete(namespace, service); err != nil {
+	if err := s.s.Delete(ctx, service); err != nil {
+		if errors.Is(err, sealed.ErrUnavailable) {
+			return errUnavailable
+		}
 		return errs.Wrap(errs.KindStore, err, "delete token")
 	}
 	return nil

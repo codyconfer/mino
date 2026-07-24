@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
@@ -80,7 +79,7 @@ type loginFlowView struct {
 func (k *Kit) loginFlow(p loginflow.Provider) deck.View {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+	sp.Style = theme.Cur().Accent
 
 	v := &loginFlowView{kit: k, prov: p, creds: map[string]string{}, spin: sp}
 

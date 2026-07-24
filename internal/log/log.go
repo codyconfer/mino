@@ -7,8 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"github.com/codyconfer/viewkit/theme"
 )
 
 type Level int
@@ -36,9 +35,8 @@ var (
 	console io.Writer = os.Stderr
 	file    io.Writer
 
-	r     *lipgloss.Renderer
 	tags  map[Level]string
-	dimSt lipgloss.Style
+	dimSt func(string) string
 )
 
 var plainTags = map[Level]string{
@@ -51,26 +49,29 @@ var plainTags = map[Level]string{
 func init() { rebuild() }
 
 func rebuild() {
-	w := console
-	if w == nil {
-		w = io.Discard
-	}
-	r = lipgloss.NewRenderer(w)
-	switch color {
-	case ColorNever:
-		r.SetColorProfile(termenv.Ascii)
-	case ColorAlways:
-		if r.ColorProfile() == termenv.Ascii {
-			r.SetColorProfile(termenv.TrueColor)
+	plain := func(s string) string { return s }
+	if color == ColorNever {
+		tags = map[Level]string{
+			LevelError: plainTags[LevelError],
+			LevelWarn:  plainTags[LevelWarn],
+			LevelInfo:  plainTags[LevelInfo],
+			LevelDebug: plainTags[LevelDebug],
 		}
+		dimSt = plain
+		return
+	}
+	th := theme.Cur()
+	warn := th.Cant
+	if len(th.Series) > 2 {
+		warn = th.Series[2]
 	}
 	tags = map[Level]string{
-		LevelError: r.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render("error"),
-		LevelWarn:  r.NewStyle().Bold(true).Foreground(lipgloss.Color("11")).Render("warn"),
-		LevelInfo:  r.NewStyle().Bold(true).Foreground(lipgloss.Color("12")).Render("info"),
-		LevelDebug: r.NewStyle().Faint(true).Render("debug"),
+		LevelError: th.Cant.Bold(true).Render("error"),
+		LevelWarn:  warn.Bold(true).Render("warn"),
+		LevelInfo:  th.Accent.Bold(true).Render("info"),
+		LevelDebug: th.Dim.Render("debug"),
 	}
-	dimSt = r.NewStyle().Faint(true)
+	dimSt = func(s string) string { return th.Dim.Render(s) }
 }
 
 func SetOutput(w io.Writer) {
@@ -143,17 +144,11 @@ func ParseColorMode(s string) (ColorMode, bool) {
 	return ColorAuto, false
 }
 
-func Renderer() *lipgloss.Renderer {
-	mu.Lock()
-	defer mu.Unlock()
-	return r
-}
-
 func logf(l Level, format string, args ...any) {
 	mu.Lock()
 	enabled := l <= level
 	tag := tags[l]
-	prefix := dimSt.Render("munin ▸")
+	prefix := dimSt("munin ▸")
 	cw := console
 	fw := file
 	mu.Unlock()

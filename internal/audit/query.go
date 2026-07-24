@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"time"
 
 	"github.com/codyconfer/sisyphus/journal"
@@ -32,7 +33,7 @@ func (s *Store) RecentEntries(limit int) ([]AuditRow, error) {
 	if s == nil {
 		return nil, nil
 	}
-	runs, err := s.j.Recent(limit)
+	runs, err := s.j.Recent(context.Background(), limit)
 	if err != nil {
 		return toAuditRows(runs), errs.Wrap(errs.KindStore, err, "list recent runs")
 	}
@@ -43,7 +44,7 @@ func (s *Store) Children(parentID int64) ([]AuditRow, error) {
 	if s == nil {
 		return nil, nil
 	}
-	runs, err := s.j.Children(parentID)
+	runs, err := s.j.Children(context.Background(), parentID)
 	if err != nil {
 		return toAuditRows(runs), errs.Wrap(errs.KindStore, err, "list child runs")
 	}
@@ -54,7 +55,7 @@ func (s *Store) Entry(id int64) (AuditRow, bool, error) {
 	if s == nil {
 		return AuditRow{}, false, nil
 	}
-	r, ok, err := s.j.Get(id)
+	r, ok, err := s.j.Get(context.Background(), id)
 	if err != nil {
 		return AuditRow{}, ok, errs.Wrap(errs.KindStore, err, "get run")
 	}
@@ -68,7 +69,7 @@ func (s *Store) Items(runID int64) ([]IntelRow, error) {
 	if s == nil {
 		return nil, nil
 	}
-	recs, err := s.j.Records(runID)
+	recs, err := s.j.Records(context.Background(), runID)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindStore, err, "read run items")
 	}

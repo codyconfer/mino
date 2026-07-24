@@ -68,7 +68,7 @@ func TestAppNavigation(t *testing.T) {
 
 	app = drive(app, key("down"))
 	app = drive(app, key("enter"))
-	if got := app.top().Title(); got != "beta screen" {
+	if got := app.Top().Title(); got != "beta screen" {
 		t.Fatalf("after enter, top = %q, want beta screen", got)
 	}
 	if !strings.Contains(app.View(), "BETA SCREEN") {
@@ -76,7 +76,7 @@ func TestAppNavigation(t *testing.T) {
 	}
 
 	app = drive(app, key("esc"))
-	if got := app.top().Title(); got != "main" {
+	if got := app.Top().Title(); got != "main" {
 		t.Fatalf("after esc, top = %q, want main", got)
 	}
 }
@@ -100,7 +100,7 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 		t.Fatal("identity rendered before status was fetched")
 	}
 
-	app = drive(app, statusMsg{info: info})
+	app.SetStatus(adaptStatus(info))
 	view := app.View()
 	for _, want := range []string{"@cody", glyph.SigningOK(), "github 4998/5000", "slack", "calendar", "gmail"} {
 		if !strings.Contains(view, want) {
@@ -135,7 +135,7 @@ func TestAppUnverifiedSigningGlyph(t *testing.T) {
 	app := New(NewMenu("main", nil, MenuItem{Label: "Alpha"}),
 		WithStatus(func(context.Context) StatusInfo { return info }))
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
-	app = drive(app, statusMsg{info: info})
+	app.SetStatus(adaptStatus(info))
 	if !strings.Contains(app.View(), glyph.SigningBad()) {
 		t.Errorf("expected unverified glyph %q in header:\n%s", glyph.SigningBad(), app.View())
 	}

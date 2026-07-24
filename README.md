@@ -477,6 +477,10 @@ make check          # build + fmt-check + lint + govulncheck + test (CI gate is 
 make test           # go test ./...
 ```
 
+Linters (`golangci-lint`, `govulncheck`) live in the nested `tools/` module so
+they stay out of the consumer dependency graph. `make lint` / `make fmt` invoke
+them via `go tool -modfile=tools/go.mod`.
+
 Run a mode straight from source — each target builds then runs, forwarding `ARGS`:
 
 ```sh
@@ -495,11 +499,30 @@ tests driven by recorded fixtures, so the suite needs no network. The terminal
 launcher `internal/term` opens `serve` in a new window for `deck` (macOS
 Terminal.app/iTerm2, Linux emulators, WSL Windows Terminal).
 
-Munin depends on the **private** module `github.com/codyconfer/sisyphus`, so
-building requires access to that repo and Go configured to fetch it directly
-rather than via the public proxy/checksum database:
+Munin depends on the **private** modules `github.com/codyconfer/sisyphus` and
+`github.com/codyconfer/viewkit`, so building requires access to those repos and
+Go configured to fetch them directly rather than via the public
+proxy/checksum database:
 
 ```sh
 go env -w 'GOPRIVATE=github.com/codyconfer/*'
 # and git credentials with read access to the codyconfer org
 ```
+
+CI builds against the **pinned** versions in `go.mod` (no `replace` directives)
+using `GOPRIVATE` plus a read-only PAT in the `GH_READ_TOKEN` repo secret.
+
+#### Local multi-repo development (`go.work`)
+
+For simultaneous edits across munin / sisyphus / viewkit, use an **uncommitted**
+`go.work` in this repo (gitignored; do not commit — committed `replace` is
+rejected):
+
+```sh
+# from the munin checkout, with sisyphus and viewkit as siblings:
+go work init . ../sisyphus ../viewkit
+# or: go work use ../sisyphus ../viewkit
+```
+
+Published consumers and CI ignore `go.work` and resolve the pinned module
+versions in `go.mod`.

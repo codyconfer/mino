@@ -42,6 +42,9 @@ home: morning
 flights: [morning]
 queries: [standup]
 filters: [no-bots]
+contexts:
+  kubectl: prod
+  gcx: myorg.grafana.net
 `)
 	return home
 }
@@ -146,6 +149,8 @@ func TestSerializeDirRoundTrip(t *testing.T) {
 	}
 	if rd, ok := roles["triage"]; !ok || len(rd.Flights) != 1 || rd.Flights[0] != "morning" || rd.Home != "morning" {
 		t.Errorf("ParseRoles round-trip wrong: %#v", roles)
+	} else if rd.Contexts["kubectl"] != "prod" || rd.Contexts["gcx"] != "myorg.grafana.net" {
+		t.Errorf("ParseRoles contexts = %#v", rd.Contexts)
 	}
 
 	s, err := NewDirectives(qBlob, fBlob, flBlob, rBlob)

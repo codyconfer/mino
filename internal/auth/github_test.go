@@ -11,9 +11,12 @@ import (
 
 type memStore map[string]Credential
 
-func (m memStore) Get(s string) (Credential, bool, error) { c, ok := m[s]; return c, ok, nil }
-func (m memStore) Put(s string, c Credential) error       { m[s] = c; return nil }
-func (m memStore) Delete(s string) error                  { delete(m, s); return nil }
+func (m memStore) Get(_ context.Context, s string) (Credential, bool, error) {
+	c, ok := m[s]
+	return c, ok, nil
+}
+func (m memStore) Put(_ context.Context, s string, c Credential) error { m[s] = c; return nil }
+func (m memStore) Delete(_ context.Context, s string) error            { delete(m, s); return nil }
 
 func TestGitHubTokenPrecedence(t *testing.T) {
 	store := memStore{}

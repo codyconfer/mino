@@ -8,6 +8,7 @@ import (
 	"github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/viewkit/theme"
 
+	muninapp "github.com/codyconfer/munin/app"
 	"github.com/codyconfer/munin/cmd"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
@@ -24,9 +25,18 @@ func main() {
 	applyLogLevel()
 	applyLogColor()
 	defer cmd.Shutdown()
+
 	ctx, stop := daemon.Context(context.Background())
 	defer stop()
-	if err := cmd.Root().ExecuteContext(ctx); err != nil {
+
+	err := muninapp.Run(muninapp.Options{
+		CLI: func(_ context.Context, args []string) error {
+			root := cmd.Root()
+			root.SetArgs(args)
+			return root.ExecuteContext(ctx)
+		},
+	})
+	if err != nil {
 		fmt.Fprint(os.Stderr, errs.Render(err))
 		cmd.Shutdown()
 		os.Exit(1)

@@ -1,0 +1,5 @@
+# ADR-14 scaffold template sample. The scaffold package is not imported by the
+# default munin binary — copy the package when creating a new plugin.
+name: scaffold-ping
+signal: scaffold
+params: {}

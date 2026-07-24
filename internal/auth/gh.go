@@ -1,43 +1,30 @@
 package auth
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
-	"os/exec"
 	"strings"
+
+	sauth "github.com/codyconfer/sisyphus/auth"
 
 	"github.com/codyconfer/munin/internal/errs"
 )
 
 func runTool(ctx context.Context, bins []string, name string, kind errs.Kind, notInstalledMsg, notInstalledHint, runHint string, args ...string) ([]byte, error) {
-	bin := ""
-	for _, b := range bins {
-		if _, err := exec.LookPath(b); err == nil {
-			bin = b
-			break
-		}
+	out, err := sauth.RunTool(ctx, bins, name, args...)
+	if err == nil {
+		return out, nil
 	}
-	if bin == "" {
+	if errors.Is(err, sauth.ErrNotInstalled) {
 		return nil, errs.New(kind, notInstalledMsg).WithHint("%s", notInstalledHint)
 	}
-	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, bin, args...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		e := errs.Wrapf(kind, err, "%s %s: %s", name, strings.Join(args, " "), msg)
-		if runHint != "" {
-			e = e.WithHint("%s", runHint)
-		}
-		return nil, e
+	e := errs.Wrap(kind, err, name)
+	if runHint != "" {
+		e = e.WithHint("%s", runHint)
 	}
-	return stdout.Bytes(), nil
+	return nil, e
 }
 
 func GH(ctx context.Context, args ...string) ([]byte, error) {
@@ -79,7 +66,7 @@ func GHAPIGet(ctx context.Context, store TokenStore, apiURL, path string) ([]byt
 		return nil, errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, strings.TrimSpace(string(body))).
 			WithHint("your GitHub token may be missing or lack scopes; run `munin login github` or set $GITHUB_TOKEN")
 	}
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= 300 {
 		return nil, errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 	return body, nil

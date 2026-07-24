@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 
 func openTemp(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(filepath.Join(t.TempDir(), "audit.duckdb"))
+	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "audit.duckdb"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

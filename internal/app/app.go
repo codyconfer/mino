@@ -15,6 +15,7 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/token"
 )
 
@@ -85,11 +86,25 @@ func Load(opts Options) (*App, error) {
 	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr}
 	a.openTokens()
 	a.openAudit()
+	a.applyRoleContexts()
 	return a, nil
 }
 
+func (a *App) applyRoleContexts() {
+	if a == nil || a.Cfg.Role == "" || a.Directives == nil {
+		return
+	}
+	rd, ok := a.Directives.Roles[a.Cfg.Role]
+	if !ok || len(rd.Contexts) == 0 {
+		return
+	}
+	if err := plugin.ApplyRoleContexts(context.Background(), rd.Contexts); err != nil {
+		log.Warnf("role contexts: %v", err)
+	}
+}
+
 func (a *App) openTokens() {
-	ts, err := token.Open(filepath.Join(a.Cfg.Home, "tokens.duckdb"))
+	ts, err := token.Open(context.Background(), filepath.Join(a.Cfg.Home, "tokens.duckdb"))
 	if err != nil {
 		log.Debugf("token store unavailable: %v", err)
 		return
@@ -105,7 +120,7 @@ func (a *App) openAudit() {
 	if path == "" {
 		path = filepath.Join(a.Cfg.Home, "audit.duckdb")
 	}
-	st, err := audit.Open(path)
+	st, err := audit.Open(context.Background(), path)
 	if err != nil {
 		log.Debugf("audit disabled: %v", err)
 		return

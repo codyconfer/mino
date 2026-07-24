@@ -10,11 +10,15 @@ import (
 	"time"
 
 	"github.com/codyconfer/sisyphus"
+	"github.com/codyconfer/sisyphus/store"
 
 	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/signals/gdrive"
+
+	_ "github.com/codyconfer/munin/internal/plugin/ntr" // RegisterDataPath
 )
 
 const secretService = "munin"
@@ -24,12 +28,18 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), 
 
 	closeDBs()
 
-	sealed, storeName, err := sisyphus.Backup(sisyphus.BackupSpec{
-		Files: []string{
-			filepath.Join(home, "config.duckdb"),
-			filepath.Join(home, "audit.duckdb"),
-			filepath.Join(home, "tokens.duckdb"),
-		},
+	files := []string{
+		filepath.Join(home, "config.duckdb"),
+		filepath.Join(home, "audit.duckdb"),
+		filepath.Join(home, "tokens.duckdb"),
+	}
+	// Open-session paths (sisyphus RegisterBackupPath) plus known plugin DBs
+	// that may not have been opened this run (ADR-11).
+	files = append(files, store.BackupPaths()...)
+	files = append(files, plugin.DataPaths(home)...)
+
+	sealed, storeName, err := sisyphus.Backup(ctx, sisyphus.BackupSpec{
+		Files:         files,
 		SecretBackend: cfg.Backup.SecretBackend,
 		SecretName:    cfg.Backup.SecretName,
 		SecretService: secretService,
@@ -76,7 +86,7 @@ func Restore(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func
 
 	closeDBs()
 
-	names, storeName, err := sisyphus.Restore(sisyphus.RestoreSpec{
+	names, storeName, err := sisyphus.Restore(ctx, sisyphus.RestoreSpec{
 		Sealed:        sealed,
 		SecretBackend: cfg.Backup.SecretBackend,
 		SecretName:    cfg.Backup.SecretName,

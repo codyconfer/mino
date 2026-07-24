@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,7 +26,7 @@ func LoadConfigAndDirectives(homeOverride, configFile string, interactive bool, 
 	res := &Resolver{home: home, preferDB: gs.PreferDB, interactive: interactive, in: in, out: out}
 
 	var mgr *sisyphus.Manager
-	if m, err := sisyphus.Open(home, sisyphus.Options{Mode: sisyphus.ModeBoth}); err != nil {
+	if m, err := sisyphus.Open(context.Background(), home, sisyphus.Options{Mode: sisyphus.ModeBoth}); err != nil {
 		log.Debugf("store DB unavailable: %v; reading from files", err)
 	} else {
 		mgr = m
@@ -73,7 +74,7 @@ func reconcileConfig(home, homeOverride, configFile string, mgr *sisyphus.Manage
 	if err != nil {
 		return nil, err
 	}
-	eff, effFormat, err := mgr.Reconcile("config", raw, format, len(raw) > 0, res)
+	eff, effFormat, err := mgr.Reconcile(context.Background(), "config", raw, format, len(raw) > 0, res)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func reconcileCollection(mgr *sisyphus.Manager, res sisyphus.Resolver, home, nam
 	if err != nil {
 		return nil, err
 	}
-	eff, _, err := mgr.Reconcile(name, blob, "collection", has, res)
+	eff, _, err := mgr.Reconcile(context.Background(), name, blob, "collection", has, res)
 	return eff, err
 }
 

@@ -59,6 +59,12 @@ icons:
 # go.mod: adding a platform here without a matching bindings package won't link.
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64
 
+# Local OS/arch matrix (same set as package). Prefer `make package` for binaries;
+# `matrix` is a CI-doc alias that lists platforms and builds the host package.
+matrix:
+	@echo "platforms: $(PLATFORMS)"
+	@$(MAKE) package
+
 # Build all packages for the host.
 build:
 	go build ./...
@@ -140,13 +146,16 @@ clean:
 test:
 	go test ./...
 
+# Tooling lives in ./tools (separate module) so consumers don't inherit linter deps.
+GO_TOOL = go tool -modfile=tools/go.mod
+
 # Format all Go source in place (gofmt + goimports via golangci-lint).
 fmt:
-	go tool golangci-lint fmt
+	$(GO_TOOL) golangci-lint fmt
 
 # Verify all Go source is formatted; fail (showing the diff) if not.
 fmt-check:
-	go tool golangci-lint fmt --diff
+	$(GO_TOOL) golangci-lint fmt --diff
 
 # go vet: the standard toolchain analyzers.
 vet:
@@ -154,11 +163,11 @@ vet:
 
 # golangci-lint: aggregate static analysis (govet, staticcheck, errcheck, ...).
 lint:
-	go tool golangci-lint run
+	$(GO_TOOL) golangci-lint run
 
 # govulncheck: report known vulnerabilities in dependencies and reachable code.
 govulncheck:
-	go tool govulncheck ./...
+	$(GO_TOOL) govulncheck ./...
 
 # Full gate: build, format check, lint, vulncheck, test.
 check: build fmt-check lint govulncheck test

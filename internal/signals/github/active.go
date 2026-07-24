@@ -35,7 +35,7 @@ func (h *activeSignal) LatencyFloor() time.Duration { return h.interval }
 
 func (h *activeSignal) Stream(ctx context.Context) (<-chan signals.Event, error) {
 	cursor := h.state.Cursor("github", "last_modified")
-	lastModified := cursor.Load()
+	lastModified := cursor.Load(ctx)
 	seen := h.state.Seen("github:notifications")
 	step := func(ctx context.Context) ([]signals.Item, time.Duration, error) {
 		req, err := newGitHubRequest(ctx, h.baseURL, "/notifications?all=false", h.token)
@@ -64,13 +64,13 @@ func (h *activeSignal) Stream(ctx context.Context) (<-chan signals.Event, error)
 		}
 		if lm := resp.Header.Get("Last-Modified"); lm != "" && lm != lastModified {
 			lastModified = lm
-			_ = cursor.Save(lm)
+			_ = cursor.Save(ctx, lm)
 		}
 		items, err := mapNotifications(body)
 		if err != nil {
 			return nil, next, err
 		}
-		return seen.Fresh(items, func(it signals.Item) string { return it.Meta["id"] + "|" + it.Meta["updated"] }), next, nil
+		return seen.Fresh(ctx, items, func(it signals.Item) string { return it.Meta["id"] + "|" + it.Meta["updated"] }), next, nil
 	}
 	return active.PollAdaptive(ctx, "github", h.interval, step), nil
 }

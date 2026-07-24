@@ -58,13 +58,13 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 			t.Errorf("home with flight missing %q\n%s", want, view)
 		}
 	}
-	if home.focus != focusMenu {
-		t.Fatalf("initial focus = %d, want menu", home.focus)
+	if home.focusSide() {
+		t.Fatalf("initial focus on side, want menu")
 	}
 
 	app = drive(app, tea.KeyMsg{Type: tea.KeyTab})
-	if home.focus != focusFlight {
-		t.Fatalf("after tab focus = %d, want flight", home.focus)
+	if !home.focusSide() {
+		t.Fatalf("after tab focus on menu, want flight")
 	}
 	sawMenuHint := false
 	for _, h := range home.Hints() {
@@ -77,8 +77,8 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 	}
 
 	drive(app, tea.KeyMsg{Type: tea.KeyTab})
-	if home.focus != focusMenu {
-		t.Fatalf("after second tab focus = %d, want menu", home.focus)
+	if home.focusSide() {
+		t.Fatalf("after second tab focus on side, want menu")
 	}
 }
 

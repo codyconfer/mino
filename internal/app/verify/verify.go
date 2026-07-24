@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/theme"
 	"gopkg.in/yaml.v3"
@@ -19,7 +18,10 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/munin/internal/signals/build"
 	gh "github.com/codyconfer/munin/internal/signals/github"
 )
 
@@ -31,13 +33,8 @@ type Finding struct {
 	Warn    bool
 }
 
-var knownSignals = map[string]bool{
-	"github": true, "calendar": true, "gmail": true, "docs": true,
-	"drive": true, "tasks": true, "slack": true, "demo": true,
-}
-
 func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *config.Directives, tokens auth.TokenStore, target string) error {
-	v := newStyles(w)
+	sty := render.NewReportStyles(w)
 
 	sections := []struct {
 		key   string
@@ -48,6 +45,7 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *confi
 		{"roles", "Roles", func() []Finding { return Roles(directives) }},
 		{"flights", "Flights", func() []Finding { return Flights(directives) }},
 		{"queries", "Queries", func() []Finding { return Queries(directives) }},
+		{"plugins", "Plugins", func() []Finding { return Plugins() }},
 		{"onboarding", "Onboarding", func() []Finding { return Onboarding(ctx, tokens, cfg.GitHub.APIURL) }},
 	}
 
@@ -57,12 +55,12 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *confi
 			continue
 		}
 		findings := s.run()
-		fmt.Fprintln(w, v.title.Render(s.title))
+		fmt.Fprintln(w, sty.Title.Render(s.title))
 		if len(findings) == 0 {
-			fmt.Fprintln(w, "  "+v.dim.Render("(none)"))
+			fmt.Fprintln(w, "  "+sty.Dim.Render("(none)"))
 		}
 		for _, f := range findings {
-			problems += v.print(w, f)
+			problems += printFinding(w, sty, f)
 		}
 		fmt.Fprintln(w)
 	}
@@ -194,6 +192,53 @@ func Flights(directives *config.Directives) []Finding {
 	return out
 }
 
+// Plugins verifies plugin↔builder registry sync and CapAction host bindings.
+func Plugins() []Finding {
+	var out []Finding
+	builders := build.BuilderSignals()
+	for _, d := range plugin.All() {
+		if d.Kind != plugin.KindSignal || d.Signal == "" {
+			continue
+		}
+		name := d.ID
+		if !plugin.Enabled(d.ID) {
+			out = append(out, Finding{Name: name, OK: true, Msg: "disabled"})
+			continue
+		}
+		if !builders[d.Signal] {
+			out = append(out, Finding{
+				Name: name, OK: false,
+				Msg: fmt.Sprintf("enabled plugin signal %q has no host builder", d.Signal),
+			})
+			continue
+		}
+		if plugin.HasCapability(d.Signal, plugin.CapAction) && len(plugin.ActionsFor(d.Signal)) == 0 {
+			out = append(out, Finding{
+				Name: name, OK: false,
+				Msg: fmt.Sprintf("signal %q advertises CapAction but has no registered actions", d.Signal),
+			})
+			continue
+		}
+		if plugin.HasCapability(d.Signal, plugin.CapStream) && !build.HasActiveBuilder(d.Signal) {
+			out = append(out, Finding{
+				Name: name, OK: false,
+				Msg: fmt.Sprintf("signal %q advertises CapStream but has no active builder", d.Signal),
+			})
+			continue
+		}
+		out = append(out, Finding{Name: name, OK: true, Msg: fmt.Sprintf("signal=%s caps=%v", d.Signal, d.Capabilities)})
+	}
+	for sig := range builders {
+		if !plugin.KnownSignals()[sig] {
+			out = append(out, Finding{
+				Name: "build:" + sig, OK: false,
+				Msg: fmt.Sprintf("host builder %q missing from plugin registry", sig),
+			})
+		}
+	}
+	return out
+}
+
 func Queries(directives *config.Directives) []Finding {
 	var out []Finding
 	for _, name := range directives.QueryNames() {
@@ -202,8 +247,12 @@ func Queries(directives *config.Directives) []Finding {
 		snippet := func() string { return toYAML(q) }
 
 		switch {
-		case !knownSignals[q.Signal]:
+		case !build.KnownSignals()[q.Signal]:
 			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("unknown signal %q", q.Signal), snippet()
+		case !build.HasBuilder(q.Signal):
+			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("signal %q registered but has no host builder", q.Signal), snippet()
+		case !plugin.SignalEnabled(q.Signal):
+			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("signal %q references disabled plugin", q.Signal), snippet()
 		default:
 			var missing []string
 			for _, qf := range q.Filters {
@@ -243,36 +292,19 @@ func Onboarding(ctx context.Context, tokens auth.TokenStore, apiURLRaw string) [
 	return out
 }
 
-type styles struct {
-	title, ok, err, warn, name, dim, snippet lipgloss.Style
-}
-
-func newStyles(w io.Writer) styles {
-	r := lipgloss.NewRenderer(w)
-	return styles{
-		title:   r.NewStyle().Bold(true).Underline(true),
-		ok:      r.NewStyle().Foreground(lipgloss.Color("10")),
-		err:     r.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),
-		warn:    r.NewStyle().Foreground(lipgloss.Color("11")),
-		name:    r.NewStyle().Bold(true),
-		dim:     r.NewStyle().Faint(true),
-		snippet: r.NewStyle().Faint(true),
-	}
-}
-
-func (v styles) print(w io.Writer, f Finding) int {
+func printFinding(w io.Writer, sty render.ReportStyles, f Finding) int {
 	switch {
 	case f.OK:
-		fmt.Fprintf(w, "  %s %s\n", v.ok.Render(glyph.Check()), v.name.Render(f.Name))
+		fmt.Fprintf(w, "  %s %s\n", sty.OK.Render(glyph.Check()), sty.Name.Render(f.Name))
 		return 0
 	case f.Warn:
-		fmt.Fprintf(w, "  %s %s  %s\n", v.warn.Render(glyph.Warn()), v.name.Render(f.Name), v.warn.Render(f.Msg))
+		fmt.Fprintf(w, "  %s %s  %s\n", sty.Warn.Render(glyph.Warn()), sty.Name.Render(f.Name), sty.Warn.Render(f.Msg))
 	default:
-		fmt.Fprintf(w, "  %s %s  %s\n", v.err.Render(glyph.Cross()), v.name.Render(f.Name), v.err.Render(f.Msg))
+		fmt.Fprintf(w, "  %s %s  %s\n", sty.Err.Render(glyph.Cross()), sty.Name.Render(f.Name), sty.Err.Render(f.Msg))
 	}
 	if f.Snippet != "" {
 		for _, line := range strings.Split(strings.TrimRight(redact.Line(f.Snippet), "\n"), "\n") {
-			fmt.Fprintln(w, "      "+v.snippet.Render(line))
+			fmt.Fprintln(w, "      "+sty.Snippet.Render(line))
 		}
 	}
 	if f.Warn {

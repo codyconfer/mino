@@ -10,9 +10,11 @@ import (
 
 type fakeStore struct{}
 
-func (fakeStore) Get(string) (auth.Credential, bool, error) { return auth.Credential{}, false, nil }
-func (fakeStore) Put(string, auth.Credential) error         { return nil }
-func (fakeStore) Delete(string) error                       { return nil }
+func (fakeStore) Get(context.Context, string) (auth.Credential, bool, error) {
+	return auth.Credential{}, false, nil
+}
+func (fakeStore) Put(context.Context, string, auth.Credential) error { return nil }
+func (fakeStore) Delete(context.Context, string) error               { return nil }
 
 func restore(t *testing.T) {
 	origAvail, origTok := ghAvailable, ghToken

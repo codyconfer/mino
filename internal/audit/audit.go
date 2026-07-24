@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"context"
 	"time"
 
 	"github.com/codyconfer/sisyphus/journal"
@@ -13,8 +14,8 @@ type Store struct {
 	j *journal.Store
 }
 
-func Open(path string) (*Store, error) {
-	j, err := journal.Open(path)
+func Open(ctx context.Context, path string) (*Store, error) {
+	j, err := journal.Open(ctx, path)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindStore, err, "open audit store")
 	}
@@ -35,7 +36,7 @@ func (s *Store) StartFlight(name, role string) int64 {
 	if s == nil {
 		return 0
 	}
-	id, _ := s.j.Begin("flight", name, roleAttrs(role))
+	id, _ := s.j.Begin(context.Background(), "flight", name, roleAttrs(role))
 	return id
 }
 
@@ -43,21 +44,21 @@ func (s *Store) FinishFlight(id int64) {
 	if s == nil {
 		return
 	}
-	_ = s.j.RollUp(id)
+	_ = s.j.RollUp(context.Background(), id)
 }
 
 func (s *Store) RecordQuery(parentID int64, label, role string, started, finished time.Time, sections []signals.Section) {
 	if s == nil {
 		return
 	}
-	_, _ = s.j.Add(runFor(parentID, "query", label, role, started, finished, sections), recordsFor(sections))
+	_, _ = s.j.Add(context.Background(), runFor(parentID, "query", label, role, started, finished, sections), recordsFor(sections))
 }
 
 func (s *Store) RecordAction(label, role string, started, finished time.Time, sections []signals.Section) {
 	if s == nil {
 		return
 	}
-	_, _ = s.j.Add(runFor(0, "write", label, role, started, finished, sections), recordsFor(sections))
+	_, _ = s.j.Add(context.Background(), runFor(0, "write", label, role, started, finished, sections), recordsFor(sections))
 }
 
 func runFor(parentID int64, kind, name, role string, started, finished time.Time, sections []signals.Section) journal.Run {

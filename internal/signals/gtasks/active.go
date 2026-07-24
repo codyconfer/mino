@@ -62,7 +62,7 @@ func (h *activeTasks) Stream(ctx context.Context) (<-chan signals.Event, error) 
 				items = append(items, taskToItem(t, tl.Title))
 			}
 		}
-		return seen.Fresh(items, taskKey), nil
+		return seen.Fresh(ctx, items, taskKey), nil
 	}
 
 	return active.Poll(ctx, "tasks", h.interval, step), nil
