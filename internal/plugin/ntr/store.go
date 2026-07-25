@@ -3,13 +3,16 @@ package ntr
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/codyconfer/sisyphus/store"
+
+	"github.com/codyconfer/munin/internal/config"
 )
+
+const dbName = "ntr.duckdb"
 
 const schema = `
 CREATE TABLE IF NOT EXISTS notes (
@@ -40,7 +43,7 @@ CREATE TABLE IF NOT EXISTS reminders (
 CREATE SEQUENCE IF NOT EXISTS ntr_id_seq;
 `
 
-// Store is the role-namespaced NTR DuckDB (ADR-11 / Lane B).
+// Store is the role-namespaced NTR DuckDB.
 type Store struct {
 	db   *store.DB
 	role string
@@ -50,7 +53,7 @@ func Open(ctx context.Context, home, role string) (*Store, error) {
 	if role == "" {
 		role = "default"
 	}
-	path := filepath.Join(home, "ntr.duckdb")
+	path := config.DataPath(home, dbName)
 	db, err := store.Open(ctx, path, schema)
 	if err != nil {
 		return nil, err
@@ -211,7 +214,6 @@ func (s *Store) MarkReminderDone(ctx context.Context, id int64) error {
 }
 
 func (s *Store) DueTodayCount(ctx context.Context, now time.Time) (int, error) {
-	// Local calendar day (not UTC-from-YMD components).
 	loc := now.Location()
 	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	end := start.Add(24 * time.Hour)

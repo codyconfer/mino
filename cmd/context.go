@@ -13,7 +13,7 @@ func newContextCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "context",
 		Short: "Show or switch per-tool plugin contexts",
-		Long:  "Contexts are per-tool active selections (ADR-9). Role activation can apply role.contexts bindings.",
+		Long:  "Contexts are per-tool active selections. Role activation can apply role.contexts bindings.",
 	}
 	cmd.AddCommand(newContextListCmd(), newContextSwitchCmd(), newContextApplyRoleCmd())
 	return cmd

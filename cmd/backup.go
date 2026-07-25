@@ -11,8 +11,8 @@ func newBackupCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "backup",
 		Short: "Create an encrypted backup of munin's DuckDB databases",
-		Long: "Bundles config.duckdb, audit.duckdb, and tokens.duckdb into a tar, encrypts\n" +
-			"it with AES-256-GCM, and writes it to the current directory (or the app's\n" +
+		Long: "Bundles the DuckDB files under <home>/.data (config, audit, tokens) into a\n" +
+			"tar, encrypts it with AES-256-GCM, and writes it to the current directory (or the app's\n" +
 			"private Google Drive folder when backup.destination=gdrive). The encryption\n" +
 			"key is escrowed in your secret manager (Bitwarden or 1Password if configured,\n" +
 			"otherwise the OS keyring).",

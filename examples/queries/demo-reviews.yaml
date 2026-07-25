@@ -1,0 +1,6 @@
+# Companion to queries/demo.yaml — review requests with live github.com URLs.
+name: demo-reviews
+signal: github
+filters: [demo]
+params:
+  query: "is:open is:pr review-requested:@me"

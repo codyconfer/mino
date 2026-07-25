@@ -1,11 +1,18 @@
 package views
 
 import (
+	"context"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
 	"github.com/codyconfer/munin/internal/app"
+	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/filter"
@@ -47,13 +54,61 @@ func TestMenuCtxOmitsDeckAndConditionalRole(t *testing.T) {
 	}
 }
 
+func TestMainMenuIncludesNotesEntry(t *testing.T) {
+	kit := testKit(t)
+	kit.d.App.Cfg.Role = "triage"
+
+	labels := make([]string, 0, len(kit.mainMenuItems()))
+	for _, it := range kit.mainMenuItems() {
+		labels = append(labels, it.Label)
+	}
+	found := false
+	for _, l := range labels {
+		if l == "Notes" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("main menu missing Notes entry: %v", labels)
+	}
+
+	app := deck.New(kit.MainMenu())
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	body := app.View()
+	if !strings.Contains(body, "Notes") {
+		t.Fatalf("main menu view missing Notes: %q", body)
+	}
+
+	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
+	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
+	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		for _, c := range flattenCmds(cmd) {
+			if c == nil {
+				continue
+			}
+			app = step(app, c())
+		}
+	}
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	got := app.View()
+	for _, want := range []string{"Notes", "Tasks", "Reminders"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("NTR home missing %q after Notes enter: %q", want, got)
+		}
+	}
+}
+
 func TestViewsSmoke(t *testing.T) {
 	kit := testKit(t)
-	roots := map[string]deck.View{
+	roots := map[string]vkdeck.View{
 		"main":       kit.MainMenu(),
 		"directives": kit.directivesMenu(),
 		"settings":   kit.Settings(),
 		"audit":      kit.AuditQuery(),
+		"ntr":        kit.NTR(),
+		"plugins":    kit.Plugins(),
 	}
 	for name, root := range roots {
 		func() {
@@ -75,7 +130,68 @@ func TestViewsSmoke(t *testing.T) {
 	}
 }
 
-func step(a *deck.State, msg tea.Msg) *deck.State {
+func TestHistorySelectShowsFlightResults(t *testing.T) {
+	st, err := audit.Open(context.Background(), filepath.Join(t.TempDir(), "audit.duckdb"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+
+	start := time.Now()
+	fid := st.StartFlight("morning", "triage")
+	st.RecordQuery(fid, "incidents", "triage", start, time.Now(), []signals.Section{{
+		Signal: "github",
+		Title:  "github",
+		Items:  []signals.Item{{Kind: "pr", Title: "recall-me", URL: "https://x/1", Timestamp: start}},
+	}})
+	st.FinishFlight(fid)
+
+	kit := testKit(t)
+	kit.d.App.Audit = st
+
+	app := deck.New(kit.History())
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	body := app.View()
+	if !strings.Contains(body, "morning") {
+		t.Fatalf("history menu missing run: %q", body)
+	}
+
+	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		for _, c := range flattenCmds(cmd) {
+			if c == nil {
+				continue
+			}
+			app = step(app, c())
+		}
+	}
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	got := app.View()
+	if !strings.Contains(got, "recall-me") {
+		t.Fatalf("selected run results missing item: %q", got)
+	}
+	if !strings.Contains(got, "flight: morning") && !strings.Contains(got, "morning") {
+		t.Fatalf("selected run results missing flight title: %q", got)
+	}
+}
+
+func update(a *vkdeck.Model, msg tea.Msg) (*vkdeck.Model, tea.Cmd) {
+	m, cmd := a.Update(msg)
+	return m.(*vkdeck.Model), cmd
+}
+
+func flattenCmds(cmd tea.Cmd) []tea.Cmd {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		return batch
+	}
+	return []tea.Cmd{func() tea.Msg { return msg }}
+}
+
+func step(a *vkdeck.Model, msg tea.Msg) *vkdeck.Model {
 	m, _ := a.Update(msg)
-	return m.(*deck.State)
+	return m.(*vkdeck.Model)
 }

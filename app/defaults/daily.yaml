@@ -1,0 +1,3 @@
+name: daily
+# Bare fly/serve/deck uses the first flight; keep demo opt-in (not first).
+flights: [default, demo]

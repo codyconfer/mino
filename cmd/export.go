@@ -35,7 +35,8 @@ func newExportCmd() *cobra.Command {
 			"config is written as config.yaml/config.json; each collection is written as\n" +
 			"individual files under <out>/<directive>/. Defaults to the munin home directory.\n" +
 			"Secret values in config are masked unless --include-secrets is set.",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: map[string]string{annoReconcile: "ignore"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateDirectiveArg(args[0]); err != nil {
 				return err
@@ -58,21 +59,28 @@ func newExportCmd() *cobra.Command {
 
 func newImportCmd() *cobra.Command {
 	c := &cobra.Command{
-		Use:   "import <directive>",
-		Short: "Persist on-disk files into the DuckDB store as the current version",
+		Use:     "apply [directive]",
+		Aliases: []string{"import"},
+		Short:   "Apply staged config changes: write on-disk files into the DuckDB store",
 		Long: "Reads directive files from the munin home directory and writes them into the\n" +
-			"DuckDB store as a new current version (archiving any prior version).\n" +
-			"<directive> is one of: config, queries, filters, flights, roles, all.",
-		Args: cobra.ExactArgs(1),
+			"DuckDB store as a new current version (archiving any prior version). Never\n" +
+			"prompts, so it is safe in scripts and hooks.\n" +
+			"[directive] is one of: config, queries, filters, flights, roles, all (default all).",
+		Args:        cobra.MaximumNArgs(1),
+		Annotations: map[string]string{annoReconcile: "session"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := validateDirectiveArg(args[0]); err != nil {
+			directive := "all"
+			if len(args) == 1 {
+				directive = args[0]
+			}
+			if err := validateDirectiveArg(directive); err != nil {
 				return err
 			}
 			db, err := storeDB()
 			if err != nil {
 				return err
 			}
-			return config.Import(cmd.OutOrStdout(), db, shared.Cfg.Home, args[0])
+			return config.Import(cmd.OutOrStdout(), db, shared.Cfg.Home, directive)
 		},
 	}
 	return c

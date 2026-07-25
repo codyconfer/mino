@@ -16,11 +16,13 @@ import (
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/app/views"
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/log"
 	mnotify "github.com/codyconfer/munin/internal/notify"
+	"github.com/codyconfer/munin/internal/render/icons"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/active"
 	"github.com/codyconfer/munin/internal/signals/build"
@@ -28,7 +30,6 @@ import (
 
 const daemonName = "munin"
 
-// pipePrefix identifies munin's Windows named pipes (sisyphus carries no app literal).
 const pipePrefix = "munin"
 
 const serveBuffer = 256
@@ -78,7 +79,7 @@ func (n notifySink) handle(ev signals.Event) {
 func (s *Server) SocketPath() string { return filepath.Join(s.Cfg.Home, "serve.sock") }
 
 func (s *Server) openState() (*active.State, func()) {
-	store, err := kv.Open(context.Background(), filepath.Join(s.Cfg.Home, "serve.duckdb"))
+	store, err := kv.Open(context.Background(), config.DataPath(s.Cfg.Home, config.ServeDB))
 	if err != nil {
 		log.Debugf("serve: cursor persistence unavailable: %v", err)
 		return active.NewState(nil), func() {}
@@ -100,7 +101,6 @@ func (s *Server) events(ctx context.Context, name string, interval time.Duration
 		chans = append(chans, applyFilters(ctx, ch, q.filters))
 		fmt.Fprintf(os.Stderr, "watching %-10s %s\n", q.src.Name(), latencyLabel(q.src.LatencyFloor()))
 	}
-	// Scheduled plugins (NTR reminders) share the same notify/audit fan-in.
 	if sch := s.scheduledEvents(ctx, name, flight.Queries, state); sch != nil {
 		chans = append(chans, sch)
 	}
@@ -309,11 +309,15 @@ func (s *Server) RunTray(parent context.Context, name string, interval time.Dura
 	defer cancel()
 	errCh := make(chan error, 1)
 	ready := make(chan struct{})
+	icons := sysdaemon.DefaultStateIcons()
+	if missing := icons.Missing(); len(missing) > 0 {
+		log.Warnf("daemon: tray icons missing for %v (icon may be blank)", missing)
+	}
 	var tray *ui.Tray
 	tray = ui.NewTray(ui.TrayConfig{
 		Title:   "munin",
 		Tooltip: "munin",
-		Icons:   sysdaemon.DefaultStateIcons(),
+		Icons:   icons,
 		OnQuit:  cancel,
 		OnReady: func() {
 			close(ready)
@@ -338,6 +342,18 @@ func (s *Server) RunTray(parent context.Context, name string, interval time.Dura
 	}
 }
 
+// Watch runs the daemon watcher: optional system tray when tray is true, otherwise
+// the headless notify loop. Used by the installed OS service (`daemon run`).
+func (s *Server) Watch(ctx context.Context, name string, interval time.Duration, bell, desktop, tray bool, theme string) error {
+	if desktop || tray {
+		icons.LoadStateIcons(s.Cfg.Home, theme)
+	}
+	if tray {
+		return s.RunTray(ctx, name, interval, bell, desktop)
+	}
+	return s.Run(ctx, name, interval, bell, desktop, nil)
+}
+
 func stateForEvent(ev signals.Event) sysdaemon.State {
 	if ev.Section.Err != nil {
 		return sysdaemon.StateError
@@ -358,8 +374,21 @@ func stateForEvent(ev signals.Event) sysdaemon.State {
 	}
 }
 
-func (s *Server) Service(name string, interval time.Duration, bell, desktop bool, theme string, userService bool) (*service.Service, error) {
-	args := []string{"serve", name, "--interval", interval.String()}
+func (s *Server) Service(name string, interval time.Duration, bell, desktop, tray bool, theme string, userService bool) (*service.Service, error) {
+	return service.New(service.Config{
+		Name:        daemonName,
+		DisplayName: "munin",
+		Description: "munin realtime signal watcher",
+		Arguments:   DaemonRunArgs(name, interval, bell, desktop, theme),
+		UserService: userService,
+	}, func(ctx context.Context) error {
+		return s.Watch(ctx, name, interval, bell, desktop, tray, theme)
+	})
+}
+
+// DaemonRunArgs is the argv the OS service uses to start the watcher process.
+func DaemonRunArgs(name string, interval time.Duration, bell, desktop bool, theme string) []string {
+	args := []string{"daemon", "run", name, "--interval", interval.String()}
 	if !bell {
 		args = append(args, "--bell=false")
 	}
@@ -369,15 +398,7 @@ func (s *Server) Service(name string, interval time.Duration, bell, desktop bool
 	if theme != "" && theme != "dark" {
 		args = append(args, "--theme", theme)
 	}
-	return service.New(service.Config{
-		Name:        daemonName,
-		DisplayName: "munin",
-		Description: "munin realtime signal watcher",
-		Arguments:   args,
-		UserService: userService,
-	}, func(ctx context.Context) error {
-		return s.Run(ctx, name, interval, bell, desktop, nil)
-	})
+	return args
 }
 
 func latencyLabel(d time.Duration) string {

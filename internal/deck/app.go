@@ -8,61 +8,51 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
-// State is the deck host (viewkit/deck). Kept as an alias so existing munin
-// views keep Update(*State, …) / MenuItem.Do signatures.
-type State = vkdeck.Host
-
-// View is the navigable screen contract from viewkit/deck.
-type View = vkdeck.View
-
-// Option configures the host.
-type Option func(*vkdeck.Host)
+// Option configures the munin-branded host.
+type Option func(*vkdeck.Model)
 
 // WithStatus installs an async status loader (munin StatusInfo → deck chrome).
 func WithStatus(fn StatusFunc) Option {
-	return func(h *vkdeck.Host) {
+	return func(h *vkdeck.Model) {
 		vkdeck.WithStatus(func(ctx context.Context) vkdeck.StatusInfo {
 			return adaptStatus(fn(ctx))
 		})(h)
 	}
 }
 
-// New builds a host with munin chrome defaults.
-func New(root View, opts ...Option) *State {
-	vkOpts := muninChrome()
-	for _, o := range opts {
-		vkOpts = append(vkOpts, vkdeck.Option(o))
-	}
-	return vkdeck.New(root, vkOpts...)
+// WithKeyHook installs a global hotkey interceptor on the deck host.
+func WithKeyHook(fn func(m *vkdeck.Model, key tea.KeyMsg) (tea.Cmd, bool)) Option {
+	return Option(vkdeck.WithKeyHook(fn))
 }
 
-// Run starts the tea program (runtime lives in viewkit/deck).
-func Run(root View, opts ...Option) error {
-	vkOpts := muninChrome()
-	for _, o := range opts {
-		vkOpts = append(vkOpts, vkdeck.Option(o))
-	}
-	if err := vkdeck.Run(root, vkOpts...); err != nil {
+// New builds a host with munin chrome defaults.
+func New(root vkdeck.View, opts ...Option) *vkdeck.Model {
+	return vkdeck.New(root, muninOpts(opts...)...)
+}
+
+// Run starts the tea program with munin chrome (runtime lives in viewkit/deck).
+func Run(root vkdeck.View, opts ...Option) error {
+	if err := vkdeck.Run(root, muninOpts(opts...)...); err != nil {
 		return errs.Wrap(errs.KindInternal, err, "deck program exited with error")
 	}
 	return nil
 }
 
-func muninChrome() []vkdeck.Option {
-	return []vkdeck.Option{
+func muninOpts(opts ...Option) []vkdeck.Option {
+	out := []vkdeck.Option{
 		vkdeck.WithChrome(vkdeck.Chrome{
 			Brand:      "MUNIN",
 			BrandGlyph: glyph.Brand(),
 			Subtitle:   "ono-sendai deck",
 			ClockGlyph: glyph.Clock(),
 		}),
-		vkdeck.WithQuitCheck(keymap.IsQuit),
+		vkdeck.WithKeyMapQuit(),
 	}
+	for _, o := range opts {
+		out = append(out, vkdeck.Option(o))
+	}
+	return out
 }
-
-// Push is a small helper for tests and callers that hold *State.
-func Push(a *State, v View) tea.Cmd { return a.Push(v) }

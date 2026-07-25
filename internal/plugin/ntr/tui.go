@@ -15,13 +15,14 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/munin/internal/keymap"
+	"github.com/codyconfer/munin/internal/plugin"
 )
 
 func init() {
-	vkdeck.RegisterView("ntr.home", func() vkdeck.View { return &HomeView{} })
-	vkdeck.RegisterView("ntr.notes", func() vkdeck.View { return &notesList{} })
-	vkdeck.RegisterView("ntr.tasks", func() vkdeck.View { return &tasksList{} })
-	vkdeck.RegisterView("ntr.reminders", func() vkdeck.View { return &remindList{} })
+	plugin.RegisterView(PluginID, "ntr.home", func() vkdeck.View { return &HomeView{} })
+	plugin.RegisterView(PluginID, "ntr.notes", func() vkdeck.View { return &notesList{} })
+	plugin.RegisterView(PluginID, "ntr.tasks", func() vkdeck.View { return &tasksList{} })
+	plugin.RegisterView(PluginID, "ntr.reminders", func() vkdeck.View { return &remindList{} })
 }
 
 // RunTUI opens the NTR deck on viewkit/deck.
@@ -31,7 +32,7 @@ func RunTUI(home, role string) error {
 	}
 	return vkdeck.Run(NewHomeView(home, role), vkdeck.WithChrome(vkdeck.Chrome{
 		Brand:    "MUNIN",
-		Subtitle: "ntr",
+		Subtitle: "notes",
 	}), vkdeck.WithKeyMapQuit())
 }
 
@@ -48,26 +49,41 @@ func NewHomeView(home, role string) *HomeView {
 		role = "default"
 	}
 	v := &HomeView{home: home, role: role}
-	v.menu = vkdeck.NewMenu("ntr", [][2]string{{"role", role}},
-		vkdeck.MenuItem{Label: "Notes", Desc: "create · edit · delete", Do: func(h *vkdeck.Host) tea.Cmd {
+	v.menu = vkdeck.NewMenu("notes", [][2]string{{"role", role}},
+		vkdeck.MenuItem{Label: "Notes", Desc: "create · edit · delete", Do: func(h *vkdeck.Model) tea.Cmd {
 			return h.Push(&notesList{home: home, role: role})
 		}},
-		vkdeck.MenuItem{Label: "Tasks", Desc: "create · toggle · delete", Do: func(h *vkdeck.Host) tea.Cmd {
+		vkdeck.MenuItem{Label: "Tasks", Desc: "create · toggle · delete", Do: func(h *vkdeck.Model) tea.Cmd {
 			return h.Push(&tasksList{home: home, role: role})
 		}},
-		vkdeck.MenuItem{Label: "Reminders", Desc: "create · complete", Do: func(h *vkdeck.Host) tea.Cmd {
+		vkdeck.MenuItem{Label: "Reminders", Desc: "create · complete", Do: func(h *vkdeck.Model) tea.Cmd {
 			return h.Push(&remindList{home: home, role: role})
 		}},
 	)
 	return v
 }
 
-func (v *HomeView) Title() string                          { return v.menu.Title() }
-func (v *HomeView) Init() tea.Cmd                          { return v.menu.Init() }
-func (v *HomeView) Update(h *vkdeck.Host, m tea.Msg) tea.Cmd { return v.menu.Update(h, m) }
-func (v *HomeView) Body(w, ht int) string                   { return v.menu.Body(w, ht) }
-func (v *HomeView) Hints() [][2]string                     { return v.menu.Hints() }
-func (v *HomeView) Context() [][2]string                   { return v.menu.Context() }
+// NewNoteForm opens the create-note form (hotkey / deep-link entry).
+func NewNoteForm(home, role string) vkdeck.View {
+	return newNoteForm(home, role, 0, "", "", nil)
+}
+
+// NewTaskForm opens the create-task form (hotkey / deep-link entry).
+func NewTaskForm(home, role string) vkdeck.View {
+	return newTaskForm(home, role, nil)
+}
+
+// NewRemindForm opens the create-reminder form (hotkey / deep-link entry).
+func NewRemindForm(home, role string) vkdeck.View {
+	return newRemindForm(home, role, nil)
+}
+
+func (v *HomeView) Title() string                             { return v.menu.Title() }
+func (v *HomeView) Init() tea.Cmd                             { return v.menu.Init() }
+func (v *HomeView) Update(h *vkdeck.Model, m tea.Msg) tea.Cmd { return v.menu.Update(h, m) }
+func (v *HomeView) Body(w, ht int) string                     { return v.menu.Body(w, ht) }
+func (v *HomeView) Hints() [][2]string                        { return v.menu.Hints() }
+func (v *HomeView) Context() [][2]string                      { return v.menu.Context() }
 
 func openStore(home, role string) (*Store, context.Context, context.CancelFunc, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -116,8 +132,6 @@ func renderRows(width, cursor int, title string, rows []string, empty string) st
 	return f.TitledBox(title, lines...)
 }
 
-// --- notes ---
-
 type notesList struct {
 	home   string
 	role   string
@@ -158,7 +172,7 @@ func (v *notesList) reload() tea.Cmd {
 	}
 }
 
-func (v *notesList) Update(h *vkdeck.Host, msg tea.Msg) tea.Cmd {
+func (v *notesList) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case notesLoadedMsg:
 		v.notes, v.err, v.loaded = m.notes, m.err, true
@@ -267,7 +281,7 @@ func (v *noteForm) Body(width, _ int) string {
 	return body
 }
 
-func (v *noteForm) Update(h *vkdeck.Host, msg tea.Msg) tea.Cmd {
+func (v *noteForm) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case savedMsg:
 		if m.err != "" {
@@ -328,8 +342,6 @@ func (v *noteForm) save() tea.Cmd {
 	}
 }
 
-// --- tasks ---
-
 type tasksList struct {
 	home   string
 	role   string
@@ -370,7 +382,7 @@ func (v *tasksList) reload() tea.Cmd {
 	}
 }
 
-func (v *tasksList) Update(h *vkdeck.Host, msg tea.Msg) tea.Cmd {
+func (v *tasksList) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case tasksLoadedMsg:
 		v.tasks, v.err, v.loaded = m.tasks, m.err, true
@@ -488,7 +500,7 @@ func (v *taskForm) Body(width, _ int) string {
 	return body
 }
 
-func (v *taskForm) Update(h *vkdeck.Host, msg tea.Msg) tea.Cmd {
+func (v *taskForm) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case savedMsg:
 		if m.err != "" {
@@ -539,8 +551,6 @@ func (v *taskForm) Update(h *vkdeck.Host, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// --- reminders ---
-
 type remindList struct {
 	home   string
 	role   string
@@ -581,7 +591,7 @@ func (v *remindList) reload() tea.Cmd {
 	}
 }
 
-func (v *remindList) Update(h *vkdeck.Host, msg tea.Msg) tea.Cmd {
+func (v *remindList) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case remindLoadedMsg:
 		v.items, v.err, v.loaded = m.items, m.err, true
@@ -678,7 +688,7 @@ func (v *remindForm) Body(width, _ int) string {
 	return body
 }
 
-func (v *remindForm) Update(h *vkdeck.Host, msg tea.Msg) tea.Cmd {
+func (v *remindForm) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case savedMsg:
 		if m.err != "" {

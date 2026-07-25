@@ -1,11 +1,11 @@
-// Package app is the public distribution entrypoint (ADR-8 / M6).
+// Package app is the public distribution entrypoint.
 //
 // Team overlay binaries import this package, call [Run] with hooks and an
 // optional go:embed defaults FS, and stamp domain / auth policy via [Options]
 // or the traditional ldflags into internal/app/onboard.
 //
 // This package intentionally does not import munin/cmd so overlays and tests
-// stay buildable while deck/term extraction (M5) churns. Callers supply [Options.CLI]
+// stay buildable while deck/term extraction churns. Callers supply [Options.CLI]
 // (stock munin main and the overlay template both wire cmd.Root().ExecuteContext).
 package app
 
@@ -39,15 +39,16 @@ type Options struct {
 	EnforceAuth bool
 
 	// Defaults is an optional filesystem of seed config/directives for install.
-	// Layout mirrors ~/.munin (config.yaml, queries/, filters/, flights/, roles/).
-	// When set, Install/Nuke merge these seeds over the stock scaffold (overlay wins).
+	// Layout mirrors ~/.munin (config.yaml, role *.yaml, queries/, filters/, flights/).
+	// When set, Install merges these seeds over the stock scaffold (overlay wins).
 	Defaults fs.FS
 
 	// CLI executes the root command after hooks. Required.
 	// Stock munin and overlays typically pass cmd.Root().ExecuteContext (with SetArgs).
 	CLI func(ctx context.Context, args []string) error
 
-	// RegisterPlugins runs once before CLI. Overlays register compile-time plugins here.
+	// RegisterPlugins runs once before CLI. Overlays register compile-time plugins
+	// here via github.com/codyconfer/munin/plugin (RegisterSignal / Builders).
 	RegisterPlugins func()
 
 	// BeforeRun runs after policy/plugin setup and before CLI.
@@ -90,7 +91,6 @@ func Run(opts Options) (err error) {
 	return err
 }
 
-// applyBuildPolicy sets onboard policy vars from Options. Safe to call from tests.
 func applyBuildPolicy(opts Options) {
 	if opts.EmailDomain != "" {
 		onboard.RequiredEmailDomain = opts.EmailDomain

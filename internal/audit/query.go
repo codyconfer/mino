@@ -2,11 +2,13 @@ package audit
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/codyconfer/sisyphus/journal"
 
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/signals"
 )
 
 type AuditRow struct {
@@ -86,6 +88,84 @@ func (s *Store) Items(runID int64) ([]IntelRow, error) {
 		})
 	}
 	return out, nil
+}
+
+// Sections reconstructs signals.Section slices for a recorded run, matching
+// CLI history show: flights expand child queries; other kinds load their items.
+func (s *Store) Sections(id int64) ([]signals.Section, error) {
+	if s == nil {
+		return nil, nil
+	}
+	run, ok, err := s.Entry(id)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errs.Newf(errs.KindUsage, "no run with id %d", id)
+	}
+	if run.Kind == "flight" {
+		children, err := s.Children(id)
+		if err != nil {
+			return nil, err
+		}
+		var out []signals.Section
+		for _, ch := range children {
+			secs, err := s.sectionsForRun(ch)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, secs...)
+		}
+		return out, nil
+	}
+	return s.sectionsForRun(run)
+}
+
+func (s *Store) sectionsForRun(run AuditRow) ([]signals.Section, error) {
+	items, err := s.Items(run.ID)
+	if err != nil {
+		return nil, err
+	}
+	return intelToSections(run, items), nil
+}
+
+func intelToSections(run AuditRow, items []IntelRow) []signals.Section {
+	if len(items) == 0 {
+		sec := signals.Section{Signal: run.Name, Title: run.Name}
+		if run.Error != "" {
+			sec.Err = errors.New(run.Error)
+		}
+		return []signals.Section{sec}
+	}
+	order := make([]string, 0)
+	bySignal := make(map[string]*signals.Section)
+	for _, it := range items {
+		sig := it.Signal
+		if sig == "" {
+			sig = run.Name
+		}
+		sec, ok := bySignal[sig]
+		if !ok {
+			sec = &signals.Section{Signal: sig, Title: sig}
+			bySignal[sig] = sec
+			order = append(order, sig)
+		}
+		sec.Items = append(sec.Items, signals.Item{
+			Kind:      it.Kind,
+			Title:     it.Title,
+			Subtitle:  it.Subtitle,
+			URL:       it.URL,
+			Timestamp: it.Ts,
+		})
+	}
+	if run.Error != "" {
+		bySignal[order[0]].Err = errors.New(run.Error)
+	}
+	out := make([]signals.Section, 0, len(order))
+	for _, sig := range order {
+		out = append(out, *bySignal[sig])
+	}
+	return out
 }
 
 func toAuditRows(runs []journal.Run) []AuditRow {

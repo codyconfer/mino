@@ -102,6 +102,33 @@ func TestBadRegexReportsName(t *testing.T) {
 	}
 }
 
+func TestCompileBindsExternalEngine(t *testing.T) {
+	prev := ExternalEngine
+	t.Cleanup(func() { ExternalEngine = prev })
+	ExternalEngine = func(name string) (func([]signals.Item) []signals.Item, bool) {
+		if name != "eng" {
+			return nil, false
+		}
+		return func(items []signals.Item) []signals.Item {
+			if len(items) == 0 {
+				return items
+			}
+			return items[:1]
+		}, true
+	}
+	c, err := Compile(Filter{Name: "eng"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.IsEngine() {
+		t.Fatal("expected engine")
+	}
+	got := c.Apply(items())
+	if len(got) != 1 {
+		t.Fatalf("got %d items", len(got))
+	}
+}
+
 func assertEqual(t *testing.T, got, want []string) {
 	t.Helper()
 	if len(got) != len(want) {

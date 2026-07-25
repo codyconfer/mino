@@ -30,6 +30,34 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Home != dir {
 		t.Errorf("Home = %q, want %q", cfg.Home, dir)
 	}
+	want := DefaultKeybinds()
+	if len(cfg.Keybinds) != len(want) {
+		t.Fatalf("default keybinds = %#v, want %#v", cfg.Keybinds, want)
+	}
+	for k, v := range want {
+		if cfg.Keybinds[k] != v {
+			t.Errorf("keybinds[%q]=%q, want %q", k, cfg.Keybinds[k], v)
+		}
+	}
+}
+
+func TestLoadKeybindsOverride(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "config.yaml"), `
+keybinds:
+  alt+n: morning
+  alt+x: ntr.note.new
+`)
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Keybinds["alt+n"] != "morning" {
+		t.Errorf("alt+n = %q, want morning", cfg.Keybinds["alt+n"])
+	}
+	if cfg.Keybinds["alt+x"] != "ntr.note.new" {
+		t.Errorf("alt+x = %q", cfg.Keybinds["alt+x"])
+	}
 }
 
 func TestLoadFileOverrides(t *testing.T) {
@@ -56,6 +84,9 @@ gmail:
 	}
 	if cfg.Docs.Recent != 10 {
 		t.Errorf("docs should retain its default (10), got %d", cfg.Docs.Recent)
+	}
+	if cfg.Keybinds["alt+n"] != "ntr.note.new" {
+		t.Errorf("omitted keybinds should keep defaults, got %#v", cfg.Keybinds)
 	}
 }
 
@@ -140,11 +171,17 @@ func TestLoadGlobalSettings(t *testing.T) {
 
 func TestHomePrecedence(t *testing.T) {
 	xdg := t.TempDir()
+	userHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("HOME", userHome)
 	t.Setenv("MUNIN_HOME", "")
 
-	if h, err := Home(""); err != nil || h == "" {
-		t.Fatalf("default home = %q, %v", h, err)
+	wantDefault := filepath.Join(userHome, HomeDirName)
+	if h, err := Home(""); err != nil || h != wantDefault {
+		t.Fatalf("default home = %q, %v; want %q", h, err, wantDefault)
+	}
+	if h, err := DefaultHome(); err != nil || h != wantDefault {
+		t.Fatalf("DefaultHome = %q, %v; want %q", h, err, wantDefault)
 	}
 
 	mkdir(t, filepath.Join(xdg, "munin"))
@@ -161,6 +198,41 @@ func TestHomePrecedence(t *testing.T) {
 	t.Setenv("MUNIN_HOME", "/from-env")
 	if h, _ := Home(""); h != "/from-env" {
 		t.Errorf("env override = %q, want /from-env", h)
+	}
+}
+
+func TestHomeResolvesRelativeToAbsolute(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("MUNIN_HOME", "")
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+
+	got, err := Home(".munin-rel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.Abs(filepath.Join(cwd, ".munin-rel"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("Home(.munin-rel) = %q, want absolute %q", got, want)
+	}
+}
+
+func TestHomeExpandsTilde(t *testing.T) {
+	userHome := t.TempDir()
+	t.Setenv("HOME", userHome)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("MUNIN_HOME", "")
+
+	got, err := Home("~/alt-munin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(userHome, "alt-munin")
+	if got != want {
+		t.Fatalf("tilde home = %q, want %q", got, want)
 	}
 }
 

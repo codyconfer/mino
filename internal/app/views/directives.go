@@ -1,7 +1,6 @@
 package views
 
 import (
-	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +13,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
+
+	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
@@ -60,7 +61,7 @@ func directiveSingular(k directiveKind) string {
 	return "item"
 }
 
-func directiveDir(k directiveKind) string {
+func directiveKey(k directiveKind) string {
 	switch k {
 	case directiveQuery:
 		return config.DirQueries
@@ -69,7 +70,7 @@ func directiveDir(k directiveKind) string {
 	case directiveFlight:
 		return config.DirFlights
 	case directiveRole:
-		return config.DirRoles
+		return config.KindRoles
 	}
 	return ""
 }
@@ -133,15 +134,15 @@ func directiveStr(vals map[string]any, key string) string {
 	return ""
 }
 
-func (kit *Kit) directivesMenu() deck.View {
-	pick := func(k directiveKind) deck.MenuItem {
-		return deck.MenuItem{
+func (kit *Kit) directivesMenu() vkdeck.View {
+	pick := func(k directiveKind) vkdeck.MenuItem {
+		return vkdeck.MenuItem{
 			Label: directiveLabel(k),
 			Desc:  "browse saved " + strings.ToLower(directiveLabel(k)),
-			Do:    func(a *deck.State) tea.Cmd { return a.Push(kit.directiveBrowser(k)) },
+			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.directiveBrowser(k)) },
 		}
 	}
-	return deck.NewMenu("directives", kit.menuCtx(),
+	return vkdeck.NewMenu("directives", kit.menuCtx(),
 		pick(directiveQuery),
 		pick(directiveFilter),
 		pick(directiveFlight),
@@ -149,54 +150,54 @@ func (kit *Kit) directivesMenu() deck.View {
 	)
 }
 
-func (kit *Kit) directiveBrowser(k directiveKind) deck.View {
-	var items []deck.MenuItem
+func (kit *Kit) directiveBrowser(k directiveKind) vkdeck.View {
+	var items []vkdeck.MenuItem
 	for _, n := range kit.directiveNames(k) {
 		n := n
-		items = append(items, deck.MenuItem{
+		items = append(items, vkdeck.MenuItem{
 			Label: n,
-			Do:    func(a *deck.State) tea.Cmd { return a.Push(kit.directiveActionsMenu(k, n)) },
+			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.directiveActionsMenu(k, n)) },
 		})
 	}
 	if len(items) == 0 {
-		items = append(items, deck.MenuItem{Label: "(none)", Desc: "no saved " + strings.ToLower(directiveLabel(k))})
+		items = append(items, vkdeck.MenuItem{Label: "(none)", Desc: "no saved " + strings.ToLower(directiveLabel(k))})
 	}
-	items = append(items, deck.MenuItem{
+	items = append(items, vkdeck.MenuItem{
 		Label: "＋ New",
 		Desc:  "create a " + directiveSingular(k),
-		Do:    func(a *deck.State) tea.Cmd { return a.Push(kit.newDirectiveForm(k, "")) },
+		Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.newDirectiveForm(k, "")) },
 	})
-	return deck.NewMenu(directiveLabel(k), kit.directiveCtx(k), items...)
+	return vkdeck.NewMenu(directiveLabel(k), kit.directiveCtx(k), items...)
 }
 
-func (kit *Kit) directiveActionsMenu(k directiveKind, name string) deck.View {
+func (kit *Kit) directiveActionsMenu(k directiveKind, name string) vkdeck.View {
 	ctx := kit.directiveItemCtx(k, name)
-	items := []deck.MenuItem{
-		{Label: "View", Desc: "show YAML", Do: func(a *deck.State) tea.Cmd {
+	items := []vkdeck.MenuItem{
+		{Label: "View", Desc: "show YAML", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(kit.directiveViewContent(k, name))
 		}},
 	}
 	if directiveRunnable(k) {
-		items = append(items, deck.MenuItem{Label: "Run", Desc: "fetch and render results", Do: func(a *deck.State) tea.Cmd {
+		items = append(items, vkdeck.MenuItem{Label: "Run", Desc: "fetch and render results", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(kit.directiveRunContent(k, name))
 		}})
 	}
 	items = append(items,
-		deck.MenuItem{Label: "Validate", Desc: "check for problems", Do: func(a *deck.State) tea.Cmd {
+		vkdeck.MenuItem{Label: "Validate", Desc: "check for problems", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(kit.directiveValidateContent(k, name))
 		}},
-		deck.MenuItem{Label: "Edit", Desc: "modify and save", Do: func(a *deck.State) tea.Cmd {
+		vkdeck.MenuItem{Label: "Edit", Desc: "modify and save", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(kit.newDirectiveForm(k, name))
 		}},
-		deck.MenuItem{Label: "Delete", Desc: "remove the file", Do: func(a *deck.State) tea.Cmd {
+		vkdeck.MenuItem{Label: "Delete", Desc: "remove the file", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(kit.directiveDeleteConfirm(k, name))
 		}},
 	)
-	return deck.NewMenu(directiveSingular(k)+": "+name, ctx, items...)
+	return vkdeck.NewMenu(directiveSingular(k)+": "+name, ctx, items...)
 }
 
-func (kit *Kit) directiveViewContent(k directiveKind, name string) deck.View {
-	return deck.NewContent("view: "+name, kit.directiveItemCtx(k, name), nil, func() string {
+func (kit *Kit) directiveViewContent(k directiveKind, name string) vkdeck.View {
+	return vkdeck.NewScroll("view: "+name, kit.directiveItemCtx(k, name), nil, func() string {
 		data, err := yaml.Marshal(kit.directiveItem(k, name))
 		if err != nil {
 			return theme.Cur().Cant.Render("error: " + err.Error())
@@ -206,7 +207,7 @@ func (kit *Kit) directiveViewContent(k directiveKind, name string) deck.View {
 	})
 }
 
-func (kit *Kit) directiveRunContent(k directiveKind, name string) deck.View {
+func (kit *Kit) directiveRunContent(k directiveKind, name string) vkdeck.View {
 	return deck.NewResults("run: "+name, kit.directiveItemCtx(k, name), func() []signals.Section {
 		switch k {
 		case directiveQuery:
@@ -218,8 +219,8 @@ func (kit *Kit) directiveRunContent(k directiveKind, name string) deck.View {
 	})
 }
 
-func (kit *Kit) directiveValidateContent(k directiveKind, name string) deck.View {
-	return deck.NewContent("validate: "+name, kit.directiveItemCtx(k, name), nil, func() string {
+func (kit *Kit) directiveValidateContent(k directiveKind, name string) vkdeck.View {
+	return vkdeck.NewScroll("validate: "+name, kit.directiveItemCtx(k, name), nil, func() string {
 		th := theme.Cur()
 		if k == directiveFilter {
 			return layout.NewFrame(theme.BodyWidth).Panel("validation",
@@ -265,27 +266,31 @@ func directiveFindingLine(f Finding) string {
 	return mark + " " + th.Val.Render(f.Name)
 }
 
-func (kit *Kit) directiveDeleteConfirm(k directiveKind, name string) deck.View {
+func (kit *Kit) directiveDeleteConfirm(k directiveKind, name string) vkdeck.View {
 	ctx := kit.directiveItemCtx(k, name)
-	return deck.NewMenu("delete "+name+"?", ctx,
-		deck.MenuItem{Label: "No, keep it", Do: func(a *deck.State) tea.Cmd { return a.Pop() }},
-		deck.MenuItem{Label: "Yes, delete", Desc: "remove the file", Do: func(a *deck.State) tea.Cmd {
-			return a.Push(deck.NewMessage("delete", kit.directiveDeleteFile(k, name), ctx))
+	return vkdeck.NewMenu("delete "+name+"?", ctx,
+		vkdeck.MenuItem{Label: "No, keep it", Do: func(a *vkdeck.Model) tea.Cmd { return a.Pop() }},
+		vkdeck.MenuItem{Label: "Yes, delete", Desc: "remove the file", Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(vkdeck.NewMessage("delete", kit.directiveDeleteFile(k, name), ctx))
 		}},
 	)
 }
 
 func (kit *Kit) directiveDeleteFile(k directiveKind, name string) string {
-	dir := directiveDir(k)
-	removed, _ := sconfig.RemoveFiles(filepath.Join(kit.d.App.Cfg.Home, dir), name, []string{".yaml", ".yml", ".json"})
+	key := directiveKey(k)
+	home := kit.d.App.Cfg.Home
+	removed, err := config.RemoveCollectionItem(home, key, name)
+	if err != nil {
+		return err.Error()
+	}
 	if len(removed) == 0 {
-		return "no file found for " + name + " under " + dir + "/.\n\n" +
+		return "no file found for " + name + " in " + config.CollectionDir(home, key) + ".\n\n" +
 			"It may exist only in DuckDB (the source of truth); use\n" +
-			"`munin export " + dir + "` to write files first."
+			"`munin export " + key + "` to write files first."
 	}
 	return "removed:\n  " + strings.Join(removed, "\n  ") + "\n\n" +
 		"DuckDB remains the source of truth; this takes effect after\n" +
-		"reconcile: run `munin import " + dir + "` or restart munin."
+		"reconcile: run `munin import " + key + "` or restart munin."
 }
 
 type directiveFormView struct {
@@ -296,7 +301,7 @@ type directiveFormView struct {
 	ctx  [][2]string
 }
 
-func (kit *Kit) newDirectiveForm(k directiveKind, orig string) deck.View {
+func (kit *Kit) newDirectiveForm(k directiveKind, orig string) vkdeck.View {
 	return &directiveFormView{
 		kit:  kit,
 		kind: k,
@@ -369,7 +374,7 @@ func (v *directiveFormView) Hints() [][2]string {
 	return [][2]string{{"↑/↓", "field"}, {"←/→", "adjust"}, {"ctrl+s", "save"}, {"esc", "cancel"}}
 }
 
-func (v *directiveFormView) Update(a *deck.State, msg tea.Msg) tea.Cmd {
+func (v *directiveFormView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return nil
@@ -398,11 +403,11 @@ func (v *directiveFormView) Body(width, _ int) string {
 	return v.form.Render(layout.NewFrame(width), v.Title())
 }
 
-func (v *directiveFormView) submit(a *deck.State) tea.Cmd {
+func (v *directiveFormView) submit(a *vkdeck.Model) tea.Cmd {
 	vals := v.form.Values()
 	name := directiveStr(vals, "name")
 	if name == "" {
-		return a.Push(deck.NewMessage("save failed", "name is required", v.ctx))
+		return a.Push(vkdeck.NewMessage("save failed", "name is required", v.ctx))
 	}
 
 	var item any
@@ -443,9 +448,9 @@ func (v *directiveFormView) submit(a *deck.State) tea.Cmd {
 
 	summary, err := v.kit.directiveWriteFile(v.kind, name, item)
 	if err != nil {
-		return a.Push(deck.NewMessage("save failed", err.Error(), v.ctx))
+		return a.Push(vkdeck.NewMessage("save failed", err.Error(), v.ctx))
 	}
-	return a.Push(deck.NewMessage("saved", summary, v.ctx))
+	return a.Push(vkdeck.NewMessage("saved", summary, v.ctx))
 }
 
 func (kit *Kit) directiveWriteFile(k directiveKind, name string, item any) (string, error) {
@@ -453,12 +458,13 @@ func (kit *Kit) directiveWriteFile(k directiveKind, name string, item any) (stri
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(kit.d.App.Cfg.Home, directiveDir(k))
+	key := directiveKey(k)
+	dir := config.CollectionDir(kit.d.App.Cfg.Home, key)
 	path, err := sconfig.WriteItem(dir, name+".yaml", data)
 	if err != nil {
 		return "", err
 	}
 	return "wrote " + path + "\n\n" +
 		"DuckDB is the source of truth; this file takes effect after\n" +
-		"reconcile: run `munin import " + directiveDir(k) + "` or restart munin.", nil
+		"reconcile: run `munin import " + key + "` or restart munin.", nil
 }

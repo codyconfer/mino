@@ -15,7 +15,7 @@ type DefaultFile struct {
 
 // ListDefaults walks a Defaults filesystem and returns seed files suitable for
 // an InstallSpec. Skips directories and hidden files. RelPath uses forward slashes.
-// app.Run registers Options.Defaults so Install/Nuke merge these over stock seeds.
+// app.Run registers Options.Defaults so Install merges these over stock seeds.
 func ListDefaults(defaults fs.FS) ([]DefaultFile, error) {
 	if defaults == nil {
 		return nil, nil

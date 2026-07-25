@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -59,6 +58,7 @@ type Options struct {
 	Output      string
 	Role        string
 	Timeout     string
+	Reconcile   config.ReconcilePolicy
 	Verbose     bool
 	Interactive bool
 	In          io.Reader
@@ -70,7 +70,7 @@ func Load(opts Options) (*App, error) {
 	if home, err := config.Home(opts.Home); err == nil {
 		_ = os.Chmod(home, 0o700)
 	}
-	cfg, directives, mgr, err := config.LoadConfigAndDirectives(opts.Home, opts.ConfigFile, opts.Interactive, opts.In, opts.Out)
+	cfg, directives, mgr, err := config.LoadConfigAndDirectives(opts.Home, opts.ConfigFile, opts.Reconcile, opts.Interactive, opts.In, opts.Out)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +103,24 @@ func (a *App) applyRoleContexts() {
 	}
 }
 
+// ReloadDirectives reloads directives from disk/store into a.Directives and
+// reapplies role contexts. Uses ReconcileApply so newly provisioned seed files
+// surface without restarting. Reuses a.Mgr when present.
+func (a *App) ReloadDirectives() error {
+	if a == nil || a.Cfg == nil {
+		return errs.New(errs.KindInternal, "app not loaded")
+	}
+	d, err := config.ReloadDirectives(a.Mgr, a.Cfg.Home, config.ReconcileApply)
+	if err != nil {
+		return err
+	}
+	a.Directives = d
+	a.applyRoleContexts()
+	return nil
+}
+
 func (a *App) openTokens() {
-	ts, err := token.Open(context.Background(), filepath.Join(a.Cfg.Home, "tokens.duckdb"))
+	ts, err := token.Open(context.Background(), config.DataPath(a.Cfg.Home, config.TokensDB))
 	if err != nil {
 		log.Debugf("token store unavailable: %v", err)
 		return
@@ -118,7 +134,7 @@ func (a *App) openAudit() {
 	}
 	path := a.Cfg.Audit.Path
 	if path == "" {
-		path = filepath.Join(a.Cfg.Home, "audit.duckdb")
+		path = config.DataPath(a.Cfg.Home, config.AuditDB)
 	}
 	st, err := audit.Open(context.Background(), path)
 	if err != nil {

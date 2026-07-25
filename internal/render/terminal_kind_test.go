@@ -3,8 +3,9 @@ package render
 import (
 	"testing"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
 	"github.com/codyconfer/viewkit/theme"
+
+	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
 func TestKindStyleNegativeUsesErrorTone(t *testing.T) {

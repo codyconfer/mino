@@ -14,7 +14,7 @@ func newActionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "action",
 		Short: "List or run CapAction bindings",
-		Long:  "Actions are discoverable write/side-effect capabilities advertised by plugins (ADR-6).",
+		Long:  "Actions are discoverable write/side-effect capabilities advertised by plugins.",
 	}
 	cmd.AddCommand(newActionListCmd(), newActionRunCmd())
 	return cmd

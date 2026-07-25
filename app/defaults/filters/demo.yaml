@@ -1,0 +1,5 @@
+# Filter for the opt-in GitHub demo queries — drops bot authors from Fetch items.
+name: demo
+rules:
+  - field: meta.author
+    exclude: "(?i)bot$"

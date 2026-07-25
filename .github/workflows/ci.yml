@@ -23,24 +23,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CGO_ENABLED: "1"
-      GOPRIVATE: github.com/codyconfer/*
-      GONOSUMDB: github.com/codyconfer/*
-      GONOPROXY: github.com/codyconfer/*
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      - name: Configure private module access
-        shell: bash
-        env:
-          TOKEN: ${{ secrets.GH_READ_TOKEN }}
-        run: |
-          if [ -z "${TOKEN}" ]; then
-            echo "::error::GH_READ_TOKEN secret is required to fetch private modules github.com/codyconfer/{sisyphus,viewkit}"
-            exit 1
-          fi
-          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
       - name: make ci
         run: make ci

@@ -39,7 +39,7 @@ func newRoleCmd() *cobra.Command {
 
 			names := shared.Directives.RoleNames()
 			if len(names) == 0 {
-				fmt.Fprintln(out, "\nno roles defined (add files under roles/)")
+				fmt.Fprintln(out, "\nno roles defined (add a <name>.yaml in the config dir)")
 				return nil
 			}
 			fmt.Fprintln(out, "\ndefined roles:")

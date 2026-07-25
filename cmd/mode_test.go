@@ -23,7 +23,7 @@ func hasAlias(c *cobra.Command, alias string) bool {
 func TestCommandTree(t *testing.T) {
 	root := Root()
 
-	for _, n := range []string{"deck", "serve", "daemon"} {
+	for _, n := range []string{"deck", "serve", "daemon", "notes"} {
 		if findCmd(root, n) == nil {
 			t.Errorf("missing top-level command %q", n)
 		}
@@ -31,10 +31,23 @@ func TestCommandTree(t *testing.T) {
 	if findCmd(root, "tui") != nil {
 		t.Error("tui should be a deck alias, not its own top-level command")
 	}
+	if findCmd(root, "ntr") != nil {
+		t.Error("ntr should be a notes alias, not its own top-level command")
+	}
 
 	deck := findCmd(root, "deck")
 	if deck == nil || !hasAlias(deck, "tui") {
 		t.Error("deck should carry the deprecated `tui` alias")
+	}
+
+	notes := findCmd(root, "notes")
+	if notes == nil || !hasAlias(notes, "ntr") {
+		t.Error("notes should carry the deprecated `ntr` alias")
+	}
+	for _, sub := range []string{"list", "add", "update", "rm", "tasks", "remind", "catch-up", "ui"} {
+		if findCmd(notes, sub) == nil {
+			t.Errorf("notes missing subcommand %q", sub)
+		}
 	}
 
 	serve := findCmd(root, "serve")
@@ -47,6 +60,12 @@ func TestCommandTree(t *testing.T) {
 		if findCmd(daemon, s) == nil {
 			t.Errorf("daemon missing subcommand %q", s)
 		}
+	}
+	run := findCmd(daemon, "run")
+	if run == nil {
+		t.Error("daemon missing hidden run entrypoint for the OS service")
+	} else if !run.Hidden {
+		t.Error("daemon run should be hidden (OS service entrypoint)")
 	}
 }
 

@@ -25,10 +25,11 @@ func newServeCmd() *cobra.Command {
 		Long: "Runs munin in the CURRENT shell as a long-running process that opens each of the\n" +
 			"flight's realtime-capable signals, fans their events into one loop, and emits a\n" +
 			"notification for each new item. Ctrl-C exits. Logs stream to the shell and the\n" +
-			"log dir. serve does NOT integrate with the OS — use `munin daemon` to install and\n" +
-			"run munin as a system service. --desktop sends OS notifications using per-state\n" +
-			"icons from <home>/icons/(inactive|running|notify|warn|error).png. Only Slack is a\n" +
-			"true websocket; the rest are polled at --interval; unsupported signals are skipped.",
+			"log dir. serve does NOT install an OS service or own the system tray — use\n" +
+			"`munin daemon` for the installed service (and daemon.tray for a tray icon).\n" +
+			"--desktop sends OS notifications using per-state icons from <home>/icons/ or\n" +
+			"embedded themes. Only Slack is a true websocket; the rest are polled at\n" +
+			"--interval; unsupported signals are skipped.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeFlightNames,
 		Annotations:       map[string]string{annoGateMode: modeServe},
@@ -53,8 +54,9 @@ func newServeCmd() *cobra.Command {
 			if desktop {
 				icons.LoadStateIcons(shared.Cfg.Home, theme)
 			}
-			srv := serveServer()
-			err = srv.Run(cmd.Context(), name, interval, bell, desktop, nil)
+			ctx, cancelLifeline := mdaemon.BindDeckLifeline(cmd.Context())
+			defer cancelLifeline()
+			err = serveServer().Run(ctx, name, interval, bell, desktop, nil)
 			fmt.Fprintln(cmd.ErrOrStderr(), "serve: shutting down")
 			return err
 		},

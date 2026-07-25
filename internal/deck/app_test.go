@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
+	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/munin/internal/keymap"
@@ -20,9 +21,9 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func drive(a *State, msg tea.Msg) *State {
+func drive(a *vkdeck.Model, msg tea.Msg) *vkdeck.Model {
 	m, _ := a.Update(msg)
-	return m.(*State)
+	return m.(*vkdeck.Model)
 }
 
 func key(s string) tea.KeyMsg {
@@ -39,10 +40,10 @@ func key(s string) tea.KeyMsg {
 }
 
 func TestAppRendersChromeAndMenu(t *testing.T) {
-	menu := NewMenu("main menu", [][2]string{{"role", "triage"}},
-		MenuItem{Label: "Alpha", Desc: "first"},
-		MenuItem{Label: "Beta", Desc: "second", Do: func(a *State) tea.Cmd {
-			return a.Push(NewMessage("beta screen", "hello from beta", nil))
+	menu := vkdeck.NewMenu("main menu", [][2]string{{"role", "triage"}},
+		vkdeck.MenuItem{Label: "Alpha", Desc: "first"},
+		vkdeck.MenuItem{Label: "Beta", Desc: "second", Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(vkdeck.NewMessage("beta screen", "hello from beta", nil))
 		}},
 	)
 	app := New(menu)
@@ -57,10 +58,10 @@ func TestAppRendersChromeAndMenu(t *testing.T) {
 }
 
 func TestAppNavigation(t *testing.T) {
-	menu := NewMenu("main", nil,
-		MenuItem{Label: "Alpha"},
-		MenuItem{Label: "Beta", Do: func(a *State) tea.Cmd {
-			return a.Push(NewMessage("beta screen", "body", nil))
+	menu := vkdeck.NewMenu("main", nil,
+		vkdeck.MenuItem{Label: "Alpha"},
+		vkdeck.MenuItem{Label: "Beta", Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(vkdeck.NewMessage("beta screen", "body", nil))
 		}},
 	)
 	app := New(menu)
@@ -92,7 +93,7 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 			{Name: "gmail", Level: StatusMuted},
 		},
 	}
-	menu := NewMenu("main", nil, MenuItem{Label: "Alpha"})
+	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
 	app := New(menu, WithStatus(func(context.Context) StatusInfo { return info }))
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
@@ -132,7 +133,7 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 
 func TestAppUnverifiedSigningGlyph(t *testing.T) {
 	info := StatusInfo{GitHubUser: "cody", SigningVerified: false}
-	app := New(NewMenu("main", nil, MenuItem{Label: "Alpha"}),
+	app := New(vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"}),
 		WithStatus(func(context.Context) StatusInfo { return info }))
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app.SetStatus(adaptStatus(info))
@@ -142,8 +143,8 @@ func TestAppUnverifiedSigningGlyph(t *testing.T) {
 }
 
 func TestAppHeaderBreadcrumbs(t *testing.T) {
-	menu := NewMenu("main", nil, MenuItem{Label: "Alpha", Do: func(a *State) tea.Cmd {
-		return a.Push(NewMessage("details", "body", nil))
+	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha", Do: func(a *vkdeck.Model) tea.Cmd {
+		return a.Push(vkdeck.NewMessage("details", "body", nil))
 	}})
 	app := New(menu)
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
@@ -170,7 +171,7 @@ func TestAppHeaderBreadcrumbs(t *testing.T) {
 
 func TestAppPinsFooterToBottom(t *testing.T) {
 	const height = 40
-	menu := NewMenu("main", nil, MenuItem{Label: "Alpha"})
+	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
 	app := New(menu)
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: height})
 
@@ -194,9 +195,9 @@ func TestAppPinsFooterToBottom(t *testing.T) {
 
 func TestAppEvenHorizontalMargins(t *testing.T) {
 	const width = 100
-	menu := NewMenu("main menu", [][2]string{{"role", "triage"}},
-		MenuItem{Label: "Alpha", Desc: "first"},
-		MenuItem{Label: "Beta", Desc: "second"},
+	menu := vkdeck.NewMenu("main menu", [][2]string{{"role", "triage"}},
+		vkdeck.MenuItem{Label: "Alpha", Desc: "first"},
+		vkdeck.MenuItem{Label: "Beta", Desc: "second"},
 	)
 	app := New(menu)
 	app = drive(app, tea.WindowSizeMsg{Width: width, Height: 40})

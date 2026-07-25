@@ -1,5 +1,12 @@
 package plugin
 
+import (
+	"regexp"
+	"strings"
+
+	"github.com/codyconfer/munin/internal/signals"
+)
+
 // RegisterBuiltins registers stock munin signal plugins with the compile-time
 // registry. Call once from init of the host (signals/build).
 func RegisterBuiltins() {
@@ -27,4 +34,23 @@ func RegisterBuiltins() {
 			Capabilities: s.caps,
 		})
 	}
+	if !HasFilter("demo-no-lorem") {
+		RegisterFilterEngine("munin.demo", "demo-no-lorem", demoNoLoremEngine)
+	}
+}
+
+var loremNoise = regexp.MustCompile(`(?i)\b(lorem|ipsum)\b`)
+
+func demoNoLoremEngine(items []signals.Item) []signals.Item {
+	out := make([]signals.Item, 0, len(items))
+	for _, it := range items {
+		if strings.TrimSpace(it.Title) == "" {
+			continue
+		}
+		if loremNoise.MatchString(it.Body) || loremNoise.MatchString(it.Title) {
+			continue
+		}
+		out = append(out, it)
+	}
+	return out
 }

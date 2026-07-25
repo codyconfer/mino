@@ -18,6 +18,7 @@ func Register(theme string) {
 		if err != nil || len(b) == 0 {
 			continue
 		}
-		daemon.SetStateIcon(s, daemon.Asset{Name: "state:" + s.String(), MIME: "image/png", Bytes: b})
+		mime, b := prepareAsset("image/png", b)
+		daemon.SetStateIcon(s, daemon.Asset{Name: "state:" + s.String(), MIME: mime, Bytes: b})
 	}
 }

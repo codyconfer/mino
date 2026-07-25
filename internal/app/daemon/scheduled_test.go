@@ -7,12 +7,16 @@ import (
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/plugin/ntr"
 	"github.com/codyconfer/munin/internal/signals/active"
 )
 
 func TestScheduledEventsEmitsDueReminder(t *testing.T) {
 	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	plugin.LoadEnabled()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -49,15 +53,13 @@ func TestScheduledEventsEmitsDueReminder(t *testing.T) {
 		if ev.Section.Items[0].Title != "wire-test" {
 			t.Fatalf("title = %q", ev.Section.Items[0].Title)
 		}
-		cancel() // stop scheduler
+		cancel()
 	case <-ctx.Done():
 		t.Fatal("timeout waiting for reminder event")
 	}
-	// Wait for RunScheduled (+ Ack) to exit before TempDir cleanup.
 	select {
 	case _, ok := <-ch:
 		if ok {
-			// drain any extra events until closed
 			for range ch {
 			}
 		}

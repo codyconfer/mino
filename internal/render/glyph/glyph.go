@@ -46,12 +46,16 @@ func Settings() string    { return vk.Cog() }
 func Role() string        { return vk.User() }
 func Quit() string        { return vk.SignOut() }
 func Clock() string       { return vk.Clock() }
+func Notes() string       { return notes.String() }
+func Plugins() string     { return plugins.String() }
 
 var (
 	brand      = vk.Variants{Nerd: "▚▚", Uni: "▚▚", ASCII: "##"}
 	signingOK  = vk.Variants{Nerd: "", Uni: "✓", ASCII: "ok"}
 	signingBad = vk.Variants{Nerd: "", Uni: "✗", ASCII: "x"}
 	login      = vk.Variants{Nerd: "", Uni: "⚷", ASCII: ">"}
+	notes      = vk.Variants{Nerd: "", Uni: "✎", ASCII: "nt"}
+	plugins    = vk.Variants{Nerd: "", Uni: "▣", ASCII: "P"}
 )
 
 func Brand() string      { return brand.String() }
@@ -59,7 +63,6 @@ func SigningOK() string  { return signingOK.String() }
 func SigningBad() string { return signingBad.String() }
 func Login() string      { return login.String() }
 
-// Kind is retained as an alias for call sites that still speak in Kind terms.
 type Kind = vk.Severity
 
 const (
@@ -69,7 +72,6 @@ const (
 	KindNegative = vk.SeverityNegative
 )
 
-// Classify delegates to the single signals classifier.
 func Classify(kind string) Kind { return signals.ClassifyKind(kind) }
 
 func ForKind(kind string) string { return vk.GlyphFor(signals.ClassifyKind(kind)) }

@@ -22,7 +22,12 @@ type GlobalSettings struct {
 	LogDir          string `yaml:"log_dir"`
 	Onboarded       bool   `yaml:"onboarded"`
 	OnboardedDomain string `yaml:"onboarded_domain"`
-	// DisabledPlugins lists compile-time plugin ids that are runtime-disabled (ADR-13).
+	// InstalledPlugins lists compile-time plugin ids in the managed set
+	// (shown in the Plugins TUI). Distinct from DisabledPlugins: disable keeps
+	// the id here; uninstall removes it.
+	InstalledPlugins []string `yaml:"installed_plugins,omitempty"`
+	// DisabledPlugins lists compile-time plugin ids that are runtime-disabled.
+	// A disabled plugin may still be installed (listed); uninstall clears both.
 	DisabledPlugins []string `yaml:"disabled_plugins,omitempty"`
 }
 

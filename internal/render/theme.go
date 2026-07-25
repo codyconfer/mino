@@ -3,6 +3,8 @@ package render
 import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/codyconfer/viewkit/theme"
+
+	"github.com/codyconfer/munin/internal/plugin"
 )
 
 const DefaultThemeKey = "munin"
@@ -21,12 +23,11 @@ var muninPalette = theme.Palette{
 	Bg:       lipgloss.Color("#0b0f16"),
 }
 
-func registerThemes() {
-	theme.Register(DefaultThemeKey, "Munin", muninPalette)
+func init() {
+	plugin.RegisterTheme("", DefaultThemeKey, "Munin", muninPalette)
 }
 
 func InstallDefaultTheme() {
-	registerThemes()
 	if t, ok := theme.Named(DefaultThemeKey); ok {
 		theme.Use(t)
 	}

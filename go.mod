@@ -8,9 +8,8 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/term v0.2.2
-	github.com/codyconfer/sisyphus v0.1.0
-	github.com/codyconfer/viewkit v0.1.0
-	github.com/codyconfer/viewkit/deck v0.0.0-20260724092847-a9a15bcc5c7c
+	github.com/codyconfer/sisyphus v0.1.2
+	github.com/codyconfer/viewkit v0.1.2
 	github.com/muesli/termenv v0.16.0
 	github.com/slack-go/slack v0.27.0
 	github.com/spf13/cobra v1.10.2

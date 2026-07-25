@@ -96,7 +96,6 @@ func TestReminderJobCatchUp(t *testing.T) {
 		t.Fatalf("Fetch = %v err=%v", secs, err)
 	}
 
-	// Fetch must not mark done — still due until Ack.
 	st, err = Open(ctx, home, "r")
 	if err != nil {
 		t.Fatal(err)
@@ -131,13 +130,11 @@ func TestDueTodayCountLocalDay(t *testing.T) {
 	defer st.Close()
 
 	loc := time.FixedZone("test", -7*3600)
-	now := time.Date(2026, 7, 24, 1, 0, 0, 0, loc) // 08:00 UTC
-	// Local morning today
+	now := time.Date(2026, 7, 24, 1, 0, 0, 0, loc)
 	_, err = st.CreateReminder(ctx, "local-morning", time.Date(2026, 7, 24, 9, 0, 0, 0, loc))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Previous local day (would be "today" if UTC YMD were used incorrectly at 01:00 local)
 	_, err = st.CreateReminder(ctx, "prev-local-day", time.Date(2026, 7, 23, 20, 0, 0, 0, loc))
 	if err != nil {
 		t.Fatal(err)

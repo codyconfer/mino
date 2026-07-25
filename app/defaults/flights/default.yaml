@@ -1,2 +1,3 @@
+# Role / bare serve default. GitHub showcase: flights/demo.yaml; synthetic toasts: notify-smoke.
 name: default
 queries: [my-open-prs]

@@ -17,7 +17,7 @@ import (
 const ConfigDirective = "config"
 
 func CollectionDirectives() []string {
-	return []string{DirQueries, DirFilters, DirFlights, DirRoles}
+	return []string{DirQueries, DirFilters, DirFlights, KindRoles}
 }
 
 func ValidDirectives() []string {
@@ -132,8 +132,8 @@ func exportCollection(w io.Writer, db *configdb.Store, out, name string, single 
 		fmt.Fprintf(w, "notice: no %s version in store, skipping\n", name)
 		return nil
 	}
-	dir := filepath.Join(out, name)
-	names, err := sconfig.WriteCollection(dir, []byte(v.Content))
+	dir := CollectionDir(out, name)
+	names, err := WriteCollection(out, name, []byte(v.Content))
 	if err != nil {
 		return errs.Wrapf(errs.KindInternal, err, "writing %s", name)
 	}
@@ -160,8 +160,8 @@ func ExportAllToFiles(db *configdb.Store, home string) ([]string, error) {
 		if !ok {
 			continue
 		}
-		dir := filepath.Join(home, name)
-		names, err := sconfig.WriteCollection(dir, []byte(cur.Content))
+		dir := CollectionDir(home, name)
+		names, err := WriteCollection(home, name, []byte(cur.Content))
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +178,7 @@ func Import(w io.Writer, db *configdb.Store, home, directive string) error {
 	}
 	switch directive {
 	case "all":
-		if err := importConfig(w, db, home); err != nil {
+		if err := importConfig(w, db, home, false); err != nil {
 			return err
 		}
 		for _, name := range CollectionDirectives() {
@@ -187,21 +187,25 @@ func Import(w io.Writer, db *configdb.Store, home, directive string) error {
 			}
 		}
 	case ConfigDirective:
-		return importConfig(w, db, home)
+		return importConfig(w, db, home, true)
 	default:
 		return importCollection(w, db, home, directive, true)
 	}
 	return nil
 }
 
-func importConfig(w io.Writer, db *configdb.Store, home string) error {
+func importConfig(w io.Writer, db *configdb.Store, home string, required bool) error {
 	_, raw, format, err := ReadConfigFile(home)
 	if err != nil {
 		return errs.Wrap(errs.KindConfig, err, "reading config file")
 	}
 	if len(raw) == 0 {
-		return errs.Newf(errs.KindConfig, "no config file found in %s", home).
-			WithHint("expected config.yaml, config.yml, or config.json; run `munin install` to create one")
+		if required {
+			return errs.Newf(errs.KindConfig, "no config file found in %s", home).
+				WithHint("expected config.yaml, config.yml, or config.json; run `munin install` to create one")
+		}
+		fmt.Fprintln(w, "notice: no config file, skipping")
+		return nil
 	}
 	if err := db.Import(context.Background(), ConfigDirective, raw, format); err != nil {
 		return errs.Wrap(errs.KindStore, err, "importing config")
@@ -211,13 +215,13 @@ func importConfig(w io.Writer, db *configdb.Store, home string) error {
 }
 
 func importCollection(w io.Writer, db *configdb.Store, home, name string, required bool) error {
-	blob, has, err := sconfig.SerializeDir(filepath.Join(home, name))
+	blob, has, err := SerializeCollection(home, name)
 	if err != nil {
 		return errs.Wrapf(errs.KindConfig, err, "reading %s files", name)
 	}
 	if !has {
 		if required {
-			return errs.Newf(errs.KindConfig, "no %s files found in %s", name, filepath.Join(home, name))
+			return errs.Newf(errs.KindConfig, "no %s files found in %s", name, CollectionDir(home, name))
 		}
 		fmt.Fprintf(w, "notice: no %s files, skipping\n", name)
 		return nil

@@ -1,4 +1,4 @@
-# Smoke flight for Lane C stubs + gcx C-0 (offline). Enable plugins as needed.
+# Smoke flight for external stub plugins + gcx (offline). Enable plugins as needed.
 name: plugins
 queries:
   - gcx-status

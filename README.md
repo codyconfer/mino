@@ -53,16 +53,18 @@ arguments via `ARGS="…"`), and a fixed stdin/stdout/stderr contract:
 | Mode | Command | `make` | What it does | stdout | Logs |
 |---|---|---|---|---|---|
 | **cli** | `munin <directive>` (`fly`, `query`, `github query`, …) | `make command ARGS="fly work"` | Run a directive and print the result | [viewkit](https://github.com/codyconfer/viewkit) panels (color on a TTY, plain when piped, JSON with `-o json`) | log dir |
-| **serve** | `munin serve [flight]` | `make serve ARGS="work"` | Foreground realtime watcher in the current shell (Ctrl-C exits); **no OS integration** | live notification stream | shell **and** log dir |
-| **daemon** | `munin daemon [flight]` | `make daemon ARGS="work"` | Install the OS service if missing, then start it (idempotent) | — | OS logging (journald / launchd / Windows service) |
-| **deck** | `munin deck [flight]` | `make run` | Full-screen interactive TUI; attaches to a running daemon, else spawns a `serve` provider in a new terminal | TUI | log dir |
+| **serve** | `munin serve [flight]` | `make serve ARGS="work"` | Foreground realtime watcher in the current shell (Ctrl-C exits); **no OS service / tray** | live notification stream | shell **and** log dir |
+| **daemon** | `munin daemon [flight]` | `make daemon ARGS="work"` | Install the OS service if missing, then start it (idempotent); optional system tray via `daemon.tray` | — | OS logging (journald / launchd / Windows service) |
+| **deck** | `munin deck [flight]` | `make run` | Full-screen TUI only; attaches to a running daemon, else starts a **silent** background `serve` that dies with the deck session | TUI | log dir |
 
-`munin deck` is the interactive front-end (formerly `munin tui`, still accepted as
-a hidden alias): a main menu, live flight runs, run **history**, a **directives**
-browser (view/run/validate/create/edit/delete queries, filters, flights, roles),
-an ad-hoc read-only **audit query** screen, and **settings**. `munin deck <flight>`
-jumps straight to a flight; `munin settings` opens just the settings screens. Its
-status strip shows whether the background daemon is installed and running.
+`make run` is deck only — it does not leave a serve process behind. `munin deck` is
+the interactive front-end (formerly `munin tui`, still accepted as a hidden alias):
+a main menu, live flight runs, run **history**, a **directives** browser
+(view/run/validate/create/edit/delete queries, filters, flights, roles), **Notes**
+(notes/tasks/reminders), a **Plugins** enable/disable screen, login, an ad-hoc
+read-only **audit query** screen, and **settings**. `munin deck <flight>` jumps
+straight to a flight; `munin settings` opens just the settings screens. Its status
+strip shows whether the background daemon is installed and running.
 
 Flight and query results render as a **git-style tree** — the flight is the trunk,
 each signal a branch, each item a leaf — in both cli output and the deck.
@@ -97,6 +99,13 @@ names run concurrently — your whole shift-start sweep in one command. `munin f
 <name>` runs one; bare `munin fly` runs the active role's first flight (or
 `default`), or lists what's available.
 
+The seeded `default` flight stays a clean `my-open-prs` sweep. Opt-in showcase
+flights (also under [`examples/`](examples/)): **`demo`** is live GitHub
+(`signal: github` items with `github.com` URLs); **`notify-smoke`** streams
+synthetic toasts (`signal: demo`) for desktop/notify smoke — keep it off the
+default path. Try `munin fly demo`, `munin serve notify-smoke`, or
+`make run ARGS=demo`.
+
 → [How to create a flight config](#create-a-flight-config)
 
 ## Roles
@@ -110,6 +119,43 @@ context with `munin role`.
 
 → [How to create a role config](#create-a-role-config)
 
+## Plugins & notes
+
+Plugins are **compile-time linked** Go packages — there is no runtime `.so` /
+`plugin.Open` loading. Stock munin registers built-in signals plus Notes /
+Tasks / Reminders (`munin.ntr`). Team distributions add more in a separate
+**overlay** binary.
+
+**Public SDK.** Overlay code imports
+[`github.com/codyconfer/munin/plugin`](plugin/) (and the thin
+[`munin/app`](app/) entrypoint) — not `munin/internal`. Register contributions
+from `app.Options.RegisterPlugins`, then build that binary.
+
+**Overlay layout** (sibling checkouts of this repo):
+
+```text
+../munin-plugins-external/   # external.* packages (gcx, kubectl, …)
+../munin-overlay-template/   # thin binary: RegisterPlugins → externals.Register
+```
+
+Stock `munin` does not register `external.*`. Build the overlay with
+`cd ../munin-overlay-template && make build`. See
+[`internal/plugin/external/README.md`](internal/plugin/external/README.md) and
+[`examples/README.md`](examples/README.md).
+
+```sh
+munin plugins list
+munin plugins enable|disable <id>          # runtime activation (settings)
+munin plugins install|uninstall <id>       # enable/disable + example directive seeds
+munin plugins scaffold team.example --dir ./plugins/example
+munin notes ui                             # Notes/Tasks/Reminders TUI (`ntr` is an alias)
+```
+
+`install` / `uninstall` provision or remove unmodified example directives into
+`~/.munin` — they do not download or dynamically load plugin code. The deck
+**Plugins** screen toggles enablement; **Notes** opens the same views as
+`munin notes ui`.
+
 ## Realtime: serve & daemon
 
 Signals come in two flavors: **passive** (REST, pulled on demand — the default
@@ -120,14 +166,14 @@ signals — a foreground watcher and a managed OS service:
   (Ctrl-C exits): it opens every active signal in the flight, fans their events
   into one loop, and emits a notification per new item. Flags: `--interval`,
   `--bell`, `--desktop` (OS desktop notifications), `--theme`. It does **not**
-  integrate with the OS or manage any service — its lifecycle is the shell it runs
-  in, and it logs to that shell and the log dir.
+  install an OS service or own the system tray — its lifecycle is the shell it
+  runs in, and it logs to that shell and the log dir.
 - **`munin daemon [flight]`** runs Munin as a background **OS service** (systemd
   user unit on Linux, launchd agent on macOS, Windows service), which logs through
-  the OS logging facility. Bare `munin daemon` is idempotent: it installs the
-  service if it isn't installed (after a confirmation; `--yes`/`--system` to
-  script it), then starts it if it isn't running. Manage it explicitly with the
-  subcommands:
+  the OS logging facility. Set `daemon.tray: true` for a system-tray icon on that
+  service. Bare `munin daemon` is idempotent: it installs the service if it isn't
+  installed (after a confirmation; `--yes`/`--system` to script it), then starts
+  it if it isn't running. Manage it explicitly with the subcommands:
 
 ```sh
 munin daemon                              # install (if needed), then start
@@ -136,8 +182,11 @@ munin daemon start | stop | restart | status | uninstall
 munin daemon attach                       # attach a live-notification TUI to the running daemon
 ```
 
-`munin deck` ties these together: it attaches to a running daemon if one exists,
-otherwise it spawns a `serve` provider in a new terminal window.
+`munin deck` / `make run` ties these together: attach to a running daemon if one
+exists, otherwise start a **silent** session-owned background `serve` (stdio
+discarded; logs still go to the log dir). That serve dies with the deck session —
+including unexpected death on Unix (lifeline pipe). An installed daemon or a
+manually started foreground `serve` is never killed by deck exit.
 
 Only **Slack** is a true websocket (Socket Mode); **GitHub**, **Calendar**, and
 **Tasks** have no client websocket, so they're polled at `--interval`; signals with
@@ -204,15 +253,16 @@ section rather than aborting the flight.
 
 ## Create a role config
 
-Roles live one-per-file in `~/.munin/roles/`; the active role is set in
-`config.yaml` (or `--role` / `$MUNIN_ROLE`):
+Roles live one-per-file at the top of `~/.munin/` — every `*.yaml`/`*.yml`/`*.json`
+next to `config.yaml` is a role. The active role is set in `config.yaml` (or
+`--role` / `$MUNIN_ROLE`):
 
 ```yaml
 # config.yaml — the active role
 role: triage
 ```
 ```yaml
-# ~/.munin/roles/triage.yaml — a role definition
+# ~/.munin/triage.yaml — a role definition
 name: triage
 flights: [triage]            # bare `munin fly` runs the first of these
 queries: [incidents, loki-errors, my-open-prs]
@@ -230,22 +280,27 @@ Config lives under `~/.munin/`:
 
 ```
 ~/.munin/
-  config.yaml        # global settings + per-signal defaults
-  queries/*.yaml     # named, reusable query definitions
-  filters/*.yaml     # named, reusable regex filter sets
-  flights/*.yaml     # named flights (one per file)
-  roles/*.yaml       # role definitions (one per file)
-  icons/*.png        # optional per-state tray/notification icon overrides
-  logs/munin.log     # rotating command/serve/deck log sink (cleanable/nukable)
-  config.duckdb      # versioned store: source of truth for config + the four directive kinds
-  audit.duckdb       # run history (see Audit trail)
-  tokens.duckdb      # cached OAuth credentials
+  config.yaml          # global settings + per-signal defaults
+  *.yaml               # role definitions (one per file, alongside config.yaml)
+  queries/*.yaml       # named, reusable query definitions
+  filters/*.yaml       # named, reusable regex filter sets
+  flights/*.yaml       # named flights (one per file)
+  icons/*.png          # optional per-state tray/notification icon overrides
+  logs/munin.log       # rotating command/serve/deck log sink (cleanable/nukable)
+  .data/config.duckdb  # versioned store: source of truth for config + the four directive kinds
+  .data/audit.duckdb   # run history (see Audit trail)
+  .data/tokens.duckdb  # cached OAuth credentials
+  .data/serve.duckdb   # realtime cursors/watermarks for serve/daemon
 ```
 
-**Config directory resolution** (highest wins): `--home <dir>` → `$MUNIN_HOME` →
+Every DuckDB file lives under `.data/` so the config dir itself stays readable
+(and diffable) — the only loose files are `config.yaml` and the roles.
+
+**Config directory resolution** (highest wins): `--home`/`--dir` → `$MUNIN_HOME` →
 `home:` in `~/.config/munin/settings.yaml` → `~/.munin`. Bootstrap a fresh
-directory with `munin install`, archive its files with `munin clean`, or reset it
-with `munin nuke`.
+directory with `munin install`, archive its files with `munin clean`, or wipe it
+with `munin nuke` and run `munin install` again (nuke clears a matching
+`settings.yaml` `home:` so install falls back to `~/.munin`).
 
 **Logs.** Diagnostic logs go to a file so they never corrupt command output or the
 deck's alt-screen: **cli** and **deck** log to the file only, **serve** logs to both
@@ -253,31 +308,46 @@ the shell and the file, and **daemon** logs through the OS logging facility (not
 file). The log dir resolves as `$MUNIN_LOG_DIR` → `log_dir:` in `settings.yaml` →
 `<home>/logs`; `munin clean` archives it and `munin nuke` removes it.
 
-**DuckDB is the source of truth.** `config.duckdb` is the store holding the live
+**DuckDB is the source of truth.** `.data/config.duckdb` is the store holding the live
 state for the config *and* the four directive kinds. On startup Munin
 hash-compares each directive's files against DuckDB:
 
 - **match** → load DuckDB (no change).
-- **differ** → on a terminal you're prompted: import (overwrite DB), use the file
-  this session, use DuckDB, print the file, or delete the file. Non-interactively
-  it uses the file and warns — unless `prefer_duckdb: true` in the global
-  settings, which always prefers DuckDB.
+- **differ** → the files are treated as **staged changes**. On a terminal you get a
+  panel naming the directive, what is staged, what is stored, and which files
+  changed, with five choices:
+
+| Key | Choice | Effect |
+| --- | --- | --- |
+| `a` | apply changes | write the staged files to the store |
+| `s` | use this session | run with them, leave the store as-is (default on Enter) |
+| `i` | ignore staged | run with the stored version instead |
+| `d` | discard changes | delete the staged files (asks `y/N` first), keep stored |
+| `p` | preview | print the staged content, then re-ask |
+
+Non-interactively it uses the staged files and warns — unless `prefer_duckdb: true`
+in the global settings, which always prefers DuckDB. `--reconcile
+prompt|apply|session|ignore` picks an answer up front, which is what you want in
+scripts, hooks, and cron.
 
 Nothing is auto-imported; imports happen only when you choose them, and every
-import archives the prior version. Inspect current/prior config with `munin
-config` / `munin config history`. `--config <file>` uses a config file for **this
-session only** (never persisted) — the non-interactive form of "use the file this
-session". Any file value can be overridden per-run by a `MUNIN_*` env var (e.g.
-`MUNIN_OUTPUT=json`) or a flag; overrides are never persisted.
+import archives the prior version. **`munin apply [directive]`** (alias `munin
+import`) is the non-interactive way to write staged files into the store — it never
+prompts and defaults to `all`. Inspect current/prior config with `munin config` /
+`munin config history`. `--config <file>` uses a config file for **this session
+only** (never persisted) — the non-interactive form of "use this session". Any file
+value can be overridden per-run by a `MUNIN_*` env var (e.g. `MUNIN_OUTPUT=json`) or
+a flag; overrides are never persisted.
 
 **Theme** is a global setting: `theme:` in `~/.config/munin/settings.yaml` (or
 `$MUNIN_THEME`) selects a viewkit theme (default `retro-dark`); `munin verify`
 validates the key.
 
 **Realtime defaults** for `serve`/`daemon` live under `daemon:` in `config.yaml`
-(`interval`, `bell`, `desktop`, `theme`); command flags override them. Editing
-config in the deck (**Settings → Edit config**) merges into the existing file,
-preserving sections it doesn't touch.
+(`interval`, `bell`, `desktop`, `tray`, `theme`); command flags override them
+where exposed (`tray` is config-only on the installed daemon). Editing config in
+the deck (**Settings → Edit config**) merges into the existing file, preserving
+sections it doesn't touch.
 
 See [`examples/`](examples/) for copy-paste starters.
 
@@ -342,7 +412,7 @@ options instead of failing opaquely.
 | **Slack** | `$SLACK_TOKEN` (xoxp-…) | `munin login slack` (browser OAuth) |
 
 `munin login <github|google|slack>` runs the service's OAuth flow and caches a
-token in the DuckDB credential store (`tokens.duckdb`, one row per service);
+token in the DuckDB credential store (`.data/tokens.duckdb`, one row per service);
 later runs use the signal's direct API client. Each needs its OAuth app
 credentials in config (`*.oauth_client_id` / `_secret`); GitHub uses the device
 flow (no secret), Google and Slack use a localhost browser-redirect flow, and
@@ -358,7 +428,7 @@ Google tokens auto-refresh.
 ### Audit trail
 
 Every flight, query, and write is recorded — with timestamps, per-signal timing,
-item counts, errors, and the items themselves — into `audit.duckdb`. This is an
+item counts, errors, and the items themselves — into `.data/audit.duckdb`. This is an
 audit trail for tracking your workflow and metrics over time, **not a cache**:
 results are never read back to answer a live query.
 
@@ -370,12 +440,12 @@ munin history show 12         # recall a past run's stored results
 The file is queryable directly for ad-hoc metrics:
 
 ```sql
-SELECT name, count(*), sum(count)
-FROM runs WHERE kind = 'flight' GROUP BY name;
+SELECT name, kind, count(*) AS runs, coalesce(sum(count), 0) AS items
+FROM runs GROUP BY name, kind ORDER BY runs DESC;
 ```
 
 Disable the trail with `audit.enabled: false` (or `MUNIN_AUDIT_ENABLED=false`).
-Config versioning is separate — tracked in `config.duckdb` and surfaced via
+Config versioning is separate — tracked in `.data/config.duckdb` and surfaced via
 `munin config history`.
 
 ### Encrypted backups
@@ -389,13 +459,13 @@ errors rather than writing an unrecoverable backup.
 ```sh
 munin backup                 # → ./munin-backup-<ts>.tar.enc  (key escrowed)
 munin backup --out /secure   # write elsewhere
-munin restore <file>         # decrypt + write the databases back into the home
+munin restore <file>         # decrypt + write the databases back into <home>/.data
 ```
 
 `backup.keep: N` retains only the newest N backups (`0` = keep all).
 `backup.destination: gdrive` uploads the encrypted file to the app's private
 Google Drive `appDataFolder` instead of the current directory. `munin restore`
-doesn't depend on opening `config.duckdb`, so it recovers even a corrupted config
+doesn't depend on opening `.data/config.duckdb`, so it recovers even a corrupted config
 DB.
 
 ### Command reference
@@ -407,21 +477,28 @@ DB.
 | `munin serve [flight]` | **serve**: foreground realtime watcher in the current shell; `--desktop`/`--interval`/`--bell`/`--theme`. |
 | `munin daemon [flight]` | **daemon**: install (if needed) then start the OS service; idempotent. |
 | `munin daemon install/uninstall/start/stop/restart/status/attach` | Manage the OS service (systemd user unit / launchd agent / Windows service). |
-| `munin deck [flight]` | **deck**: open the interactive TUI (attaches to a running daemon, else spawns a serve provider). Alias: `tui`. |
+| `munin deck [flight]` | **deck**: open the interactive TUI (daemon if running, else silent session-owned serve that dies with deck). Alias: `tui`. |
 | `munin query show <name>` | Show a saved query's definition. |
 | `munin <signal> query` | Ad-hoc one-off query against a single signal. |
+| `munin notes …` / `notes ui` | Notes/Tasks/Reminders CLI and TUI (`ntr` is an alias). |
+| `munin version` | Print brand glyph + `MUNIN` + build version (git describe / tag). |
 | `munin history` / `history show <id>` | List past runs / recall a run's results. |
 | `munin config` / `config history` | Show the active (DB-backed) config / prior versions. |
 | `munin backup` / `restore <file>` | Write / restore an encrypted backup of the DuckDB databases. |
 | `munin verify [target]` | Validate config/roles/flights/queries/onboarding (colorized, masks secrets). |
 | `munin onboard [--status\|--reset]` | One-time setup gate: GitHub auth + a GitHub-verified GPG signing key. |
 | `munin install` | Create the config directory and initialize it with defaults. |
+| `munin plugins list` | List compile-time registered plugins and enablement state. |
+| `munin plugins enable/disable <id>` | Runtime activation only (`disabled_plugins` in settings). |
+| `munin plugins install/uninstall <id>` | Enable/disable plus provision or remove example directive seeds (not dynamic `.so` loading). |
+| `munin plugins scaffold <id>` | Generate an overlay-friendly plugin package (public `munin/plugin` SDK). |
 | `munin clean` | Archive config/query/filter files into `.archive/<timestamp>/`. |
-| `munin nuke [--yes]` | Delete the config directory and DuckDB, then reinstall defaults. |
+| `munin nuke [--yes]` | Delete the config directory and DuckDB (run `munin install` to recreate defaults). |
 | `munin role` | Show the active role and defined roles. |
 | `munin login <service>` | OAuth login for github/google/slack. |
 | `munin filter list` / `filter show <name>` | Inspect saved filters. |
-| `munin export <directive>` / `import <directive>` | Materialize DuckDB → files / files → DuckDB. |
+| `munin export <directive>` | Materialize DuckDB → files. |
+| `munin apply [directive]` | Write staged files → DuckDB. Never prompts; defaults to `all`. Alias: `munin import`. |
 | `munin settings` | Open just the settings screens of the deck. |
 
 ### Common flags
@@ -431,6 +508,7 @@ DB.
 - `--config <file>` — use a config file for this session only (not persisted).
 - `--role <name>` — activate a role, scoping visible flights/queries/filters.
 - `--timeout <dur>` — per-signal fetch timeout (e.g. `45s`, `2m`).
+- `--reconcile prompt|apply|session|ignore` — answer the staged-config panel up front.
 - `--filter <name>` — apply a saved filter set (repeatable).
 - `--include <regex>` / `--exclude <regex>` — ad-hoc filters (repeatable).
 - `--verbose, -v` — raise the log level to debug (logs go to the log dir; see [Logs](#configuration)).
@@ -473,6 +551,7 @@ own config schema and thin adapters over it: `internal/token` (credentials over
 
 ```sh
 make build          # go build ./...
+make install        # build munin into GOBIN (or GOPATH/bin), replacing any existing binary
 make check          # build + fmt-check + lint + govulncheck + test (CI gate is `make ci`)
 make test           # go test ./...
 ```
@@ -487,7 +566,8 @@ Run a mode straight from source — each target builds then runs, forwarding `AR
 make command ARGS="fly work -o json"   # cli
 make serve   ARGS="work"               # foreground watcher (current shell)
 make daemon  ARGS="work"               # install + start the OS service
-make run                               # deck (interactive TUI)
+make run                               # deck TUI only (silent background serve if needed; dies with deck)
+make run ARGS=demo                     # deck on the live-GitHub demo flight
 ```
 
 Build vars (make variables, not `ARGS`): `RACE=1` (race detector), `TAGS=…` (build
@@ -495,34 +575,43 @@ tags), `EMAIL_DOMAIN=…` (domain-locked build), `ENFORCE_AUTH=1` (hard-block cl
 unauthorized). `make package` cross-compiles release binaries.
 
 Signal integrations live in `internal/signals/<name>/`, each with offline table
-tests driven by recorded fixtures, so the suite needs no network. The terminal
-launcher `internal/term` opens `serve` in a new window for `deck` (macOS
-Terminal.app/iTerm2, Linux emulators, WSL Windows Terminal).
+tests driven by recorded fixtures, so the suite needs no network. When no live
+provider is already listening, `deck` starts `serve` as a silent session-owned
+background process (stdio discarded; logs still go to the log dir; dies with
+deck).
 
-Munin depends on the **private** modules `github.com/codyconfer/sisyphus` and
-`github.com/codyconfer/viewkit`, so building requires access to those repos and
-Go configured to fetch them directly rather than via the public
-proxy/checksum database:
-
-```sh
-go env -w 'GOPRIVATE=github.com/codyconfer/*'
-# and git credentials with read access to the codyconfer org
-```
-
-CI builds against the **pinned** versions in `go.mod` (no `replace` directives)
-using `GOPRIVATE` plus a read-only PAT in the `GH_READ_TOKEN` repo secret.
+Munin's reusable foundations are the public modules
+[`github.com/codyconfer/sisyphus`](https://github.com/codyconfer/sisyphus) and
+[`github.com/codyconfer/viewkit`](https://github.com/codyconfer/viewkit). CI and
+published consumers build against the versions pinned in `go.mod`, using the
+standard Go module proxy and checksum database with no private credentials or
+`replace` directives.
 
 #### Local multi-repo development (`go.work`)
 
-For simultaneous edits across munin / sisyphus / viewkit, use an **uncommitted**
-`go.work` in this repo (gitignored; do not commit — committed `replace` is
-rejected):
+For simultaneous edits across munin / sisyphus / viewkit (and optionally the
+overlay siblings), use an **uncommitted** `go.work` in this repo (gitignored; do
+not commit — committed `replace` is rejected). A common local pattern is
+`go.work.local` (also gitignored) activated with `GOWORK=go.work.local`:
 
 ```sh
 # from the munin checkout, with sisyphus and viewkit as siblings:
 go work init . ../sisyphus ../viewkit
 # or: go work use ../sisyphus ../viewkit
+# optional overlay siblings:
+#   go work use ../munin-plugins-external ../munin-overlay-template
 ```
 
 Published consumers and CI ignore `go.work` and resolve the pinned module
-versions in `go.mod`.
+versions in `go.mod`. Deck lives in the single `viewkit` module (import path
+unchanged: `github.com/codyconfer/viewkit/deck`); `go.mod` excludes retired
+nested `viewkit/deck` module versions so the parent wins.
+
+## License
+
+Copyright (c) 2026 Cody Confer
+
+Licensed under the GNU Affero General Public License v3.0 — see [LICENSE](LICENSE).
+
+Munin depends on [sisyphus](https://github.com/codyconfer/sisyphus) and
+[viewkit](https://github.com/codyconfer/viewkit), both MIT.

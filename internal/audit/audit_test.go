@@ -67,6 +67,17 @@ func TestRecordAndRecallFlight(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("Items = %d, want 2", len(items))
 	}
+
+	recalled, err := s.Sections(flightID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recalled) != 1 || recalled[0].Signal != "github" || len(recalled[0].Items) != 2 {
+		t.Fatalf("Sections = %+v", recalled)
+	}
+	if recalled[0].Items[0].Title != "sev2 outage" || recalled[0].Items[0].URL != "https://x/1" {
+		t.Errorf("Sections items = %+v", recalled[0].Items)
+	}
 }
 
 func TestRecordQueryError(t *testing.T) {

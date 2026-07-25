@@ -18,7 +18,7 @@ import (
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/signals/gdrive"
 
-	_ "github.com/codyconfer/munin/internal/plugin/ntr" // RegisterDataPath
+	_ "github.com/codyconfer/munin/internal/plugin/ntr"
 )
 
 const secretService = "munin"
@@ -29,12 +29,10 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), 
 	closeDBs()
 
 	files := []string{
-		filepath.Join(home, "config.duckdb"),
-		filepath.Join(home, "audit.duckdb"),
-		filepath.Join(home, "tokens.duckdb"),
+		config.DataPath(home, config.ConfigDB),
+		config.DataPath(home, config.AuditDB),
+		config.DataPath(home, config.TokensDB),
 	}
-	// Open-session paths (sisyphus RegisterBackupPath) plus known plugin DBs
-	// that may not have been opened this run (ADR-11).
 	files = append(files, store.BackupPaths()...)
 	files = append(files, plugin.DataPaths(home)...)
 
@@ -81,7 +79,7 @@ func Restore(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func
 		return errs.Wrap(errs.KindBackup, err, "reading backup file")
 	}
 	if dest == "" {
-		dest = cfg.Home
+		dest = config.DataDir(cfg.Home)
 	}
 
 	closeDBs()

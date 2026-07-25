@@ -1,9 +1,10 @@
-.PHONY: build dev command run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
+.PHONY: build dev install command run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
 BIN     ?= $(DIST)/munin
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -s -w
+LDFLAGS := -s -w -X 'github.com/codyconfer/munin/cmd.Version=$(VERSION)'
+INSTALL_DIR ?= $(shell d="$$(go env GOBIN)"; [ -n "$$d" ] || d="$$(go env GOPATH)/bin"; printf '%s' "$$d")
 
 # Runtime + build knobs for the mode targets (command/serve/daemon/run):
 #   ARGS  — forwarded verbatim to munin, e.g. `make command ARGS="fly work -o json"`
@@ -32,11 +33,11 @@ LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.EnforceAuthorize
 endif
 
 # Regenerate the embedded system-tray / notification state icons from the raven
-# SVGs in internal/icons/svg into internal/icons/data/<theme>/<state>.png.
+# SVGs in internal/render/icons/svg into internal/render/icons/data/<theme>/<state>.png.
 # Uses rsvg-convert if present (best), else ImageMagick. Override size with
 # ICON_SIZE=NN. SVG state names map to munin daemon states.
-ICON_SVG  := internal/icons/svg
-ICON_DATA := internal/icons/data
+ICON_SVG  := internal/render/icons/svg
+ICON_DATA := internal/render/icons/data
 ICON_SIZE ?= 128
 icons:
 	@render() { \
@@ -75,6 +76,15 @@ dev:
 	@mkdir -p $(dir $(BIN))
 	@go build $(GOFLAGS_DEV) -ldflags "$(LDFLAGS)" -o $(BIN) .
 
+# Install the host munin binary to $(INSTALL_DIR)/munin, replacing any existing
+# binary. Honors the same RACE/TAGS/EMAIL_DOMAIN/ENFORCE_AUTH knobs as `dev`.
+# This is the Go toolchain PATH install — not `munin install` (config provision)
+# and not `make daemon` (OS service).
+install:
+	@mkdir -p "$(INSTALL_DIR)"
+	@go build $(GOFLAGS_DEV) -ldflags "$(LDFLAGS)" -o "$(INSTALL_DIR)/munin" .
+	@echo "installed $(INSTALL_DIR)/munin"
+
 # cli mode: run a directive and print formatted output. e.g.
 #   make command ARGS="fly work -o json"
 command: dev
@@ -91,8 +101,9 @@ serve: dev
 daemon: dev
 	@$(BIN) daemon $(ARGS)
 
-# deck mode: the interactive TUI (attaches to a running daemon, else spawns a
-# serve provider in a new terminal). e.g. `make run` or `make run ARGS="work"`.
+# deck mode: the interactive TUI (attaches to a running daemon, else starts a
+# silent background serve provider owned by the deck session — it stops when
+# deck exits). e.g. `make run` or `make run ARGS="work"`.
 run: dev
 	@$(BIN) deck $(ARGS)
 

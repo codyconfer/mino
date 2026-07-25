@@ -38,12 +38,10 @@ github.com/clipperhouse/displaywidth v0.11.0 h1:lBc6kY44VFw+TDx4I8opi/EtL9m20WSE
 github.com/clipperhouse/displaywidth v0.11.0/go.mod h1:bkrFNkf81G8HyVqmKGxsPufD3JhNl3dSqnGhOoSD/o0=
 github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJv2v7Vk=
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
-github.com/codyconfer/sisyphus v0.1.0 h1:RJ+D0Y/uzTv81J+l6UpAhuBy8v1jumU0woSpPh6q1LE=
-github.com/codyconfer/sisyphus v0.1.0/go.mod h1:JNxDOEftViY+39/29DJ/ZCV9qgGRpGVZpg41NP3ZRkQ=
-github.com/codyconfer/viewkit v0.1.0 h1:7/4d9NdQAMxougIhMGNNsizLbDiFFIA+NDudZgOysZo=
-github.com/codyconfer/viewkit v0.1.0/go.mod h1:i11OcBDTxcwo7hEiNxkyANGSGBuVEnFcfeos32nnY64=
-github.com/codyconfer/viewkit/deck v0.0.0-20260724092847-a9a15bcc5c7c h1:zXv97ldKNHnEMdiF/ZcoCZ+GxpnvGnN+16cCOo1prVA=
-github.com/codyconfer/viewkit/deck v0.0.0-20260724092847-a9a15bcc5c7c/go.mod h1:80oLeiQeU5mXR2x9GR16sc+2lVatknxyIi4Mp9H0Cs0=
+github.com/codyconfer/sisyphus v0.1.2 h1:mEthWYG1R8A4wrIRXkQ2Zx0TkkGay2mH7qQy71V0mV0=
+github.com/codyconfer/sisyphus v0.1.2/go.mod h1:JNxDOEftViY+39/29DJ/ZCV9qgGRpGVZpg41NP3ZRkQ=
+github.com/codyconfer/viewkit v0.1.2 h1:6KyUvO36L6zpW51gNoQPDx9oDk4rOz8ic+d9Ak/BQBY=
+github.com/codyconfer/viewkit v0.1.2/go.mod h1:auEtcf281rqlk6uk86eLaPbmTVJBNQvCvRHTsKBzK/k=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/danieljoos/wincred v1.2.3 h1:v7dZC2x32Ut3nEfRH+vhoZGvN72+dQ/snVXo/vMFLdQ=
 github.com/danieljoos/wincred v1.2.3/go.mod h1:6qqX0WNrS4RzPZ1tnroDzq9kY3fu1KwE7MRLQK4X0bs=

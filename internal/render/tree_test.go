@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/codyconfer/viewkit/layout"
 
 	"github.com/codyconfer/munin/internal/render/glyph"
@@ -45,5 +46,57 @@ func TestFlightTreeStructure(t *testing.T) {
 	}
 	if !errBranch {
 		t.Error("expected the error section to render a (!) count")
+	}
+}
+
+func TestFlightTreeGapStemContinuesConnectors(t *testing.T) {
+	glyph.SetMode(glyph.ModeNone)
+	secs := []signals.Section{
+		{Signal: "github", Items: []signals.Item{
+			{Title: "a", URL: "u1"},
+			{Title: "b", URL: "u2"},
+		}},
+		{Signal: "cal", Items: []signals.Item{{Title: "c", URL: "u3"}}},
+	}
+	rows := FlightTree(layout.NewFrame(80), "flight", secs)
+
+	if rows[0].GapStem != "" {
+		t.Fatalf("trunk GapStem = %q, want empty", rows[0].GapStem)
+	}
+
+	var midLeaf, lastLeaf, sectionStem string
+	for _, r := range rows {
+		joined := ansi.Strip(strings.Join(r.Lines, "\n"))
+		switch {
+		case r.Key == "u1":
+			midLeaf = ansi.Strip(r.GapStem)
+		case r.Key == "u2":
+			lastLeaf = ansi.Strip(r.GapStem)
+		case strings.Contains(joined, "github") && r.Key == "":
+			sectionStem = ansi.Strip(r.GapStem)
+		}
+	}
+	if midLeaf != "|  |  " {
+		t.Fatalf("mid leaf GapStem = %q, want %q", midLeaf, "|  |  ")
+	}
+	if lastLeaf != "|     " {
+		t.Fatalf("last leaf in section GapStem = %q, want %q", lastLeaf, "|     ")
+	}
+	if sectionStem != "|  " {
+		t.Fatalf("section GapStem = %q, want %q", sectionStem, "|  ")
+	}
+
+	items := SectionItems(layout.NewFrame(80), secs)
+	var found bool
+	for _, it := range items {
+		if it.Key == "u1" {
+			found = true
+			if got := ansi.Strip(it.GapStem); got != "|  |  " {
+				t.Fatalf("SectionItems GapStem = %q, want %q", got, "|  |  ")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected SectionItems to include u1")
 	}
 }

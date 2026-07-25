@@ -10,9 +10,9 @@ import (
 
 func TestMergeFileSeedsOverlayWins(t *testing.T) {
 	overlay := fstest.MapFS{
-		"config.yaml":                &fstest.MapFile{Data: []byte("output: json\n")},
-		"queries/extra.yaml":         &fstest.MapFile{Data: []byte("name: extra\nsignal: demo\n")},
-		"queries/my-open-prs.yaml":   &fstest.MapFile{Data: []byte("name: my-open-prs\nsignal: github\n")},
+		"config.yaml":              &fstest.MapFile{Data: []byte("output: json\n")},
+		"queries/extra.yaml":       &fstest.MapFile{Data: []byte("name: extra\nsignal: demo\n")},
+		"queries/my-open-prs.yaml": &fstest.MapFile{Data: []byte("name: my-open-prs\nsignal: github\n")},
 	}
 	SetDefaultsFS(overlay)
 	t.Cleanup(func() { SetDefaultsFS(nil) })
@@ -37,6 +37,55 @@ func TestMergeFileSeedsOverlayWins(t *testing.T) {
 	}
 	if !sawConfig || !sawExtra || !sawPRs {
 		t.Fatalf("missing seeds: config=%v extra=%v prs=%v files=%v", sawConfig, sawExtra, sawPRs, spec.Files)
+	}
+}
+
+func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
+	SetDefaultsFS(nil)
+	spec := installSpec(t.TempDir(), true)
+	got := map[string]string{}
+	for _, f := range spec.Files {
+		got[f.RelPath] = string(f.Content)
+	}
+	for _, want := range []string{
+		"queries/demo.yaml",
+		"queries/demo-reviews.yaml",
+		"filters/demo.yaml",
+		"flights/demo.yaml",
+		"demo.yaml",
+		"queries/notify-smoke.yaml",
+		"flights/notify-smoke.yaml",
+		"flights/default.yaml",
+		"queries/my-open-prs.yaml",
+	} {
+		if _, ok := got[want]; !ok {
+			t.Fatalf("missing stock seed %s (have %#v)", want, got)
+		}
+	}
+	if !strings.Contains(got["flights/demo.yaml"], "demo-reviews") {
+		t.Fatalf("demo flight = %q", got["flights/demo.yaml"])
+	}
+	if !strings.Contains(got["queries/demo.yaml"], "signal: github") ||
+		!strings.Contains(got["queries/demo.yaml"], "filters: [demo]") {
+		t.Fatalf("demo query = %q", got["queries/demo.yaml"])
+	}
+	if strings.Contains(got["queries/demo.yaml"], "signal: demo") {
+		t.Fatalf("demo query must not be synthetic: %q", got["queries/demo.yaml"])
+	}
+	if !strings.Contains(got["filters/demo.yaml"], "meta.author") {
+		t.Fatalf("demo filter = %q", got["filters/demo.yaml"])
+	}
+	if !strings.Contains(got["demo.yaml"], "flights: [demo]") ||
+		!strings.Contains(got["demo.yaml"], "demo-reviews") ||
+		!strings.Contains(got["demo.yaml"], "filters: [demo]") {
+		t.Fatalf("demo role = %q", got["demo.yaml"])
+	}
+	if !strings.Contains(got["queries/notify-smoke.yaml"], "signal: demo") {
+		t.Fatalf("notify-smoke = %q", got["queries/notify-smoke.yaml"])
+	}
+	if strings.Contains(got["flights/default.yaml"], "demo") ||
+		strings.Contains(got["flights/default.yaml"], "notify-smoke") {
+		t.Fatalf("default flight must not reference demo/notify-smoke: %q", got["flights/default.yaml"])
 	}
 }
 

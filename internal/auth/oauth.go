@@ -14,7 +14,6 @@ func init() {
 	sauth.OpenURL = browser.Open
 }
 
-// openBrowser is overridable in tests.
 var openBrowser = browser.Open
 
 func loopbackAuthCode(ctx context.Context, w io.Writer, service string, buildURL func(redirect, state string) string) (code, redirect string, err error) {

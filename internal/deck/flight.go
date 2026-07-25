@@ -11,7 +11,7 @@ import (
 )
 
 // Task is one munin flight panel. Domain sections are adapted to deck.Content
-// at the boundary (D13 — deck must not import signals).
+// at the boundary; deck must not import signals.
 type Task struct {
 	Label string
 	Run   func(ctx context.Context) []signals.Section

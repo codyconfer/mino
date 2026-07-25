@@ -1,0 +1,198 @@
+package config
+
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/codyconfer/sisyphus"
+	"github.com/codyconfer/sisyphus/configdb"
+	"github.com/codyconfer/viewkit/theme"
+)
+
+func collectionBlob(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	b, err := json.Marshal(files)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
+}
+
+func TestReconcileChoiceFor(t *testing.T) {
+	tests := map[string]reconcileChoice{
+		"":         defaultReconcileChoice,
+		"  ":       defaultReconcileChoice,
+		"a":        choiceApply,
+		"APPLY":    choiceApply,
+		"import":   choiceApply,
+		"s":        choiceSession,
+		"session":  choiceSession,
+		"i":        choiceIgnore,
+		"ignore":   choiceIgnore,
+		"d":        choiceDiscard,
+		"discard":  choiceDiscard,
+		"e":        choiceEdit,
+		"edit":     choiceEdit,
+		"editor":   choiceEdit,
+		"open":     choiceEdit,
+		"p":        choiceUnknown,
+		"preview":  choiceUnknown,
+		"whatever": choiceUnknown,
+	}
+	for in, want := range tests {
+		if got := reconcileChoiceFor(in); got != want {
+			t.Errorf("reconcileChoiceFor(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+func TestChangedSummary(t *testing.T) {
+	rec := sisyphus.Reconciliation{
+		Name:       DirQueries,
+		FileFormat: "collection",
+		FileContent: collectionBlob(t, map[string]string{
+			"kept.yaml":   "same",
+			"edited.yaml": "new body",
+			"added.yaml":  "brand new",
+		}),
+		HasDB: true,
+		DB: configdb.Version{
+			Format: "collection",
+			Content: string(collectionBlob(t, map[string]string{
+				"kept.yaml":    "same",
+				"edited.yaml":  "old body",
+				"removed.yaml": "gone",
+			})),
+		},
+	}
+	got := changedSummary(rec, 200)
+	for _, want := range []string{"+added", "edited", "-removed"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("changedSummary = %q, missing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "kept") {
+		t.Errorf("changedSummary = %q, should not list unchanged files", got)
+	}
+	th := theme.Cur()
+	warn := lipgloss.NewStyle().Foreground(th.NotifWarning.GetForeground())
+	if !strings.Contains(got, th.Can.Render("+added")) {
+		t.Errorf("added file should be green (Can):\n%s", got)
+	}
+	if !strings.Contains(got, warn.Render("edited")) {
+		t.Errorf("changed file should be yellow (Warning):\n%s", got)
+	}
+	if !strings.Contains(got, th.Cant.Render("-removed")) {
+		t.Errorf("deleted file should be red (Cant):\n%s", got)
+	}
+}
+
+func TestChangedSummaryTruncates(t *testing.T) {
+	staged := map[string]string{}
+	for _, n := range []string{"aaaaaaaa", "bbbbbbbb", "cccccccc", "dddddddd", "eeeeeeee"} {
+		staged[n+".yaml"] = "x"
+	}
+	rec := sisyphus.Reconciliation{
+		Name:        DirQueries,
+		FileFormat:  "collection",
+		FileContent: collectionBlob(t, staged),
+		HasDB:       true,
+		DB:          configdb.Version{Format: "collection", Content: string(collectionBlob(t, map[string]string{}))},
+	}
+	got := changedSummary(rec, 24)
+	if !strings.Contains(got, "more") {
+		t.Errorf("changedSummary = %q, want a truncation marker", got)
+	}
+}
+
+func TestRenderReconcilePanelMentionsEveryChoice(t *testing.T) {
+	rec := sisyphus.Reconciliation{
+		Name:        DirQueries,
+		FileFormat:  "collection",
+		FileContent: collectionBlob(t, map[string]string{"a.yaml": "one"}),
+		HasDB:       true,
+		DB: configdb.Version{
+			Hash:    "abcdef0123456789",
+			Format:  "collection",
+			Content: string(collectionBlob(t, map[string]string{"a.yaml": "two"})),
+			At:      time.Date(2026, 7, 24, 13, 52, 0, 0, time.UTC),
+		},
+	}
+	out := renderReconcilePanel(os.Stderr, rec)
+	for _, want := range []string{"new config changes staged", "apply changes", "use this session", "ignore staged", "discard changes", "open in editor", "one choice applies to all"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("panel missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "preview") || strings.Contains(out, "print") {
+		t.Errorf("panel still mentions preview/print:\n%s", out)
+	}
+}
+
+func TestRenderReconcileBatchPanelListsAllDirectives(t *testing.T) {
+	recs := []sisyphus.Reconciliation{
+		{
+			Name:        ConfigDirective,
+			FileFormat:  "yaml",
+			FileContent: []byte("output: json\n"),
+			HasDB:       true,
+			DB:          configdb.Version{Hash: "aaaaaaaaaaaaaaaa", Format: "yaml", Content: "output: text\n"},
+		},
+		{
+			Name:        DirQueries,
+			FileFormat:  "collection",
+			FileContent: collectionBlob(t, map[string]string{"a.yaml": "one"}),
+			HasDB:       true,
+			DB: configdb.Version{
+				Hash:    "bbbbbbbbbbbbbbbb",
+				Format:  "collection",
+				Content: string(collectionBlob(t, map[string]string{"a.yaml": "two"})),
+			},
+		},
+		{
+			Name:        DirFilters,
+			FileFormat:  "collection",
+			FileContent: collectionBlob(t, map[string]string{"b.yaml": "x"}),
+			HasDB:       true,
+			DB: configdb.Version{
+				Hash:    "cccccccccccccccc",
+				Format:  "collection",
+				Content: string(collectionBlob(t, map[string]string{"b.yaml": "y"})),
+			},
+		},
+	}
+	out := renderReconcileBatchPanel(os.Stderr, recs)
+	for _, want := range []string{"config, queries, filters", "config", "queries", "filters", "write all staged files"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("batch panel missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestParseReconcilePolicy(t *testing.T) {
+	tests := map[string]ReconcilePolicy{
+		"":        ReconcilePrompt,
+		"prompt":  ReconcilePrompt,
+		"apply":   ReconcileApply,
+		"session": ReconcileSession,
+		"ignore":  ReconcileIgnore,
+		"DuckDB":  ReconcileIgnore,
+	}
+	for in, want := range tests {
+		got, err := ParseReconcilePolicy(in)
+		if err != nil {
+			t.Errorf("ParseReconcilePolicy(%q): %v", in, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("ParseReconcilePolicy(%q) = %v, want %v", in, got, want)
+		}
+	}
+	if _, err := ParseReconcilePolicy("nope"); err == nil {
+		t.Error("ParseReconcilePolicy(\"nope\") = nil error, want usage error")
+	}
+}

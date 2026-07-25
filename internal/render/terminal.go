@@ -64,7 +64,12 @@ func SectionItems(f layout.Frame, sections []signals.Section) []list.Item {
 		if !r.Selectable {
 			block = indentLines(block, "  ")
 		}
-		items = append(items, list.Item{Block: block, Key: r.Key, Selectable: r.Selectable})
+		items = append(items, list.Item{
+			Block:      block,
+			Key:        r.Key,
+			Selectable: r.Selectable,
+			GapStem:    r.GapStem,
+		})
 	}
 	return items
 }

@@ -11,7 +11,8 @@ import (
 	vnotify "github.com/codyconfer/viewkit/notify"
 	"github.com/codyconfer/viewkit/panels"
 
-	"github.com/codyconfer/munin/internal/deck"
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
 	"github.com/codyconfer/munin/internal/keymap"
 	mnotify "github.com/codyconfer/munin/internal/notify"
 	"github.com/codyconfer/munin/internal/signals"
@@ -56,7 +57,7 @@ func (v *ServeView) pruneTick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return servePruneMsg(t) })
 }
 
-func (v *ServeView) Update(a *deck.State, msg tea.Msg) tea.Cmd {
+func (v *ServeView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case serveEventMsg:
 		if n, show := mnotify.FromEvent(m.ev); show {

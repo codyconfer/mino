@@ -3,9 +3,7 @@ package plugin
 import "sync"
 
 var (
-	pathMu sync.Mutex
-	// knownDataPaths are home-relative (or absolute) plugin DB paths that should
-	// join encrypted backups even before the store is opened (ADR-11).
+	pathMu         sync.Mutex
 	knownDataPaths []func(home string) string
 )
 

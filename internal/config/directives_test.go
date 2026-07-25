@@ -14,7 +14,6 @@ func seedDirectives(t *testing.T) string {
 	mkdir(t, filepath.Join(home, DirQueries))
 	mkdir(t, filepath.Join(home, DirFilters))
 	mkdir(t, filepath.Join(home, DirFlights))
-	mkdir(t, filepath.Join(home, DirRoles))
 
 	write(t, filepath.Join(home, DirFilters, "no-bots.yaml"), `
 name: no-bots
@@ -36,7 +35,7 @@ filters:
 name: morning
 queries: [standup, my-prs]
 `)
-	write(t, filepath.Join(home, DirRoles, "triage.yaml"), `
+	write(t, filepath.Join(home, "triage.yaml"), `
 name: triage
 home: morning
 flights: [morning]
@@ -139,7 +138,7 @@ func TestSerializeDirRoundTrip(t *testing.T) {
 		t.Errorf("ParseFlights round-trip wrong: %#v", flights)
 	}
 
-	rBlob, _, err := sconfig.SerializeDir(filepath.Join(home, DirRoles))
+	rBlob, _, err := SerializeCollection(home, KindRoles)
 	if err != nil {
 		t.Fatal(err)
 	}

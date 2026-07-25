@@ -3,7 +3,6 @@ package views
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -14,13 +13,19 @@ import (
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/deck"
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/keymap"
 )
 
 var auditvDBs = []string{"audit", "config", "tokens"}
 
-const auditvDefaultSQL = "SELECT name, kind, count(*) AS runs FROM runs GROUP BY name, kind ORDER BY runs DESC"
+var auditvDefaultSQL = map[string]string{
+	"audit":  "SELECT name, kind, count(*) AS runs, coalesce(sum(count), 0) AS items FROM runs GROUP BY name, kind ORDER BY runs DESC",
+	"config": "SELECT name, format, applied_at FROM store_current ORDER BY name",
+	"tokens": "SELECT namespace, key, updated_at, expiry IS NOT NULL AS has_expiry FROM kv ORDER BY namespace, key",
+}
 
 const auditvChrome = 10
 
@@ -37,13 +42,13 @@ type auditView struct {
 	width int
 }
 
-func (k *Kit) AuditQuery() deck.View {
+func (k *Kit) AuditQuery() vkdeck.View {
 	return &auditView{home: k.d.App.Cfg.Home}
 }
 
 func (me *auditView) db() string { return auditvDBs[me.dbIndex] }
 
-func (me *auditView) Title() string { return "audit · query" }
+func (me *auditView) Title() string { return "query · " + me.db() }
 
 func (me *auditView) Init() tea.Cmd { return nil }
 
@@ -55,7 +60,7 @@ func (me *auditView) Hints() [][2]string {
 	return [][2]string{{"←/→", "db"}, {"enter", "run"}, {"↑/↓", "scroll"}}
 }
 
-func (me *auditView) Update(a *deck.State, msg tea.Msg) tea.Cmd {
+func (me *auditView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
 		me.width = m.Width
@@ -118,11 +123,18 @@ func (me *auditView) cycle(delta int) {
 	me.dbIndex = ((me.dbIndex+delta)%n + n) % n
 }
 
+func (me *auditView) defaultSQL() string {
+	if q, ok := auditvDefaultSQL[me.db()]; ok {
+		return q
+	}
+	return auditvDefaultSQL["audit"]
+}
+
 func (me *auditView) run() {
 	th := theme.Cur()
 	query := strings.TrimSpace(me.sql)
 	if query == "" {
-		query = auditvDefaultSQL
+		query = me.defaultSQL()
 	}
 	if !auditvReadOnly(query) {
 		me.result = th.Cant.Render("only read-only statements are allowed (select/with/pragma/describe/show)")
@@ -147,7 +159,7 @@ func auditvReadOnly(query string) bool {
 }
 
 func (me *auditView) exec(query string) (string, error) {
-	path := filepath.Join(me.home, me.db()+".duckdb")
+	path := config.DataPath(me.home, me.db()+".duckdb")
 	res, err := store.Query(context.Background(), path, query)
 	if err != nil {
 		return "", err
@@ -246,7 +258,7 @@ func (me *auditView) Body(width, height int) string {
 
 	shown := me.sql
 	if strings.TrimSpace(shown) == "" {
-		shown = th.Dim.Render(auditvDefaultSQL)
+		shown = th.Dim.Render(me.defaultSQL())
 	} else {
 		shown = th.Val.Render(shown)
 	}

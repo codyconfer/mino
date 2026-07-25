@@ -111,7 +111,7 @@ func Config(cfg *config.Config, directives *config.Directives) []Finding {
 
 	if cfg.Role != "" {
 		_, ok := directives.Roles[cfg.Role]
-		check("active role", ok, fmt.Sprintf("role %q is not defined (in roles/)", cfg.Role), "role: "+cfg.Role)
+		check("active role", ok, fmt.Sprintf("role %q is not defined (no matching *.yaml in the config dir)", cfg.Role), "role: "+cfg.Role)
 	}
 
 	if gs := config.LoadGlobalSettings(); gs.Theme != "" {
@@ -151,9 +151,13 @@ func Roles(directives *config.Directives) []Finding {
 			}
 		}
 		for _, fl := range rd.Filters {
-			if _, ok := directives.Filters[fl]; !ok {
-				missing = append(missing, "filter "+fl)
+			if _, ok := directives.Filters[fl]; ok {
+				continue
 			}
+			if plugin.HasFilter(fl) {
+				continue
+			}
+			missing = append(missing, "filter "+fl)
 		}
 		if len(missing) > 0 {
 			out = append(out, Finding{Name: name, OK: false,
@@ -192,47 +196,100 @@ func Flights(directives *config.Directives) []Finding {
 	return out
 }
 
-// Plugins verifies plugin↔builder registry sync and CapAction host bindings.
+// Plugins verifies plugin↔host registry sync for every Kind.
 func Plugins() []Finding {
 	var out []Finding
 	builders := build.BuilderSignals()
 	for _, d := range plugin.All() {
-		if d.Kind != plugin.KindSignal || d.Signal == "" {
-			continue
-		}
 		name := d.ID
 		if !plugin.Enabled(d.ID) {
 			out = append(out, Finding{Name: name, OK: true, Msg: "disabled"})
 			continue
 		}
-		if !builders[d.Signal] {
-			out = append(out, Finding{
-				Name: name, OK: false,
-				Msg: fmt.Sprintf("enabled plugin signal %q has no host builder", d.Signal),
-			})
-			continue
+		switch d.Kind {
+		case plugin.KindSignal:
+			if d.Signal == "" {
+				out = append(out, Finding{Name: name, OK: false, Msg: "KindSignal missing Signal"})
+				continue
+			}
+			if !builders[d.Signal] {
+				out = append(out, Finding{
+					Name: name, OK: false,
+					Msg: fmt.Sprintf("enabled plugin signal %q has no host builder", d.Signal),
+				})
+				continue
+			}
+			if plugin.HasCapability(d.Signal, plugin.CapAction) && len(plugin.ActionsFor(d.Signal)) == 0 {
+				out = append(out, Finding{
+					Name: name, OK: false,
+					Msg: fmt.Sprintf("signal %q advertises CapAction but has no registered actions", d.Signal),
+				})
+				continue
+			}
+			if plugin.HasCapability(d.Signal, plugin.CapStream) && !build.HasActiveBuilder(d.Signal) {
+				out = append(out, Finding{
+					Name: name, OK: false,
+					Msg: fmt.Sprintf("signal %q advertises CapStream but has no active builder", d.Signal),
+				})
+				continue
+			}
+			out = append(out, Finding{Name: name, OK: true, Msg: fmt.Sprintf("signal=%s caps=%v", d.Signal, d.Capabilities)})
+		case plugin.KindFilter:
+			if !plugin.HasFilter(d.Ref) {
+				out = append(out, Finding{Name: name, OK: false, Msg: fmt.Sprintf("KindFilter ref %q has no filter contribution", d.Ref)})
+				continue
+			}
+			kind := "rules"
+			if plugin.HasFilterEngine(d.Ref) {
+				kind = "engine"
+			}
+			out = append(out, Finding{Name: name, OK: true, Msg: fmt.Sprintf("filter=%s (%s)", d.Ref, kind)})
+		case plugin.KindAction:
+			sig, act, ok := plugin.SplitActionRef(d.Ref)
+			if !ok {
+				out = append(out, Finding{Name: name, OK: false, Msg: fmt.Sprintf("KindAction ref %q want signal/name", d.Ref)})
+				continue
+			}
+			if _, ok := plugin.LookupAction(sig, act); !ok {
+				out = append(out, Finding{Name: name, OK: false, Msg: fmt.Sprintf("KindAction %s/%s has no RegisterAction binding", sig, act)})
+				continue
+			}
+			out = append(out, Finding{Name: name, OK: true, Msg: "action=" + d.Ref})
+		case plugin.KindView:
+			if !plugin.HasView(d.Ref) {
+				out = append(out, Finding{Name: name, OK: false, Msg: fmt.Sprintf("KindView ref %q missing from deck registry", d.Ref)})
+				continue
+			}
+			out = append(out, Finding{Name: name, OK: true, Msg: "view=" + d.Ref})
+		case plugin.KindTheme:
+			if !plugin.HasTheme(d.Ref) {
+				out = append(out, Finding{Name: name, OK: false, Msg: fmt.Sprintf("KindTheme ref %q missing from theme registry", d.Ref)})
+				continue
+			}
+			out = append(out, Finding{Name: name, OK: true, Msg: "theme=" + d.Ref})
+		case plugin.KindContext:
+			if !plugin.HasContextProvider(d.Ref) {
+				out = append(out, Finding{Name: name, OK: false, Msg: fmt.Sprintf("KindContext ref %q has no ContextProvider", d.Ref)})
+				continue
+			}
+			out = append(out, Finding{Name: name, OK: true, Msg: "context=" + d.Ref})
+		default:
+			out = append(out, Finding{Name: name, OK: false, Msg: fmt.Sprintf("unknown kind %q", d.Kind)})
 		}
-		if plugin.HasCapability(d.Signal, plugin.CapAction) && len(plugin.ActionsFor(d.Signal)) == 0 {
-			out = append(out, Finding{
-				Name: name, OK: false,
-				Msg: fmt.Sprintf("signal %q advertises CapAction but has no registered actions", d.Signal),
-			})
-			continue
-		}
-		if plugin.HasCapability(d.Signal, plugin.CapStream) && !build.HasActiveBuilder(d.Signal) {
-			out = append(out, Finding{
-				Name: name, OK: false,
-				Msg: fmt.Sprintf("signal %q advertises CapStream but has no active builder", d.Signal),
-			})
-			continue
-		}
-		out = append(out, Finding{Name: name, OK: true, Msg: fmt.Sprintf("signal=%s caps=%v", d.Signal, d.Capabilities)})
 	}
 	for sig := range builders {
 		if !plugin.KnownSignals()[sig] {
 			out = append(out, Finding{
 				Name: "build:" + sig, OK: false,
 				Msg: fmt.Sprintf("host builder %q missing from plugin registry", sig),
+			})
+		}
+	}
+	for _, tool := range plugin.ContextTools() {
+		if !plugin.KnownRefs(plugin.KindContext)[tool] {
+			out = append(out, Finding{
+				Name: "context:" + tool, OK: false,
+				Msg: fmt.Sprintf("ContextProvider %q missing KindContext descriptor (use plugin.RegisterContext)", tool),
 			})
 		}
 	}
@@ -257,9 +314,13 @@ func Queries(directives *config.Directives) []Finding {
 			var missing []string
 			for _, qf := range q.Filters {
 				if qf.Ref != "" {
-					if _, ok := directives.Filters[qf.Ref]; !ok {
-						missing = append(missing, qf.Ref)
+					if _, ok := directives.Filters[qf.Ref]; ok {
+						continue
 					}
+					if plugin.HasFilter(qf.Ref) {
+						continue
+					}
+					missing = append(missing, qf.Ref)
 				}
 			}
 			if len(missing) > 0 {

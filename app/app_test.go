@@ -50,7 +50,18 @@ func TestListDefaultsEmbedded(t *testing.T) {
 			t.Errorf("empty file %s", f.RelPath)
 		}
 	}
-	for _, want := range []string{"config.yaml", "queries/my-open-prs.yaml", "flights/default.yaml"} {
+	for _, want := range []string{
+		"config.yaml",
+		"queries/my-open-prs.yaml",
+		"queries/demo.yaml",
+		"queries/demo-reviews.yaml",
+		"queries/notify-smoke.yaml",
+		"filters/demo.yaml",
+		"flights/default.yaml",
+		"flights/demo.yaml",
+		"flights/notify-smoke.yaml",
+		"demo.yaml",
+	} {
 		if !seen[want] {
 			t.Errorf("missing %s", want)
 		}

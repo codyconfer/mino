@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 )
 
@@ -65,5 +66,34 @@ func TestInstallForceDoesNotMisreportExists(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "already has a config file") {
 		t.Fatalf("misreported exists: %v", err)
+	}
+}
+
+func TestNukeRemovesHomeWithoutReinstall(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	home := filepath.Join(t.TempDir(), "munin")
+	if _, err := Install(home, false); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	if err := config.SaveGlobalSettings(config.GlobalSettings{Home: home}); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf strings.Builder
+	if err := Nuke(&buf, home); err != nil {
+		t.Fatalf("Nuke: %v", err)
+	}
+	if _, err := os.Stat(home); !os.IsNotExist(err) {
+		t.Fatalf("home should be gone, stat=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); !os.IsNotExist(err) {
+		t.Fatal("nuke must not leave/reinstall config.yaml")
+	}
+	if gs := config.LoadGlobalSettings(); gs.Home != "" {
+		t.Fatalf("settings home should be cleared, got %q", gs.Home)
+	}
+	if !strings.Contains(buf.String(), "munin install") {
+		t.Fatalf("nuke output should point at install, got %q", buf.String())
 	}
 }

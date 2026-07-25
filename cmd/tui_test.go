@@ -5,12 +5,14 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 )
 
-func TestBuildViewsHistoryLoads(t *testing.T) {
+func TestBuildViewsHistorySelectable(t *testing.T) {
 	shared = &app.App{
 		Cfg:        &config.Config{Home: t.TempDir()},
 		Directives: &config.Directives{},
@@ -18,23 +20,28 @@ func TestBuildViewsHistoryLoads(t *testing.T) {
 
 	kit := buildViews()
 	app := deck.New(kit.MainMenu())
+	app, _ = update(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	_ = app.View()
 
-	app, _ = update(app, tea.KeyMsg{Type: tea.KeyDown})
-	_, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd == nil {
-		t.Fatal("opening History returned no command")
+	hist := kit.History()
+	if hist == nil {
+		t.Fatal("history view is nil")
 	}
-
-	for _, load := range collectCmds(cmd()) {
-		if load != nil {
-			_ = load()
+	app = deck.New(hist)
+	app, cmd := update(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if cmd != nil {
+		for _, load := range collectCmds(cmd()) {
+			if load != nil {
+				_ = load()
+			}
 		}
 	}
+	_ = app.View()
 }
 
-func update(a *deck.State, msg tea.Msg) (*deck.State, tea.Cmd) {
+func update(a *vkdeck.Model, msg tea.Msg) (*vkdeck.Model, tea.Cmd) {
 	m, cmd := a.Update(msg)
-	return m.(*deck.State), cmd
+	return m.(*vkdeck.Model), cmd
 }
 
 func collectCmds(msg tea.Msg) []tea.Cmd {

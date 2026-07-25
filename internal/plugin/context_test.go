@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	pub "github.com/codyconfer/munin/plugin"
 )
 
 type boomProvider struct{ tool string }
@@ -35,17 +37,8 @@ func (p *okProvider) Current(context.Context) (string, bool, error) {
 }
 
 func TestApplyRoleContextsContinuesAndJoins(t *testing.T) {
-	// Isolate providers for this test.
-	ctxMu.Lock()
-	prevP, prevL := providers, lastSwitch
-	providers = map[string]ContextProvider{}
-	lastSwitch = map[string]string{}
-	ctxMu.Unlock()
-	t.Cleanup(func() {
-		ctxMu.Lock()
-		providers, lastSwitch = prevP, prevL
-		ctxMu.Unlock()
-	})
+	pub.ResetContextProvidersForTest()
+	t.Cleanup(pub.ResetContextProvidersForTest)
 
 	ok := &okProvider{tool: "alpha"}
 	RegisterContextProvider(ok)
@@ -54,7 +47,7 @@ func TestApplyRoleContextsContinuesAndJoins(t *testing.T) {
 	err := ApplyRoleContexts(context.Background(), map[string]string{
 		"beta":  "x",
 		"alpha": "prod",
-		"zeta":  "nope", // unknown
+		"zeta":  "nope",
 	})
 	if err == nil {
 		t.Fatal("expected joined errors")

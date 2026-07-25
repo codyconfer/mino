@@ -28,7 +28,6 @@ func TestFlightTaskAdaptsSectionsToContent(t *testing.T) {
 			Label: label,
 			Run: func(ctx context.Context) (vkdeck.Content, error) {
 				sections := run(ctx)
-				// mirror RunFlight boundary
 				body := ""
 				if len(sections) > 0 {
 					body = sections[0].Title

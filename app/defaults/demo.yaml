@@ -1,0 +1,6 @@
+# Opt-in role scoping the GitHub URL-backed demo flight / queries / filter.
+# Activate with: munin --role demo fly · munin --role demo query demo
+name: demo
+flights: [demo]
+queries: [demo, demo-reviews]
+filters: [demo]

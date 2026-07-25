@@ -70,7 +70,7 @@ func runGitHubDeviceFlow(ctx context.Context, hc *http.Client, deviceURL, tokenU
 		Product:    "munin",
 		HTTPClient: hc,
 		Sleep:      sleep,
-		Open:       func(string) error { return nil }, // munin prints the URL; browser optional
+		Open:       func(string) error { return nil },
 	})
 	if err != nil {
 		switch {

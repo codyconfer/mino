@@ -28,6 +28,15 @@ backup:
 # per-invocation with --role, or the MUNIN_ROLE env var.
 role: ""
 
+# TUI hotkeys (global on the deck host). Keys are bubbletea strings; targets are
+# either an NTR create form or a flight name (`morning` or `flight:morning`).
+# Defaults use Alt so they do not collide with in-list n/r/t binds.
+keybinds:
+  alt+n: ntr.note.new      # open new-note form
+  alt+r: ntr.remind.new    # open new-reminder form
+  alt+t: ntr.task.new      # open new-task form
+  # alt+f: morning         # example: jump straight to a flight
+
 # Roles, flights, queries, and filters are each their own file store — see
 # examples/roles/*.yaml, examples/flights/*.yaml, examples/queries/*.yaml, and
 # examples/filters/*.yaml (each a DuckDB-backed store). Role files may also set
@@ -38,7 +47,7 @@ daemon:
   interval: 60s     # poll floor for polled (non-websocket) signals
   bell: true        # ring the terminal bell on each notification
   desktop: false    # send OS desktop notifications
-  tray: false       # show a system-tray icon reflecting state (foreground only)
+  tray: false       # system tray icon on the installed daemon (Linux SNI/AppIndicator, macOS, Windows)
   theme: dark       # tray/notification icon theme: dark or light
 
 # Per-signal defaults. A saved query may override any of these via its `params`.

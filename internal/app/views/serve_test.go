@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/signals"
 )
@@ -15,7 +17,7 @@ func TestServeViewRendersAndPrunes(t *testing.T) {
 	v := NewServeView("watch", ch)
 	app := deck.New(v)
 	m, _ := app.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	app = m.(*deck.State)
+	app = m.(*vkdeck.Model)
 
 	ev := signals.Event{
 		Source: "demo",

@@ -26,11 +26,21 @@ type compiledRule struct {
 }
 
 type Compiled struct {
-	Name  string
-	rules []compiledRule
+	Name   string
+	rules  []compiledRule
+	engine func([]signals.Item) []signals.Item
 }
 
+// ExternalEngine looks up plugin-contributed Go filter engines (KindFilter).
+// Wired by plugin.init to plugin.LookupFilterEngine; nil when unused (tests).
+var ExternalEngine func(name string) (func([]signals.Item) []signals.Item, bool)
+
 func Compile(f Filter) (Compiled, error) {
+	if ExternalEngine != nil {
+		if fn, ok := ExternalEngine(f.Name); ok && fn != nil {
+			return Compiled{Name: f.Name, engine: fn}, nil
+		}
+	}
 	c := Compiled{Name: f.Name}
 	for i, r := range f.Rules {
 		cr := compiledRule{field: strings.TrimSpace(r.Field)}
@@ -82,6 +92,9 @@ func (c Compiled) keeps(it signals.Item) bool {
 }
 
 func (c Compiled) Apply(items []signals.Item) []signals.Item {
+	if c.engine != nil {
+		return c.engine(items)
+	}
 	out := make([]signals.Item, 0, len(items))
 	for _, it := range items {
 		if c.keeps(it) {
@@ -90,6 +103,9 @@ func (c Compiled) Apply(items []signals.Item) []signals.Item {
 	}
 	return out
 }
+
+// IsEngine reports whether this compiled filter is backed by a Go engine.
+func (c Compiled) IsEngine() bool { return c.engine != nil }
 
 func ApplyAll(filters []Compiled, items []signals.Item) []signals.Item {
 	for _, c := range filters {

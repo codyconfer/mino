@@ -30,7 +30,9 @@ func newInstallCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:               "install",
 		Short:             "Create the config directory and initialize it with defaults",
+		Long:              "Creates the munin home (default ~/.munin) and seeds stock config/directives.\nDoes not require an existing config file. Override the target with --home/--dir or MUNIN_HOME.",
 		Args:              cobra.NoArgs,
+		Annotations:       map[string]string{annoSkipOnboarding: "true"},
 		PersistentPreRunE: lifecyclePreRun,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			created, err := app.Install(lifecycleHome, force)
@@ -53,6 +55,7 @@ func newCleanCmd() *cobra.Command {
 		Use:               "clean",
 		Short:             "Archive config, flight, and query files into .archive/<timestamp>/",
 		Args:              cobra.NoArgs,
+		Annotations:       map[string]string{annoSkipOnboarding: "true"},
 		PersistentPreRunE: lifecyclePreRun,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return app.Clean(cmd.OutOrStdout(), lifecycleHome)
@@ -65,8 +68,10 @@ func newNukeCmd() *cobra.Command {
 	var yes bool
 	c := &cobra.Command{
 		Use:               "nuke",
-		Short:             "Delete the config directory (including DuckDB) and reinstall defaults",
+		Short:             "Delete the config directory (including DuckDB)",
+		Long:              "Permanently deletes the munin home directory. Does not reinstall — run `munin install` afterward.\nWith no --home/--dir/MUNIN_HOME, a matching settings.yaml home: override is cleared so install defaults to ~/.munin.",
 		Args:              cobra.NoArgs,
+		Annotations:       map[string]string{annoSkipOnboarding: "true"},
 		PersistentPreRunE: lifecyclePreRun,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runNuke(cmd, lifecycleHome, yes)

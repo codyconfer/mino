@@ -1,12 +1,15 @@
-// Package scaffold is the canonical plugin template (ADR-14).
-// Copy this package when adding a new signal plugin. Stubs are template
-// instantiations — there is no generator CLI yet.
+// Package scaffold is the canonical plugin template.
+//
+// Use `munin plugins scaffold <id> --dir <path>` to generate an overlay-friendly
+// package from [Generate] (public munin/plugin SDK). This package remains the
+// in-tree reference implementation for hosts/tests.
 //
 // A complete plugin typically provides:
-//   - plugin.Register(Descriptor{…}) for compile-time registry + verify
+//   - plugin.RegisterSignal(Descriptor{…}, Builders{…}) for registry + builders + verify
 //   - Query (signals.Signal) and optionally Stream / Action / Scheduled
-//   - glyph.Register for brand/status contribution
-//   - plugin.RegisterContextProvider when the tool has switchable context
+//   - glyph.Register + plugin.RegisterStatusContribution for status strip
+//   - plugin.RegisterContext when the tool has switchable context
+//   - plugin.RegisterFilterEngine (or RegisterFilter) for KindFilter contributions
 //   - a fixture test + example directive YAML
 package scaffold
 
@@ -32,14 +35,18 @@ func Register() {
 	if _, ok := plugin.Lookup(PluginID); ok {
 		return
 	}
-	plugin.Register(plugin.Descriptor{
+	plugin.RegisterSignal(plugin.Descriptor{
 		ID:           PluginID,
 		Kind:         plugin.KindSignal,
 		Signal:       SignalName,
 		Capabilities: []plugin.Capability{plugin.CapQuery},
+	}, plugin.Builders{
+		Query: func(plugin.BuildContext) (plugin.Query, error) {
+			return Signal{}, nil
+		},
 	})
 	glyph.Register(GlyphID, glyph.Variants{Nerd: "", Uni: "◇", ASCII: "sc"})
-	plugin.RegisterContextProvider(&provider{})
+	plugin.RegisterContext(PluginID, &provider{})
 }
 
 // Signal is a minimal Query capability implementation.
@@ -57,7 +64,6 @@ func (Signal) Fetch(context.Context) ([]signals.Section, error) {
 		}},
 	}}, nil
 }
-
 
 type provider struct{ current string }
 

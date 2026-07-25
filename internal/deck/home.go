@@ -1,25 +1,19 @@
 package deck
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
-
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/list"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-// Home is the main menu (+ optional home-flight side list) backed by HomeShell.
-type Home struct {
-	inner *vkdeck.HomeShell
-}
+const listIndent = 2
 
-// NewHome builds a Home view. flightName/load enable the side pane.
-func NewHome(title string, ctx [][2]string, items []MenuItem, flightName string, load func() []signals.Section) *Home {
+// NewHome builds a HomeShell. flightName/load enable the side pane (signals → list.Item).
+func NewHome(title string, ctx [][2]string, items []vkdeck.MenuItem, flightName string, load func() []signals.Section) *vkdeck.HomeShell {
 	label := ""
 	if flightName != "" && load != nil {
 		label = "home flight · " + flightName
@@ -27,7 +21,6 @@ func NewHome(title string, ctx [][2]string, items []MenuItem, flightName string,
 	shell := vkdeck.NewHomeShell(title, ctx, items, label)
 	shell.SideHint = "flight"
 	shell.SideLoading = "░▒▓ loading home flight…"
-	shell.IsAction = keymap.Menu().Action
 	if label != "" {
 		shell.SideFetch = func() any { return load() }
 		shell.SideBind = func(width int, fetched any) []list.Item {
@@ -39,15 +32,5 @@ func NewHome(title string, ctx [][2]string, items []MenuItem, flightName string,
 			return render.SectionItems(layout.ScreenFrame(width-listIndent), sections)
 		}
 	}
-	return &Home{inner: shell}
+	return shell
 }
-
-func (h *Home) Title() string                        { return h.inner.Title() }
-func (h *Home) Context() [][2]string                 { return h.inner.Context() }
-func (h *Home) Hints() [][2]string                   { return h.inner.Hints() }
-func (h *Home) Init() tea.Cmd                        { return h.inner.Init() }
-func (h *Home) Update(a *State, msg tea.Msg) tea.Cmd { return h.inner.Update(a, msg) }
-func (h *Home) Body(width, height int) string        { return h.inner.Body(width, height) }
-
-// focusSide reports side-pane focus (tests).
-func (h *Home) focusSide() bool { return h.inner.FocusSide() }

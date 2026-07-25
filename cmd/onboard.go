@@ -1,19 +1,14 @@
 package cmd
 
 import (
-	"fmt"
-	"io"
 	"os"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/render/glyph"
 	gh "github.com/codyconfer/munin/internal/signals/github"
 )
 
@@ -39,11 +34,10 @@ func enforceOnboarding(cmd *cobra.Command) error {
 	if skipsOnboarding(cmd) {
 		return nil
 	}
-	gs := config.LoadGlobalSettings()
-	if gs.Onboarded && gs.OnboardedDomain == onboard.RequiredEmailDomain {
+	if onboard.IsOnboarded() {
 		return nil
 	}
-	return errs.New(errs.KindOnboarding, "munin is not onboarded yet").WithHint("%s", onboardHint())
+	return errs.New(errs.KindOnboarding, "munin is not onboarded yet").WithHint("%s", onboard.Hint())
 }
 
 func requireOnboarding(cmd *cobra.Command) error {
@@ -54,12 +48,7 @@ func requireOnboarding(cmd *cobra.Command) error {
 	return err
 }
 
-func onboardHint() string {
-	if onboard.RequiredEmailDomain != "" {
-		return "run `munin onboard` to finish setup (GitHub auth + a GitHub-verified GPG or SSH signing key with a verified @" + onboard.RequiredEmailDomain + " identity)"
-	}
-	return "run `munin onboard` to finish setup (GitHub auth + a GitHub-verified GPG or SSH signing key)"
-}
+func onboardHint() string { return onboard.Hint() }
 
 func newOnboardCmd() *cobra.Command {
 	var reset, statusOnly bool
@@ -74,7 +63,7 @@ func newOnboardCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if reset {
-				return resetOnboarding(cmd)
+				return onboard.Reset(cmd.OutOrStdout())
 			}
 			return runOnboard(cmd, statusOnly)
 		},
@@ -84,76 +73,13 @@ func newOnboardCmd() *cobra.Command {
 	return c
 }
 
-func resetOnboarding(cmd *cobra.Command) error {
-	gs := config.LoadGlobalSettings()
-	gs.Onboarded = false
-	if err := config.SaveGlobalSettings(gs); err != nil {
-		return err
-	}
-	fmt.Fprintln(cmd.OutOrStdout(), "cleared the onboarded marker; run `munin onboard` to set up again")
-	return nil
-}
-
 func runOnboard(cmd *cobra.Command, statusOnly bool) error {
-	w := cmd.OutOrStdout()
-	sty := render.NewReportStyles(w)
 	apiURL, err := gh.NormalizeAPIURL(shared.Cfg.GitHub.APIURL)
 	if err != nil {
 		return err
 	}
-
-	interactive := !statusOnly && term.IsTerminal(os.Stdout.Fd())
-	for {
-		st := onboard.Check(cmd.Context(), shared.Tokens, apiURL)
-		printOnboardStatus(w, sty, st)
-
-		if st.Ready() {
-			if statusOnly {
-				fmt.Fprintln(w, sty.OK.Render("✓ all checks pass."))
-				return nil
-			}
-			gs := config.LoadGlobalSettings()
-			gs.Onboarded = true
-			gs.OnboardedDomain = onboard.RequiredEmailDomain
-			if err := config.SaveGlobalSettings(gs); err != nil {
-				return err
-			}
-			fmt.Fprintln(w, sty.OK.Render("✓ munin is onboarded — all commands are unlocked."))
-			return nil
-		}
-
-		if !interactive {
-			return errs.New(errs.KindOnboarding, "onboarding incomplete").
-				WithHint("resolve the steps above, then run `munin onboard` again")
-		}
-
-		again, err := deck.Confirm("Onboarding incomplete",
-			"Run the commands above in another shell, then re-check. Re-check now?",
-			"Re-check", "Quit")
-		if err != nil {
-			return err
-		}
-		if !again {
-			return errs.New(errs.KindOnboarding, "onboarding incomplete")
-		}
-		fmt.Fprintln(w)
-	}
-}
-
-func printOnboardStatus(w io.Writer, sty render.ReportStyles, st onboard.Status) {
-	fmt.Fprintln(w, sty.Title.Render("Onboarding"))
-	for _, r := range st.Results {
-		mark := sty.OK.Render(glyph.Check())
-		if !r.OK {
-			mark = sty.Err.Render(glyph.Cross())
-		}
-		fmt.Fprintf(w, "  %s %s\n", mark, sty.Name.Render(r.Title))
-		if r.Detail != "" {
-			fmt.Fprintf(w, "      %s\n", sty.Dim.Render(r.Detail))
-		}
-		for _, f := range r.Fix {
-			fmt.Fprintf(w, "      %s %s\n", sty.Fix.Render(glyph.Arrow()), f)
-		}
-	}
-	fmt.Fprintln(w)
+	return onboard.RunCLI(cmd.Context(), shared.Tokens, apiURL, cmd.OutOrStdout(), statusOnly,
+		func(title, message, yes, no string) (bool, error) {
+			return deck.Confirm(title, message, yes, no)
+		})
 }

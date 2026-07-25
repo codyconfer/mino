@@ -10,7 +10,6 @@ import (
 var iconExtMIME = map[string]string{
 	".png": "image/png",
 	".ico": "image/x-icon",
-	".svg": "image/svg+xml",
 }
 
 func LoadStateIcons(home, theme string) int {
@@ -18,12 +17,13 @@ func LoadStateIcons(home, theme string) int {
 	dir := filepath.Join(home, "icons")
 	loaded := 0
 	for _, s := range daemon.States() {
-		for _, ext := range []string{".png", ".ico", ".svg"} {
+		for _, ext := range overrideExts() {
 			raw, ok, err := sconfig.ReadRaw(filepath.Join(dir, s.String()+ext))
 			if err != nil || !ok {
 				continue
 			}
-			daemon.SetStateIcon(s, daemon.Asset{Name: "state:" + s.String(), MIME: iconExtMIME[ext], Bytes: raw})
+			mime, raw := prepareAsset(iconExtMIME[ext], raw)
+			daemon.SetStateIcon(s, daemon.Asset{Name: "state:" + s.String(), MIME: mime, Bytes: raw})
 			loaded++
 			break
 		}

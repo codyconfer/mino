@@ -28,7 +28,17 @@ func init() {
 			plugin.CapQuery, plugin.CapAction, plugin.CapScheduled,
 		},
 	})
+	plugin.RegisterBuilders(SignalName, plugin.Builders{
+		Query: func(bc plugin.BuildContext) (plugin.Query, error) {
+			role := bc.Role()
+			if role == "" {
+				role = "default"
+			}
+			return Signal{Home: bc.Home(), Role: role}, nil
+		},
+	})
 	glyph.Register(GlyphID, glyph.Variants{Nerd: "", Uni: "✎", ASCII: "nt"})
+	plugin.RegisterStatusContribution(PluginID, StatusContribution)
 }
 
 // Signal lists notes/tasks for the active role (Query capability).
@@ -73,7 +83,7 @@ func (s Signal) Fetch(ctx context.Context) ([]signals.Section, error) {
 			Meta:  map[string]string{"id": fmt.Sprint(t.ID), "type": "task"},
 		})
 	}
-	return []signals.Section{{Signal: SignalName, Title: "ntr", Items: items}}, nil
+	return []signals.Section{{Signal: SignalName, Title: "notes", Items: items}}, nil
 }
 
 // ReminderJob implements Scheduled for due reminders.
@@ -176,7 +186,7 @@ func (r ReminderJob) Ack(ctx context.Context, sections []signals.Section) error 
 func StatusContribution(home, role string) glyph.StatusContribution {
 	return glyph.StatusContribution{
 		BrandGlyph: glyph.ResolveID(GlyphID),
-		Info:       func() string { return "ntr" },
+		Info:       func() string { return "notes" },
 		Status: func() (string, glyph.Severity) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()

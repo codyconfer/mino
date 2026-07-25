@@ -1,9 +1,0 @@
-name: daily
-# `home` is the flight the TUI home screen loads on open (leave unset for menu only).
-home: morning
-# A bare `munin --role daily fly` runs the first flight listed here.
-flights: [default, morning, ntr]
-queries: [my-open-prs, today, unread-mail, recent-docs, slack-standup, ntr-list]
-# Per-tool context bindings applied on role activation (ADR-9).
-contexts:
-  kubectl: prod

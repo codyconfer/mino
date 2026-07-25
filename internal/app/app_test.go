@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -47,5 +49,41 @@ func TestVisibleNamesRespectActiveRole(t *testing.T) {
 	}
 	if got := a.VisibleFilters(); !reflect.DeepEqual(got, []string{"no-bots"}) {
 		t.Errorf("triage, filters = %v, want [no-bots]", got)
+	}
+}
+
+func TestReloadDirectivesPicksUpNewFiles(t *testing.T) {
+	home := t.TempDir()
+	a := &App{
+		Cfg: &config.Config{Home: home},
+		Directives: &config.Directives{
+			Queries: map[string]config.Query{},
+			Filters: map[string]filter.Filter{},
+			Flights: map[string]config.Flight{},
+			Roles:   map[string]config.RoleDef{},
+		},
+	}
+	qdir := filepath.Join(home, config.DirQueries)
+	fdir := filepath.Join(home, config.DirFlights)
+	if err := os.MkdirAll(qdir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(fdir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(qdir, "ntr-list.yaml"), []byte("name: ntr-list\nsignal: ntr\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fdir, "ntr.yaml"), []byte("name: ntr\nqueries: [ntr-list]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.ReloadDirectives(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := a.Directives.Queries["ntr-list"]; !ok {
+		t.Fatalf("queries missing ntr-list: %v", a.Directives.QueryNames())
+	}
+	if _, ok := a.Directives.Flights["ntr"]; !ok {
+		t.Fatalf("flights missing ntr: %v", a.Directives.FlightNames())
 	}
 }

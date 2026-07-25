@@ -18,6 +18,7 @@ type treeRow struct {
 	Lines      []string
 	Key        string
 	Selectable bool
+	GapStem    string
 }
 
 type conn struct {
@@ -55,7 +56,10 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []treeR
 		}
 		title = fmt.Sprintf("%s  (%s)", signals.Clean(title), sectionCount(s))
 		icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
-		rows = append(rows, treeRow{Lines: []string{th.Dim.Render(bconn) + icon + th.Title.Render(title)}})
+		rows = append(rows, treeRow{
+			Lines:   []string{th.Dim.Render(bconn) + icon + th.Title.Render(title)},
+			GapStem: th.Dim.Render(spad),
+		})
 		rows = append(rows, sectionLeaves(f, th, c, spad, s)...)
 	}
 	return rows
@@ -105,5 +109,10 @@ func leafRow(th *theme.Theme, c conn, spad string, last bool, body []string, key
 			lines[k] = th.Dim.Render(spad+ivert) + l
 		}
 	}
-	return treeRow{Lines: lines, Key: key, Selectable: key != ""}
+	return treeRow{
+		Lines:      lines,
+		Key:        key,
+		Selectable: key != "",
+		GapStem:    th.Dim.Render(spad + ivert),
+	}
 }

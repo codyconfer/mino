@@ -1,89 +1,11 @@
+// Package signals re-exports public plugin SDK types for host packages.
 package signals
 
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"time"
-)
+import "github.com/codyconfer/munin/plugin"
 
-type Item struct {
-	Kind      string            `json:"kind"`
-	Title     string            `json:"title"`
-	Subtitle  string            `json:"subtitle,omitempty"`
-	Body      string            `json:"body,omitempty"`
-	URL       string            `json:"url,omitempty"`
-	Timestamp time.Time         `json:"timestamp"`
-	Meta      map[string]string `json:"meta,omitempty"`
-}
-
-type Section struct {
-	Signal string `json:"signal"`
-	Title  string `json:"title"`
-	Items  []Item `json:"items"`
-	Err    error  `json:"-"`
-}
-
-func (s Section) ErrString() string {
-	if s.Err == nil {
-		return ""
-	}
-	return s.Err.Error()
-}
-
-type wireSection struct {
-	Signal string `json:"signal"`
-	Title  string `json:"title"`
-	Items  []Item `json:"items"`
-	Err    string `json:"err,omitempty"`
-}
-
-func (s Section) MarshalJSON() ([]byte, error) {
-	return json.Marshal(wireSection{
-		Signal: s.Signal,
-		Title:  s.Title,
-		Items:  s.Items,
-		Err:    s.ErrString(),
-	})
-}
-
-func (s *Section) UnmarshalJSON(b []byte) error {
-	var w wireSection
-	if err := json.Unmarshal(b, &w); err != nil {
-		return err
-	}
-	s.Signal = w.Signal
-	s.Title = w.Title
-	s.Items = w.Items
-	if w.Err != "" {
-		s.Err = errors.New(w.Err)
-	} else {
-		s.Err = nil
-	}
-	return nil
-}
-
-type Signal interface {
-	Name() string
-	Fetch(ctx context.Context) ([]Section, error)
-}
-
-type Event struct {
-	Source  string
-	Section Section
-	At      time.Time
-}
-
-type ActiveSignal interface {
-	Name() string
-	Stream(ctx context.Context) (<-chan Event, error)
-	LatencyFloor() time.Duration
-}
-
-// Scheduled is a time-triggered signal capability (ADR-10). Hosts wire this
-// through sisyphus/daemon.Schedule; persistence (watermarks) stays with the plugin.
-type Scheduled interface {
-	Name() string
-	Next(ctx context.Context, now time.Time) (due time.Time, ready bool, err error)
-	Fetch(ctx context.Context) ([]Section, error)
-}
+type Item = plugin.Item
+type Section = plugin.Section
+type Event = plugin.Event
+type Signal = plugin.Query
+type ActiveSignal = plugin.Stream
+type Scheduled = plugin.Scheduled

@@ -6,7 +6,6 @@ import (
 )
 
 func TestRegisterAndCapabilities(t *testing.T) {
-	// Isolate: builtins may already be registered by other packages; use unique ids.
 	id := "test.cap.signal"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{
@@ -39,13 +38,20 @@ func (s *stubProvider) Current(context.Context) (string, bool, error) {
 }
 
 func TestContextSwitch(t *testing.T) {
+	id := "test.cap.context"
+	if _, ok := Lookup(id); !ok {
+		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testcapctx", Capabilities: []Capability{CapQuery}})
+	}
 	p := &stubProvider{tool: "testtool"}
-	RegisterContextProvider(p)
+	RegisterContext(id, p)
 	if err := SwitchContext(context.Background(), "testtool", "prod"); err != nil {
 		t.Fatal(err)
 	}
 	c, ok := CurrentContext(context.Background(), "testtool")
 	if !ok || c.Name != "prod" {
 		t.Fatalf("current = %+v ok=%v", c, ok)
+	}
+	if _, ok := ByKind(KindContext, "testtool"); !ok {
+		t.Fatal("expected KindContext companion")
 	}
 }

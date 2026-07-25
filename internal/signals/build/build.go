@@ -10,13 +10,6 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/plugin/external/gcx"
-	"github.com/codyconfer/munin/internal/plugin/external/gooseai"
-	"github.com/codyconfer/munin/internal/plugin/external/kubectl"
-	"github.com/codyconfer/munin/internal/plugin/external/ollama"
-	"github.com/codyconfer/munin/internal/plugin/external/opencode"
-	"github.com/codyconfer/munin/internal/plugin/external/pi"
-	"github.com/codyconfer/munin/internal/plugin/ntr"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/active"
 	"github.com/codyconfer/munin/internal/signals/demo"
@@ -28,10 +21,13 @@ import (
 	"github.com/codyconfer/munin/internal/signals/gtasks"
 	slacksrc "github.com/codyconfer/munin/internal/signals/slack"
 	"github.com/codyconfer/munin/internal/token"
+
+	_ "github.com/codyconfer/munin/internal/plugin/ntr"
 )
 
 func init() {
 	plugin.RegisterBuiltins()
+	registerStockBuilders()
 }
 
 var ErrNoActive = errs.New(errs.KindUsage, "signal has no active (streaming) implementation")
@@ -54,55 +50,26 @@ func ResolveWriteTarget(what, setting, configured, requested string) (string, er
 	return "", errs.Newf(errs.KindUsage, "%s %q is read-only; only %q is writable (%s)", what, requested, configured, setting)
 }
 
-type passiveFn func(params map[string]string, cfg *config.Config, tokens *token.Store) (signals.Signal, error)
-
-type activeFn func(params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error)
-
-type entry struct {
-	passive passiveFn
-	active  activeFn
-}
-
-var registry = map[string]entry{
-	"demo":     {passive: buildDemo, active: buildActiveDemo},
-	"github":   {passive: buildGithub, active: buildActiveGithub},
-	"calendar": {passive: buildCalendar, active: buildActiveCalendar},
-	"gmail":    {passive: buildGmail},
-	"docs":     {passive: buildDocs},
-	"drive":    {passive: buildDrive},
-	"tasks":    {passive: buildTasks, active: buildActiveTasks},
-	"slack":    {passive: buildSlack, active: buildActiveSlack},
-	"ntr":      {passive: buildNTR},
-	"kubectl":  {passive: buildKubectl},
-	"gcx":      {passive: buildGCX},
-	"gooseai":  {passive: buildGooseAI},
-	"pi":       {passive: buildPi},
-	"opencode": {passive: buildOpenCode},
-	"ollama":   {passive: buildOllama},
-}
-
 func Signal(name string, params map[string]string, cfg *config.Config, tokens *token.Store) (signals.Signal, error) {
-	e, ok := registry[name]
-	if !ok {
+	if !plugin.HasBuilder(name) {
 		return nil, errs.Newf(errs.KindConfig, "unknown signal %q", name)
 	}
 	if !plugin.SignalEnabled(name) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `munin plugins enable` for the backing plugin")
 	}
-	return e.passive(params, cfg, tokens)
+	return plugin.BuildQuery(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens})
 }
 
 func ActiveSignal(name string, params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {
-	e, ok := registry[name]
-	if !ok {
+	if !plugin.HasBuilder(name) && !plugin.HasStreamBuilder(name) {
 		return nil, errs.Newf(errs.KindConfig, "unknown signal %q", name)
 	}
 	if !plugin.SignalEnabled(name) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `munin plugins enable` for the backing plugin")
 	}
-	if e.active == nil {
+	if !plugin.HasStreamBuilder(name) {
 		if plugin.HasCapability(name, plugin.CapStream) {
 			return nil, errs.Newf(errs.KindInternal, "signal %q advertises CapStream but has no active builder", name)
 		}
@@ -111,7 +78,7 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	if !plugin.HasCapability(name, plugin.CapStream) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q does not advertise CapStream", name)
 	}
-	return e.active(params, cfg, tokens, state)
+	return plugin.BuildStream(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, state: state})
 }
 
 // KnownSignals returns config signal names from the plugin registry.
@@ -119,65 +86,131 @@ func KnownSignals() map[string]bool {
 	return plugin.KnownSignals()
 }
 
-// HasBuilder reports whether the host build registry can construct signal.
+// HasBuilder reports whether the host can construct a Query for signal.
 func HasBuilder(signal string) bool {
-	_, ok := registry[signal]
-	return ok
+	return plugin.HasBuilder(signal)
 }
 
-// HasActiveBuilder reports whether signal has a Stream/active builder.
+// HasActiveBuilder reports whether signal has a Stream builder.
 func HasActiveBuilder(signal string) bool {
-	e, ok := registry[signal]
-	return ok && e.active != nil
+	return plugin.HasStreamBuilder(signal)
 }
 
-// BuilderSignals returns signal names present in the host build registry.
+// BuilderSignals returns signal names with registered builders.
 func BuilderSignals() map[string]bool {
-	out := make(map[string]bool, len(registry))
-	for name := range registry {
-		out[name] = true
+	return plugin.BuilderSignals()
+}
+
+func registerStockBuilders() {
+	register := func(signal string, query plugin.QueryFunc, stream plugin.StreamFunc) {
+		if _, ok := plugin.LookupBuilders(signal); ok {
+			return
+		}
+		plugin.RegisterBuilders(signal, plugin.Builders{Query: query, Stream: stream})
 	}
-	return out
-}
 
-func buildNTR(_ map[string]string, cfg *config.Config, _ *token.Store) (signals.Signal, error) {
-	role := cfg.Role
-	if role == "" {
-		role = "default"
-	}
-	return ntr.Signal{Home: cfg.Home, Role: role}, nil
-}
-
-func buildKubectl(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
-	return kubectl.Signal{}, nil
-}
-
-func buildGCX(_ map[string]string, _ *config.Config, tokens *token.Store) (signals.Signal, error) {
-	return gcx.NewSignal(tokens), nil
-}
-
-func buildGooseAI(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
-	return gooseai.Signal(), nil
-}
-
-func buildPi(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
-	return pi.Signal(), nil
-}
-
-func buildOpenCode(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
-	return opencode.Signal(), nil
-}
-
-func buildOllama(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
-	return ollama.Signal(), nil
-}
-
-func buildDemo(_ map[string]string, _ *config.Config, _ *token.Store) (signals.Signal, error) {
-	return demo.Signal{}, nil
-}
-
-func buildActiveDemo(_ map[string]string, _ *config.Config, _ *token.Store, _ *active.State) (signals.ActiveSignal, error) {
-	return demo.Signal{}, nil
+	register("demo",
+		func(bc plugin.BuildContext) (plugin.Query, error) {
+			return demo.Signal{}, nil
+		},
+		func(bc plugin.BuildContext) (plugin.Stream, error) {
+			return demo.Signal{}, nil
+		},
+	)
+	register("github",
+		func(bc plugin.BuildContext) (plugin.Query, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "github builder requires host build context")
+			}
+			return buildGithub(h.params, h.cfg, h.tokens)
+		},
+		func(bc plugin.BuildContext) (plugin.Stream, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "github stream builder requires host build context")
+			}
+			return buildActiveGithub(h.params, h.cfg, h.tokens, h.state)
+		},
+	)
+	register("calendar",
+		func(bc plugin.BuildContext) (plugin.Query, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "calendar builder requires host build context")
+			}
+			return buildCalendar(h.params, h.cfg, h.tokens)
+		},
+		func(bc plugin.BuildContext) (plugin.Stream, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "calendar stream builder requires host build context")
+			}
+			return buildActiveCalendar(h.params, h.cfg, h.tokens, h.state)
+		},
+	)
+	register("gmail",
+		func(bc plugin.BuildContext) (plugin.Query, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "gmail builder requires host build context")
+			}
+			return buildGmail(h.params, h.cfg, h.tokens)
+		},
+		nil,
+	)
+	register("docs",
+		func(bc plugin.BuildContext) (plugin.Query, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "docs builder requires host build context")
+			}
+			return buildDocs(h.params, h.cfg, h.tokens)
+		},
+		nil,
+	)
+	register("drive",
+		func(bc plugin.BuildContext) (plugin.Query, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "drive builder requires host build context")
+			}
+			return buildDrive(h.params, h.cfg, h.tokens)
+		},
+		nil,
+	)
+	register("tasks",
+		func(bc plugin.BuildContext) (plugin.Query, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "tasks builder requires host build context")
+			}
+			return buildTasks(h.params, h.cfg, h.tokens)
+		},
+		func(bc plugin.BuildContext) (plugin.Stream, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "tasks stream builder requires host build context")
+			}
+			return buildActiveTasks(h.params, h.cfg, h.tokens, h.state)
+		},
+	)
+	register("slack",
+		func(bc plugin.BuildContext) (plugin.Query, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "slack builder requires host build context")
+			}
+			return buildSlack(h.params, h.cfg, h.tokens)
+		},
+		func(bc plugin.BuildContext) (plugin.Stream, error) {
+			h, ok := asHost(bc)
+			if !ok {
+				return nil, errs.New(errs.KindInternal, "slack stream builder requires host build context")
+			}
+			return buildActiveSlack(h.params, h.cfg, h.tokens, h.state)
+		},
+	)
 }
 
 func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Store) (signals.Signal, error) {

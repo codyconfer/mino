@@ -4,16 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/codyconfer/sisyphus/kv"
 
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/render"
 )
-
-// CLI helpers keep cobra shells thin in cmd/ (M7).
 
 func openCLI(ctx context.Context, home, role string) (*Store, error) {
 	if role == "" {
@@ -51,6 +49,24 @@ func CLINotesAdd(ctx context.Context, w io.Writer, home, role, title, body strin
 		return err
 	}
 	fmt.Fprintln(w, render.Success(fmt.Sprintf("note %d created", n.ID)))
+	return nil
+}
+
+// CLINotesUpdate updates a note's title and body.
+func CLINotesUpdate(ctx context.Context, w io.Writer, home, role, idStr, title, body string) error {
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return err
+	}
+	st, err := openCLI(ctx, home, role)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	if err := st.UpdateNote(ctx, id, title, body); err != nil {
+		return err
+	}
+	fmt.Fprintln(w, render.Success(fmt.Sprintf("note %d updated", id)))
 	return nil
 }
 
@@ -122,6 +138,42 @@ func CLITasksDone(ctx context.Context, w io.Writer, home, role, idStr string) er
 	return nil
 }
 
+// CLITasksUndo reopens a done task (TUI toggle counterpart).
+func CLITasksUndo(ctx context.Context, w io.Writer, home, role, idStr string) error {
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return err
+	}
+	st, err := openCLI(ctx, home, role)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	if err := st.SetTaskDone(ctx, id, false); err != nil {
+		return err
+	}
+	fmt.Fprintln(w, render.Success("reopened"))
+	return nil
+}
+
+// CLITasksRM deletes a task by id string.
+func CLITasksRM(ctx context.Context, w io.Writer, home, role, idStr string) error {
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return err
+	}
+	st, err := openCLI(ctx, home, role)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	if err := st.DeleteTask(ctx, id); err != nil {
+		return err
+	}
+	fmt.Fprintln(w, render.Success("deleted"))
+	return nil
+}
+
 // CLIRemindList writes open reminders.
 func CLIRemindList(ctx context.Context, w io.Writer, home, role string) error {
 	st, err := openCLI(ctx, home, role)
@@ -158,12 +210,30 @@ func CLIRemindAdd(ctx context.Context, w io.Writer, home, role, title, dur strin
 	return nil
 }
 
+// CLIRemindDone marks a reminder complete (TUI enter / remove-from-open equivalent).
+func CLIRemindDone(ctx context.Context, w io.Writer, home, role, idStr string) error {
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return err
+	}
+	st, err := openCLI(ctx, home, role)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	if err := st.MarkReminderDone(ctx, id); err != nil {
+		return err
+	}
+	fmt.Fprintln(w, render.Success("done"))
+	return nil
+}
+
 // CLICatchUp fires due reminders (Fetch → print → Ack) using serve.duckdb watermark.
 func CLICatchUp(ctx context.Context, w io.Writer, home, role string) error {
 	if role == "" {
 		role = "default"
 	}
-	store, err := kv.Open(ctx, filepath.Join(home, "serve.duckdb"))
+	store, err := kv.Open(ctx, config.DataPath(home, config.ServeDB))
 	if err != nil {
 		return err
 	}

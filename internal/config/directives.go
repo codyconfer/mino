@@ -9,8 +9,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	sconfig "github.com/codyconfer/sisyphus/config"
-
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
 )
@@ -19,9 +17,15 @@ const (
 	DirQueries = "queries"
 	DirFilters = "filters"
 	DirFlights = "flights"
-	DirRoles   = "roles"
 	DirLogs    = "logs"
+	// DirPlugins is the home-relative directory for local seed packs offered by
+	// the plugins install picker (config seeds only — not runtime .so loading).
+	DirPlugins = ".plugins"
+	KindRoles  = "roles"
 )
+
+// PluginsDir returns <home>/.plugins.
+func PluginsDir(home string) string { return filepath.Join(home, DirPlugins) }
 
 type Query struct {
 	Name    string            `yaml:"name" json:"name"`
@@ -107,19 +111,19 @@ func NewDirectives(queries, filters, flights, roles []byte) (*Directives, error)
 }
 
 func LoadDirectivesFromFiles(home string) (*Directives, error) {
-	q, _, err := sconfig.SerializeDir(filepath.Join(home, DirQueries))
+	q, _, err := SerializeCollection(home, DirQueries)
 	if err != nil {
 		return nil, err
 	}
-	f, _, err := sconfig.SerializeDir(filepath.Join(home, DirFilters))
+	f, _, err := SerializeCollection(home, DirFilters)
 	if err != nil {
 		return nil, err
 	}
-	fl, _, err := sconfig.SerializeDir(filepath.Join(home, DirFlights))
+	fl, _, err := SerializeCollection(home, DirFlights)
 	if err != nil {
 		return nil, err
 	}
-	r, _, err := sconfig.SerializeDir(filepath.Join(home, DirRoles))
+	r, _, err := SerializeCollection(home, KindRoles)
 	if err != nil {
 		return nil, err
 	}
@@ -173,6 +177,10 @@ func ParseRoles(blob []byte) (map[string]RoleDef, error) {
 	return parseCollection(blob, "role", func(rd *RoleDef) *string { return &rd.Name }, nil)
 }
 
+// ExternalFilter looks up plugin-contributed filters (KindFilter). Wired by
+// plugin.init to plugin.LookupFilter; nil when unused (tests).
+var ExternalFilter func(name string) (filter.Filter, bool)
+
 func (s *Directives) Resolve(q Query) ([]filter.Filter, error) {
 	var out []filter.Filter
 	inline := filter.Filter{Name: q.Name + " (inline)"}
@@ -180,6 +188,9 @@ func (s *Directives) Resolve(q Query) ([]filter.Filter, error) {
 		switch {
 		case qf.Ref != "":
 			f, ok := s.Filters[qf.Ref]
+			if !ok && ExternalFilter != nil {
+				f, ok = ExternalFilter(qf.Ref)
+			}
 			if !ok {
 				return nil, errs.Newf(errs.KindConfig, "query %q references unknown filter %q", q.Name, qf.Ref).WithHint("define filter %q or fix the reference", qf.Ref)
 			}

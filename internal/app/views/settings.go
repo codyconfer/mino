@@ -15,27 +15,28 @@ import (
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/sisyphus/redact"
 
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
 	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/render"
 )
 
-func (k *Kit) Settings() deck.View {
-	return deck.NewMenu("settings tools", k.setvCtx(),
-		deck.MenuItem{Label: "Edit config", Desc: "output, audit, timeout, backup", Do: func(a *deck.State) tea.Cmd {
+func (k *Kit) Settings() vkdeck.View {
+	return vkdeck.NewMenu("settings tools", k.setvCtx(),
+		vkdeck.MenuItem{Label: "Edit config", Desc: "output, audit, timeout, backup", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.setvEditConfigView())
 		}},
-		deck.MenuItem{Label: "Create config file", Desc: "write a default config.yaml", Do: k.setvCreateConfig},
-		deck.MenuItem{Label: "Delete config file", Desc: "remove config.yaml/.yml/.json", Do: func(a *deck.State) tea.Cmd {
+		vkdeck.MenuItem{Label: "Create config file", Desc: "write a default config.yaml", Do: k.setvCreateConfig},
+		vkdeck.MenuItem{Label: "Delete config file", Desc: "remove config.yaml/.yml/.json", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.setvDeleteConfirmView())
 		}},
-		deck.MenuItem{Label: "Overwrite DuckDB with file", Desc: "import on-disk config into DuckDB", Do: k.setvImportConfig},
-		deck.MenuItem{Label: "Export DuckDB → files", Desc: "write DuckDB stores back to disk", Do: k.setvExportDirectives},
-		deck.MenuItem{Label: "Show active config", Desc: "config stored in DuckDB", Do: func(a *deck.State) tea.Cmd {
+		vkdeck.MenuItem{Label: "Overwrite DuckDB with file", Desc: "import on-disk config into DuckDB", Do: k.setvImportConfig},
+		vkdeck.MenuItem{Label: "Export DuckDB → files", Desc: "write DuckDB stores back to disk", Do: k.setvExportDirectives},
+		vkdeck.MenuItem{Label: "Show active config", Desc: "config stored in DuckDB", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.setvShowConfigView())
 		}},
-		deck.MenuItem{Label: "Appearance", Desc: "theme and key scheme", Do: func(a *deck.State) tea.Cmd {
+		vkdeck.MenuItem{Label: "Appearance", Desc: "theme and key scheme", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.setvAppearanceView())
 		}},
 	)
@@ -45,8 +46,8 @@ func (k *Kit) setvCtx() [][2]string {
 	return k.menuCtx()
 }
 
-func (k *Kit) setvRed(title, msg string) deck.View {
-	return deck.NewMessage(title, theme.Cur().Cant.Render(msg), k.setvCtx())
+func (k *Kit) setvRed(title, msg string) vkdeck.View {
+	return vkdeck.NewMessage(title, theme.Cur().Cant.Render(msg), k.setvCtx())
 }
 
 func setvString(v any) string { s, _ := v.(string); return s }
@@ -73,7 +74,7 @@ type setvEditForm struct {
 	form *forms.Form
 }
 
-func (k *Kit) setvEditConfigView() deck.View {
+func (k *Kit) setvEditConfigView() vkdeck.View {
 	c := k.d.App.Cfg
 	form := forms.NewForm(
 		forms.Field{Key: "output", Label: "output", Kind: forms.FieldSelect, Options: setvFirst([]string{"terminal", "json"}, c.Output)},
@@ -101,7 +102,7 @@ func (v *setvEditForm) Body(width, _ int) string {
 	return v.form.Render(layout.NewFrame(width), "edit config")
 }
 
-func (v *setvEditForm) Update(a *deck.State, msg tea.Msg) tea.Cmd {
+func (v *setvEditForm) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return nil
@@ -124,7 +125,7 @@ func (v *setvEditForm) Update(a *deck.State, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-func (v *setvEditForm) submit(a *deck.State) tea.Cmd {
+func (v *setvEditForm) submit(a *vkdeck.Model) tea.Cmd {
 	vals := v.form.Values()
 	keep, _ := strconv.Atoi(setvString(vals["backup.keep"]))
 	path, err := config.SetValues("", map[string]any{
@@ -143,7 +144,7 @@ func (v *setvEditForm) submit(a *deck.State) tea.Cmd {
 		return a.Push(v.k.setvRed("edit config", err.Error()))
 	}
 	pop := a.Pop()
-	push := a.Push(deck.NewMessage("edit config", "wrote "+path, v.k.setvCtx()))
+	push := a.Push(vkdeck.NewMessage("edit config", "wrote "+path, v.k.setvCtx()))
 	return tea.Batch(pop, push)
 }
 
@@ -152,7 +153,7 @@ type setvAppearanceForm struct {
 	form *forms.Form
 }
 
-func (k *Kit) setvAppearanceView() deck.View {
+func (k *Kit) setvAppearanceView() vkdeck.View {
 	gs := config.LoadGlobalSettings()
 	th := gs.Theme
 	if th == "" {
@@ -180,7 +181,7 @@ func (v *setvAppearanceForm) Body(width, _ int) string {
 	return v.form.Render(layout.NewFrame(width), "appearance")
 }
 
-func (v *setvAppearanceForm) Update(a *deck.State, msg tea.Msg) tea.Cmd {
+func (v *setvAppearanceForm) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return nil
@@ -200,7 +201,7 @@ func (v *setvAppearanceForm) Update(a *deck.State, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-func (v *setvAppearanceForm) submit(a *deck.State) tea.Cmd {
+func (v *setvAppearanceForm) submit(a *vkdeck.Model) tea.Cmd {
 	vals := v.form.Values()
 	gs := config.LoadGlobalSettings()
 	gs.Theme = setvString(vals["theme"])
@@ -216,38 +217,38 @@ func (v *setvAppearanceForm) submit(a *deck.State) tea.Cmd {
 	}
 	body := "theme: " + theme.DisplayName(gs.Theme) + "\nkeys:  " + keys.DisplayName(gs.Keys)
 	pop := a.Pop()
-	push := a.Push(deck.NewMessage("appearance", body, v.k.setvCtx()))
+	push := a.Push(vkdeck.NewMessage("appearance", body, v.k.setvCtx()))
 	return tea.Batch(pop, push)
 }
 
-func (k *Kit) setvCreateConfig(a *deck.State) tea.Cmd {
+func (k *Kit) setvCreateConfig(a *vkdeck.Model) tea.Cmd {
 	home, raw, _, err := config.ReadConfigFile("")
 	if err != nil {
 		return a.Push(k.setvRed("create config", err.Error()))
 	}
 	if len(raw) > 0 {
-		return a.Push(deck.NewMessage("create config", "config file already exists", k.setvCtx()))
+		return a.Push(vkdeck.NewMessage("create config", "config file already exists", k.setvCtx()))
 	}
 	path, err := sconfig.WriteConfigFile(home, []byte("output: terminal\naudit:\n  enabled: true\n"), "yaml")
 	if err != nil {
 		return a.Push(k.setvRed("create config", err.Error()))
 	}
-	return a.Push(deck.NewMessage("create config", "wrote "+path, k.setvCtx()))
+	return a.Push(vkdeck.NewMessage("create config", "wrote "+path, k.setvCtx()))
 }
 
-func (k *Kit) setvDeleteConfirmView() deck.View {
-	return deck.NewMenu("delete config?", k.setvCtx(),
-		deck.MenuItem{Label: "No", Desc: "keep the config file", Do: func(a *deck.State) tea.Cmd {
+func (k *Kit) setvDeleteConfirmView() vkdeck.View {
+	return vkdeck.NewMenu("delete config?", k.setvCtx(),
+		vkdeck.MenuItem{Label: "No", Desc: "keep the config file", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Pop()
 		}},
-		deck.MenuItem{Label: "Yes, delete", Desc: "remove config.yaml/.yml/.json", Do: func(a *deck.State) tea.Cmd {
+		vkdeck.MenuItem{Label: "Yes, delete", Desc: "remove config.yaml/.yml/.json", Do: func(a *vkdeck.Model) tea.Cmd {
 			removed := setvDeleteConfigFiles(k.d.App.Cfg.Home)
 			body := "no config file found"
 			if len(removed) > 0 {
 				body = "removed:\n" + strings.Join(removed, "\n")
 			}
 			pop := a.Pop()
-			push := a.Push(deck.NewMessage("delete config", body, k.setvCtx()))
+			push := a.Push(vkdeck.NewMessage("delete config", body, k.setvCtx()))
 			return tea.Batch(pop, push)
 		}},
 	)
@@ -258,7 +259,7 @@ func setvDeleteConfigFiles(home string) []string {
 	return removed
 }
 
-func (k *Kit) setvImportConfig(a *deck.State) tea.Cmd {
+func (k *Kit) setvImportConfig(a *vkdeck.Model) tea.Cmd {
 	mgr := k.d.App.Mgr
 	if mgr == nil {
 		return a.Push(k.setvRed("overwrite DuckDB", "config DB unavailable"))
@@ -273,10 +274,10 @@ func (k *Kit) setvImportConfig(a *deck.State) tea.Cmd {
 	if err := mgr.DB().Import(context.Background(), "config", raw, format); err != nil {
 		return a.Push(k.setvRed("overwrite DuckDB", err.Error()))
 	}
-	return a.Push(deck.NewMessage("overwrite DuckDB", "imported config into DuckDB", k.setvCtx()))
+	return a.Push(vkdeck.NewMessage("overwrite DuckDB", "imported config into DuckDB", k.setvCtx()))
 }
 
-func (k *Kit) setvExportDirectives(a *deck.State) tea.Cmd {
+func (k *Kit) setvExportDirectives(a *vkdeck.Model) tea.Cmd {
 	written, err := k.d.ExportDirectives()
 	if err != nil {
 		return a.Push(k.setvRed("export DuckDB", err.Error()))
@@ -285,11 +286,11 @@ func (k *Kit) setvExportDirectives(a *deck.State) tea.Cmd {
 	if len(written) > 0 {
 		body = "wrote:\n" + strings.Join(written, "\n")
 	}
-	return a.Push(deck.NewMessage("export DuckDB", body, k.setvCtx()))
+	return a.Push(vkdeck.NewMessage("export DuckDB", body, k.setvCtx()))
 }
 
-func (k *Kit) setvShowConfigView() deck.View {
-	return deck.NewContent("active config", k.setvCtx(), nil, func() string {
+func (k *Kit) setvShowConfigView() vkdeck.View {
+	return vkdeck.NewScroll("active config", k.setvCtx(), nil, func() string {
 		mgr := k.d.App.Mgr
 		if mgr == nil {
 			return theme.Cur().Cant.Render("config DB unavailable")

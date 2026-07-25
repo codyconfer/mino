@@ -3,6 +3,7 @@ package views
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,27 +11,84 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
+	vnotify "github.com/codyconfer/viewkit/notify"
+	"github.com/codyconfer/viewkit/panels"
 	"github.com/codyconfer/viewkit/theme"
 
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
 	"github.com/codyconfer/munin/internal/app/loginflow"
-	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/keymap"
+	mnotify "github.com/codyconfer/munin/internal/notify"
 	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
-func (k *Kit) Login() deck.View {
-	var items []deck.MenuItem
+const loginToastTTL = 3 * time.Second
+
+type loginAlreadyAuthedMsg struct{ label string }
+type loginToastPruneMsg time.Time
+
+type loginPage struct {
+	kit   *Kit
+	menu  vkdeck.View
+	queue *vnotify.Queue
+}
+
+func (k *Kit) Login() vkdeck.View {
+	page := &loginPage{kit: k, queue: vnotify.NewQueue(4)}
+	var items []vkdeck.MenuItem
 	for i, p := range loginflow.Providers() {
-		items = append(items, deck.MenuItem{
+		p := p
+		items = append(items, vkdeck.MenuItem{
 			Label: p.Label,
 			Desc:  k.loginStatus(p),
 			Icon:  loginIcon(p.Key),
 			Hue:   i,
-			Do:    func(a *deck.State) tea.Cmd { return a.Push(k.loginFlow(p)) },
+			Do: func(a *vkdeck.Model) tea.Cmd {
+				if p.Authed(k.d.App) {
+					return func() tea.Msg { return loginAlreadyAuthedMsg{label: p.Label} }
+				}
+				return a.Push(k.loginFlow(p))
+			},
 		})
 	}
-	return deck.NewMenu("login", k.menuCtx(), items...)
+	page.menu = vkdeck.NewMenu("login", k.menuCtx(), items...)
+	return page
+}
+
+func (p *loginPage) Title() string        { return p.menu.Title() }
+func (p *loginPage) Context() [][2]string { return p.menu.Context() }
+func (p *loginPage) Hints() [][2]string   { return p.menu.Hints() }
+func (p *loginPage) Init() tea.Cmd        { return p.menu.Init() }
+
+func (p *loginPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
+	switch m := msg.(type) {
+	case loginAlreadyAuthedMsg:
+		p.queue.PushFor(mnotify.AlreadyAuthed(m.label), time.Now(), loginToastTTL)
+		return p.pruneTick()
+	case loginToastPruneMsg:
+		p.queue.Prune(time.Time(m))
+		if p.queue.Active() {
+			return p.pruneTick()
+		}
+		return nil
+	}
+	return p.menu.Update(a, msg)
+}
+
+func (p *loginPage) pruneTick() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return loginToastPruneMsg(t) })
+}
+
+func (p *loginPage) Body(width, height int) string {
+	body := p.menu.Body(width, height)
+	n, ok := p.queue.Current()
+	if !ok {
+		return body
+	}
+	f := layout.ScreenFrame(width)
+	return panels.NotificationOverlay(body, f, n, layout.OverlayPos{XFrac: 0.5, YFrac: 0})
 }
 
 func (k *Kit) loginStatus(p loginflow.Provider) string {
@@ -76,12 +134,16 @@ type loginFlowView struct {
 	err    error
 }
 
-func (k *Kit) loginFlow(p loginflow.Provider) deck.View {
+func (k *Kit) loginFlow(p loginflow.Provider) vkdeck.View {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = theme.Cur().Accent
 
 	v := &loginFlowView{kit: k, prov: p, creds: map[string]string{}, spin: sp}
+
+	if p.Authed(k.d.App) {
+		return v
+	}
 
 	missing := p.Missing(k.d.App)
 	if len(missing) == 0 {
@@ -112,6 +174,9 @@ func (v *loginFlowView) Hints() [][2]string {
 }
 
 func (v *loginFlowView) Init() tea.Cmd {
+	if v.prov.Authed(v.kit.d.App) {
+		return func() tea.Msg { return loginAlreadyAuthedMsg{label: v.prov.Label} }
+	}
 	if v.step == loginStepRun {
 		return v.start()
 	}
@@ -153,8 +218,10 @@ func (w chanWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (v *loginFlowView) Update(a *deck.State, msg tea.Msg) tea.Cmd {
+func (v *loginFlowView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
+	case loginAlreadyAuthedMsg:
+		return tea.Sequence(a.Pop(), func() tea.Msg { return m })
 	case loginOutputMsg:
 		v.log += m.line
 		return v.readCmd()
@@ -178,7 +245,7 @@ func (v *loginFlowView) Update(a *deck.State, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-func (v *loginFlowView) handleKey(a *deck.State, key tea.KeyMsg) tea.Cmd {
+func (v *loginFlowView) handleKey(a *vkdeck.Model, key tea.KeyMsg) tea.Cmd {
 	switch v.step {
 	case loginStepForm:
 		act, ok := keymap.Form().Action(key.String())
@@ -206,17 +273,17 @@ func (v *loginFlowView) handleKey(a *deck.State, key tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func (v *loginFlowView) submit(a *deck.State) tea.Cmd {
+func (v *loginFlowView) submit(a *vkdeck.Model) tea.Cmd {
 	for key, val := range v.form.Values() {
 		s, _ := val.(string)
 		s = strings.TrimSpace(s)
 		if s == "" {
-			return a.Push(deck.NewMessage("login", theme.Cur().Cant.Render(key+" is required"), v.kit.menuCtx()))
+			return a.Push(vkdeck.NewMessage("login", theme.Cur().Cant.Render(key+" is required"), v.kit.menuCtx()))
 		}
 		v.creds[key] = s
 	}
 	if err := loginflow.PersistCredentials(v.kit.d.App, v.creds); err != nil {
-		return a.Push(deck.NewMessage("login", theme.Cur().Cant.Render(err.Error()), v.kit.menuCtx()))
+		return a.Push(vkdeck.NewMessage("login", theme.Cur().Cant.Render(err.Error()), v.kit.menuCtx()))
 	}
 	v.step = loginStepRun
 	return v.start()
@@ -226,6 +293,10 @@ func (v *loginFlowView) Body(width, _ int) string {
 	f := layout.ScreenFrame(width)
 	title := "LOGIN · " + v.prov.Label
 	th := theme.Cur()
+
+	if v.prov.Authed(v.kit.d.App) {
+		return render.TitledBox(f, true, title, th.Dim.Render("already authorized — returning to login…"))
+	}
 
 	switch v.step {
 	case loginStepForm:

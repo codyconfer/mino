@@ -7,13 +7,14 @@ import (
 
 	"github.com/codyconfer/sisyphus/store"
 
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/plugin/ntr"
 )
 
 func TestDataPathsJoinsOpenBackupPaths(t *testing.T) {
 	home := t.TempDir()
-	want := filepath.Join(home, "ntr.duckdb")
+	want := filepath.Join(home, config.DirData, "ntr.duckdb")
 	found := false
 	for _, p := range plugin.DataPaths(home) {
 		if p == want {

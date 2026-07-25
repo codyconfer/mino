@@ -8,9 +8,6 @@ import (
 )
 
 func init() {
-	// CapAction host bindings for stock signals that advertise CapAction.
-	// Drive/tasks write helpers stay in their packages; these actions are the
-	// uniform discoverable entrypoints (params documented per action).
 	plugin.RegisterAction("drive", "mkdir", func(_ context.Context, params map[string]string) error {
 		if params["name"] == "" {
 			return fmt.Errorf("name param required")

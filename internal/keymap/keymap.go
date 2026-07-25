@@ -2,7 +2,6 @@ package keymap
 
 import (
 	"os"
-	"slices"
 
 	"github.com/codyconfer/viewkit/keys"
 
@@ -12,18 +11,18 @@ import (
 const DefaultSchemeKey = "munin"
 
 const (
-	Save keys.Action = "munin.save"
-	Yes  keys.Action = "munin.yes"
-	No   keys.Action = "munin.no"
+	Save            keys.Action = "munin.save"
+	PluginInstall   keys.Action = "munin.plugin.install"
+	PluginUninstall keys.Action = "munin.plugin.uninstall"
 )
 
 func muninScheme() keys.Scheme {
 	return keys.Default().With(
 		keys.Binding{Keys: []string{"ctrl+s"}, Action: Save, Glyph: "ctrl+s", Label: "save"},
+		keys.Binding{Keys: []string{"i"}, Action: PluginInstall, Glyph: "i", Label: "install"},
+		keys.Binding{Keys: []string{"u"}, Action: PluginUninstall, Glyph: "u", Label: "uninstall"},
 		keys.Binding{Keys: []string{"esc", "q"}, Action: keys.Cancel, Glyph: "esc", Label: "back"},
 		keys.Binding{Keys: []string{"ctrl+c"}, Action: keys.Quit, Glyph: "ctrl+c", Label: "quit"},
-		keys.Binding{Keys: []string{"y", "Y"}, Action: Yes, Glyph: "y", Label: "yes"},
-		keys.Binding{Keys: []string{"n", "N"}, Action: No, Glyph: "n", Label: "no"},
 	)
 }
 
@@ -46,6 +45,7 @@ func Install() {
 	}
 }
 
+// Menu returns nav bindings from the active scheme (viewkit/keys).
 func Menu() *keys.Map {
 	sc := keys.Cur()
 	return keys.NewMap(
@@ -57,6 +57,26 @@ func Menu() *keys.Map {
 	)
 }
 
+// Plugins returns Menu bindings plus enable/disable, install, and uninstall.
+// Enter/d toggles enablement (plugin stays listed); u uninstalls (removes from list).
+func Plugins() *keys.Map {
+	sc := keys.Cur()
+	confirm := sc.Binding(keys.Confirm)
+	confirm.Keys = append(append([]string{}, confirm.Keys...), "d")
+	confirm.Glyph = "enter/d"
+	confirm.Label = "enable/disable"
+	return keys.NewMap(
+		sc.Binding(keys.Up),
+		sc.Binding(keys.Down),
+		confirm,
+		sc.Binding(keys.Cancel),
+		sc.Binding(keys.Quit),
+		keys.Binding{Keys: []string{"i"}, Action: PluginInstall, Glyph: "i", Label: "install"},
+		keys.Binding{Keys: []string{"u"}, Action: PluginUninstall, Glyph: "u", Label: "uninstall"},
+	)
+}
+
+// Form returns editor-safe bindings plus munin Save.
 func Form(extra ...keys.Binding) *keys.Map {
 	sc := keys.Cur()
 	bs := editorBindings(sc,
@@ -65,28 +85,6 @@ func Form(extra ...keys.Binding) *keys.Map {
 	)
 	bs = append(bs, keys.Binding{Keys: []string{"ctrl+s"}, Action: Save, Glyph: "ctrl+s", Label: "save"})
 	return keys.NewMap(append(bs, extra...)...)
-}
-
-func Confirm() *keys.Map {
-	sc := keys.Cur()
-	return keys.NewMap(
-		sc.Binding(keys.Left),
-		withKeys(sc.Binding(keys.Right), "tab"),
-		sc.Binding(keys.Confirm),
-		sc.Binding(keys.Cancel),
-		sc.Binding(keys.Quit),
-		keys.Binding{Keys: []string{"y", "Y"}, Action: Yes, Glyph: "y", Label: "yes"},
-		keys.Binding{Keys: []string{"n", "N"}, Action: No, Glyph: "n", Label: "no"},
-	)
-}
-
-func IsQuit(input string) bool {
-	return slices.Contains(keys.Cur().Binding(keys.Quit).Keys, input)
-}
-
-func Hint(a keys.Action) [2]string {
-	b := keys.Cur().Binding(a)
-	return [2]string{b.DisplayGlyph(), b.Label}
 }
 
 func editorBindings(sc keys.Scheme, actions ...keys.Action) []keys.Binding {
@@ -109,9 +107,4 @@ func controlKeys(in []string) []string {
 		}
 	}
 	return out
-}
-
-func withKeys(b keys.Binding, extra ...string) keys.Binding {
-	b.Keys = append(append([]string{}, b.Keys...), extra...)
-	return b
 }

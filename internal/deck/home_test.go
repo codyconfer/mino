@@ -6,13 +6,15 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	vkdeck "github.com/codyconfer/viewkit/deck"
+
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-func homeItems() []MenuItem {
-	return []MenuItem{
+func homeItems() []vkdeck.MenuItem {
+	return []vkdeck.MenuItem{
 		{Label: "Run a flight", Desc: "aggregate saved queries"},
-		{Label: "Quit", Do: func(*State) tea.Cmd { return tea.Quit }},
+		{Label: "Quit", Do: func(*vkdeck.Model) tea.Cmd { return tea.Quit }},
 	}
 }
 
@@ -58,12 +60,12 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 			t.Errorf("home with flight missing %q\n%s", want, view)
 		}
 	}
-	if home.focusSide() {
+	if home.FocusSide() {
 		t.Fatalf("initial focus on side, want menu")
 	}
 
 	app = drive(app, tea.KeyMsg{Type: tea.KeyTab})
-	if !home.focusSide() {
+	if !home.FocusSide() {
 		t.Fatalf("after tab focus on menu, want flight")
 	}
 	sawMenuHint := false
@@ -77,16 +79,16 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 	}
 
 	drive(app, tea.KeyMsg{Type: tea.KeyTab})
-	if home.focusSide() {
+	if home.FocusSide() {
 		t.Fatalf("after second tab focus on side, want menu")
 	}
 }
 
 func TestHomeMenuNavigationRunsItem(t *testing.T) {
 	ran := false
-	items := []MenuItem{
+	items := []vkdeck.MenuItem{
 		{Label: "First"},
-		{Label: "Second", Do: func(*State) tea.Cmd { ran = true; return nil }},
+		{Label: "Second", Do: func(*vkdeck.Model) tea.Cmd { ran = true; return nil }},
 	}
 	home := NewHome("home", nil, items, "", nil)
 	app := New(home)

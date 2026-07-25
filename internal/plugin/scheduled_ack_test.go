@@ -12,7 +12,6 @@ import (
 )
 
 func TestRunScheduledAcksOnlyAfterOnFire(t *testing.T) {
-	// Schedule backs off 1s on Run errors; allow room for fail-then-retry.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	home := t.TempDir()
@@ -46,7 +45,6 @@ func TestRunScheduledAcksOnlyAfterOnFire(t *testing.T) {
 		})
 	}()
 
-	// While onFire fails, reminder must remain due.
 	time.Sleep(200 * time.Millisecond)
 	st, err = ntr.Open(context.Background(), home, "r")
 	if err != nil {

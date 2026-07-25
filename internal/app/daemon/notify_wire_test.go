@@ -9,8 +9,6 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-// Reminder events from NTR Scheduled must drive tray warn + a visible note
-// for desktop/terminal sinks (M4 notify fan-in contract).
 func TestReminderEventDrivesNotifySinkContract(t *testing.T) {
 	ev := signals.Event{
 		Source: "ntr",

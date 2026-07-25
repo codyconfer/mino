@@ -1,14 +1,15 @@
 # Munin directive examples (Lane D)
 
-One file per directive — copy into `~/.munin/{queries,filters,flights,roles}/`.
-Filenames become the directive name when `name:` is omitted.
+One file per directive — copy `queries/`, `filters/`, and `flights/` into
+`~/.munin/`, and the loose role `*.yaml` next to `config.yaml`. Filenames become
+the directive name when `name:` is omitted.
 
-| Dir | Purpose |
+| Path | Purpose |
 |---|---|
 | `queries/` | Saved signal fetches (`signal:` + optional `params` / `filters`) |
 | `filters/` | Named filter rules referenced by queries |
 | `flights/` | Ordered lists of query names for `munin fly` / `munin serve` |
-| `roles/` | Visibility scopes + optional `contexts:` (ADR-9) |
+| `*.yaml` (top level) | Roles: visibility scopes + optional `contexts:` (ADR-9) |
 
 ## Role `contexts:`
 
@@ -21,16 +22,41 @@ contexts:
   gcx: myorg.grafana.net
 ```
 
-See `roles/daily.yaml`, `roles/triage.yaml`, and `roles/ops.yaml`.
+See `daily.yaml`, `triage.yaml`, and `ops.yaml`.
 
 ## Plugin starters
 
-| Query | Signal | Notes |
-|---|---|---|
-| `ntr-list` | `ntr` | Notes/tasks; pair with flight `ntr` + `munin serve ntr` for Scheduled reminders |
-| `gcx-status` | `gcx` | C-0 offline auth/context status (no live IRM HTTP) |
-| `kubectl-context` | `kubectl` | Current kube context |
-| `*-context` | gooseai/pi/opencode/ollama | Lane C2 stubs |
-| `scaffold-ping` | `scaffold` | ADR-14 template only (not linked into the default binary) |
+Plugins are **compile-time linked** into the munin binary (ADR-7). Runtime
+`enable`/`disable` toggles activation; `munin plugins install <id>` enables and
+copies that plugin's example directives into `~/.munin` (config seeds only — no
+`.so` loading). `munin plugins uninstall <id>` disables and removes unmodified
+seeds.
 
-Flight `plugins` bundles the external stub queries for a quick smoke fly.
+| Query | Signal | Plugin id | Notes |
+|---|---|---|---|
+| `ntr-list` | `ntr` | `munin.ntr` | Notes/tasks; pair with flight `ntr` + `munin serve ntr` for Scheduled reminders |
+| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`munin-plugins-external`); C-0 offline auth/context |
+| `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; current kube context |
+| `*-context` | gooseai/pi/opencode/ollama | `external.*` | Overlay-only Lane C2 stubs |
+| `scaffold-ping` | `scaffold` | `scaffold.example` | ADR-14 template; generate with `munin plugins scaffold` (not linked into the default binary) |
+
+External plugin YAML under `examples/` is reference material for the overlay
+binary (`../munin-overlay-template`). Stock `munin` does not register `external.*`.
+
+```sh
+munin plugins scaffold team.example --dir ./plugins/example
+munin plugins install munin.ntr          # enable + seed queries/ntr-list + flights/ntr
+munin notes ui                           # Notes/Tasks/Reminders TUI (`ntr` is a deprecated alias)
+
+# With externals overlay binary:
+munin-with-externals plugins install external.kubectl
+munin-with-externals plugins uninstall external.kubectl
+```
+
+Flight `plugins` bundles the external stub queries for a quick smoke fly (overlay).
+Flight `demo` is a live GitHub showcase (`signal: github` queries whose items
+carry `github.com` URLs); opt in with `munin fly demo` / `munin serve demo` /
+`make run ARGS=demo` — it is not the default flight. Queries `demo` and
+`demo-reviews` apply filter `demo` (drops `meta.author` bot matches). Role
+`demo` scopes visibility to that flight/queries/filter (`munin --role demo …`).
+Synthetic toast spam lives separately in flight `notify-smoke` (`signal: demo`).

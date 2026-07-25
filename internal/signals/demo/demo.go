@@ -29,6 +29,10 @@ func (s Signal) Stream(ctx context.Context) (<-chan signals.Event, error) {
 				return
 			case now := <-t.C:
 				n++
+				author := "alice"
+				if n%2 == 0 {
+					author = "deploy-bot"
+				}
 				ev := signals.Event{Source: "demo", At: now, Section: signals.Section{
 					Signal: "demo", Title: "Demo",
 					Items: []signals.Item{{
@@ -36,6 +40,7 @@ func (s Signal) Stream(ctx context.Context) (<-chan signals.Event, error) {
 						Title:     fmt.Sprintf("demo event #%d", n),
 						Subtitle:  "#eng-standup",
 						Timestamp: now,
+						Meta:      map[string]string{"author": author},
 					}},
 				}}
 				select {

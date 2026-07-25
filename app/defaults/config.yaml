@@ -1,4 +1,4 @@
-# Seed config embedded for distribution overlays (ADR-8).
+# Seed config embedded for distribution overlays.
 # Overlay repos replace this file with team defaults.
 output: terminal
 

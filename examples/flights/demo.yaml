@@ -1,0 +1,5 @@
+# Opt-in GitHub showcase flight — live search items with github.com URLs.
+# Pair with `munin fly demo` / `munin serve demo` / `make run ARGS=demo` (not the default flight).
+# Synthetic toast spam: flight `notify-smoke`.
+name: demo
+queries: [demo, demo-reviews]

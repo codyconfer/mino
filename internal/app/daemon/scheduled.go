@@ -15,8 +15,6 @@ import (
 	"github.com/codyconfer/munin/internal/signals/active"
 )
 
-// scheduledEvents returns a channel that emits notify-ready events from
-// Scheduled plugins referenced by the flight (NTR reminders → notify sink).
 func (s *Server) scheduledEvents(ctx context.Context, _ string, names []string, state *active.State) <-chan signals.Event {
 	var jobs []plugin.Scheduled
 	seen := map[string]bool{}

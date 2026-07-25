@@ -10,13 +10,13 @@ import (
 )
 
 // ScheduledAck is the optional second phase after Fetch: mark work complete
-// only once the host notify path has accepted the event (ADR-10).
+// only once the host notify path has accepted the event.
 type ScheduledAck interface {
 	Ack(ctx context.Context, sections []signals.Section) error
 }
 
 // RunScheduled drives Scheduled plugins via sisyphus daemon.Schedule until ctx
-// cancels. onFire receives sections for the notify pipeline (ADR-10).
+// cancels. onFire receives sections for the notify pipeline.
 // When a job implements ScheduledAck, Ack runs only after onFire succeeds.
 func RunScheduled(ctx context.Context, jobs []Scheduled, onFire func(name string, sections []signals.Section) error) error {
 	if onFire == nil {
@@ -39,7 +39,6 @@ func RunScheduled(ctx context.Context, jobs []Scheduled, onFire func(name string
 					return err
 				}
 				if ack, ok := j.(ScheduledAck); ok {
-					// Notify already accepted — finish ack even if schedule ctx canceled.
 					return ack.Ack(context.WithoutCancel(ctx), secs)
 				}
 				return nil
