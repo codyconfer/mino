@@ -33,7 +33,7 @@ var (
 	color = ColorAuto
 
 	console io.Writer = os.Stderr
-	file    io.Writer
+	file    *os.File
 
 	tags  map[Level]string
 	dimSt func(string) string
@@ -94,9 +94,23 @@ func SetFileSink(path string) (io.Closer, error) {
 		return nil, err
 	}
 	mu.Lock()
+	prev := file
 	file = f
 	mu.Unlock()
+	if prev != nil {
+		_ = prev.Close()
+	}
 	return f, nil
+}
+
+func CloseFileSink() {
+	mu.Lock()
+	prev := file
+	file = nil
+	mu.Unlock()
+	if prev != nil {
+		_ = prev.Close()
+	}
 }
 
 func SetLevel(l Level) {

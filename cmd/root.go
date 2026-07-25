@@ -8,6 +8,7 @@ import (
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/log"
 )
 
 var (
@@ -134,4 +135,5 @@ func Root() *cobra.Command { return newRootCmd() }
 func Shutdown() {
 	shared.Shutdown()
 	shared = nil
+	log.CloseFileSink()
 }
