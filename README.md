@@ -1,9 +1,6 @@
 # Munin SRE shift assistant
 
-> In Norse myth Odin's raven **Muninn** ("memory") flies out over the world each
-> day and returns to whisper what it saw. This Munin does the same for your
-> on-call shift — and the flight/"fly" verbs throughout the CLI keep the raven
-> conceit.
+[![CI](https://github.com/codyconfer/munin/actions/workflows/ci.yml/badge.svg)](https://github.com/codyconfer/munin/actions/workflows/ci.yml)
 
 Munin is a command-line assistant for the signals you check at the start of —
 and throughout — an SRE shift. It pulls **GitHub** PRs and review requests,
