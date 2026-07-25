@@ -36,7 +36,7 @@ func newDeckCmd() *cobra.Command {
 					return errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix())
 				}
 			}
-			stopServe := serveServer().EnsureLiveProvider(cmd.Context(), name)
+			stopServe := ensureServeProvider(cmd.Context(), name)
 			defer stopServe()
 			kit := buildViews()
 			stopLaunchLoading()
@@ -107,14 +107,5 @@ func exportDirectivesToFiles() ([]string, error) {
 }
 
 func statusProvider() deck.StatusFunc {
-	return statusstrip.Provider(shared, func() deck.ServiceStatus {
-		return serveServer().ServiceStatusChip(
-			defaultFlightName(),
-			configServeInterval(),
-			shared.Cfg.Daemon.Bell,
-			shared.Cfg.Daemon.Desktop,
-			shared.Cfg.Daemon.Tray,
-			configServeTheme(),
-		)
-	})
+	return statusstrip.Provider(shared, daemonStatusChip())
 }

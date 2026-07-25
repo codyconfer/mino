@@ -9,6 +9,27 @@ import (
 	"github.com/codyconfer/munin/internal/testenv"
 )
 
+func TestRemindActionsServiceOnly(t *testing.T) {
+	for _, name := range []string{"remind.add", "remind.done"} {
+		d, ok := plugin.ByKind(plugin.KindAction, SignalName+"/"+name)
+		if !ok {
+			t.Fatalf("missing action descriptor %s", name)
+		}
+		if !d.ServiceOnly {
+			t.Fatalf("%s ServiceOnly = false, want true", name)
+		}
+	}
+	for _, name := range []string{"note.add", "task.add"} {
+		d, ok := plugin.ByKind(plugin.KindAction, SignalName+"/"+name)
+		if !ok {
+			t.Fatalf("missing action descriptor %s", name)
+		}
+		if d.ServiceOnly {
+			t.Fatalf("%s unexpectedly ServiceOnly", name)
+		}
+	}
+}
+
 func TestCapActionCRUDParity(t *testing.T) {
 	testenv.Isolate(t)
 	plugin.LoadEnabled()

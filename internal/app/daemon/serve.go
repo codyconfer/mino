@@ -1,3 +1,8 @@
+//go:build !nodaemon
+
+// Package daemon implements munin's serve/daemon mode: the realtime watcher,
+// its local event socket, and the OS service wiring. The whole package is
+// omitted from `nodaemon` builds.
 package daemon
 
 import (
@@ -11,6 +16,7 @@ import (
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/sisyphus/daemon/service"
 	"github.com/codyconfer/sisyphus/daemon/ui"
+	"github.com/codyconfer/sisyphus/desktop"
 	"github.com/codyconfer/sisyphus/kv"
 	"github.com/codyconfer/viewkit/glyph"
 
@@ -66,7 +72,11 @@ func (n notifySink) handle(ev signals.Event) {
 	}
 	if n.desktop {
 		icon, _ := sysdaemon.StateIcon(st)
-		_ = ui.Notify(ui.Notification{Title: note.Title, Message: note.Message, Icon: icon})
+		_ = desktop.Notify(desktop.Notification{
+			Title:   note.Title,
+			Message: note.Message,
+			Icon:    desktop.Icon{Name: icon.Name, MIME: icon.MIME, Bytes: icon.Bytes},
+		})
 	}
 	if n.terminal {
 		if n.bell {
@@ -119,18 +129,23 @@ func (s *Server) activeQueries(flight string, names []string, interval time.Dura
 			log.Debugf("serve: unknown query %q in flight %q", name, flight)
 			continue
 		}
-		hs, err := build.ActiveSignal(q.Signal, activeParams(q.Params, interval), s.Cfg, s.Tokens, state)
+		resolved, err := s.Directives.Resolve(q)
+		if err != nil {
+			log.Warnf("serve: query %q: %v (skipping)", name, err)
+			continue
+		}
+		params, err := filter.ExpandParams(q.Params, resolved)
+		if err != nil {
+			log.Warnf("serve: query %q: %v (skipping)", name, err)
+			continue
+		}
+		hs, err := build.ActiveSignal(q.Signal, activeParams(params, interval), s.Cfg, s.Tokens, state)
 		if err != nil {
 			if errors.Is(err, build.ErrNoActive) {
 				log.Debugf("serve: query %q signal %q has no realtime support (skipping)", name, q.Signal)
 			} else {
 				log.Warnf("serve: query %q: %v (skipping)", name, err)
 			}
-			continue
-		}
-		resolved, err := s.Directives.Resolve(q)
-		if err != nil {
-			log.Warnf("serve: query %q: %v (skipping)", name, err)
 			continue
 		}
 		compiled, err := filter.CompileAll(resolved)

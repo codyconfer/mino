@@ -47,8 +47,30 @@ func (k *Kit) menuCtx() [][2]string {
 }
 
 func (k *Kit) mainMenuItems() []vkdeck.MenuItem {
+	return []vkdeck.MenuItem{
+		{Label: "Fly", Desc: "flights, history, directives", Icon: glyph.Flight(), Hue: 0, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.Fly())
+		}},
+		k.ntrMenuItem(),
+		vkdeck.MenuItem{Label: "Query DuckDB", Desc: "ad-hoc SQL over DuckDB", Icon: glyph.Audit(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.AuditQuery())
+		}},
+		{Label: "Tooling", Desc: "accounts, plugins, settings", Icon: glyph.Settings(), Hue: 2, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.Tooling())
+		}},
+		vkdeck.MenuItem{Label: "Quit", Desc: "back to shell", Icon: glyph.Quit(), Hue: 3, Do: func(*vkdeck.Model) tea.Cmd {
+			return tea.Quit
+		}},
+	}
+}
+
+func (k *Kit) Fly() vkdeck.View {
+	return vkdeck.NewMenu("fly", k.menuCtx(), k.flyMenuItems()...)
+}
+
+func (k *Kit) flyMenuItems() []vkdeck.MenuItem {
 	items := []vkdeck.MenuItem{
-		{Label: "Take flight", Desc: "aggregate saved queries", Icon: glyph.Flight(), Hue: 0, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Flights", Desc: "aggregate saved queries", Icon: glyph.Flight(), Hue: 1, Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.flightPicker())
 		}},
 	}
@@ -57,28 +79,28 @@ func (k *Kit) mainMenuItems() []vkdeck.MenuItem {
 			return a.Push(k.History())
 		}})
 	}
-	items = append(items,
-		vkdeck.MenuItem{Label: "Directives", Desc: "queries, filters, flights, roles", Icon: glyph.Directives(), Hue: 2, Do: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.directivesMenu())
-		}},
-		k.ntrMenuItem(),
-		vkdeck.MenuItem{Label: "Query DuckDB", Desc: "ad-hoc SQL over DuckDB", Icon: glyph.Audit(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.AuditQuery())
-		}},
-		vkdeck.MenuItem{Label: "Login", Desc: "authenticate signal providers", Icon: glyph.Login(), Hue: 1, Do: func(a *vkdeck.Model) tea.Cmd {
+	items = append(items, vkdeck.MenuItem{Label: "Directives", Desc: "queries, filters, flights, roles", Icon: glyph.Directives(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
+		return a.Push(k.directivesMenu())
+	}})
+	return items
+}
+
+func (k *Kit) Tooling() vkdeck.View {
+	return vkdeck.NewMenu("tooling", k.menuCtx(), k.toolingMenuItems()...)
+}
+
+func (k *Kit) toolingMenuItems() []vkdeck.MenuItem {
+	return []vkdeck.MenuItem{
+		{Label: "Accounts", Desc: "authenticate signal providers", Icon: glyph.Login(), Hue: 1, Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Login())
 		}},
-		vkdeck.MenuItem{Label: "Plugins", Desc: "install, enable/disable, or uninstall managed plugins", Icon: glyph.Plugins(), Hue: 8, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Plugins", Desc: "install, enable/disable, or uninstall managed plugins", Icon: glyph.Plugins(), Hue: 0, Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Plugins())
 		}},
-		vkdeck.MenuItem{Label: "Settings", Desc: "config, DuckDB, export/import", Icon: glyph.Settings(), Hue: 5, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Settings", Desc: "config, import, export", Icon: glyph.Settings(), Hue: 5, Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Settings())
 		}},
-		vkdeck.MenuItem{Label: "Quit", Desc: "back to shell", Icon: glyph.Quit(), Hue: 3, Do: func(*vkdeck.Model) tea.Cmd {
-			return tea.Quit
-		}},
-	)
-	return items
+	}
 }
 
 func (k *Kit) hasHistory() bool {
@@ -94,7 +116,7 @@ func (k *Kit) hasHistory() bool {
 }
 
 func (k *Kit) MainMenu() vkdeck.View {
-	return vkdeck.NewMenu("main menu", k.menuCtx(), k.mainMenuItems()...)
+	return vkdeck.NewMenu("", k.menuCtx(), k.mainMenuItems()...)
 }
 
 func (k *Kit) Home() vkdeck.View {

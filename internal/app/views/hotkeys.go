@@ -38,6 +38,9 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 	case keymap.TargetTaskNew:
 		return m.Push(ntr.NewTaskForm(home, role))
 	case keymap.TargetRemindNew:
+		if !ntr.RemindersUIVisible() {
+			return nil
+		}
 		return m.Push(ntr.NewRemindForm(home, role))
 	}
 	name, ok := keymap.FlightTarget(target)
@@ -76,6 +79,9 @@ func (k *Kit) hotkeyHints() [][2]string {
 	}
 	var out [][2]string
 	for _, o := range order {
+		if o.target == keymap.TargetRemindNew && !ntr.RemindersUIVisible() {
+			continue
+		}
 		for key, target := range binds {
 			if target == o.target {
 				out = append(out, [2]string{keymap.NormalizeKey(key), o.label})

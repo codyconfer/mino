@@ -44,8 +44,8 @@ func TestLoginAlreadyAuthedStaysOnLoginWithToast(t *testing.T) {
 	if !ok || n.Message != "GitHub already authorized" {
 		t.Fatalf("toast = %+v ok=%v", n, ok)
 	}
-	if a.Top().Title() != "login" {
-		t.Fatalf("top view = %q, want login page", a.Top().Title())
+	if a.Top().Title() != "accounts" {
+		t.Fatalf("top view = %q, want accounts page", a.Top().Title())
 	}
 	body := loginAnsi.ReplaceAllString(a.View(), "")
 	if !strings.Contains(body, "already authorized") {
@@ -66,14 +66,14 @@ func TestLoginFlowAlreadyAuthedRedirects(t *testing.T) {
 	a := deck.New(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	_ = a.Push(flow)
-	if a.Top().Title() != "login: github" {
+	if a.Top().Title() != "accounts: github" {
 		t.Fatalf("top = %q after push", a.Top().Title())
 	}
 
 	msg := flow.Init()()
 	_ = flow.Update(a, msg)
-	if a.Top().Title() != "login" {
-		t.Fatalf("top = %q, want login after redirect", a.Top().Title())
+	if a.Top().Title() != "accounts" {
+		t.Fatalf("top = %q, want accounts after redirect", a.Top().Title())
 	}
 	_ = step(a, msg)
 	if !page.queue.Active() {

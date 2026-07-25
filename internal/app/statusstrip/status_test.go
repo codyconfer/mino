@@ -8,8 +8,30 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/role"
 	"github.com/codyconfer/munin/internal/testenv"
 )
+
+func TestProviderIncludesRoleStatusChips(t *testing.T) {
+	testenv.Isolate(t)
+	t.Cleanup(role.ClearStatusChips)
+	role.SetStatusChips([]role.Chip{
+		{Glyph: "github", Text: "role-chip", Index: 0},
+	})
+
+	a := &app.App{Cfg: &config.Config{}}
+	info := Provider(a, nil)(context.Background())
+	found := false
+	for _, s := range info.Services {
+		if s.ID == "role-status-0" && s.Name == "github" && s.Detail == "role-chip" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("role status chip missing: %+v", info.Services)
+	}
+}
 
 func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
 	testenv.Isolate(t)
@@ -34,15 +56,26 @@ func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
 		t.Fatalf("disabled github still set identity %q", info.GitHubUser)
 	}
 	names := serviceNames(info.Services)
-	for _, wantGone := range []string{"github", "slack", "gmail"} {
+	for _, wantGone := range []string{"github", "slack", "gmail", "calendar", "docs", "drive", "tasks"} {
 		if hasName(names, wantGone) {
-			t.Fatalf("disabled %q still in status chips: %v", wantGone, names)
+			t.Fatalf("disabled/collapsed %q still in status chips: %v", wantGone, names)
 		}
 	}
-	for _, want := range []string{"calendar", "docs", "drive", "tasks"} {
-		if !hasName(names, want) {
-			t.Fatalf("enabled %q missing from status chips: %v", want, names)
+	var google *deck.ServiceStatus
+	for i := range info.Services {
+		if info.Services[i].Name == "google" {
+			google = &info.Services[i]
+			break
 		}
+	}
+	if google == nil {
+		t.Fatalf("expected collapsed google chip, got %v", names)
+	}
+	if google.ID != "google" {
+		t.Fatalf("google chip ID = %q, want google", google.ID)
+	}
+	if google.Detail != "" {
+		t.Fatalf("google detail = %q, want logo-only chip (no detail)", google.Detail)
 	}
 }
 

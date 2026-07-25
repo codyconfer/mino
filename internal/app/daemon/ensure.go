@@ -1,3 +1,5 @@
+//go:build !nodaemon
+
 package daemon
 
 import (
@@ -6,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 	muninterm "github.com/codyconfer/viewkit/term"
 
 	"github.com/codyconfer/munin/internal/log"
@@ -41,7 +44,21 @@ func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs
 		log.Debugf("deck: could not start a serve provider: %v", err)
 		return stop
 	}
+	// Wait briefly so ServiceAttached / UI visibility see the socket before
+	// the deck builds menus (reminders and other service-only contributions).
+	waitListening(s.SocketPath(), 2*time.Second)
 	return owned.Stop
+}
+
+func waitListening(path string, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if sysdaemon.IsListening(pipePrefix, path) {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	log.Debugf("deck: serve socket %s not listening within %s", path, timeout)
 }
 
 type ownedServe struct {

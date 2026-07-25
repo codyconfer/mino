@@ -53,7 +53,7 @@ func (k *Kit) Login() vkdeck.View {
 			},
 		})
 	}
-	page.menu = vkdeck.NewMenu("login", k.menuCtx(), items...)
+	page.menu = vkdeck.NewMenu("accounts", k.menuCtx(), items...)
 	return page
 }
 
@@ -103,13 +103,8 @@ func (k *Kit) loginStatus(p loginflow.Provider) string {
 }
 
 func loginIcon(key string) string {
-	switch key {
-	case "github":
-		return glyph.GitHub()
-	case "google":
-		return glyph.Google()
-	case "slack":
-		return glyph.Slack()
+	if logo := glyph.ForTool(key); logo != "" {
+		return logo
 	}
 	return glyph.Login()
 }
@@ -159,7 +154,7 @@ func (k *Kit) loginFlow(p loginflow.Provider) vkdeck.View {
 	return v
 }
 
-func (v *loginFlowView) Title() string        { return "login: " + strings.ToLower(v.prov.Label) }
+func (v *loginFlowView) Title() string        { return "accounts: " + strings.ToLower(v.prov.Label) }
 func (v *loginFlowView) Context() [][2]string { return v.kit.menuCtx() }
 
 func (v *loginFlowView) Hints() [][2]string {
@@ -278,12 +273,12 @@ func (v *loginFlowView) submit(a *vkdeck.Model) tea.Cmd {
 		s, _ := val.(string)
 		s = strings.TrimSpace(s)
 		if s == "" {
-			return a.Push(vkdeck.NewMessage("login", theme.Cur().Cant.Render(key+" is required"), v.kit.menuCtx()))
+			return a.Push(vkdeck.NewMessage("accounts", theme.Cur().Cant.Render(key+" is required"), v.kit.menuCtx()))
 		}
 		v.creds[key] = s
 	}
 	if err := loginflow.PersistCredentials(v.kit.d.App, v.creds); err != nil {
-		return a.Push(vkdeck.NewMessage("login", theme.Cur().Cant.Render(err.Error()), v.kit.menuCtx()))
+		return a.Push(vkdeck.NewMessage("accounts", theme.Cur().Cant.Render(err.Error()), v.kit.menuCtx()))
 	}
 	v.step = loginStepRun
 	return v.start()
@@ -291,11 +286,11 @@ func (v *loginFlowView) submit(a *vkdeck.Model) tea.Cmd {
 
 func (v *loginFlowView) Body(width, _ int) string {
 	f := layout.ScreenFrame(width)
-	title := "LOGIN · " + v.prov.Label
+	title := "ACCOUNTS · " + v.prov.Label
 	th := theme.Cur()
 
 	if v.prov.Authed(v.kit.d.App) {
-		return render.TitledBox(f, true, title, th.Dim.Render("already authorized — returning to login…"))
+		return render.TitledBox(f, true, title, th.Dim.Render("already authorized — returning to accounts…"))
 	}
 
 	switch v.step {

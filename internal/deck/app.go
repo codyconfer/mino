@@ -46,8 +46,8 @@ func muninOpts(opts ...Option) []vkdeck.Option {
 		vkdeck.WithChrome(vkdeck.Chrome{
 			Brand:      "MUNIN",
 			BrandGlyph: glyph.Brand(),
-			Subtitle:   "ono-sendai deck",
-			ClockGlyph: glyph.Clock(),
+			Subtitle:   "netrunner deck",
+			ClockGlyph: glyph.Lead(glyph.Clock()),
 		}),
 		vkdeck.WithKeyMapQuit(),
 	}

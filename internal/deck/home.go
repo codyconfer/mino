@@ -13,6 +13,7 @@ import (
 const listIndent = 2
 
 // NewHome builds a HomeShell. flightName/load enable the side pane (signals → list.Item).
+// BoxTitle is left empty (no menu titled-box title); callers may set shell.BoxTitle.
 func NewHome(title string, ctx [][2]string, items []vkdeck.MenuItem, flightName string, load func() []signals.Section) *vkdeck.HomeShell {
 	label := ""
 	if flightName != "" && load != nil {

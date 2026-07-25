@@ -45,26 +45,31 @@ func Provider(a *app.App, daemon DaemonStatus) deck.StatusFunc {
 		}
 
 		googleSignals := []string{"calendar", "gmail", "docs", "drive", "tasks"}
-		var enabledGoogle []string
+		anyGoogle := false
 		for _, name := range googleSignals {
 			if plugin.SignalEnabled(name) {
-				enabledGoogle = append(enabledGoogle, name)
+				anyGoogle = true
+				break
 			}
 		}
-		if len(enabledGoogle) > 0 {
+		if anyGoogle {
 			googleLevel := deck.StatusMuted
 			if auth.GoogleAuthed(a.Tokens) {
 				googleLevel = deck.StatusOK
 			}
-			for _, name := range enabledGoogle {
-				info.Services = append(info.Services, deck.ServiceStatus{Name: name, Level: googleLevel})
-			}
+			// Logo-only chip: the Google glyph is enough, no signal list text.
+			info.Services = append(info.Services, deck.ServiceStatus{
+				ID:    "google",
+				Name:  "google",
+				Level: googleLevel,
+			})
 		}
 		if daemon != nil {
 			info.Services = append(info.Services, daemon())
 		}
-		home, role := a.Cfg.Home, a.Cfg.Role
-		info.Services = append(info.Services, deck.PluginServices(home, role)...)
+		home, roleName := a.Cfg.Home, a.Cfg.Role
+		info.Services = append(info.Services, deck.PluginServices(home, roleName)...)
+		info.Services = append(info.Services, deck.RoleServices()...)
 		return info
 	}
 }

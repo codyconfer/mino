@@ -17,6 +17,7 @@ var (
 
 type pendingAction struct {
 	signal, name string
+	serviceOnly  bool
 }
 
 // Register adds a compile-time plugin descriptor. Panics on duplicate id or
@@ -75,14 +76,14 @@ func flushPendingActionsLocked() {
 	}
 	left := pendingActionKinds[:0]
 	for _, p := range pendingActionKinds {
-		if !ensureActionKindLocked(p.signal, p.name) {
+		if !ensureActionKindLocked(p.signal, p.name, p.serviceOnly) {
 			left = append(left, p)
 		}
 	}
 	pendingActionKinds = left
 }
 
-func ensureActionKindLocked(signal, name string) bool {
+func ensureActionKindLocked(signal, name string, serviceOnly bool) bool {
 	id, ok := signalIndex[signal]
 	if !ok {
 		return false
@@ -98,19 +99,22 @@ func ensureActionKindLocked(signal, name string) bool {
 		return true
 	}
 	registerLocked(Descriptor{
-		ID:     cid,
-		Kind:   KindAction,
-		Ref:    ref,
-		Parent: id,
+		ID:          cid,
+		Kind:        KindAction,
+		Ref:         ref,
+		Parent:      id,
+		ServiceOnly: serviceOnly,
 	})
 	return true
 }
 
-func queueActionKindLocked(signal, name string) {
-	if ensureActionKindLocked(signal, name) {
+func queueActionKindLocked(signal, name string, serviceOnly bool) {
+	if ensureActionKindLocked(signal, name, serviceOnly) {
 		return
 	}
-	pendingActionKinds = append(pendingActionKinds, pendingAction{signal: signal, name: name})
+	pendingActionKinds = append(pendingActionKinds, pendingAction{
+		signal: signal, name: name, serviceOnly: serviceOnly,
+	})
 }
 
 // InternalPrefix is the id namespace for stock munin (builtin) plugins.

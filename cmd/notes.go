@@ -10,7 +10,7 @@ func newNotesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "notes",
 		Aliases: []string{"ntr"},
-		Short:   "Notes, tasks, and reminders",
+		Short:   "Notes, tasks, and reminders (reminders UI is service-only)",
 	}
 	cmd.AddCommand(
 		newNotesListCmd(),

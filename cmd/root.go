@@ -108,8 +108,6 @@ func newRootCmd() *cobra.Command {
 		newCleanCmd(),
 		newNukeCmd(),
 		newDeckCmd(),
-		newServeCmd(),
-		newDaemonCmd(),
 		newSettingsCmd(),
 		newExportCmd(),
 		newImportCmd(),
@@ -127,6 +125,7 @@ func newRootCmd() *cobra.Command {
 		newTasksCmd(),
 		newSlackCmd(),
 	)
+	root.AddCommand(daemonCommands()...)
 	return root
 }
 

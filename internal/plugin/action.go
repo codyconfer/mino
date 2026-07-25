@@ -15,8 +15,8 @@ func init() {
 }
 
 // RegisterAction registers a CapAction implementation for signal/name.
-func RegisterAction(signal, name string, run ActionFunc) {
-	pub.RegisterAction(signal, name, run)
+func RegisterAction(signal, name string, run ActionFunc, opts ...Option) {
+	pub.RegisterAction(signal, name, run, opts...)
 }
 
 // LookupAction returns a registered action.

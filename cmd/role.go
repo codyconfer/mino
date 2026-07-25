@@ -25,7 +25,9 @@ func newRoleCmd() *cobra.Command {
 		Long: "Roles scope what munin shows. Activate one with --role <name>, the\n" +
 			"MUNIN_ROLE env var, or `role:` in config.yaml. A role names the flights,\n" +
 			"queries, and filters that appear in lists and the TUI; with no active\n" +
-			"role, everything is listed.",
+			"role, everything is listed. Role YAML may also set contexts:, hooks:\n" +
+			"(enter/exit bash or PowerShell), and status: blocks (glyph + command;\n" +
+			"truncated stdout appears in the status bar while the role is active).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()

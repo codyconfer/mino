@@ -58,10 +58,21 @@ var (
 	plugins    = vk.Variants{Nerd: "", Uni: "▣", ASCII: "P"}
 )
 
+func init() {
+	vk.Register("notes", notes)
+	vk.Register("ntr", notes)
+	vk.Register("plugins", plugins)
+}
+
 func Brand() string      { return brand.String() }
 func SigningOK() string  { return signingOK.String() }
 func SigningBad() string { return signingBad.String() }
 func Login() string      { return login.String() }
+
+// ForTool returns a brand logo/glyph for a known tool or signal name.
+// Empty means callers should keep the plain-text name (no distinct logo).
+// Resolution goes through the viewkit glyph registry (builtin brands + app ids).
+func ForTool(name string) string { return vk.ResolveID(name) }
 
 type Kind = vk.Severity
 

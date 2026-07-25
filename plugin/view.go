@@ -5,8 +5,9 @@ import (
 )
 
 // RegisterView registers a viewkit/deck view and a KindView companion
-// descriptor (Ref = viewID) under parentID.
-func RegisterView(parentID, viewID string, ctor func() deck.View) {
+// descriptor (Ref = viewID) under parentID. Optional [Option] values
+// (e.g. [WithServiceOnly]) configure the companion descriptor.
+func RegisterView(parentID, viewID string, ctor func() deck.View, opts ...Option) {
 	if parentID == "" || viewID == "" || ctor == nil {
 		panic("plugin: RegisterView requires parentID, viewID, and ctor")
 	}
@@ -14,12 +15,14 @@ func RegisterView(parentID, viewID string, ctor func() deck.View) {
 		return
 	}
 	deck.RegisterView(viewID, ctor)
-	Register(Descriptor{
+	d := Descriptor{
 		ID:     parentID + "/view/" + viewID,
 		Kind:   KindView,
 		Ref:    viewID,
 		Parent: parentID,
-	})
+	}
+	applyOptions(&d, opts)
+	Register(d)
 }
 
 // HasView reports whether viewID is registered in the deck view registry.

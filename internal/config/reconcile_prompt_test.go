@@ -33,14 +33,14 @@ func TestReconcilePromptChoices(t *testing.T) {
 		want  sisyphus.Action
 		echo  string
 	}{
-		{"apply", "a\n", sisyphus.ActionImport, ""},
-		{"apply word", "apply\n", sisyphus.ActionImport, ""},
-		{"session", "s\n", sisyphus.ActionUseFile, ""},
-		{"ignore", "i\n", sisyphus.ActionUseDB, ""},
+		{"apply", "a", sisyphus.ActionImport, ""},
+		{"session", "s", sisyphus.ActionUseFile, ""},
+		{"ignore", "i", sisyphus.ActionUseDB, ""},
 		{"enter defaults to session", "\n", sisyphus.ActionUseFile, ""},
+		{"return defaults to session", "\r", sisyphus.ActionUseFile, ""},
 		{"eof defaults to session", "", sisyphus.ActionUseFile, ""},
-		{"unrecognized re-asks", "zz\ni\n", sisyphus.ActionUseDB, "unrecognized choice"},
-		{"edit re-asks", "e\na\n", sisyphus.ActionImport, "opened"},
+		{"unrecognized re-asks", "zzi", sisyphus.ActionUseDB, "unrecognized choice"},
+		{"edit re-asks", "ea", sisyphus.ActionImport, "opened"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestReconcilePromptDiscardRequiresConfirmation(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	r := &Resolver{home: home, interactive: true, in: strings.NewReader("d\nn\ns\n"), out: &out}
+	r := &Resolver{home: home, interactive: true, in: strings.NewReader("dns"), out: &out}
 	got, err := r.Resolve(stagedQueries(t))
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
@@ -97,7 +97,7 @@ func TestReconcilePromptDiscardRequiresConfirmation(t *testing.T) {
 	}
 
 	out.Reset()
-	r = &Resolver{home: home, interactive: true, in: strings.NewReader("d\ny\n"), out: &out}
+	r = &Resolver{home: home, interactive: true, in: strings.NewReader("dy"), out: &out}
 	got, err = r.Resolve(stagedQueries(t))
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
@@ -126,7 +126,7 @@ func TestReconcilePromptAllListsEveryDirectiveOnce(t *testing.T) {
 		},
 	}
 	var out bytes.Buffer
-	r := &Resolver{interactive: true, in: strings.NewReader("a\n"), out: &out}
+	r := &Resolver{interactive: true, in: strings.NewReader("a"), out: &out}
 	got, err := r.promptAll(recs)
 	if err != nil {
 		t.Fatalf("promptAll: %v", err)
@@ -138,7 +138,7 @@ func TestReconcilePromptAllListsEveryDirectiveOnce(t *testing.T) {
 	if strings.Count(text, "new config changes staged") != 1 {
 		t.Fatalf("want exactly one staged panel, got:\n%s", text)
 	}
-	for _, want := range []string{"queries", "filters", "choose"} {
+	for _, want := range []string{"queries", "filters", "press"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("batch prompt missing %q:\n%s", want, text)
 		}

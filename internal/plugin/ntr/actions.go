@@ -21,8 +21,8 @@ func init() {
 	plugin.RegisterAction(SignalName, "task.done", actionTaskDone)
 	plugin.RegisterAction(SignalName, "task.undo", actionTaskUndo)
 	plugin.RegisterAction(SignalName, "task.rm", actionTaskRM)
-	plugin.RegisterAction(SignalName, "remind.add", actionRemindAdd)
-	plugin.RegisterAction(SignalName, "remind.done", actionRemindDone)
+	plugin.RegisterAction(SignalName, "remind.add", actionRemindAdd, plugin.WithServiceOnly())
+	plugin.RegisterAction(SignalName, "remind.done", actionRemindDone, plugin.WithServiceOnly())
 }
 
 func actionHomeRole(params map[string]string) (home, role string) {

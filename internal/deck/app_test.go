@@ -40,7 +40,7 @@ func key(s string) tea.KeyMsg {
 }
 
 func TestAppRendersChromeAndMenu(t *testing.T) {
-	menu := vkdeck.NewMenu("main menu", [][2]string{{"role", "triage"}},
+	menu := vkdeck.NewMenu("", [][2]string{{"role", "triage"}},
 		vkdeck.MenuItem{Label: "Alpha", Desc: "first"},
 		vkdeck.MenuItem{Label: "Beta", Desc: "second", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(vkdeck.NewMessage("beta screen", "hello from beta", nil))
@@ -50,10 +50,13 @@ func TestAppRendersChromeAndMenu(t *testing.T) {
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	view := app.View()
-	for _, want := range []string{"MUNIN", "ono-sendai", "MAIN MENU", "role", "triage", "Alpha", "Beta", "quit"} {
+	for _, want := range []string{"MUNIN", "netrunner", "role", "triage", "Alpha", "Beta", "quit"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("main menu frame missing %q\n---\n%s", want, view)
 		}
+	}
+	if strings.Contains(view, "MAIN MENU") {
+		t.Errorf("main menu should omit title label\n---\n%s", view)
 	}
 }
 
@@ -89,8 +92,7 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 		Services: []ServiceStatus{
 			{Name: "github", Detail: "4998/5000", Level: StatusOK},
 			{Name: "slack", Level: StatusOK},
-			{Name: "calendar", Level: StatusMuted},
-			{Name: "gmail", Level: StatusMuted},
+			{ID: "google", Name: "google", Level: StatusMuted},
 		},
 	}
 	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
@@ -103,7 +105,8 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 
 	app.SetStatus(adaptStatus(info))
 	view := app.View()
-	for _, want := range []string{"@cody", glyph.SigningOK(), "github 4998/5000", "slack", "calendar", "gmail"} {
+	ghChip := glyph.GitHub() + " 4998/5000"
+	for _, want := range []string{"@cody", glyph.SigningOK(), ghChip, glyph.Slack(), glyph.Google()} {
 		if !strings.Contains(view, want) {
 			t.Errorf("status chrome missing %q\n---\n%s", want, view)
 		}
@@ -113,7 +116,7 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 	statusIdx, hintIdx := -1, -1
 	for i, ln := range lines {
 		plain := ansi.Strip(ln)
-		if strings.Contains(plain, "github 4998/5000") {
+		if strings.Contains(plain, ghChip) {
 			statusIdx = i
 		}
 		if strings.Contains(plain, "quit") {
@@ -195,7 +198,7 @@ func TestAppPinsFooterToBottom(t *testing.T) {
 
 func TestAppEvenHorizontalMargins(t *testing.T) {
 	const width = 100
-	menu := vkdeck.NewMenu("main menu", [][2]string{{"role", "triage"}},
+	menu := vkdeck.NewMenu("", [][2]string{{"role", "triage"}},
 		vkdeck.MenuItem{Label: "Alpha", Desc: "first"},
 		vkdeck.MenuItem{Label: "Beta", Desc: "second"},
 	)

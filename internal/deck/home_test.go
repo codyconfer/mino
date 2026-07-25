@@ -24,10 +24,13 @@ func TestHomeMenuOnly(t *testing.T) {
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	view := app.View()
-	for _, want := range []string{"MAIN MENU", "Run a flight", "Quit"} {
+	for _, want := range []string{"Run a flight", "Quit"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("menu-only home missing %q\n%s", want, view)
 		}
+	}
+	if strings.Contains(view, "MAIN MENU") {
+		t.Errorf("menu-only home should omit MAIN MENU title\n%s", view)
 	}
 	if strings.Contains(view, "home flight") {
 		t.Error("menu-only home should not render a flight panel")
@@ -55,10 +58,13 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 	}
 
 	view := app.View()
-	for _, want := range []string{"MAIN MENU", "home flight · morning", "Open PRs", "Fix onboarding attestation"} {
+	for _, want := range []string{"home flight · morning", "Open PRs", "Fix onboarding attestation"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("home with flight missing %q\n%s", want, view)
 		}
+	}
+	if strings.Contains(view, "MAIN MENU") {
+		t.Errorf("home with flight should omit MAIN MENU title\n%s", view)
 	}
 	if home.FocusSide() {
 		t.Fatalf("initial focus on side, want menu")

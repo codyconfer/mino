@@ -169,6 +169,49 @@ func TestLoadGlobalSettings(t *testing.T) {
 	}
 }
 
+func TestHiddenStatusBarPreference(t *testing.T) {
+	testenv.Isolate(t)
+
+	if StatusBarHidden("slack") {
+		t.Fatal("expected slack visible by default")
+	}
+	if err := SetHiddenStatusBar([]string{"slack", "", "slack", "github"}); err != nil {
+		t.Fatalf("SetHiddenStatusBar: %v", err)
+	}
+	if !StatusBarHidden("slack") || !StatusBarHidden("github") {
+		t.Fatalf("expected slack/github hidden, got %#v", LoadGlobalSettings().HiddenStatusBar)
+	}
+	gs := LoadGlobalSettings()
+	if len(gs.HiddenStatusBar) != 2 {
+		t.Fatalf("dedupe failed: %#v", gs.HiddenStatusBar)
+	}
+	if err := SetHiddenStatusBar(nil); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if StatusBarHidden("slack") {
+		t.Fatal("expected slack visible after clear")
+	}
+}
+
+func TestHiddenStatusBarCollapsesLegacyGoogleKeys(t *testing.T) {
+	testenv.Isolate(t)
+
+	if err := SetHiddenStatusBar([]string{"gmail", "docs", "slack"}); err != nil {
+		t.Fatalf("SetHiddenStatusBar: %v", err)
+	}
+	gs := LoadGlobalSettings()
+	want := []string{"slack", "google"}
+	if len(gs.HiddenStatusBar) != 2 || gs.HiddenStatusBar[0] != "slack" || gs.HiddenStatusBar[1] != "google" {
+		t.Fatalf("normalize = %#v, want %#v", gs.HiddenStatusBar, want)
+	}
+	if !StatusBarHidden("google") {
+		t.Fatal("expected google hidden via collapsed legacy keys")
+	}
+	if !StatusBarHidden("slack") {
+		t.Fatal("expected slack still hidden")
+	}
+}
+
 func TestHomePrecedence(t *testing.T) {
 	env := testenv.Isolate(t)
 

@@ -40,7 +40,8 @@ keybinds:
 # Roles, flights, queries, and filters are each their own file store — see
 # examples/roles/*.yaml, examples/flights/*.yaml, examples/queries/*.yaml, and
 # examples/filters/*.yaml (each a DuckDB-backed store). Role files may also set
-# `contexts:` (tool → name) applied on activation; see examples/README.md.
+# `contexts:` (tool → name), `hooks:` (enter/exit bash or PowerShell), and
+# `status:` (glyph + command chips) applied on activation; see examples/README.md.
 
 # Long-running daemon defaults (`munin serve`). Command flags override these.
 daemon:

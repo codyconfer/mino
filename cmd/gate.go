@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/sisyphus/mode"
 
 	"github.com/codyconfer/munin/internal/app/loginflow"
@@ -66,7 +65,7 @@ func gate(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if m == mode.ModeServe && sysdaemon.IsListening("munin", serveServer().SocketPath()) {
+	if m == mode.ModeServe && serveSocketTaken() {
 		gateWarn(cmd, "serve: a munin daemon is already listening; this instance will not own the socket")
 	}
 	return nil

@@ -163,7 +163,7 @@ func (kit *Kit) directiveBrowser(k directiveKind) vkdeck.View {
 		items = append(items, vkdeck.MenuItem{Label: "(none)", Desc: "no saved " + strings.ToLower(directiveLabel(k))})
 	}
 	items = append(items, vkdeck.MenuItem{
-		Label: "＋ New",
+		Label: "Create",
 		Desc:  "create a " + directiveSingular(k),
 		Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.newDirectiveForm(k, "")) },
 	})

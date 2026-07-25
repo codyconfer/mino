@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
@@ -44,6 +45,23 @@ filters: [no-bots]
 contexts:
   kubectl: prod
   gcx: myorg.grafana.net
+hooks:
+  enter:
+    bash: |
+      echo entering triage
+    powershell: |
+      Write-Host entering triage
+  exit:
+    bash: |
+      echo leaving triage
+    powershell: |
+      Write-Host leaving triage
+status:
+  - glyph: github
+    bash: |
+      echo triage-chip
+    powershell: |
+      Write-Output triage-chip
 `)
 	return home
 }
@@ -82,6 +100,17 @@ func TestLoadStoreFromFiles(t *testing.T) {
 		len(rd.Queries) != 1 || rd.Queries[0] != "standup" ||
 		len(rd.Filters) != 1 || rd.Filters[0] != "no-bots" {
 		t.Errorf("role not parsed: %#v", rd)
+	}
+	if !strings.Contains(rd.Hooks.Enter.Bash, "entering triage") ||
+		!strings.Contains(rd.Hooks.Enter.PowerShell, "entering triage") ||
+		!strings.Contains(rd.Hooks.Exit.Bash, "leaving triage") ||
+		!strings.Contains(rd.Hooks.Exit.PowerShell, "leaving triage") {
+		t.Errorf("role hooks not parsed: %#v", rd.Hooks)
+	}
+	if len(rd.Status) != 1 || rd.Status[0].Glyph != "github" ||
+		!strings.Contains(rd.Status[0].Bash, "triage-chip") ||
+		!strings.Contains(rd.Status[0].PowerShell, "triage-chip") {
+		t.Errorf("role status not parsed: %#v", rd.Status)
 	}
 
 	if got := s.QueryNames(); len(got) != 1 || got[0] != "standup" {
@@ -150,6 +179,11 @@ func TestSerializeDirRoundTrip(t *testing.T) {
 		t.Errorf("ParseRoles round-trip wrong: %#v", roles)
 	} else if rd.Contexts["kubectl"] != "prod" || rd.Contexts["gcx"] != "myorg.grafana.net" {
 		t.Errorf("ParseRoles contexts = %#v", rd.Contexts)
+	} else if !strings.Contains(rd.Hooks.Enter.Bash, "entering triage") ||
+		!strings.Contains(rd.Hooks.Exit.PowerShell, "leaving triage") {
+		t.Errorf("ParseRoles hooks = %#v", rd.Hooks)
+	} else if len(rd.Status) != 1 || rd.Status[0].Glyph != "github" {
+		t.Errorf("ParseRoles status = %#v", rd.Status)
 	}
 
 	s, err := NewDirectives(qBlob, fBlob, flBlob, rBlob)
@@ -270,6 +304,42 @@ func TestResolveUnknownFilterErrors(t *testing.T) {
 	q.Filters = []QueryFilter{{Ref: "does-not-exist"}}
 	if _, err := s.Resolve(q); err == nil {
 		t.Fatal("expected error for unknown filter reference")
+	}
+}
+
+func TestExpandParamsFromFilterAliases(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	mkdir(t, filepath.Join(home, DirFilters))
+	write(t, filepath.Join(home, DirFilters, "repos.yaml"), `
+name: repos
+aliases:
+  REPOS_ALIAS: "repo:org/a repo:org/b"
+`)
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"), `
+name: prs
+signal: github
+params:
+  query: "is:open is:pr {REPOS_ALIAS} created:(3 days ago)"
+filters: [repos]
+`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, err := s.ExpandParams(s.Queries["prs"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := params["query"]
+	if !strings.Contains(q, "repo:org/a repo:org/b") {
+		t.Fatalf("aliases not expanded: %q", q)
+	}
+	if !strings.Contains(q, "created:>=") {
+		t.Fatalf("relative created not expanded: %q", q)
+	}
+	if strings.Contains(q, "{REPOS_ALIAS}") || strings.Contains(q, "days ago") {
+		t.Fatalf("shorthand left unexpanded: %q", q)
 	}
 }
 

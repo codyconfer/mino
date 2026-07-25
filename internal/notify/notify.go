@@ -55,7 +55,7 @@ func Render(n vnotify.Notification) string {
 // AlreadyAuthed is the toast shown when a guided login is skipped because the
 // provider is already authorized.
 func AlreadyAuthed(label string) vnotify.Notification {
-	return vnotify.Neutral("login", label+" already authorized")
+	return vnotify.Neutral("accounts", label+" already authorized")
 }
 
 // PluginToggled is the toast shown after enabling or disabling a plugin in the TUI.

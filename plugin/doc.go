@@ -15,6 +15,10 @@
 //
 // Status-strip chips use RegisterStatusContribution (not a Kind; host Collect).
 //
+// Service-only contributions ([Descriptor.ServiceOnly] / [WithServiceOnly])
+// stay registered for host/daemon routing but are omitted from interactive
+// UI lists unless a live serve/daemon socket is attached ([UIVisible]).
+//
 // Typical overlay registration:
 //
 //	plugin.RegisterSignal(plugin.Descriptor{

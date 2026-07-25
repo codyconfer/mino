@@ -60,7 +60,7 @@ arguments via `ARGS="…"`), and a fixed stdin/stdout/stderr contract:
 the interactive front-end (formerly `munin tui`, still accepted as a hidden alias):
 a main menu, live flight runs, run **history**, a **directives** browser
 (view/run/validate/create/edit/delete queries, filters, flights, roles), **Notes**
-(notes/tasks/reminders), a **Plugins** enable/disable screen, login, an ad-hoc
+(notes/tasks/reminders), a **Plugins** enable/disable screen, accounts, an ad-hoc
 read-only **audit query** screen, and **settings**. `munin deck <flight>` jumps
 straight to a flight; `munin settings` opens just the settings screens. Its status
 strip shows whether the background daemon is installed and running.
@@ -128,7 +128,10 @@ Tasks / Reminders (`munin.ntr`). Team distributions add more in a separate
 **Public SDK.** Overlay code imports
 [`github.com/codyconfer/munin/plugin`](plugin/) (and the thin
 [`munin/app`](app/) entrypoint) — not `munin/internal`. Register contributions
-from `app.Options.RegisterPlugins`, then build that binary.
+from `app.Options.RegisterPlugins`, then build that binary. Mark contributions
+that belong only to serve/daemon mode with `plugin.WithServiceOnly()` (or
+`Descriptor.ServiceOnly`); interactive UI lists hide them unless a live
+serve/daemon socket is attached.
 
 **Overlay layout** (sibling checkouts of this repo):
 
@@ -147,13 +150,15 @@ munin plugins list
 munin plugins enable|disable <id>          # runtime activation (settings)
 munin plugins install|uninstall <id>       # enable/disable + example directive seeds
 munin plugins scaffold team.example --dir ./plugins/example
-munin notes ui                             # Notes/Tasks/Reminders TUI (`ntr` is an alias)
+munin notes ui                             # Notes/Tasks TUI; Reminders when a serve/daemon is attached (`ntr` is an alias)
 ```
 
 `install` / `uninstall` provision or remove unmodified example directives into
 `~/.munin` — they do not download or dynamically load plugin code. The deck
 **Plugins** screen toggles enablement; **Notes** opens the same views as
-`munin notes ui`.
+`munin notes ui`. Reminders are a **service-only** contribution: the menu entry
+and create hotkey appear only while a live `serve`/`daemon` socket is attached
+(deck's session-owned silent serve counts).
 
 ## Realtime: serve & daemon
 
@@ -266,12 +271,21 @@ name: triage
 flights: [triage]            # bare `munin fly` runs the first of these
 queries: [incidents, loki-errors, my-open-prs]
 filters: [no-bots]
+# Optional enter/exit shell hooks (bash on Unix, PowerShell on Windows).
+hooks:
+  enter:
+    bash: |
+      echo entering triage
+  exit:
+    bash: |
+      echo leaving triage
 ```
 
 While a role is active, only the flights, queries, and filters it names appear in
 lists and the TUI; with no active role, everything is listed. Asking for a
 query or flight the active role doesn't name reports why. Validate references and
-enums with `munin verify`.
+enums with `munin verify`. On a role switch, munin runs the previous role’s exit
+hooks, then the new role’s enter hooks (see `examples/README.md`).
 
 ## Configuration
 
@@ -589,9 +603,38 @@ make run ARGS=demo                     # deck on the live-GitHub demo flight
 ```
 
 Build vars (make variables, not `ARGS`): `RACE=1` (race detector), `TAGS=…` (build
-tags), `EMAIL_DOMAIN=…` (adds a domain authorization requirement), and
-`ALL_OR_NOTHING_AUTH=1` (compile ordinary cli directives to block rather than
-warn when unauthorized). `make package` cross-compiles release binaries.
+tags, see [`nodaemon`](#daemon-free-builds-nodaemon)), `EMAIL_DOMAIN=…` (adds a
+domain authorization requirement), and `ALL_OR_NOTHING_AUTH=1` (compile ordinary
+cli directives to block rather than warn when unauthorized). `make package`
+cross-compiles release binaries.
+
+#### Daemon-free builds (`nodaemon`)
+
+The `nodaemon` build tag compiles munin without serve/daemon mode:
+
+```sh
+make package TAGS=nodaemon    # release binaries with no daemon mode
+go build -tags nodaemon .     # or straight from the toolchain
+```
+
+What the tag removes: the realtime watcher and its local event socket, the OS
+service wiring (systemd/launchd/Windows) and system tray, scheduled delivery,
+the attach notification inbox, and the `serve` and `daemon` commands (including
+`daemon install/start/stop/status/attach`). `internal/app/daemon` is excluded
+wholesale, so none of it is compiled or linked.
+
+What still works: every cli directive, `deck`, and the rest of the CLI. `deck`
+no longer starts a background provider and drops the daemon status chip.
+Service-only plugin contributions — anything registered with
+`plugin.WithServiceOnly()`, such as the NTR reminders view and the
+`remind.add` / `remind.done` actions — stay hidden, because `plugin.ServiceAttached`
+always reports detached. Note reminder *storage* is unaffected: `munin notes
+remind …` and `munin notes catch-up` still work, you just don't get pushed
+notifications.
+
+Both configurations are first-class; build and test either with
+`go build [-tags nodaemon] ./...` and `go test [-tags nodaemon] ./...`. The
+default build is unchanged.
 
 Signal integrations live in `internal/signals/<name>/`, each with offline table
 tests driven by recorded fixtures, so the suite needs no network. When no live

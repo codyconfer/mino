@@ -7,11 +7,11 @@ the directive name when `name:` is omitted.
 | Path | Purpose |
 |---|---|
 | `queries/` | Saved signal fetches (`signal:` + optional `params` / `filters`) |
-| `filters/` | Named filter rules referenced by queries |
+| `filters/` | Named filter rules, aliases, and keywords referenced by queries |
 | `flights/` | Ordered lists of query names for `munin fly` / `munin serve` |
-| `*.yaml` (top level) | Roles: visibility scopes + optional `contexts:` (ADR-9) |
+| `*.yaml` (top level) | Roles: visibility scopes + optional `contexts:` / `hooks:` / `status:` (ADR-9) |
 
-## Role `contexts:`
+## Role `contexts:`, `hooks:`, and `status:`
 
 On role activation (`--role`, `MUNIN_ROLE`, or config `role:`), munin applies
 `contexts:` bindings via each tool’s `ContextProvider`:
@@ -20,6 +20,43 @@ On role activation (`--role`, `MUNIN_ROLE`, or config `role:`), munin applies
 contexts:
   kubectl: prod
   gcx: myorg.grafana.net
+```
+
+Optional `hooks:` run shell scripts when entering or leaving a role. On a role
+switch munin runs the previous role’s **exit** hooks, then the new role’s
+**enter** hooks, then applies `contexts:`. Bash is preferred on Unix;
+PowerShell on Windows. If the preferred script is empty, the other is used when
+present. Missing interpreters are warned and skipped (activation continues).
+The last entered role is remembered under `~/.munin/.data/active-role` so exit
+hooks still run across separate CLI invocations.
+
+```yaml
+hooks:
+  enter:
+    bash: |
+      echo entering
+    powershell: |
+      Write-Host entering
+  exit:
+    bash: |
+      echo leaving
+    powershell: |
+      Write-Host leaving
+```
+
+Optional `status:` blocks run with enter (same bash/PowerShell selection). Each
+block names a glyph and a command; the first 20 characters of stdout become a
+status-bar chip (glyph + text) while the role is active. Failed commands warn
+and skip that chip; they do not fail role activation. Chips clear on exit or
+role switch.
+
+```yaml
+status:
+  - glyph: github
+    bash: |
+      echo "triage"
+    powershell: |
+      Write-Output "triage"
 ```
 
 See `daily.yaml`, `triage.yaml`, and `ops.yaml`.
@@ -34,7 +71,7 @@ seeds.
 
 | Query | Signal | Plugin id | Notes |
 |---|---|---|---|
-| `ntr-list` | `ntr` | `munin.ntr` | Notes/tasks; pair with flight `ntr` + `munin serve ntr` for Scheduled reminders |
+| `ntr-list` | `ntr` | `munin.ntr` | Notes/tasks; reminders are service-only (UI + Scheduled delivery via `munin serve ntr` / daemon) |
 | `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`munin-plugins-external`); C-0 offline auth/context |
 | `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; current kube context |
 | `*-context` | gooseai/pi/opencode/ollama | `external.*` | Overlay-only Lane C2 stubs |
@@ -46,7 +83,7 @@ binary (`../munin-overlay-template`). Stock `munin` does not register `external.
 ```sh
 munin plugins scaffold team.example --dir ./plugins/example
 munin plugins install munin.ntr          # enable + seed queries/ntr-list + flights/ntr
-munin notes ui                           # Notes/Tasks/Reminders TUI (`ntr` is a deprecated alias)
+munin notes ui                           # Notes/Tasks TUI; Reminders when serve/daemon attached
 
 # With externals overlay binary:
 munin-with-externals plugins install external.kubectl

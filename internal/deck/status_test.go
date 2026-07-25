@@ -11,7 +11,11 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestPluginServicesAppearInStatusStrip(t *testing.T) {
@@ -56,4 +60,152 @@ func TestPluginServicesAppearInStatusStrip(t *testing.T) {
 	if !strings.Contains(view, "deckplug") || !strings.Contains(view, marker) {
 		t.Fatalf("status chrome missing plugin contrib\n---\n%s", view)
 	}
+}
+
+func TestPluginServicesPrefersBrandGlyph(t *testing.T) {
+	id := "test.deck.brandglyph"
+	logo := "BRAND-LOGO"
+	if _, ok := plugin.Lookup(id); !ok {
+		plugin.Register(plugin.Descriptor{
+			ID:           id,
+			Kind:         plugin.KindSignal,
+			Signal:       "testbrandglyph",
+			Capabilities: []plugin.Capability{plugin.CapQuery},
+		})
+	}
+	plugin.RegisterStatusContribution(id, func(_, _ string) vkglyph.StatusContribution {
+		return vkglyph.StatusContribution{
+			BrandGlyph: logo,
+			Info:       func() string { return "plaintext" },
+			Status:     func() (string, vkglyph.Severity) { return "OK", vkglyph.SeverityPositive },
+		}
+	})
+
+	for _, s := range PluginServices("", "") {
+		if s.Name == logo {
+			return
+		}
+	}
+	t.Fatalf("expected BrandGlyph %q as service name, got %+v", logo, PluginServices("", ""))
+}
+
+func TestAdaptStatusUsesToolLogos(t *testing.T) {
+	info := StatusInfo{Services: []ServiceStatus{
+		{Name: "github", Detail: "1/2", Level: StatusOK},
+		{Name: "slack", Level: StatusOK},
+		{ID: "google", Name: "google", Level: StatusMuted},
+	}}
+	got := adaptStatus(info)
+	if len(got.Services) != 3 {
+		t.Fatalf("services = %d, want 3", len(got.Services))
+	}
+	if got.Services[0].Name != glyph.GitHub() || got.Services[0].Detail != "1/2" {
+		t.Errorf("github chip = %+v", got.Services[0])
+	}
+	if got.Services[1].Name != glyph.Slack() {
+		t.Errorf("slack chip = %+v", got.Services[1])
+	}
+	if got.Services[2].Name != glyph.Google() || got.Services[2].Detail != "" {
+		t.Errorf("google chip = %+v, want logo-only %q", got.Services[2], glyph.Google())
+	}
+}
+
+func TestAdaptStatusHidesConfiguredEntries(t *testing.T) {
+	testenv.Isolate(t)
+	if err := config.SetHiddenStatusBar([]string{"slack", "munin.hide.test"}); err != nil {
+		t.Fatalf("SetHiddenStatusBar: %v", err)
+	}
+
+	info := StatusInfo{Services: []ServiceStatus{
+		{Name: "github", Level: StatusOK},
+		{Name: "slack", Level: StatusOK},
+		{ID: "munin.hide.test", Name: "SECRET-LOGO", Level: StatusOK, Glyph: "G"},
+		{ID: "munin.show.test", Name: "notes", Level: StatusOK, Glyph: "N"},
+	}}
+	got := adaptStatus(info)
+	if len(got.Services) != 2 {
+		t.Fatalf("services = %d, want 2 (hidden filtered): %+v", len(got.Services), got.Services)
+	}
+	if got.Services[0].Name != glyph.GitHub() {
+		t.Errorf("first chip = %+v, want github logo", got.Services[0])
+	}
+	wantNotes := serviceLabel("notes")
+	if got.Services[1].Name != wantNotes {
+		t.Errorf("second chip = %+v, want %q", got.Services[1], wantNotes)
+	}
+}
+
+func TestAdaptStatusHidesGoogleViaLegacyKey(t *testing.T) {
+	testenv.Isolate(t)
+	// Persist a pre-collapse hide list without going through SetHiddenStatusBar
+	// normalize, then confirm the google chip is still filtered.
+	gs := config.LoadGlobalSettings()
+	gs.HiddenStatusBar = []string{"gmail"}
+	if err := config.SaveGlobalSettings(gs); err != nil {
+		t.Fatalf("SaveGlobalSettings: %v", err)
+	}
+
+	info := StatusInfo{Services: []ServiceStatus{
+		{Name: "github", Level: StatusOK},
+		{ID: "google", Name: "google", Level: StatusOK},
+	}}
+	got := adaptStatus(info)
+	if len(got.Services) != 1 || got.Services[0].Name != glyph.GitHub() {
+		t.Fatalf("expected only github after legacy google hide, got %+v", got.Services)
+	}
+}
+
+func TestRoleServicesAppearInStatusStrip(t *testing.T) {
+	t.Cleanup(role.ClearStatusChips)
+	role.SetStatusChips([]role.Chip{
+		{Glyph: "github", Text: "triage-ctx", Index: 0},
+	})
+	svcs := RoleServices()
+	if len(svcs) != 1 || svcs[0].ID != "role-status-0" || svcs[0].Name != "github" || svcs[0].Detail != "triage-ctx" {
+		t.Fatalf("RoleServices = %+v", svcs)
+	}
+
+	info := StatusInfo{Services: append([]ServiceStatus{{Name: "slack", Level: StatusOK}}, svcs...)}
+	got := adaptStatus(info)
+	if len(got.Services) != 2 {
+		t.Fatalf("adaptStatus services = %+v", got.Services)
+	}
+	roleSvc := got.Services[1]
+	if roleSvc.Name != glyph.GitHub() || roleSvc.Detail != "triage-ctx" {
+		t.Fatalf("role chip = %+v", roleSvc)
+	}
+
+	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
+	app := New(menu, WithStatus(func(context.Context) StatusInfo { return info }))
+	app = drive(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+	app.SetStatus(adaptStatus(info))
+	view := ansi.Strip(app.View())
+	if !strings.Contains(view, "triage-ctx") {
+		t.Fatalf("status chrome missing role status text\n---\n%s", view)
+	}
+}
+
+func TestPluginServicesSetsStableID(t *testing.T) {
+	id := "test.deck.status.id"
+	if _, ok := plugin.Lookup(id); !ok {
+		plugin.Register(plugin.Descriptor{
+			ID:           id,
+			Kind:         plugin.KindSignal,
+			Signal:       "testdeckstatusid",
+			Capabilities: []plugin.Capability{plugin.CapQuery},
+		})
+	}
+	plugin.RegisterStatusContribution(id, func(_, _ string) vkglyph.StatusContribution {
+		return vkglyph.StatusContribution{
+			BrandGlyph: "LOGO",
+			Info:       func() string { return "plaintext" },
+			Status:     func() (string, vkglyph.Severity) { return "OK", vkglyph.SeverityPositive },
+		}
+	})
+	for _, s := range PluginServices("", "") {
+		if s.ID == id && s.Name == "LOGO" {
+			return
+		}
+	}
+	t.Fatalf("PluginServices missing ID %q: %+v", id, PluginServices("", ""))
 }

@@ -76,6 +76,11 @@ type Descriptor struct {
 	// (views, actions, contexts, …). Empty means this descriptor is primary
 	// for enable/disable listing.
 	Parent string
+	// ServiceOnly marks contributions that belong to serve/daemon mode.
+	// They remain registered for host routing and verification, but
+	// interactive UI lists omit them unless a live service is attached
+	// (see [UIVisible], [WithServiceOnly]).
+	ServiceOnly bool
 }
 
 // KnownKinds lists every Kind the host routes and verifies.

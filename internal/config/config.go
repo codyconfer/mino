@@ -114,6 +114,22 @@ func ReadConfigFile(homeOverride string) (home string, raw []byte, format string
 	return home, raw, format, nil
 }
 
+// ConfigFilePath returns the on-disk config path (config.yaml/.yml/.json) under home.
+func ConfigFilePath(homeOverride string) (string, error) {
+	home, err := Home(homeOverride)
+	if err != nil {
+		return "", err
+	}
+	for _, name := range []string{"config.yaml", "config.yml", "config.json"} {
+		path := filepath.Join(home, name)
+		if sconfig.IsFile(path) {
+			return path, nil
+		}
+	}
+	return "", errs.Newf(errs.KindConfig, "no config file found in %s", home).
+		WithHint("expected config.yaml, config.yml, or config.json; create one from Settings or run `munin install`")
+}
+
 func ParseConfig(home string, raw []byte, format string) (*Config, error) {
 	cfg := Defaults()
 	cfg.Home = home

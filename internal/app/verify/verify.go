@@ -327,6 +327,8 @@ func Queries(directives *config.Directives) []Finding {
 				f.OK, f.Msg, f.Snippet = false, "unknown filters: "+strings.Join(missing, ", "), snippet()
 			} else if resolved, err := directives.Resolve(q); err != nil {
 				f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
+			} else if _, err := filter.ExpandParams(q.Params, resolved); err != nil {
+				f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
 			} else if _, err := filter.CompileAll(resolved); err != nil {
 				f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
 			}

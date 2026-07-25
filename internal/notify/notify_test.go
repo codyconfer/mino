@@ -44,7 +44,7 @@ func TestAlreadyAuthed(t *testing.T) {
 	if n.Tone != vnotify.ToneNeutral {
 		t.Fatalf("tone = %v, want neutral", n.Tone)
 	}
-	if n.Title != "login" || n.Message != "GitHub already authorized" {
+	if n.Title != "accounts" || n.Message != "GitHub already authorized" {
 		t.Fatalf("note = %+v", n)
 	}
 }

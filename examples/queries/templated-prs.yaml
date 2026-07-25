@@ -1,0 +1,6 @@
+# Query params are expanded with Go templates / braced aliases from filters.
+name: templated-prs
+signal: github
+params:
+  query: "is:open is:pr {REPOS_ALIAS} created:(3 days ago)"
+filters: [repos-alias]

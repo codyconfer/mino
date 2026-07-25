@@ -18,13 +18,17 @@ func buildQuery(name string) (query, error) {
 	if !ok {
 		return query{}, errs.Newf(errs.KindUsage, "no saved query named %q", name).WithHint("run `munin query list` to see saved queries")
 	}
-	src, err := buildSignal(q.Signal, q.Params)
-	if err != nil {
-		return query{}, errs.Wrapf(errs.KindSignal, err, "query %q", name)
-	}
 	resolved, err := shared.Directives.Resolve(q)
 	if err != nil {
 		return query{}, err
+	}
+	params, err := filter.ExpandParams(q.Params, resolved)
+	if err != nil {
+		return query{}, errs.Wrapf(errs.KindConfig, err, "query %q", name)
+	}
+	src, err := buildSignal(q.Signal, params)
+	if err != nil {
+		return query{}, errs.Wrapf(errs.KindSignal, err, "query %q", name)
 	}
 	compiled, err := filter.CompileAll(resolved)
 	if err != nil {

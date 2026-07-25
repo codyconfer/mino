@@ -205,6 +205,16 @@ func (s *Directives) Resolve(q Query) ([]filter.Filter, error) {
 	return out, nil
 }
 
+// ExpandParams resolves filters for q and expands query params with filter
+// aliases/keywords and Go templates (see [filter.ExpandParams]).
+func (s *Directives) ExpandParams(q Query) (map[string]string, error) {
+	resolved, err := s.Resolve(q)
+	if err != nil {
+		return nil, err
+	}
+	return filter.ExpandParams(q.Params, resolved)
+}
+
 func (s *Directives) QueryNames() []string  { return sortedKeys(s.Queries) }
 func (s *Directives) FilterNames() []string { return sortedKeys(s.Filters) }
 func (s *Directives) FlightNames() []string { return sortedKeys(s.Flights) }

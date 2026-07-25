@@ -60,3 +60,38 @@ func TestRegisterFilterEngineAndRules(t *testing.T) {
 		t.Fatalf("engine stub LookupFilter = %+v ok=%v", f, ok)
 	}
 }
+
+func TestRegisterFilterAliasesAndKeywords(t *testing.T) {
+	parent := "test.filter.aliases"
+	if _, ok := plugin.Lookup(parent); !ok {
+		plugin.Register(plugin.Descriptor{
+			ID: parent, Kind: plugin.KindSignal, Signal: "testfilteraliases",
+			Capabilities: []plugin.Capability{plugin.CapQuery},
+		})
+	}
+	name := "test-sdk-aliases"
+	if !plugin.HasFilter(name) {
+		plugin.RegisterFilter(parent, plugin.NamedFilter{
+			Name:    name,
+			Aliases: map[string]string{"REPOS_ALIAS": "repo:org/a"},
+			Keywords: map[string]string{
+				"TEAM": "datasources",
+			},
+		})
+	}
+	f, ok := plugin.LookupFilter(name)
+	if !ok || f.Aliases["REPOS_ALIAS"] != "repo:org/a" || f.Keywords["TEAM"] != "datasources" {
+		t.Fatalf("LookupFilter = %+v ok=%v", f, ok)
+	}
+
+	kwName := "test-sdk-computed"
+	if !plugin.HasFilterKeywords(kwName) {
+		plugin.RegisterFilterKeywords(parent, kwName, func() map[string]string {
+			return map[string]string{"WINDOW": "created:>=2026-01-01"}
+		})
+	}
+	m, ok := plugin.LookupFilterKeywords(kwName)
+	if !ok || m["WINDOW"] != "created:>=2026-01-01" {
+		t.Fatalf("LookupFilterKeywords = %#v ok=%v", m, ok)
+	}
+}

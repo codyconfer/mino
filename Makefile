@@ -10,10 +10,17 @@ INSTALL_DIR ?= $(shell d="$$(go env GOBIN)"; [ -n "$$d" ] || d="$$(go env GOPATH
 #   ARGS  — forwarded verbatim to munin, e.g. `make command ARGS="fly work -o json"`
 #   RACE  — set to build with the race detector, e.g. `make run RACE=1`
 #   TAGS  — extra build tags, e.g. `make build TAGS=demo`
+#
+# TAGS=nodaemon compiles munin WITHOUT serve/daemon mode: the realtime watcher,
+# its event socket, the OS service wiring, and the `serve`/`daemon` commands are
+# all left out, and service-only plugin contributions (NTR reminders) stay
+# hidden because nothing can attach. `deck` and every cli directive still work.
+# Honored by build/dev/install/test/package, e.g. `make package TAGS=nodaemon`.
 ARGS ?=
 RACE ?=
 TAGS ?=
-GOFLAGS_DEV := $(if $(RACE),-race,) $(if $(TAGS),-tags "$(TAGS)",)
+GOFLAGS_TAGS := $(if $(TAGS),-tags "$(TAGS)",)
+GOFLAGS_DEV := $(if $(RACE),-race,) $(GOFLAGS_TAGS)
 
 # EMAIL_DOMAIN, when set, compiles a locked-down build that only completes
 # onboarding (and thus unlocks munin) if the git signing key has a GitHub-verified
@@ -68,7 +75,7 @@ matrix:
 
 # Build all packages for the host.
 build:
-	go build ./...
+	go build $(GOFLAGS_TAGS) ./...
 
 # Build a dev binary to $(BIN) honoring RACE/TAGS/EMAIL_DOMAIN/ALL_OR_NOTHING_AUTH.
 # Phony so it always rebuilds (go build is incremental) before a mode target runs.
@@ -140,10 +147,10 @@ package:
 	  echo "build $$p -> $$out"; \
 	  if [ -n "$$cc" ]; then \
 	    CGO_ENABLED=1 GOOS=$$os GOARCH=$$arch CC="$$cc" \
-	      go build -trimpath -ldflags "$(LDFLAGS)" -o "$$out" . || exit 1; \
+	      go build -trimpath $(GOFLAGS_TAGS) -ldflags "$(LDFLAGS)" -o "$$out" . || exit 1; \
 	  else \
 	    CGO_ENABLED=1 GOOS=$$os GOARCH=$$arch \
-	      go build -trimpath -ldflags "$(LDFLAGS)" -o "$$out" . || exit 1; \
+	      go build -trimpath $(GOFLAGS_TAGS) -ldflags "$(LDFLAGS)" -o "$$out" . || exit 1; \
 	  fi; \
 	done; \
 	( cd $(DIST) && (sha256sum munin_* 2>/dev/null || shasum -a 256 munin_*) > SHA256SUMS ); \
@@ -155,7 +162,7 @@ clean:
 
 # Run the test suite.
 test:
-	go test ./...
+	go test $(GOFLAGS_TAGS) ./...
 
 # Tooling lives in ./tools (separate module) so consumers don't inherit linter deps.
 GO_TOOL = go tool -modfile=tools/go.mod

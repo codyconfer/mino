@@ -16,7 +16,14 @@ type Rule struct {
 
 type Filter struct {
 	Name  string `yaml:"name" json:"name"`
-	Rules []Rule `yaml:"rules" json:"rules"`
+	Rules []Rule `yaml:"rules,omitempty" json:"rules,omitempty"`
+	// Aliases are static fragments exposed to query param templates
+	// (e.g. REPOS_ALIAS → "repo:org/a repo:org/b"). Queries may reference
+	// them as {REPOS_ALIAS} or {{.REPOS_ALIAS}}.
+	Aliases map[string]string `yaml:"aliases,omitempty" json:"aliases,omitempty"`
+	// Keywords are named values for query templates (static in YAML; plugins
+	// may also contribute computed keywords via ExternalKeywords).
+	Keywords map[string]string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
 }
 
 type compiledRule struct {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/sisyphus/configdb"
@@ -351,12 +352,13 @@ func (r *Resolver) promptAll(recs []sisyphus.Reconciliation) (sisyphus.Action, e
 	for {
 		fmt.Fprint(out, "\n"+renderReconcileBatchPanel(out, recs)+"\n")
 		fmt.Fprint(out, reconcilePromptLine())
-		line, err := in.ReadString('\n')
-		if err != nil && strings.TrimSpace(line) == "" {
+		key, err := readPromptKey(r.in, in)
+		if err != nil && key == "" {
 			fmt.Fprintln(out)
 			return sisyphus.ActionUseFile, nil
 		}
-		switch reconcileChoiceFor(line) {
+		echoPromptKey(out, key)
+		switch reconcileChoiceFor(key) {
 		case choiceApply:
 			return sisyphus.ActionImport, nil
 		case choiceSession:
@@ -390,10 +392,14 @@ func (r *Resolver) promptAll(recs []sisyphus.Reconciliation) (sisyphus.Action, e
 
 func (r *Resolver) confirmDiscardAll(in *bufio.Reader, recs []sisyphus.Reconciliation) (bool, error) {
 	fmt.Fprint(r.out, discardConfirmBatchLine(r.home, recs))
-	line, _ := in.ReadString('\n')
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes":
-	default:
+	key, err := readPromptKey(r.in, in)
+	if err != nil && key == "" {
+		fmt.Fprintln(r.out)
+		fmt.Fprintln(r.out, renderReconcileNotice("kept the staged files"))
+		return false, nil
+	}
+	echoPromptKey(r.out, key)
+	if strings.ToLower(key) != "y" {
 		fmt.Fprintln(r.out, renderReconcileNotice("kept the staged files"))
 		return false, nil
 	}
@@ -405,6 +411,47 @@ func (r *Resolver) confirmDiscardAll(in *bufio.Reader, recs []sisyphus.Reconcili
 	}
 	fmt.Fprintln(r.out, renderReconcileNotice("discarded staged "+joinNames(recs)+"; using the stored version"))
 	return true, nil
+}
+
+// readPromptKey returns the first keypress as a string. On a TTY it briefly
+// enables raw mode so Enter is not required. Enter/Return yield "" (default).
+func readPromptKey(raw io.Reader, in *bufio.Reader) (string, error) {
+	restore := enterRawTerminal(raw)
+	defer restore()
+	b, err := in.ReadByte()
+	if err != nil {
+		return "", err
+	}
+	switch b {
+	case '\r', '\n':
+		return "", nil
+	case 0x03: // Ctrl+C in raw mode
+		return "", io.EOF
+	default:
+		return string(b), nil
+	}
+}
+
+func echoPromptKey(out io.Writer, key string) {
+	if key == "" {
+		fmt.Fprintln(out)
+		return
+	}
+	fmt.Fprintln(out, key)
+}
+
+func enterRawTerminal(r io.Reader) (restore func()) {
+	restore = func() {}
+	type fd interface{ Fd() uintptr }
+	f, ok := r.(fd)
+	if !ok || !term.IsTerminal(f.Fd()) {
+		return restore
+	}
+	state, err := term.MakeRaw(f.Fd())
+	if err != nil {
+		return restore
+	}
+	return func() { _ = term.Restore(f.Fd(), state) }
 }
 
 func deleteDirectiveFiles(home, name string) error {

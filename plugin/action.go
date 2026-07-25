@@ -26,11 +26,15 @@ func actionKey(signal, name string) string { return signal + "\x00" + name }
 
 // RegisterAction registers a CapAction implementation for signal/name and
 // links a KindAction companion descriptor (Ref = "signal/name") once the
-// KindSignal plugin is registered. Panics on duplicate.
-func RegisterAction(signal, name string, run ActionFunc) {
+// KindSignal plugin is registered. Optional [Option] values
+// (e.g. [WithServiceOnly]) configure the companion descriptor.
+// Panics on duplicate.
+func RegisterAction(signal, name string, run ActionFunc, opts ...Option) {
 	if signal == "" || name == "" || run == nil {
 		panic("plugin: RegisterAction requires signal, name, and run")
 	}
+	d := Descriptor{}
+	applyOptions(&d, opts)
 	actionMu.Lock()
 	k := actionKey(signal, name)
 	if _, ok := actions[k]; ok {
@@ -41,7 +45,7 @@ func RegisterAction(signal, name string, run ActionFunc) {
 	actionMu.Unlock()
 
 	mu.Lock()
-	queueActionKindLocked(signal, name)
+	queueActionKindLocked(signal, name, d.ServiceOnly)
 	mu.Unlock()
 }
 

@@ -9,3 +9,25 @@ filters: [no-bots]
 contexts:
   kubectl: prod
   gcx: myorg.grafana.net
+# Optional shell hooks on role enter/exit (bash on Unix, PowerShell on Windows).
+# On switch: previous role exit hooks run, then new role enter hooks.
+hooks:
+  enter:
+    bash: |
+      echo "entering triage"
+    powershell: |
+      Write-Host "entering triage"
+  exit:
+    bash: |
+      echo "leaving triage"
+    powershell: |
+      Write-Host "leaving triage"
+# Optional status-bar chips: glyph name + command. Run on role enter (same
+# platform rules as hooks). First 20 characters of stdout appear next to the
+# glyph while this role is active; cleared on exit/switch.
+status:
+  - glyph: github
+    bash: |
+      echo "triage"
+    powershell: |
+      Write-Output "triage"

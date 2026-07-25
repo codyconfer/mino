@@ -21,11 +21,15 @@ func (k *Kit) NTR() vkdeck.View {
 }
 
 func (k *Kit) ntrMenuItem() vkdeck.MenuItem {
+	desc := "notes · tasks"
+	if ntr.RemindersUIVisible() {
+		desc = "notes · tasks · reminders"
+	}
 	return vkdeck.MenuItem{
 		Label: "Notes",
-		Desc:  "notes · tasks · reminders",
+		Desc:  desc,
 		Icon:  glyph.Notes(),
-		Hue:   7,
+		Hue:   6,
 		Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.NTR())
 		},

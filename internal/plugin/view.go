@@ -7,8 +7,8 @@ import (
 )
 
 // RegisterView registers a deck view and KindView companion under parentID.
-func RegisterView(parentID, viewID string, ctor func() deck.View) {
-	pub.RegisterView(parentID, viewID, ctor)
+func RegisterView(parentID, viewID string, ctor func() deck.View, opts ...Option) {
+	pub.RegisterView(parentID, viewID, ctor, opts...)
 }
 
 // HasView reports whether viewID is registered in the deck view registry.

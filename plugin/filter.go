@@ -12,6 +12,10 @@ import (
 // Queries reference the engine by name the same way as YAML filter files.
 type FilterFunc func(items []Item) []Item
 
+// KeywordsFunc returns computed keyword values for query param templates.
+// Called when a query that references this filter is expanded.
+type KeywordsFunc func() map[string]string
+
 // FilterRule is one include/exclude regex rule (YAML filter shape).
 type FilterRule struct {
 	Field   string `yaml:"field" json:"field"`
@@ -19,16 +23,20 @@ type FilterRule struct {
 	Exclude string `yaml:"exclude,omitempty" json:"exclude,omitempty"`
 }
 
-// NamedFilter is a YAML-compatible named rule set contributed by a plugin.
+// NamedFilter is a YAML-compatible named filter contribution by a plugin.
+// Rules filter fetched items; Aliases/Keywords feed query param templates.
 type NamedFilter struct {
-	Name  string       `yaml:"name" json:"name"`
-	Rules []FilterRule `yaml:"rules" json:"rules"`
+	Name     string            `yaml:"name" json:"name"`
+	Rules    []FilterRule      `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Aliases  map[string]string `yaml:"aliases,omitempty" json:"aliases,omitempty"`
+	Keywords map[string]string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
 }
 
 var (
-	filterMu     sync.RWMutex
-	namedByName  = map[string]NamedFilter{}
-	engineByName = map[string]FilterFunc{}
+	filterMu       sync.RWMutex
+	namedByName    = map[string]NamedFilter{}
+	engineByName   = map[string]FilterFunc{}
+	keywordsByName = map[string]KeywordsFunc{}
 )
 
 // RegisterFilter registers a KindFilter contribution backed by regex rules
@@ -45,9 +53,11 @@ func RegisterFilter(parentID string, f NamedFilter) {
 		panic(fmt.Sprintf("plugin: RegisterFilter %q: %v", f.Name, err))
 	}
 	filterMu.Lock()
-	if _, ok := namedByName[f.Name]; ok {
-		filterMu.Unlock()
-		panic(fmt.Sprintf("plugin: duplicate filter %q", f.Name))
+	if existing, ok := namedByName[f.Name]; ok {
+		if !isFilterStub(existing) || engineByName[f.Name] != nil {
+			filterMu.Unlock()
+			panic(fmt.Sprintf("plugin: duplicate filter %q", f.Name))
+		}
 	}
 	if _, ok := engineByName[f.Name]; ok {
 		filterMu.Unlock()
@@ -69,9 +79,11 @@ func RegisterFilterEngine(parentID, name string, fn FilterFunc) {
 		panic("plugin: RegisterFilterEngine requires name and func")
 	}
 	filterMu.Lock()
-	if _, ok := namedByName[name]; ok {
-		filterMu.Unlock()
-		panic(fmt.Sprintf("plugin: duplicate filter %q", name))
+	if existing, ok := namedByName[name]; ok {
+		if !isFilterStub(existing) || engineByName[name] != nil {
+			filterMu.Unlock()
+			panic(fmt.Sprintf("plugin: duplicate filter %q", name))
+		}
 	}
 	if _, ok := engineByName[name]; ok {
 		filterMu.Unlock()
@@ -79,6 +91,30 @@ func RegisterFilterEngine(parentID, name string, fn FilterFunc) {
 	}
 	engineByName[name] = fn
 	namedByName[name] = NamedFilter{Name: name}
+	filterMu.Unlock()
+	registerFilterKind(parentID, name)
+}
+
+// RegisterFilterKeywords registers computed keywords for a KindFilter name.
+// The filter may already exist (rules/engine/aliases) or is created as a stub.
+// Keywords are merged into query param template context when the filter is referenced.
+func RegisterFilterKeywords(parentID, name string, fn KeywordsFunc) {
+	if parentID == "" {
+		panic("plugin: RegisterFilterKeywords requires parent plugin id")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" || fn == nil {
+		panic("plugin: RegisterFilterKeywords requires name and func")
+	}
+	filterMu.Lock()
+	if _, ok := keywordsByName[name]; ok {
+		filterMu.Unlock()
+		panic(fmt.Sprintf("plugin: duplicate filter keywords %q", name))
+	}
+	keywordsByName[name] = fn
+	if _, ok := namedByName[name]; !ok {
+		namedByName[name] = NamedFilter{Name: name}
+	}
 	filterMu.Unlock()
 	registerFilterKind(parentID, name)
 }
@@ -133,6 +169,33 @@ func HasFilterEngine(name string) bool {
 	return ok
 }
 
+// LookupFilterKeywords returns computed keywords for name, if registered.
+func LookupFilterKeywords(name string) (map[string]string, bool) {
+	filterMu.RLock()
+	fn, ok := keywordsByName[name]
+	filterMu.RUnlock()
+	if !ok || fn == nil {
+		return nil, false
+	}
+	m := fn()
+	if m == nil {
+		return map[string]string{}, true
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out, true
+}
+
+// HasFilterKeywords reports whether name has a computed keywords func.
+func HasFilterKeywords(name string) bool {
+	filterMu.RLock()
+	defer filterMu.RUnlock()
+	_, ok := keywordsByName[name]
+	return ok
+}
+
 // FilterNames returns registered plugin filter names sorted.
 func FilterNames() []string {
 	filterMu.RLock()
@@ -147,11 +210,27 @@ func FilterNames() []string {
 
 func cloneNamed(f NamedFilter) NamedFilter {
 	out := NamedFilter{Name: f.Name}
-	if len(f.Rules) == 0 {
-		return out
+	if len(f.Rules) > 0 {
+		out.Rules = append([]FilterRule(nil), f.Rules...)
 	}
-	out.Rules = append([]FilterRule(nil), f.Rules...)
+	if len(f.Aliases) > 0 {
+		out.Aliases = make(map[string]string, len(f.Aliases))
+		for k, v := range f.Aliases {
+			out.Aliases[k] = v
+		}
+	}
+	if len(f.Keywords) > 0 {
+		out.Keywords = make(map[string]string, len(f.Keywords))
+		for k, v := range f.Keywords {
+			out.Keywords[k] = v
+		}
+	}
 	return out
+}
+
+// isFilterStub reports a name reserved only for keywords (no rules/aliases yet).
+func isFilterStub(f NamedFilter) bool {
+	return len(f.Rules) == 0 && len(f.Aliases) == 0 && len(f.Keywords) == 0
 }
 
 func validateNamedFilter(f NamedFilter) error {

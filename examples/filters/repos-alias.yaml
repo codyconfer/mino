@@ -1,0 +1,6 @@
+# Filter that exposes query aliases (no item rules required).
+# Referenced queries can use {REPOS_ALIAS} or {{.REPOS_ALIAS}}, plus
+# relative-date shorthands like created:(3 days ago).
+name: repos-alias
+aliases:
+  REPOS_ALIAS: "repo:example/one repo:example/two"

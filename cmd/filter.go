@@ -20,8 +20,12 @@ func newFilterCmd() *cobra.Command {
 Saved YAML filters live under ~/.munin/filters. Plugins may also register
 KindFilter contributions:
 
-  RegisterFilter       — YAML-shaped include/exclude regex rules
-  RegisterFilterEngine — custom Go filter logic (same query ref syntax)
+  RegisterFilter         — YAML-shaped rules, aliases, and keywords
+  RegisterFilterEngine   — custom Go filter logic (same query ref syntax)
+  RegisterFilterKeywords — computed keywords for query param templates
+
+Filters may expose aliases/keywords used when expanding query params
+(e.g. {REPOS_ALIAS} or {{.REPOS_ALIAS}}, plus created:(3 days ago)).
 
 Plugin engines appear in list with kind=engine.`,
 	}
@@ -40,7 +44,7 @@ Plugin engines appear in list with kind=engine.`,
 				seen := map[string]bool{}
 				for _, n := range names {
 					f := shared.Directives.Filters[n]
-					fmt.Fprintf(out, "%-24s kind=yaml   %d rule(s)\n", n, len(f.Rules))
+					fmt.Fprintf(out, "%-24s kind=yaml   %d rule(s) %d alias(es)\n", n, len(f.Rules), len(f.Aliases))
 					seen[n] = true
 				}
 				for _, n := range plugin.FilterNames() {
@@ -52,7 +56,11 @@ Plugin engines appear in list with kind=engine.`,
 						kind = "engine"
 					}
 					f, _ := plugin.LookupFilter(n)
-					fmt.Fprintf(out, "%-24s kind=%-6s %d rule(s)\n", n, kind, len(f.Rules))
+					extra := ""
+					if plugin.HasFilterKeywords(n) {
+						extra = " +keywords"
+					}
+					fmt.Fprintf(out, "%-24s kind=%-6s %d rule(s) %d alias(es)%s\n", n, kind, len(f.Rules), len(f.Aliases), extra)
 				}
 				return nil
 			},

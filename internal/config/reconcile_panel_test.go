@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/codyconfer/sisyphus"
 	"github.com/codyconfer/sisyphus/configdb"
 	"github.com/codyconfer/viewkit/theme"
+
+	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
 func collectionBlob(t *testing.T, files map[string]string) []byte {
@@ -130,6 +133,10 @@ func TestRenderReconcilePanelMentionsEveryChoice(t *testing.T) {
 	}
 	if strings.Contains(out, "preview") || strings.Contains(out, "print") {
 		t.Errorf("panel still mentions preview/print:\n%s", out)
+	}
+	plain := ansi.Strip(out)
+	if title := glyph.Lead(glyph.Warn()) + "new config changes staged"; !strings.Contains(plain, title) {
+		t.Errorf("title line missing spaced glyph+text %q:\n%s", title, plain)
 	}
 }
 

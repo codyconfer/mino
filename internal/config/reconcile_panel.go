@@ -65,8 +65,8 @@ func reconcilePromptLine() string {
 	for _, c := range reconcileChoices {
 		keys = append(keys, c.key)
 	}
-	return th.Dim.Render("  choose ") + th.Key.Render("["+strings.Join(keys, "/")+"]") +
-		th.Dim.Render(" (enter = use this session): ")
+	return th.Dim.Render("  press ") + th.Key.Render("["+strings.Join(keys, "/")+"]") +
+		th.Dim.Render(" · enter = use this session: ")
 }
 
 func discardConfirmBatchLine(home string, recs []sisyphus.Reconciliation) string {
@@ -80,7 +80,7 @@ func discardConfirmBatchLine(home string, recs []sisyphus.Reconciliation) string
 		targets = append(targets, filepath.Join(home, rec.Name))
 	}
 	return th.Cant.Render("  "+glyph.Pad(glyph.Warn())+"delete ") + th.Val.Render(strings.Join(targets, ", ")) +
-		th.Cant.Render(" from disk?") + th.Dim.Render(" [y/N]: ")
+		th.Cant.Render(" from disk?") + th.Dim.Render(" [y/N] · enter = no: ")
 }
 
 func renderReconcileNotice(msg string) string {
@@ -125,7 +125,7 @@ func renderReconcileBatchPanel(w io.Writer, recs []sisyphus.Reconciliation) stri
 			th.Dim.Render(c.desc))
 	}
 
-	return f.TitledBoxIcon(glyph.Pad(glyph.Warn()), "new config changes staged", lines...)
+	return f.TitledBoxIcon(glyph.Lead(glyph.Warn()), "new config changes staged", lines...)
 }
 
 func stagedSummary(rec sisyphus.Reconciliation) string {

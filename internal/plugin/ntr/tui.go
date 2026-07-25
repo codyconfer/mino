@@ -22,7 +22,9 @@ func init() {
 	plugin.RegisterView(PluginID, "ntr.home", func() vkdeck.View { return &HomeView{} })
 	plugin.RegisterView(PluginID, "ntr.notes", func() vkdeck.View { return &notesList{} })
 	plugin.RegisterView(PluginID, "ntr.tasks", func() vkdeck.View { return &tasksList{} })
-	plugin.RegisterView(PluginID, "ntr.reminders", func() vkdeck.View { return &remindList{} })
+	// Reminders are delivered by the scheduled ReminderJob under serve/daemon;
+	// hide the management surface unless a live service is attached.
+	plugin.RegisterView(PluginID, "ntr.reminders", func() vkdeck.View { return &remindList{} }, plugin.WithServiceOnly())
 }
 
 // RunTUI opens the NTR deck on viewkit/deck.
@@ -49,18 +51,28 @@ func NewHomeView(home, role string) *HomeView {
 		role = "default"
 	}
 	v := &HomeView{home: home, role: role}
-	v.menu = vkdeck.NewMenu("notes", [][2]string{{"role", role}},
-		vkdeck.MenuItem{Label: "Notes", Desc: "create · edit · delete", Do: func(h *vkdeck.Model) tea.Cmd {
+	items := []vkdeck.MenuItem{
+		{Label: "Notes", Desc: "create · edit · delete", Do: func(h *vkdeck.Model) tea.Cmd {
 			return h.Push(&notesList{home: home, role: role})
 		}},
-		vkdeck.MenuItem{Label: "Tasks", Desc: "create · toggle · delete", Do: func(h *vkdeck.Model) tea.Cmd {
+		{Label: "Tasks", Desc: "create · toggle · delete", Do: func(h *vkdeck.Model) tea.Cmd {
 			return h.Push(&tasksList{home: home, role: role})
 		}},
-		vkdeck.MenuItem{Label: "Reminders", Desc: "create · complete", Do: func(h *vkdeck.Model) tea.Cmd {
-			return h.Push(&remindList{home: home, role: role})
-		}},
-	)
+	}
+	if plugin.ViewUIVisible("ntr.reminders") {
+		items = append(items, vkdeck.MenuItem{
+			Label: "Reminders", Desc: "create · complete", Do: func(h *vkdeck.Model) tea.Cmd {
+				return h.Push(&remindList{home: home, role: role})
+			},
+		})
+	}
+	v.menu = vkdeck.NewMenu("notes", [][2]string{{"role", role}}, items...)
 	return v
+}
+
+// RemindersUIVisible reports whether the reminders menu entry should show.
+func RemindersUIVisible() bool {
+	return plugin.ViewUIVisible("ntr.reminders")
 }
 
 // NewNoteForm opens the create-note form (hotkey / deep-link entry).

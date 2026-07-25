@@ -16,8 +16,10 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/testenv"
+	pub "github.com/codyconfer/munin/plugin"
 )
 
 func testKit(t *testing.T) *Kit {
@@ -82,7 +84,7 @@ func TestMainMenuIncludesNotesEntry(t *testing.T) {
 		t.Fatalf("main menu view missing Notes: %q", body)
 	}
 
-	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
+	// Main: Fly, Notes, … — one down lands on Notes.
 	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
@@ -95,10 +97,198 @@ func TestMainMenuIncludesNotesEntry(t *testing.T) {
 	}
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
-	for _, want := range []string{"Notes", "Tasks", "Reminders"} {
+	for _, want := range []string{"Notes", "Tasks"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("NTR home missing %q after Notes enter: %q", want, got)
 		}
+	}
+	// Reminders are service-only; no live serve/daemon in this kit.
+	if strings.Contains(got, "Reminders") {
+		t.Fatalf("NTR home showed Reminders without attached service: %q", got)
+	}
+}
+
+func TestMainMenuFlySubmenu(t *testing.T) {
+	kit := testKit(t)
+
+	mainLabels := make([]string, 0, len(kit.mainMenuItems()))
+	for _, it := range kit.mainMenuItems() {
+		mainLabels = append(mainLabels, it.Label)
+	}
+	if mainLabels[0] != "Fly" {
+		t.Fatalf("main menu first item = %q, want Fly; got %v", mainLabels[0], mainLabels)
+	}
+	for _, banned := range []string{"Take flight", "History", "Directives"} {
+		for _, l := range mainLabels {
+			if l == banned {
+				t.Fatalf("main menu still has %q: %v", banned, mainLabels)
+			}
+		}
+	}
+
+	flyLabels := make([]string, 0, len(kit.flyMenuItems()))
+	for _, it := range kit.flyMenuItems() {
+		flyLabels = append(flyLabels, it.Label)
+	}
+	for _, want := range []string{"Flights", "Directives"} {
+		found := false
+		for _, l := range flyLabels {
+			if l == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("fly submenu missing %q: %v", want, flyLabels)
+		}
+	}
+	for _, l := range flyLabels {
+		if l == "History" {
+			t.Fatalf("fly submenu showed History without audit store: %v", flyLabels)
+		}
+	}
+
+	app := deck.New(kit.MainMenu())
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if !strings.Contains(app.View(), "Fly") {
+		t.Fatalf("main menu view missing Fly: %q", app.View())
+	}
+	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		for _, c := range flattenCmds(cmd) {
+			if c == nil {
+				continue
+			}
+			app = step(app, c())
+		}
+	}
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	got := app.View()
+	for _, want := range []string{"Flights", "Directives"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("fly submenu view missing %q: %q", want, got)
+		}
+	}
+}
+
+func TestFlySubmenuIncludesHistoryWhenPresent(t *testing.T) {
+	st, err := audit.Open(context.Background(), filepath.Join(t.TempDir(), "audit.duckdb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	fid := st.StartFlight("default", "triage")
+	st.FinishFlight(fid)
+
+	kit := testKit(t)
+	kit.d.App.Audit = st
+
+	flyLabels := make([]string, 0, len(kit.flyMenuItems()))
+	for _, it := range kit.flyMenuItems() {
+		flyLabels = append(flyLabels, it.Label)
+	}
+	want := []string{"Flights", "History", "Directives"}
+	if len(flyLabels) != len(want) {
+		t.Fatalf("fly submenu = %v, want %v", flyLabels, want)
+	}
+	for i, w := range want {
+		if flyLabels[i] != w {
+			t.Fatalf("fly submenu[%d] = %q, want %q (full %v)", i, flyLabels[i], w, flyLabels)
+		}
+	}
+	for _, it := range kit.mainMenuItems() {
+		if it.Label == "History" || it.Label == "Directives" {
+			t.Fatalf("main menu still exposes %q", it.Label)
+		}
+	}
+}
+
+func TestMainMenuToolingSubmenu(t *testing.T) {
+	kit := testKit(t)
+
+	mainLabels := make([]string, 0, len(kit.mainMenuItems()))
+	for _, it := range kit.mainMenuItems() {
+		mainLabels = append(mainLabels, it.Label)
+	}
+	foundTooling := false
+	for _, l := range mainLabels {
+		if l == "Tooling" {
+			foundTooling = true
+			break
+		}
+	}
+	if !foundTooling {
+		t.Fatalf("main menu missing Tooling: %v", mainLabels)
+	}
+	for _, banned := range []string{"Accounts", "Plugins", "Settings"} {
+		for _, l := range mainLabels {
+			if l == banned {
+				t.Fatalf("main menu still has %q: %v", banned, mainLabels)
+			}
+		}
+	}
+
+	toolingLabels := make([]string, 0, len(kit.toolingMenuItems()))
+	for _, it := range kit.toolingMenuItems() {
+		toolingLabels = append(toolingLabels, it.Label)
+	}
+	want := []string{"Accounts", "Plugins", "Settings"}
+	if len(toolingLabels) != len(want) {
+		t.Fatalf("tooling submenu = %v, want %v", toolingLabels, want)
+	}
+	for i, w := range want {
+		if toolingLabels[i] != w {
+			t.Fatalf("tooling submenu[%d] = %q, want %q (full %v)", i, toolingLabels[i], w, toolingLabels)
+		}
+	}
+	for _, it := range kit.toolingMenuItems() {
+		if it.Label == "Plugins" && !strings.Contains(it.Desc, "install") {
+			t.Fatalf("Plugins desc should mention install: %q", it.Desc)
+		}
+	}
+
+	app := deck.New(kit.MainMenu())
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if !strings.Contains(app.View(), "Tooling") {
+		t.Fatalf("main menu view missing Tooling: %q", app.View())
+	}
+	// Main: Fly, Notes, Query DuckDB, Tooling — three downs land on Tooling.
+	for range 3 {
+		app = step(app, tea.KeyMsg{Type: tea.KeyDown})
+	}
+	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		for _, c := range flattenCmds(cmd) {
+			if c == nil {
+				continue
+			}
+			app = step(app, c())
+		}
+	}
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	got := app.View()
+	for _, w := range want {
+		if !strings.Contains(got, w) {
+			t.Fatalf("tooling submenu view missing %q: %q", w, got)
+		}
+	}
+}
+
+func TestNTRHomeShowsRemindersWhenServiceAttached(t *testing.T) {
+	pub.SetServiceAttachedFunc(func() bool { return true })
+	t.Cleanup(func() { pub.SetServiceAttachedFunc(plugin.ServiceAttached) })
+
+	kit := testKit(t)
+	app := deck.New(kit.NTR())
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	got := app.View()
+	for _, want := range []string{"Notes", "Tasks", "Reminders"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("NTR home missing %q with attached service: %q", want, got)
+		}
+	}
+	if item := kit.ntrMenuItem(); !strings.Contains(item.Desc, "reminders") {
+		t.Fatalf("Notes menu desc = %q, want reminders mentioned", item.Desc)
 	}
 }
 
@@ -106,6 +296,8 @@ func TestViewsSmoke(t *testing.T) {
 	kit := testKit(t)
 	roots := map[string]vkdeck.View{
 		"main":       kit.MainMenu(),
+		"fly":        kit.Fly(),
+		"tooling":    kit.Tooling(),
 		"directives": kit.directivesMenu(),
 		"settings":   kit.Settings(),
 		"audit":      kit.AuditQuery(),

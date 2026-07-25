@@ -15,6 +15,7 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/role"
 	"github.com/codyconfer/munin/internal/token"
 )
 
@@ -86,8 +87,102 @@ func Load(opts Options) (*App, error) {
 	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr}
 	a.openTokens()
 	a.openAudit()
-	a.applyRoleContexts()
+	a.syncRoleLifecycle()
 	return a, nil
+}
+
+// ActivateRole switches the active role in-process: exit hooks for the previous
+// role, then enter hooks and contexts for name (empty clears the role).
+func (a *App) ActivateRole(name string) error {
+	if a == nil || a.Cfg == nil {
+		return errs.New(errs.KindInternal, "app not loaded")
+	}
+	if name == a.Cfg.Role {
+		return nil
+	}
+	a.Cfg.Role = name
+	a.syncRoleLifecycle()
+	return nil
+}
+
+// syncRoleLifecycle runs exit/enter hooks when the configured role differs from
+// the last hooked role (persisted under .data/), then applies role contexts.
+// Status blocks run with enter (and refresh when the same role is already
+// active in a new process). Hook/status/context failures are warned; they do
+// not abort activation.
+func (a *App) syncRoleLifecycle() {
+	if a == nil || a.Cfg == nil {
+		return
+	}
+	home := a.Cfg.Home
+	prev := role.LoadActive(home)
+	next := a.Cfg.Role
+	if prev != next {
+		a.runRoleExit(prev)
+		a.runRoleEnter(next)
+		if err := role.SaveActive(home, next); err != nil {
+			log.Warnf("role state: %v", err)
+		}
+	} else if next != "" {
+		// Same role already marked active (e.g. new process): refresh chips only.
+		a.refreshRoleStatus(next)
+	} else {
+		role.ClearStatusChips()
+	}
+	a.applyRoleContexts()
+}
+
+func (a *App) runRoleExit(name string) {
+	role.ClearStatusChips()
+	if name == "" || a.Directives == nil {
+		return
+	}
+	rd, ok := a.Directives.Roles[name]
+	if !ok {
+		log.Warnf("role exit: %q not defined; skipping hooks", name)
+		return
+	}
+	if err := role.RunExit(rd); err != nil {
+		log.Warnf("role %q exit hooks: %v", name, err)
+	}
+}
+
+func (a *App) runRoleEnter(name string) {
+	if name == "" || a.Directives == nil {
+		role.ClearStatusChips()
+		return
+	}
+	rd, ok := a.Directives.Roles[name]
+	if !ok {
+		log.Warnf("role enter: %q not defined; skipping hooks", name)
+		role.ClearStatusChips()
+		return
+	}
+	if err := role.RunEnter(rd); err != nil {
+		log.Warnf("role %q enter hooks: %v", name, err)
+	}
+	a.applyRoleStatus(rd)
+}
+
+func (a *App) refreshRoleStatus(name string) {
+	if name == "" || a.Directives == nil {
+		role.ClearStatusChips()
+		return
+	}
+	rd, ok := a.Directives.Roles[name]
+	if !ok {
+		role.ClearStatusChips()
+		return
+	}
+	a.applyRoleStatus(rd)
+}
+
+func (a *App) applyRoleStatus(rd config.RoleDef) {
+	chips, warnings := role.CollectStatus(rd)
+	for _, w := range warnings {
+		log.Warnf("role %q status: %v", rd.Name, w)
+	}
+	role.SetStatusChips(chips)
 }
 
 func (a *App) applyRoleContexts() {
@@ -104,8 +199,9 @@ func (a *App) applyRoleContexts() {
 }
 
 // ReloadDirectives reloads directives from disk/store into a.Directives and
-// reapplies role contexts. Uses ReconcileApply so newly provisioned seed files
-// surface without restarting. Reuses a.Mgr when present.
+// reapplies role contexts. Does not re-run enter/exit hooks (role unchanged).
+// Uses ReconcileApply so newly provisioned seed files surface without
+// restarting. Reuses a.Mgr when present.
 func (a *App) ReloadDirectives() error {
 	if a == nil || a.Cfg == nil {
 		return errs.New(errs.KindInternal, "app not loaded")
