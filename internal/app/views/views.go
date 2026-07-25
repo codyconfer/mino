@@ -52,13 +52,13 @@ func (k *Kit) mainMenuItems() []vkdeck.MenuItem {
 			return a.Push(k.Fly())
 		}},
 		k.ntrMenuItem(),
-		vkdeck.MenuItem{Label: "Query DuckDB", Desc: "ad-hoc SQL over DuckDB", Icon: glyph.Audit(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Query DuckDB", Desc: "ad-hoc SQL over DuckDB", Icon: glyph.Audit(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.AuditQuery())
 		}},
 		{Label: "Tooling", Desc: "accounts, plugins, settings", Icon: glyph.Settings(), Hue: 2, Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Tooling())
 		}},
-		vkdeck.MenuItem{Label: "Quit", Desc: "back to shell", Icon: glyph.Quit(), Hue: 3, Do: func(*vkdeck.Model) tea.Cmd {
+		{Label: "Quit", Desc: "back to shell", Icon: glyph.Quit(), Hue: 3, Do: func(*vkdeck.Model) tea.Cmd {
 			return tea.Quit
 		}},
 	}
