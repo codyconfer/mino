@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestCapActionCRUDParity(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	plugin.LoadEnabled()
 
 	want := []string{

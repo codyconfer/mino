@@ -17,10 +17,12 @@ import (
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func testKit(t *testing.T) *Kit {
 	t.Helper()
+	testenv.Isolate(t)
 	cfg := config.Defaults()
 	cfg.Home = t.TempDir()
 	directives := &config.Directives{

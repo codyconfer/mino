@@ -3,10 +3,12 @@ package config
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestLogDirDefault(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	t.Setenv(envLogDir, "")
 	got := LogDir("/home/x/.munin")
 	want := filepath.Join("/home/x/.munin", DirLogs)

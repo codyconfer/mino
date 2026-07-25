@@ -8,12 +8,11 @@ import (
 	"github.com/codyconfer/munin/internal/app/onboard"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func isolateSettings(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", dir)
-	t.Setenv("HOME", dir)
+	testenv.Isolate(t)
 }
 
 func TestEnforceOnboardingBlocksNormalCommand(t *testing.T) {

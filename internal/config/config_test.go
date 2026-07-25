@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -145,17 +147,15 @@ func TestEnvOverride(t *testing.T) {
 }
 
 func TestLoadGlobalSettings(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	t.Setenv("MUNIN_HOME", "")
+	env := testenv.Isolate(t)
 
 	if gs := LoadGlobalSettings(); gs.Home != "" || gs.Theme != "" {
 		t.Errorf("missing settings should be zero, got %#v", gs)
 	}
 
 	wantHome := filepath.Join(t.TempDir(), "custom-munin")
-	mkdir(t, filepath.Join(xdg, "munin"))
-	write(t, filepath.Join(xdg, "munin", "settings.yaml"), "home: "+wantHome+"\ntheme: dracula\n")
+	mkdir(t, filepath.Join(env.ConfigDir, "munin"))
+	write(t, filepath.Join(env.ConfigDir, "munin", "settings.yaml"), "home: "+wantHome+"\ntheme: dracula\n")
 
 	gs := LoadGlobalSettings()
 	if gs.Home != wantHome {
@@ -164,19 +164,15 @@ func TestLoadGlobalSettings(t *testing.T) {
 	if gs.Theme != "dracula" {
 		t.Errorf("global theme = %q, want dracula", gs.Theme)
 	}
-	if p := GlobalSettingsPath(); p != filepath.Join(xdg, "munin", "settings.yaml") {
+	if p := GlobalSettingsPath(); p != filepath.Join(env.ConfigDir, "munin", "settings.yaml") {
 		t.Errorf("GlobalSettingsPath = %q", p)
 	}
 }
 
 func TestHomePrecedence(t *testing.T) {
-	xdg := t.TempDir()
-	userHome := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	t.Setenv("HOME", userHome)
-	t.Setenv("MUNIN_HOME", "")
+	env := testenv.Isolate(t)
 
-	wantDefault := filepath.Join(userHome, HomeDirName)
+	wantDefault := filepath.Join(env.Home, HomeDirName)
 	if h, err := Home(""); err != nil || h != wantDefault {
 		t.Fatalf("default home = %q, %v; want %q", h, err, wantDefault)
 	}
@@ -184,9 +180,9 @@ func TestHomePrecedence(t *testing.T) {
 		t.Fatalf("DefaultHome = %q, %v; want %q", h, err, wantDefault)
 	}
 
-	mkdir(t, filepath.Join(xdg, "munin"))
+	mkdir(t, filepath.Join(env.ConfigDir, "munin"))
 	wantGlobal := filepath.Join(t.TempDir(), "custom-munin")
-	write(t, filepath.Join(xdg, "munin", "settings.yaml"), "home: "+wantGlobal+"\n")
+	write(t, filepath.Join(env.ConfigDir, "munin", "settings.yaml"), "home: "+wantGlobal+"\n")
 	if h, _ := Home(""); h != wantGlobal {
 		t.Errorf("global home override = %q, want %q", h, wantGlobal)
 	}
@@ -202,8 +198,7 @@ func TestHomePrecedence(t *testing.T) {
 }
 
 func TestHomeResolvesRelativeToAbsolute(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("MUNIN_HOME", "")
+	testenv.Isolate(t)
 	cwd := t.TempDir()
 	t.Chdir(cwd)
 
@@ -221,16 +216,13 @@ func TestHomeResolvesRelativeToAbsolute(t *testing.T) {
 }
 
 func TestHomeExpandsTilde(t *testing.T) {
-	userHome := t.TempDir()
-	t.Setenv("HOME", userHome)
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("MUNIN_HOME", "")
+	env := testenv.Isolate(t)
 
 	got, err := Home("~/alt-munin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(userHome, "alt-munin")
+	want := filepath.Join(env.Home, "alt-munin")
 	if got != want {
 		t.Fatalf("tilde home = %q, want %q", got, want)
 	}

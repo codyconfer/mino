@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestDiscoverLocalMissingDir(t *testing.T) {
@@ -61,7 +63,7 @@ func TestDiscoverLocalSeedPackAndIncompatible(t *testing.T) {
 }
 
 func TestInstallCandidateEntrySeedPack(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	home := t.TempDir()
 	pack := filepath.Join(home, ".plugins", "pack")
 	if err := os.MkdirAll(filepath.Join(pack, "queries"), 0o700); err != nil {
@@ -102,7 +104,7 @@ func TestInstallCandidateEntrySeedPack(t *testing.T) {
 }
 
 func TestListInstallCandidatesMergesLocalRegistry(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	LoadEnabled()
 	home := t.TempDir()
 	id := "munin.ntr"

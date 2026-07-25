@@ -8,14 +8,11 @@ import (
 	"testing"
 
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestInstallAfterNukeDefaultsToStockHome(t *testing.T) {
-	xdg := t.TempDir()
-	userHome := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	t.Setenv("HOME", userHome)
-	t.Setenv("MUNIN_HOME", "")
+	userHome := testenv.Isolate(t).Home
 
 	custom := filepath.Join(userHome, "custom-munin")
 	if err := config.SaveGlobalSettings(config.GlobalSettings{Home: custom}); err != nil {
@@ -69,11 +66,7 @@ func TestInstallAfterNukeDefaultsToStockHome(t *testing.T) {
 }
 
 func TestInstallRespectsHomeAndDirFlags(t *testing.T) {
-	xdg := t.TempDir()
-	userHome := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	t.Setenv("HOME", userHome)
-	t.Setenv("MUNIN_HOME", "")
+	userHome := testenv.Isolate(t).Home
 
 	run := func(args ...string) error {
 		root := newRootCmd()

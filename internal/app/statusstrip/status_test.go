@@ -8,10 +8,11 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	plugin.RegisterBuiltins()
 	plugin.LoadEnabled()
 

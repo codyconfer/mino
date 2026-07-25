@@ -198,6 +198,10 @@ func newPluginsScaffoldCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "scaffold <plugin-id>",
 		Short: "Generate an overlay-friendly plugin package",
+		Annotations: map[string]string{
+			annoSkipOnboarding: "true",
+			annoSkipAppLoad:    "true",
+		},
 		Long: `Write a CapQuery plugin package into --dir using the public munin/plugin SDK.
 
 The generated package includes:

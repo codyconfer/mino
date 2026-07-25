@@ -9,6 +9,7 @@ import (
 
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestInstallPermissions(t *testing.T) {
@@ -70,8 +71,7 @@ func TestInstallForceDoesNotMisreportExists(t *testing.T) {
 }
 
 func TestNukeRemovesHomeWithoutReinstall(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
+	testenv.Isolate(t)
 	home := filepath.Join(t.TempDir(), "munin")
 	if _, err := Install(home, false); err != nil {
 		t.Fatalf("Install: %v", err)

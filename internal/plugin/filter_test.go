@@ -8,6 +8,7 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestRegisterFilterLinksKindAndResolve(t *testing.T) {
@@ -107,6 +108,7 @@ func TestDemoNoLoremEngine(t *testing.T) {
 }
 
 func TestCompanionEnableInheritsParent(t *testing.T) {
+	testenv.Isolate(t)
 	id := "test.kinds.enable"
 	sig := "testkindsenable"
 	if _, ok := Lookup(id); !ok {

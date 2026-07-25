@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -49,8 +50,18 @@ func TestWireEventErrorPreserved(t *testing.T) {
 	}
 }
 
+func shortSocketPath(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "mn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return filepath.Join(dir, "s.sock")
+}
+
 func TestServeSocketDeliversToClients(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "serve.sock")
+	path := shortSocketPath(t)
 	ln, err := sysdaemon.Listen("munin", path)
 	if err != nil {
 		t.Fatal(err)

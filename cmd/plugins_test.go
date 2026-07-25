@@ -10,6 +10,7 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestPluginsHelpStatesCompileTimeTruth(t *testing.T) {
@@ -39,6 +40,7 @@ func TestPluginsHelpStatesCompileTimeTruth(t *testing.T) {
 }
 
 func TestPluginsScaffoldCLI(t *testing.T) {
+	testenv.Isolate(t)
 	dir := t.TempDir()
 	outDir := filepath.Join(dir, "widgets")
 	root := newRootCmd()
@@ -66,9 +68,7 @@ func TestPluginsScaffoldCLI(t *testing.T) {
 }
 
 func TestPluginsInstallUninstallCLI(t *testing.T) {
-	xdg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", xdg)
-	t.Setenv("HOME", xdg)
+	testenv.Isolate(t)
 	home := t.TempDir()
 	t.Setenv("MUNIN_HOME", home)
 

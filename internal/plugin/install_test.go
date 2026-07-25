@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestInstallEnablesAndWritesSeeds(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	id := "test.install.plugin"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{
@@ -54,7 +56,7 @@ func TestInstallEnablesAndWritesSeeds(t *testing.T) {
 }
 
 func TestInstallForceOverwrites(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	id := "test.install.force"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testforce", Capabilities: []Capability{CapQuery}})
@@ -95,7 +97,7 @@ func TestInstallForceOverwrites(t *testing.T) {
 }
 
 func TestUninstallDisablesAndRemovesMatchingSeeds(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	id := "test.uninstall.plugin"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testuninstall", Capabilities: []Capability{CapQuery}})
@@ -128,7 +130,7 @@ func TestUninstallDisablesAndRemovesMatchingSeeds(t *testing.T) {
 }
 
 func TestDisableKeepsInstalledUninstallClears(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	id := "test.disable.vs.uninstall"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testdvu", Capabilities: []Capability{CapQuery}})
@@ -177,7 +179,7 @@ func TestDisableKeepsInstalledUninstallClears(t *testing.T) {
 }
 
 func TestUninstallKeepsModifiedSeeds(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	id := "test.uninstall.keep"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testkeep", Capabilities: []Capability{CapQuery}})
@@ -216,7 +218,7 @@ func TestUninstallKeepsModifiedSeeds(t *testing.T) {
 }
 
 func TestUninstallKeepSeeds(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	id := "test.uninstall.keepseeds"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testkeepseeds", Capabilities: []Capability{CapQuery}})
@@ -244,7 +246,7 @@ func TestUninstallKeepSeeds(t *testing.T) {
 }
 
 func TestInstallUnknownPlugin(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	_, err := Install(t.TempDir(), "does.not.exist", InstallOptions{})
 	if err == nil {
 		t.Fatal("expected error")
@@ -270,7 +272,7 @@ func TestStockSeedsMatchExamples(t *testing.T) {
 }
 
 func TestSetEnabledRoundTrip(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	id := "test.enable.roundtrip"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testenable", Capabilities: []Capability{CapQuery}})

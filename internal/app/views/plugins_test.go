@@ -13,13 +13,14 @@ import (
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 var pluginsAnsi = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 func pluginsTestEnv(t *testing.T) {
 	t.Helper()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	_ = build.KnownSignals()
 	plugin.LoadEnabled()
 }

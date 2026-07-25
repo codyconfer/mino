@@ -10,11 +10,12 @@ import (
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/plugin/ntr"
 	"github.com/codyconfer/munin/internal/signals/active"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func TestScheduledEventsEmitsDueReminder(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	testenv.Isolate(t)
 	plugin.LoadEnabled()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
