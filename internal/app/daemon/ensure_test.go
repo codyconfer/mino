@@ -78,7 +78,9 @@ func TestStartSilentLifelineParentDeath(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for processAlive(pid) {
 		if time.Now().After(deadline) {
-			_ = syscall.Kill(pid, syscall.SIGKILL)
+			if p, ferr := os.FindProcess(pid); ferr == nil {
+				_ = p.Kill()
+			}
 			t.Fatalf("orphaned child pid %d still alive after parent exit", pid)
 		}
 		time.Sleep(20 * time.Millisecond)
