@@ -24,12 +24,12 @@ ifneq ($(EMAIL_DOMAIN),)
 LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.RequiredEmailDomain=$(EMAIL_DOMAIN)'
 endif
 
-# ENFORCE_AUTH, when set, compiles a build where cli directives HARD-BLOCK when
+# ALL_OR_NOTHING_AUTH, when set, compiles a build where cli directives block when
 # GitHub is authenticated but not fully authorized (missing signing verification,
 # scope, or onboarding), instead of warning and continuing.
-ENFORCE_AUTH ?=
-ifneq ($(ENFORCE_AUTH),)
-LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.EnforceAuthorized=true'
+ALL_OR_NOTHING_AUTH ?=
+ifneq ($(ALL_OR_NOTHING_AUTH),)
+LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.AllOrNothingAuth=true'
 endif
 
 # Regenerate the embedded system-tray / notification state icons from the raven
@@ -70,14 +70,14 @@ matrix:
 build:
 	go build ./...
 
-# Build a dev binary to $(BIN) honoring RACE/TAGS/EMAIL_DOMAIN/ENFORCE_AUTH.
+# Build a dev binary to $(BIN) honoring RACE/TAGS/EMAIL_DOMAIN/ALL_OR_NOTHING_AUTH.
 # Phony so it always rebuilds (go build is incremental) before a mode target runs.
 dev:
 	@mkdir -p $(dir $(BIN))
 	@go build $(GOFLAGS_DEV) -ldflags "$(LDFLAGS)" -o $(BIN) .
 
 # Install the host munin binary to $(INSTALL_DIR)/munin, replacing any existing
-# binary. Honors the same RACE/TAGS/EMAIL_DOMAIN/ENFORCE_AUTH knobs as `dev`.
+# binary. Honors the same RACE/TAGS/EMAIL_DOMAIN/ALL_OR_NOTHING_AUTH knobs as `dev`.
 # This is the Go toolchain PATH install — not `munin install` (config provision)
 # and not `make daemon` (OS service).
 install:

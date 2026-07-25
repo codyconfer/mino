@@ -35,9 +35,11 @@ munin fly morning -o json | jq .
 On first use Munin guides you through [onboarding](#onboarding) — GitHub auth plus a
 GitHub-verified signing key. How it gates depends on the mode: `munin deck` runs the
 guided flow; a bare `munin <directive>` prompts to authenticate when you're
-unauthenticated, and otherwise warns about any remaining gaps and continues (a
-domain-locked or `ENFORCE_AUTH` build blocks instead). `login`, `verify`, and
-`--help` are always available.
+unauthenticated, and otherwise warns about any remaining gaps and continues. A
+binary compiled with `ALL_OR_NOTHING_AUTH=1` instead blocks ordinary cli
+directives while the authenticated account remains unauthorized. Domain locking
+can add an authorization requirement, but does not enable blocking by itself.
+`login`, `verify`, and `--help` are always available.
 
 Munin reuses tools you already have for authentication — the `gh` CLI, `gcloud`
 ADC, `$SLACK_TOKEN` — and falls back to `munin login <service>` when they are
@@ -360,7 +362,7 @@ auth at all), **unauthorized** (authed but a signing/scope/verification gap), or
 
 | Mode | unauthenticated | unauthorized | authorized |
 |---|---|---|---|
-| **cli** | prompt to authenticate, then guided setup | warn + continue (or **block** in an `ENFORCE_AUTH` build) | run |
+| **cli** | prompt to authenticate, then guided setup; errors block | warn + continue by default; **block** in an `ALL_OR_NOTHING_AUTH` build | run |
 | **serve** | warn in logs, run anyway | warn in logs, run anyway | run |
 | **daemon** | warn in logs | warn in logs | run |
 | **deck** | run the guided onboarding flow, then continue | run the guided flow, then continue | run |
@@ -392,12 +394,31 @@ domain won't accept an onboarding done by an unrestricted build. Built without t
 flag, Munin has no domain restriction. Note this is a distribution-policy control,
 not a hardened security boundary — `settings.yaml` is user-writable.
 
-**Auth-enforced builds.** Compile with `ENFORCE_AUTH=1` to make cli directives
-**hard-block** when you're unauthorized (rather than warn and continue):
+#### All-or-nothing auth (`ALL_OR_NOTHING_AUTH`)
+
+`ALL_OR_NOTHING_AUTH` is a **build-time policy**, not a runtime environment
+variable or config setting. Set it while compiling to make ordinary cli
+directives return an error instead of continuing when the user is authenticated
+but not fully authorized:
 
 ```sh
-make command ARGS="fly work" ENFORCE_AUTH=1   # cli refuses to run until fully authorized
+make command ARGS="fly work" ALL_OR_NOTHING_AUTH=1   # cli requires full authorization
+make package ALL_OR_NOTHING_AUTH=1                    # build all-or-nothing releases
 ```
+
+The value is enabled when non-empty; use `1` by convention and omit the variable
+to build the default warning-only behavior.
+
+This switch is deliberately narrow:
+
+- It changes only the **cli + unauthorized** case.
+- It does not change `serve`, `daemon`, or `deck` behavior.
+- It does not change unauthenticated cli behavior: Munin still launches guided
+  authentication, and an authentication/onboarding error already blocks.
+- It does not block gate-exempt recovery commands such as `login`, `verify`,
+  `install`, `clean`, `nuke`, or `--help`.
+- In a domain-locked build, failing the domain check counts as unauthorized, but
+  blocks cli directives only when `ALL_OR_NOTHING_AUTH` was also enabled.
 
 ### Authentication
 
@@ -571,8 +592,9 @@ make run ARGS=demo                     # deck on the live-GitHub demo flight
 ```
 
 Build vars (make variables, not `ARGS`): `RACE=1` (race detector), `TAGS=…` (build
-tags), `EMAIL_DOMAIN=…` (domain-locked build), `ENFORCE_AUTH=1` (hard-block cli when
-unauthorized). `make package` cross-compiles release binaries.
+tags), `EMAIL_DOMAIN=…` (adds a domain authorization requirement), and
+`ALL_OR_NOTHING_AUTH=1` (compile ordinary cli directives to block rather than
+warn when unauthorized). `make package` cross-compiles release binaries.
 
 Signal integrations live in `internal/signals/<name>/`, each with offline table
 tests driven by recorded fixtures, so the suite needs no network. When no live

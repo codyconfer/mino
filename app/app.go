@@ -34,9 +34,9 @@ type Options struct {
 	// (equivalent to -X …onboard.RequiredEmailDomain=…).
 	EmailDomain string
 
-	// EnforceAuth hard-blocks unauthorized cli directives
-	// (equivalent to -X …onboard.EnforceAuthorized=true).
-	EnforceAuth bool
+	// AllOrNothingAuth blocks unauthorized cli directives
+	// (equivalent to -X …onboard.AllOrNothingAuth=true).
+	AllOrNothingAuth bool
 
 	// Defaults is an optional filesystem of seed config/directives for install.
 	// Layout mirrors ~/.munin (config.yaml, role *.yaml, queries/, filters/, flights/).
@@ -95,7 +95,7 @@ func applyBuildPolicy(opts Options) {
 	if opts.EmailDomain != "" {
 		onboard.RequiredEmailDomain = opts.EmailDomain
 	}
-	if opts.EnforceAuth {
-		onboard.EnforceAuthorized = "true"
+	if opts.AllOrNothingAuth {
+		onboard.AllOrNothingAuth = "true"
 	}
 }

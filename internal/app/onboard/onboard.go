@@ -12,7 +12,7 @@ import (
 
 var RequiredEmailDomain string
 
-var EnforceAuthorized string
+var AllOrNothingAuth string
 
 type StepID string
 

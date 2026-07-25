@@ -12,20 +12,20 @@ import (
 
 func TestApplyBuildPolicy(t *testing.T) {
 	origDomain := onboard.RequiredEmailDomain
-	origEnforce := onboard.EnforceAuthorized
+	origAllOrNothing := onboard.AllOrNothingAuth
 	t.Cleanup(func() {
 		onboard.RequiredEmailDomain = origDomain
-		onboard.EnforceAuthorized = origEnforce
+		onboard.AllOrNothingAuth = origAllOrNothing
 	})
 
 	onboard.RequiredEmailDomain = ""
-	onboard.EnforceAuthorized = ""
-	applyBuildPolicy(Options{EmailDomain: "example.com", EnforceAuth: true})
+	onboard.AllOrNothingAuth = ""
+	applyBuildPolicy(Options{EmailDomain: "example.com", AllOrNothingAuth: true})
 	if onboard.RequiredEmailDomain != "example.com" {
 		t.Fatalf("RequiredEmailDomain = %q", onboard.RequiredEmailDomain)
 	}
-	if onboard.EnforceAuthorized != "true" {
-		t.Fatalf("EnforceAuthorized = %q", onboard.EnforceAuthorized)
+	if onboard.AllOrNothingAuth != "true" {
+		t.Fatalf("AllOrNothingAuth = %q", onboard.AllOrNothingAuth)
 	}
 }
 

@@ -44,13 +44,13 @@ func gate(cmd *cobra.Command) error {
 		Classify:           classifyAuth,
 		CLIUnauthenticated: func(ctx context.Context) error { return cliGuidedAuth(cmd) },
 		CLIUnauthorized: func(ctx context.Context) error {
-			if onboard.EnforceAuthorized == "true" {
+			if onboard.AllOrNothingAuth == "true" {
 				return errs.New(errs.KindOnboarding, "munin is not fully authorized").WithHint("%s", onboardHint())
 			}
 			gateWarn(cmd, onboardHint())
 			return nil
 		},
-		EnforceHard: onboard.EnforceAuthorized == "true",
+		AllOrNothingAuth: onboard.AllOrNothingAuth == "true",
 		ServeUnauthorized: func(ctx context.Context) error {
 			gateWarn(cmd, "serve: "+onboardHint())
 			return nil
