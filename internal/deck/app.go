@@ -28,6 +28,12 @@ func WithKeyHook(fn func(m *vkdeck.Model, key tea.KeyMsg) (tea.Cmd, bool)) Optio
 	return Option(vkdeck.WithKeyHook(fn))
 }
 
+// WithMsgHook installs a global message interceptor on the deck host
+// (e.g. debounced role-lifecycle settle).
+func WithMsgHook(fn func(m *vkdeck.Model, msg tea.Msg) (tea.Cmd, bool)) Option {
+	return Option(vkdeck.WithMsgHook(fn))
+}
+
 // New builds a host with munin chrome defaults.
 func New(root vkdeck.View, opts ...Option) *vkdeck.Model {
 	return vkdeck.New(root, muninOpts(opts...)...)
@@ -47,7 +53,9 @@ func muninOpts(opts ...Option) []vkdeck.Option {
 			Brand:      "MUNIN",
 			BrandGlyph: glyph.Brand(),
 			Subtitle:   "netrunner deck",
-			ClockGlyph: glyph.Lead(glyph.Clock()),
+			// Pad (not Lead): viewkit chrome already appends one space
+			// before the time; Lead's nerd double-space made the gap too wide.
+			ClockGlyph: glyph.Pad(glyph.Clock()),
 		}),
 		vkdeck.WithKeyMapQuit(),
 	}

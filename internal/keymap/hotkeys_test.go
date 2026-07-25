@@ -40,7 +40,23 @@ func TestFlightTarget(t *testing.T) {
 	if _, ok := FlightTarget(TargetNoteNew); ok {
 		t.Error("ntr target must not look like a flight")
 	}
+	if _, ok := FlightTarget(TargetRoleNext); ok {
+		t.Error("role.next must not look like a flight")
+	}
 	if _, ok := FlightTarget("flight:"); ok {
 		t.Error("empty flight name")
+	}
+}
+
+func TestResolveHotkeyRoleCycle(t *testing.T) {
+	binds := map[string]string{
+		"alt+[": TargetRolePrev,
+		"alt+]": TargetRoleNext,
+	}
+	if got, ok := ResolveHotkey(binds, "alt+["); !ok || got != TargetRolePrev {
+		t.Errorf("alt+[ = %q,%v", got, ok)
+	}
+	if got, ok := ResolveHotkey(binds, "alt+]"); !ok || got != TargetRoleNext {
+		t.Errorf("alt+] = %q,%v", got, ok)
 	}
 }

@@ -8,6 +8,7 @@ type Config struct {
 	Role    string `koanf:"role"`
 	// Keybinds maps bubbletea key strings (e.g. "alt+n") to a target:
 	//   ntr.note.new | ntr.task.new | ntr.remind.new  — open NTR create forms
+	//   role.next | role.prev                         — cycle configured roles
 	//   <flight-name> or flight:<name>                 — open that flight in the TUI
 	Keybinds map[string]string `koanf:"keybinds"`
 	Audit    AuditConfig       `koanf:"audit"`

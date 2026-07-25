@@ -43,9 +43,9 @@ func ensureLoaded() {
 // (Parent set) inherit the owning primary plugin's enablement. Unknown ids
 // are treated as disabled for verify clarity.
 //
-// Enablement is independent of the installed set: stock plugins default to
-// enabled until disabled or uninstalled. Uninstall disables and clears
-// installed so the id leaves the Plugins TUI list.
+// Enablement is independent of the installed set: plugins default to enabled
+// until disabled. Internal (munin.*) plugins stay listed when disabled;
+// external plugins leave the Plugins TUI list only when uninstalled.
 func Enabled(id string) bool {
 	ensureLoaded()
 	d, ok := Lookup(id)
@@ -60,6 +60,8 @@ func Enabled(id string) bool {
 
 // Installed reports whether plugin id is in the managed/installed set
 // (Plugins TUI list). Companions inherit the owning primary's install state.
+// Internal (munin.*) plugins are always installed — they are compile-linked
+// into the binary and cannot be removed from the managed set.
 func Installed(id string) bool {
 	ensureLoaded()
 	d, ok := Lookup(id)
@@ -67,6 +69,9 @@ func Installed(id string) bool {
 		return false
 	}
 	owner := OwnerID(d)
+	if IsInternal(owner) {
+		return true
+	}
 	enableMu.RLock()
 	defer enableMu.RUnlock()
 	return installed[owner]
@@ -192,7 +197,8 @@ func ListEnabled() []struct {
 }
 
 // ListInstalled returns installed primary plugins and whether each is enabled.
-// Disabled plugins remain listed; uninstalled ones do not.
+// Internal (munin.*) plugins are always included. Disabled plugins remain
+// listed; uninstalled external ones do not.
 // Order matches Primaries among the installed subset.
 func ListInstalled() []struct {
 	ID      string

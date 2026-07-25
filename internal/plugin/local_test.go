@@ -107,18 +107,18 @@ func TestListInstallCandidatesMergesLocalRegistry(t *testing.T) {
 	testenv.Isolate(t)
 	LoadEnabled()
 	home := t.TempDir()
-	id := "munin.ntr"
+	id := "test.local.merge"
 	if _, ok := Lookup(id); !ok {
-		t.Skip("munin.ntr not registered in this binary")
+		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testlocalmerge", Capabilities: []Capability{CapQuery}})
 	}
-	pack := filepath.Join(home, ".plugins", "ntr-extra")
+	pack := filepath.Join(home, ".plugins", "merge-extra")
 	if err := os.MkdirAll(filepath.Join(pack, "queries"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(pack, "plugin.yaml"), []byte("id: "+id+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(pack, "queries", "ntr-extra.yaml"), []byte("name: ntr-extra\nsignal: ntr\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(pack, "queries", "merge-extra.yaml"), []byte("name: merge-extra\nsignal: testlocalmerge\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -126,18 +126,39 @@ func TestListInstallCandidatesMergesLocalRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var ntr InstallCandidate
-	ntrCount := 0
+	var got InstallCandidate
+	count := 0
 	for _, c := range cands {
 		if c.ID == id {
-			ntrCount++
-			ntr = c
+			count++
+			got = c
 		}
 	}
-	if ntrCount != 1 {
-		t.Fatalf("expected merged ntr once, got %d in %+v", ntrCount, cands)
+	if count != 1 {
+		t.Fatalf("expected merged candidate once, got %d in %+v", count, cands)
 	}
-	if ntr.Source != "local+registry" || len(ntr.Seeds) != 1 {
-		t.Fatalf("ntr = %+v", ntr)
+	if got.Source != "local+registry" || len(got.Seeds) != 1 {
+		t.Fatalf("candidate = %+v", got)
+	}
+}
+
+func TestListInstallCandidatesOmitsInternal(t *testing.T) {
+	testenv.Isolate(t)
+	LoadEnabled()
+	id := "munin.ntr"
+	if _, ok := Lookup(id); !ok {
+		t.Skip("munin.ntr not registered in this binary")
+	}
+	if !Installed(id) {
+		t.Fatal("internal plugin should report installed without settings entry")
+	}
+	cands, err := ListInstallCandidates(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cands {
+		if IsInternal(c.ID) && c.Source != "local" {
+			t.Fatalf("internal plugin in install candidates: %+v", c)
+		}
 	}
 }

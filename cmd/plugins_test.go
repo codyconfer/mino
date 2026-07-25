@@ -138,26 +138,23 @@ func TestPluginsInstallUninstallCLI(t *testing.T) {
 	}
 
 	out, err = run("plugins", "uninstall", id)
-	if err != nil {
-		t.Fatalf("uninstall: %v\n%s", err, out)
+	if err == nil {
+		t.Fatalf("expected uninstall of built-in to fail:\n%s", out)
 	}
-	if !strings.Contains(out, "uninstalled "+id) {
-		t.Fatalf("uninstall output: %s", out)
+	if !plugin.Installed(id) {
+		t.Fatal("built-in must remain installed after rejected uninstall")
 	}
-	if plugin.Enabled(id) {
-		t.Fatal("expected disabled after uninstall")
+	if !plugin.Enabled(id) {
+		t.Fatal("built-in must remain enabled after rejected uninstall")
 	}
-	if plugin.Installed(id) {
-		t.Fatal("expected not installed after uninstall")
-	}
-	if _, err := os.Stat(filepath.Join(home, "queries", "ntr-list.yaml")); !os.IsNotExist(err) {
-		t.Fatalf("seed should be removed: %v", err)
+	if _, err := os.Stat(filepath.Join(home, "queries", "ntr-list.yaml")); err != nil {
+		t.Fatalf("seeds should remain after rejected uninstall: %v", err)
 	}
 
-	if out, err = run("plugins", "enable", id); err != nil || !strings.Contains(out, "enabled "+id) {
-		t.Fatalf("enable: %v\n%s", err, out)
-	}
 	if out, err = run("plugins", "disable", id); err != nil || !strings.Contains(out, "disabled "+id) {
 		t.Fatalf("disable: %v\n%s", err, out)
+	}
+	if out, err = run("plugins", "enable", id); err != nil || !strings.Contains(out, "enabled "+id) {
+		t.Fatalf("enable: %v\n%s", err, out)
 	}
 }

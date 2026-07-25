@@ -9,6 +9,8 @@ const (
 	TargetNoteNew   = "ntr.note.new"
 	TargetTaskNew   = "ntr.task.new"
 	TargetRemindNew = "ntr.remind.new"
+	TargetRoleNext  = "role.next"
+	TargetRolePrev  = "role.prev"
 	flightPrefix    = "flight:"
 )
 
@@ -46,7 +48,7 @@ func FlightTarget(target string) (name string, ok bool) {
 		return "", false
 	}
 	switch target {
-	case TargetNoteNew, TargetTaskNew, TargetRemindNew:
+	case TargetNoteNew, TargetTaskNew, TargetRemindNew, TargetRoleNext, TargetRolePrev:
 		return "", false
 	}
 	if strings.HasPrefix(target, flightPrefix) {

@@ -89,6 +89,22 @@ func TestPluginServicesPrefersBrandGlyph(t *testing.T) {
 	t.Fatalf("expected BrandGlyph %q as service name, got %+v", logo, PluginServices("", ""))
 }
 
+func TestServiceChipLogoDetailSpacing(t *testing.T) {
+	name, detail := serviceChip("github", "1/2")
+	want := glyph.Lead(glyph.GitHub()) + "1/2"
+	if name != want || detail != "" {
+		t.Fatalf("logo+detail = (%q, %q), want (%q, \"\")", name, detail, want)
+	}
+	name, detail = serviceChip("google", "")
+	if name != glyph.Google() || detail != "" {
+		t.Fatalf("logo-only = (%q, %q), want (%q, \"\")", name, detail, glyph.Google())
+	}
+	name, detail = serviceChip("daemon", "running")
+	if name != "daemon" || detail != "running" {
+		t.Fatalf("text+detail = (%q, %q), want (\"daemon\", \"running\")", name, detail)
+	}
+}
+
 func TestAdaptStatusUsesToolLogos(t *testing.T) {
 	info := StatusInfo{Services: []ServiceStatus{
 		{Name: "github", Detail: "1/2", Level: StatusOK},
@@ -99,8 +115,9 @@ func TestAdaptStatusUsesToolLogos(t *testing.T) {
 	if len(got.Services) != 3 {
 		t.Fatalf("services = %d, want 3", len(got.Services))
 	}
-	if got.Services[0].Name != glyph.GitHub() || got.Services[0].Detail != "1/2" {
-		t.Errorf("github chip = %+v", got.Services[0])
+	wantGH := glyph.Lead(glyph.GitHub()) + "1/2"
+	if got.Services[0].Name != wantGH || got.Services[0].Detail != "" {
+		t.Errorf("github chip = %+v, want Name=%q Detail=\"\"", got.Services[0], wantGH)
 	}
 	if got.Services[1].Name != glyph.Slack() {
 		t.Errorf("slack chip = %+v", got.Services[1])
@@ -171,8 +188,9 @@ func TestRoleServicesAppearInStatusStrip(t *testing.T) {
 		t.Fatalf("adaptStatus services = %+v", got.Services)
 	}
 	roleSvc := got.Services[1]
-	if roleSvc.Name != glyph.GitHub() || roleSvc.Detail != "triage-ctx" {
-		t.Fatalf("role chip = %+v", roleSvc)
+	wantRole := glyph.Lead(glyph.GitHub()) + "triage-ctx"
+	if roleSvc.Name != wantRole || roleSvc.Detail != "" {
+		t.Fatalf("role chip = %+v, want Name=%q Detail=\"\"", roleSvc, wantRole)
 	}
 
 	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})

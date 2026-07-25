@@ -96,9 +96,10 @@ func adaptStatus(info StatusInfo) vkdeck.StatusInfo {
 		if g == "" {
 			g = theme.SeverityGlyph(s.Level)
 		}
+		name, detail := serviceChip(s.Name, s.Detail)
 		out.Services = append(out.Services, vkdeck.ServiceStatus{
-			Name:   serviceLabel(s.Name),
-			Detail: s.Detail,
+			Name:   name,
+			Detail: detail,
 			Glyph:  glyph.Lead(g),
 			Color:  theme.SeverityColor(s.Level),
 		})
@@ -120,6 +121,20 @@ func serviceLabel(name string) string {
 		return logo
 	}
 	return name
+}
+
+// serviceChip builds the chip label passed to viewkit. Tool logos with detail
+// (e.g. GitHub rate limit) are joined via glyph.Lead so nerd-font icons get
+// breathing room; logo-only chips (Google) stay unpadded so separators stay tight.
+// Plain-text names keep Detail separate for viewkit's single-space join.
+func serviceChip(name, detail string) (string, string) {
+	if logo := glyph.ForTool(name); logo != "" {
+		if detail != "" {
+			return glyph.Lead(logo) + detail, ""
+		}
+		return logo, ""
+	}
+	return name, detail
 }
 
 func identity(info StatusInfo) string {

@@ -76,7 +76,7 @@ func sectionLeaves(f layout.Frame, th *theme.Theme, c conn, spad string, s signa
 	switch {
 	case s.Err != nil:
 		errLines := strings.Split(signals.Clean(s.Err.Error()), "\n")
-		body := []string{th.Cant.Render(glyph.Warn() + " " + errLines[0])}
+		body := []string{th.Cant.Render(glyph.Lead(glyph.Warn()) + errLines[0])}
 		for _, l := range errLines[1:] {
 			body = append(body, th.Dim.Render(l))
 		}

@@ -108,13 +108,18 @@ type UninstallResult struct {
 // Uninstall removes a compile-time registered plugin from the managed/installed
 // set, disables it, and by default removes example directive seeds that still
 // match the catalog. Disable alone (SetEnabled false) keeps the plugin listed;
-// uninstall is what drops it from the Plugins TUI until installed again.
-// It never unloads compile-linked plugin code.
+// uninstall is what drops an external plugin from the Plugins TUI until
+// installed again. Internal (munin.*) plugins cannot be uninstalled — use
+// disable instead. It never unloads compile-linked plugin code.
 func Uninstall(home, id string, opts UninstallOptions) (UninstallResult, error) {
 	res := UninstallResult{PluginID: id}
 	if _, ok := Lookup(id); !ok {
 		return res, errs.Newf(errs.KindConfig, "unknown plugin %q", id).
 			WithHint("plugins are linked at compile time; use `munin plugins list` for ids in this binary")
+	}
+	if IsInternal(id) {
+		return res, errs.Newf(errs.KindConfig, "cannot uninstall built-in plugin %q", id).
+			WithHint("internal plugins are always present; use disable to deactivate, or reinstall to refresh seeds")
 	}
 	// Clear installed + disable in one write (disable ≠ uninstall).
 	if err := setInstalledEnabled(id, false, false); err != nil {

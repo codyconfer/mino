@@ -52,55 +52,66 @@ func TestPluginsMenuSmoke(t *testing.T) {
 	_ = a.View()
 }
 
-func TestPluginsListsInstalledOnly(t *testing.T) {
+func TestPluginsListsInternalAsBuiltIn(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
-	page := kit.Plugins().(*pluginsPage)
-	if len(page.rows) != 0 {
-		t.Fatalf("expected empty installed list, got %d rows", len(page.rows))
-	}
-	body := pluginsAnsi.ReplaceAllString(page.Body(100, 40), "")
-	if !strings.Contains(body, "no plugins installed") {
-		t.Fatalf("empty body missing hint:\n%s", body)
-	}
-
 	id := "munin.ntr"
 	if _, ok := plugin.Lookup(id); !ok {
 		t.Skip("munin.ntr not linked")
 	}
-	installTestPlugin(t, kit.d.App.Cfg.Home, id)
-	page.reload()
+	page := kit.Plugins().(*pluginsPage)
 	if len(page.rows) == 0 {
-		t.Fatal("expected installed plugin in list")
+		t.Fatal("expected built-in plugins listed without install")
 	}
 	found := false
 	for _, row := range page.rows {
-		if row.id == id {
-			found = true
-			if !row.enabled {
-				t.Fatal("expected enabled after install")
-			}
+		if row.id != id {
+			continue
+		}
+		found = true
+		if !row.enabled {
+			t.Fatal("expected internal plugin enabled by default")
+		}
+		if !strings.Contains(row.desc, "built-in") {
+			t.Fatalf("internal row missing built-in state: %q", row.desc)
+		}
+		if strings.Contains(row.desc, "not installed") {
+			t.Fatalf("internal row must not show not installed: %q", row.desc)
 		}
 	}
 	if !found {
-		t.Fatalf("missing %s in rows: %+v", id, page.rows)
+		t.Fatalf("missing internal %s in rows: %+v", id, page.rows)
 	}
-	body = pluginsAnsi.ReplaceAllString(page.Body(100, 40), "")
-	if !strings.Contains(body, id) || !strings.Contains(body, "kind=") {
-		t.Fatalf("body missing installed plugin:\n%s", body)
+	body := pluginsAnsi.ReplaceAllString(page.Body(100, 40), "")
+	if !strings.Contains(body, id) || !strings.Contains(body, "built-in") {
+		t.Fatalf("body missing built-in internal plugin:\n%s", body)
+	}
+	// Built-ins are never install candidates.
+	cands, err := plugin.ListInstallCandidates(kit.d.App.Cfg.Home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cands {
+		if c.ID == id && c.Source != "local" {
+			t.Fatalf("internal plugin offered as install candidate: %+v", c)
+		}
+	}
+	// Uninstall hint omitted while cursor is on a built-in.
+	for i, row := range page.rows {
+		if row.id == id {
+			page.cursor = i
+			break
+		}
+	}
+	joined := fmt.Sprint(page.Hints())
+	if strings.Contains(joined, "uninstall") {
+		t.Fatalf("uninstall hint should be hidden for internal: %v", page.Hints())
 	}
 }
 
 func TestPluginsListsInternalFirst(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
-	home := kit.d.App.Cfg.Home
-	for _, id := range []string{"munin.ntr", "munin.demo"} {
-		if _, ok := plugin.Lookup(id); !ok {
-			continue
-		}
-		installTestPlugin(t, home, id)
-	}
 	page := kit.Plugins().(*pluginsPage)
 	if len(page.rows) == 0 {
 		t.Fatal("expected installed plugins in list")
@@ -133,7 +144,6 @@ func TestPluginsDisableKeepsRow(t *testing.T) {
 	if _, ok := plugin.Lookup(id); !ok {
 		t.Skip("munin.ntr not linked")
 	}
-	installTestPlugin(t, kit.d.App.Cfg.Home, id)
 
 	page := kit.Plugins().(*pluginsPage)
 	page.cursor = 0
@@ -184,12 +194,15 @@ func TestPluginsDisableKeepsRow(t *testing.T) {
 	}
 }
 
-func TestPluginsUninstallRemovesFromListAndReinstallRestores(t *testing.T) {
+func TestPluginsUninstallRemovesExternalFromListAndReinstallRestores(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
-	id := "munin.ntr"
+	id := "test.views.uninstall"
 	if _, ok := plugin.Lookup(id); !ok {
-		t.Skip("munin.ntr not linked")
+		plugin.Register(plugin.Descriptor{
+			ID: id, Kind: plugin.KindSignal, Signal: "testviewsuninstall",
+			Capabilities: []plugin.Capability{plugin.CapQuery},
+		})
 	}
 	home := kit.d.App.Cfg.Home
 	installTestPlugin(t, home, id)
@@ -200,6 +213,10 @@ func TestPluginsUninstallRemovesFromListAndReinstallRestores(t *testing.T) {
 			page.cursor = i
 			break
 		}
+	}
+	joined := fmt.Sprint(page.Hints())
+	if !strings.Contains(joined, "uninstall") {
+		t.Fatalf("uninstall hint missing for external: %v", page.Hints())
 	}
 
 	a := deck.New(page)
@@ -221,8 +238,10 @@ func TestPluginsUninstallRemovesFromListAndReinstallRestores(t *testing.T) {
 	if plugin.Enabled(id) {
 		t.Fatal("expected disabled after uninstall")
 	}
-	if len(page.rows) != 0 {
-		t.Fatalf("expected empty list after uninstall, got %+v", page.rows)
+	for _, row := range page.rows {
+		if row.id == id {
+			t.Fatalf("external still listed after uninstall: %+v", page.rows)
+		}
 	}
 
 	// Re-install via API (picker coverage is separate); list should regain the row.
@@ -239,6 +258,32 @@ func TestPluginsUninstallRemovesFromListAndReinstallRestores(t *testing.T) {
 	}
 }
 
+func TestPluginsUninstallIgnoredForInternal(t *testing.T) {
+	pluginsTestEnv(t)
+	kit := testKit(t)
+	id := "munin.ntr"
+	if _, ok := plugin.Lookup(id); !ok {
+		t.Skip("munin.ntr not linked")
+	}
+	page := kit.Plugins().(*pluginsPage)
+	for i, row := range page.rows {
+		if row.id == id {
+			page.cursor = i
+			break
+		}
+	}
+	a := deck.New(page)
+	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
+	a, cmd := update(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
+	if cmd != nil {
+		t.Fatal("uninstall must be a no-op for built-in plugins")
+	}
+	if !plugin.Installed(id) || !plugin.Enabled(id) {
+		t.Fatalf("internal state changed: installed=%v enabled=%v", plugin.Installed(id), plugin.Enabled(id))
+	}
+	_ = a
+}
+
 func TestPluginsTogglePersists(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
@@ -246,7 +291,6 @@ func TestPluginsTogglePersists(t *testing.T) {
 	if _, ok := plugin.Lookup(id); !ok {
 		t.Skip("munin.demo not linked")
 	}
-	installTestPlugin(t, kit.d.App.Cfg.Home, id)
 
 	page := kit.Plugins().(*pluginsPage)
 	for i, row := range page.rows {
@@ -330,9 +374,23 @@ func TestToolingMenuIncludesPluginsEntry(t *testing.T) {
 func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
+	id := "test.views.install"
+	if _, ok := plugin.Lookup(id); !ok {
+		plugin.Register(plugin.Descriptor{
+			ID: id, Kind: plugin.KindSignal, Signal: "testviewsinstall",
+			Capabilities: []plugin.Capability{plugin.CapQuery},
+		})
+	}
+	plugin.RegisterSeeds(id, []plugin.FileSeed{
+		{RelPath: "queries/test-views-install.yaml", Content: []byte("name: test-views-install\nsignal: testviewsinstall\n")},
+	})
+	t.Cleanup(func() { plugin.RegisterSeeds(id, nil) })
+
 	page := kit.Plugins().(*pluginsPage)
-	if len(page.rows) != 0 {
-		t.Fatalf("expected empty list before install, got %+v", page.rows)
+	for _, row := range page.rows {
+		if row.id == id {
+			t.Fatalf("external should not be listed before install: %+v", page.rows)
+		}
 	}
 
 	a := deck.New(page)
@@ -351,11 +409,10 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 	if !strings.Contains(strings.ToLower(pickerBody), "install") {
 		t.Fatalf("expected install picker:\n%s", pickerBody)
 	}
-
-	id := "munin.ntr"
-	if _, ok := plugin.Lookup(id); !ok {
-		t.Skip("munin.ntr not linked")
+	if strings.Contains(pickerBody, "munin.ntr") {
+		t.Fatalf("built-in munin.ntr must not appear in install picker:\n%s", pickerBody)
 	}
+
 	home := kit.d.App.Cfg.Home
 	app := kit.d.App
 	cands, err := plugin.ListInstallCandidates(home)
@@ -370,7 +427,7 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 		}
 	}
 	if cand.ID == "" {
-		t.Fatalf("munin.ntr missing from install candidates: %+v", cands)
+		t.Fatalf("%s missing from install candidates: %+v", id, cands)
 	}
 	res, err := plugin.InstallCandidateEntry(home, cand, plugin.InstallOptions{})
 	if err != nil {
@@ -381,14 +438,11 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 	}
 	_ = step(a, pluginsInstalledMsg{id: id, written: len(res.Written), skipped: len(res.Skipped)})
 
-	if _, err := os.Stat(filepath.Join(home, "queries", "ntr-list.yaml")); err != nil {
-		t.Fatalf("ntr-list seed missing: %v", err)
+	if _, err := os.Stat(filepath.Join(home, "queries", "test-views-install.yaml")); err != nil {
+		t.Fatalf("seed missing: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(home, "flights", "ntr.yaml")); err != nil {
-		t.Fatalf("ntr flight seed missing: %v", err)
-	}
-	if _, ok := kit.d.App.Directives.Queries["ntr-list"]; !ok {
-		t.Fatalf("ReloadDirectives missed query ntr-list: %v", kit.d.App.Directives.QueryNames())
+	if _, ok := kit.d.App.Directives.Queries["test-views-install"]; !ok {
+		t.Fatalf("ReloadDirectives missed query: %v", kit.d.App.Directives.QueryNames())
 	}
 	if !plugin.Installed(id) || !plugin.Enabled(id) {
 		t.Fatalf("installed=%v enabled=%v", plugin.Installed(id), plugin.Enabled(id))
@@ -413,10 +467,16 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 			t.Fatalf("installed plugin still in registry candidates: %+v", c)
 		}
 	}
+	for i, row := range page.rows {
+		if row.id == id {
+			page.cursor = i
+			break
+		}
+	}
 	hints := page.Hints()
 	joined := fmt.Sprint(hints)
 	if !strings.Contains(joined, "install") || !strings.Contains(joined, "uninstall") {
-		t.Fatalf("hints missing install/uninstall: %v", hints)
+		t.Fatalf("hints missing install/uninstall for external: %v", hints)
 	}
 	if !strings.Contains(joined, "enable/disable") {
 		t.Fatalf("hints missing enable/disable: %v", hints)

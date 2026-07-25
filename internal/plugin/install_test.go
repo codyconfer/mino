@@ -253,6 +253,46 @@ func TestInstallUnknownPlugin(t *testing.T) {
 	}
 }
 
+func TestInternalPluginsAlwaysInstalled(t *testing.T) {
+	testenv.Isolate(t)
+	id := "munin.demo"
+	if _, ok := Lookup(id); !ok {
+		RegisterBuiltins()
+	}
+	if _, ok := Lookup(id); !ok {
+		t.Skip("munin.demo not registered")
+	}
+	LoadEnabled()
+	if !Installed(id) {
+		t.Fatal("internal plugin must be installed without installed_plugins entry")
+	}
+	listed := false
+	for _, row := range ListInstalled() {
+		if row.ID == id {
+			listed = true
+			if !row.Enabled {
+				t.Fatal("internal defaults to enabled")
+			}
+		}
+	}
+	if !listed {
+		t.Fatal("internal missing from ListInstalled")
+	}
+	if _, err := Uninstall(t.TempDir(), id, UninstallOptions{KeepSeeds: true}); err == nil {
+		t.Fatal("uninstall of built-in must fail")
+	}
+	if !Installed(id) {
+		t.Fatal("failed uninstall must leave internal installed")
+	}
+	// Seed refresh via Install remains allowed.
+	if _, err := Install(t.TempDir(), id, InstallOptions{}); err != nil {
+		t.Fatalf("install seeds for built-in: %v", err)
+	}
+	if !Installed(id) || !Enabled(id) {
+		t.Fatalf("after seed install: installed=%v enabled=%v", Installed(id), Enabled(id))
+	}
+}
+
 func TestStockSeedsMatchExamples(t *testing.T) {
 	root := filepath.Join("..", "..", "examples")
 	for _, id := range SeedPluginIDs() {

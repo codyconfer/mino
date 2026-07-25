@@ -74,13 +74,15 @@ func expandHomePath(p string) (string, error) {
 	return p, nil
 }
 
-// DefaultKeybinds are demo NTR create hotkeys (Alt avoids colliding with list
-// n/r/t binds inside notes/tasks/reminders views).
+// DefaultKeybinds are demo TUI hotkeys (Alt avoids colliding with list n/r/t
+// binds inside notes/tasks/reminders views). Role cycle uses [ / ].
 func DefaultKeybinds() map[string]string {
 	return map[string]string{
 		"alt+n": "ntr.note.new",
 		"alt+r": "ntr.remind.new",
 		"alt+t": "ntr.task.new",
+		"alt+[": "role.prev",
+		"alt+]": "role.next",
 	}
 }
 

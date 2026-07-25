@@ -105,7 +105,7 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 
 	app.SetStatus(adaptStatus(info))
 	view := app.View()
-	ghChip := glyph.GitHub() + " 4998/5000"
+	ghChip := glyph.Lead(glyph.GitHub()) + "4998/5000"
 	for _, want := range []string{"@cody", glyph.SigningOK(), ghChip, glyph.Slack(), glyph.Google()} {
 		if !strings.Contains(view, want) {
 			t.Errorf("status chrome missing %q\n---\n%s", want, view)

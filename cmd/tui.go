@@ -40,7 +40,11 @@ func newDeckCmd() *cobra.Command {
 			defer stopServe()
 			kit := buildViews()
 			stopLaunchLoading()
-			opts := []deck.Option{deck.WithStatus(statusProvider()), deck.WithKeyHook(kit.KeyHook())}
+			opts := []deck.Option{
+				deck.WithStatus(statusProvider()),
+				deck.WithKeyHook(kit.KeyHook()),
+				deck.WithMsgHook(kit.MsgHook()),
+			}
 			if len(args) == 1 {
 				return deck.Run(kit.FlightResults(name), opts...)
 			}

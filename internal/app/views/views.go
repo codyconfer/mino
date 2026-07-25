@@ -130,7 +130,7 @@ func (k *Kit) Home() vkdeck.View {
 			return k.d.FetchHomeFlight(name)
 		})
 	}
-	return withHotkeyHints(shell, k.hotkeyHints())
+	return withHotkeyHints(withLiveContext(shell, k.menuCtx), k.hotkeyHints())
 }
 
 // hintView appends footer hotkey cues without changing navigation.
@@ -149,6 +149,21 @@ func withHotkeyHints(inner vkdeck.View, extra [][2]string) vkdeck.View {
 func (h *hintView) Hints() [][2]string {
 	return append(append([][2]string{}, h.View.Hints()...), h.extra...)
 }
+
+// liveContextView refreshes chrome context cues (e.g. active role) each frame.
+type liveContextView struct {
+	vkdeck.View
+	ctx func() [][2]string
+}
+
+func withLiveContext(inner vkdeck.View, ctx func() [][2]string) vkdeck.View {
+	if ctx == nil {
+		return inner
+	}
+	return &liveContextView{View: inner, ctx: ctx}
+}
+
+func (v *liveContextView) Context() [][2]string { return v.ctx() }
 
 func (k *Kit) homeFlightName() string {
 	role := k.d.App.Cfg.Role

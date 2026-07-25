@@ -26,7 +26,8 @@ type App struct {
 	Tokens     *token.Store
 	Mgr        *sisyphus.Manager
 
-	ghAuth ghAuthCache
+	ghAuth       ghAuthCache
+	roleDebounce roleDebounce
 }
 
 type ghAuthCache struct {
@@ -93,6 +94,7 @@ func Load(opts Options) (*App, error) {
 
 // ActivateRole switches the active role in-process: exit hooks for the previous
 // role, then enter hooks and contexts for name (empty clears the role).
+// Immediate (not debounced); cancels any pending TUI role-cycle settle.
 func (a *App) ActivateRole(name string) error {
 	if a == nil || a.Cfg == nil {
 		return errs.New(errs.KindInternal, "app not loaded")
@@ -100,6 +102,7 @@ func (a *App) ActivateRole(name string) error {
 	if name == a.Cfg.Role {
 		return nil
 	}
+	a.invalidateRoleDebounce()
 	a.Cfg.Role = name
 	a.syncRoleLifecycle()
 	return nil
@@ -244,6 +247,7 @@ func (a *App) Shutdown() {
 	if a == nil {
 		return
 	}
+	a.FlushRoleLifecycle()
 	if a.Audit != nil {
 		_ = a.Audit.Close()
 	}

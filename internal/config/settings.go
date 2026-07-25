@@ -22,12 +22,14 @@ type GlobalSettings struct {
 	LogDir          string `yaml:"log_dir"`
 	Onboarded       bool   `yaml:"onboarded"`
 	OnboardedDomain string `yaml:"onboarded_domain"`
-	// InstalledPlugins lists compile-time plugin ids in the managed set
-	// (shown in the Plugins TUI). Distinct from DisabledPlugins: disable keeps
-	// the id here; uninstall removes it.
+	// InstalledPlugins lists external/compile-time plugin ids in the managed
+	// set (shown in the Plugins TUI). Internal munin.* plugins are always
+	// treated as installed and need not appear here. Distinct from
+	// DisabledPlugins: disable keeps the id here; uninstall removes it.
 	InstalledPlugins []string `yaml:"installed_plugins,omitempty"`
 	// DisabledPlugins lists compile-time plugin ids that are runtime-disabled.
-	// A disabled plugin may still be installed (listed); uninstall clears both.
+	// A disabled plugin may still be installed (listed); uninstall clears both
+	// for external plugins. Built-ins cannot be uninstalled.
 	DisabledPlugins []string `yaml:"disabled_plugins,omitempty"`
 	// HiddenStatusBar lists status-bar chip ids the user chose to hide.
 	// Display-only: does not disable or uninstall plugins.

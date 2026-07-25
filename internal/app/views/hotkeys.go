@@ -1,16 +1,22 @@
 package views
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
+	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/plugin/ntr"
 )
 
+// roleLifecycleSettleMsg is emitted after RoleCycleDebounce quiet time.
+type roleLifecycleSettleMsg struct{ gen uint64 }
+
 // KeyHook returns a deck global key interceptor that opens keybind targets
-// (NTR create forms or named flights). Wired via deck.WithKeyHook.
+// (NTR create forms, role cycle, or named flights). Wired via deck.WithKeyHook.
 func (k *Kit) KeyHook() vkdeck.KeyHook {
 	return func(m *vkdeck.Model, key tea.KeyMsg) (tea.Cmd, bool) {
 		binds := k.keybinds()
@@ -19,8 +25,27 @@ func (k *Kit) KeyHook() vkdeck.KeyHook {
 			return nil, false
 		}
 		cmd := k.openHotkeyTarget(m, target)
-		return cmd, cmd != nil
+		return cmd, cmd != nil || isRoleCycleTarget(target)
 	}
+}
+
+// MsgHook settles debounced role lifecycle (hooks/status/contexts) after a
+// quiet period following role.next / role.prev hotkeys.
+func (k *Kit) MsgHook() vkdeck.MsgHook {
+	return func(m *vkdeck.Model, msg tea.Msg) (tea.Cmd, bool) {
+		s, ok := msg.(roleLifecycleSettleMsg)
+		if !ok {
+			return nil, false
+		}
+		if k.d.App == nil || !k.d.App.SettleRoleCycle(s.gen) {
+			return nil, true
+		}
+		return m.RefreshStatus(), true
+	}
+}
+
+func isRoleCycleTarget(target string) bool {
+	return target == keymap.TargetRoleNext || target == keymap.TargetRolePrev
 }
 
 func (k *Kit) keybinds() map[string]string {
@@ -42,6 +67,10 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 			return nil
 		}
 		return m.Push(ntr.NewRemindForm(home, role))
+	case keymap.TargetRoleNext:
+		return k.cycleRoleCmd(1)
+	case keymap.TargetRolePrev:
+		return k.cycleRoleCmd(-1)
 	}
 	name, ok := keymap.FlightTarget(target)
 	if !ok || k.d.App == nil || k.d.App.Directives == nil {
@@ -51,6 +80,23 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 		return nil
 	}
 	return m.Push(k.FlightResults(name))
+}
+
+func (k *Kit) cycleRoleCmd(delta int) tea.Cmd {
+	if k.d.App == nil || k.d.App.Directives == nil {
+		return nil
+	}
+	next, ok := app.NextRole(k.d.App.Directives.RoleNames(), k.d.App.Cfg.Role, delta)
+	if !ok {
+		return nil
+	}
+	gen, changed := k.d.App.BeginRoleCycle(next)
+	if !changed {
+		return nil
+	}
+	return tea.Tick(app.RoleCycleDebounce, func(time.Time) tea.Msg {
+		return roleLifecycleSettleMsg{gen: gen}
+	})
 }
 
 func (k *Kit) ntrHomeRole() (home, role string) {
@@ -64,7 +110,7 @@ func (k *Kit) ntrHomeRole() (home, role string) {
 	return home, role
 }
 
-// hotkeyHints returns footer hints for configured NTR create binds.
+// hotkeyHints returns footer hints for configured NTR create and role-cycle binds.
 func (k *Kit) hotkeyHints() [][2]string {
 	binds := k.keybinds()
 	if len(binds) == 0 {
@@ -76,6 +122,8 @@ func (k *Kit) hotkeyHints() [][2]string {
 		{keymap.TargetNoteNew, "new note"},
 		{keymap.TargetTaskNew, "new task"},
 		{keymap.TargetRemindNew, "new reminder"},
+		{keymap.TargetRolePrev, "prev role"},
+		{keymap.TargetRoleNext, "next role"},
 	}
 	var out [][2]string
 	for _, o := range order {

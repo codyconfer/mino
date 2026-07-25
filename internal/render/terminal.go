@@ -112,6 +112,9 @@ func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
 	if it.Subtitle != "" {
 		head += "  " + th.Dim.Render(signals.Clean(it.Subtitle))
 	}
+	if author := signals.Clean(it.Meta["author"]); author != "" {
+		head += "  " + th.Dim.Render("@"+author)
+	}
 	var lines []string
 	if !it.Timestamp.IsZero() {
 		lines = append(lines, f.Spread(head, th.Dim.Render(timefmt.Rel(it.Timestamp))))

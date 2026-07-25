@@ -203,7 +203,7 @@ func ListInstallCandidates(home string) ([]InstallCandidate, error) {
 		if !Enabled(d.ID) {
 			state = "disabled"
 		}
-		c.Desc = "not installed · " + state
+		c.Desc = "available · " + state
 		if nSeeds > 0 {
 			c.Desc += " · catalog seeds"
 		}

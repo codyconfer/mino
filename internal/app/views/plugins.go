@@ -82,6 +82,9 @@ func (p *pluginsPage) reload() {
 		if !row.Enabled {
 			state = "disabled"
 		}
+		if plugin.IsInternal(row.ID) {
+			state = "built-in · " + state
+		}
 		desc := fmt.Sprintf("%s  kind=%s", state, d.Kind)
 		if d.Signal != "" {
 			desc += " signal=" + d.Signal
@@ -106,13 +109,16 @@ func (p *pluginsPage) Context() [][2]string { return p.kit.menuCtx() }
 func (p *pluginsPage) Init() tea.Cmd        { return nil }
 
 func (p *pluginsPage) Hints() [][2]string {
-	return [][2]string{
+	hints := [][2]string{
 		{"↑/↓", "move"},
 		{"enter/d", "enable/disable"},
 		{"i", "install…"},
-		{"u", "uninstall"},
-		{"esc", "back"},
 	}
+	// Uninstall only applies to external/managed plugins — built-ins stay present.
+	if len(p.rows) > 0 && !plugin.IsInternal(p.rows[p.cursor].id) {
+		hints = append(hints, [2]string{"u", "uninstall"})
+	}
+	return append(hints, [2]string{"esc", "back"})
 }
 
 func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
@@ -175,6 +181,9 @@ func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 				return nil
 			}
 			id := p.rows[p.cursor].id
+			if plugin.IsInternal(id) {
+				return nil
+			}
 			home := p.kit.d.App.Cfg.Home
 			app := p.kit.d.App
 			return func() tea.Msg {
@@ -255,7 +264,7 @@ func (p *pluginsPage) Body(width, _ int) string {
 	f := layout.ScreenFrame(width)
 	var lines []string
 	if len(p.rows) == 0 {
-		lines = append(lines, th.Dim.Render("(no plugins installed — press i to install)"))
+		lines = append(lines, th.Dim.Render("(no managed plugins — press i to install)"))
 	}
 	for i, row := range p.rows {
 		cursor := "  "

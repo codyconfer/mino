@@ -6,6 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+	"github.com/codyconfer/viewkit/layout"
+	"github.com/codyconfer/viewkit/theme"
+
 	"github.com/codyconfer/munin/internal/render/glyph"
 	"github.com/codyconfer/munin/internal/signals"
 )
@@ -19,7 +23,8 @@ func sampleSections() []signals.Section {
 			Title:  "Open Pull Requests",
 			Items: []signals.Item{
 				{Kind: "pr", Title: "Add retry logic", Subtitle: "org/repo",
-					URL: "https://github.com/org/repo/pull/1", Timestamp: refNow.Add(-2 * time.Hour)},
+					URL: "https://github.com/org/repo/pull/1", Timestamp: refNow.Add(-2 * time.Hour),
+					Meta: map[string]string{"author": "alice"}},
 			},
 		},
 		{Signal: "slack", Title: "#eng", Items: nil},
@@ -64,13 +69,42 @@ func TestTerminalRendererPlain(t *testing.T) {
 		"Open Pull Requests  (1)",
 		"Add retry logic",
 		"org/repo",
+		"@alice",
 		"https://github.com/org/repo/pull/1",
 		"nothing to show",
-		glyph.Warn() + " token expired",
+		glyph.Lead(glyph.Warn()) + "token expired",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("terminal output missing %q\n---\n%s", want, out)
 		}
+	}
+}
+
+func TestItemLinesShowsAuthor(t *testing.T) {
+	f := layout.NewFrame(80)
+	th := theme.Cur()
+	lines := itemLines(f, th, signals.Item{
+		Kind:     "pr",
+		Title:    "Add retry logic",
+		Subtitle: "org/repo",
+		Meta:     map[string]string{"author": "bob"},
+	})
+	if len(lines) == 0 {
+		t.Fatal("expected at least one line")
+	}
+	head := ansi.Strip(lines[0])
+	for _, want := range []string{"Add retry logic", "org/repo", "@bob"} {
+		if !strings.Contains(head, want) {
+			t.Errorf("item head missing %q\n---\n%s", want, head)
+		}
+	}
+
+	noAuthor := itemLines(f, th, signals.Item{Kind: "pr", Title: "No author", Subtitle: "org/repo"})
+	if len(noAuthor) == 0 {
+		t.Fatal("expected at least one line")
+	}
+	if strings.Contains(ansi.Strip(noAuthor[0]), "@") {
+		t.Errorf("item without author should not show @opener\n---\n%s", noAuthor[0])
 	}
 }
 

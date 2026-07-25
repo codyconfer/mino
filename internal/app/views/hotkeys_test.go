@@ -10,6 +10,7 @@ import (
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/role"
 	pub "github.com/codyconfer/munin/plugin"
 )
 
@@ -75,11 +76,81 @@ func TestHotkeyResolveTargets(t *testing.T) {
 		{"alt+n", keymap.TargetNoteNew},
 		{"alt+r", keymap.TargetRemindNew},
 		{"alt+t", keymap.TargetTaskNew},
+		{"alt+[", keymap.TargetRolePrev},
+		{"alt+]", keymap.TargetRoleNext},
 	} {
 		got, ok := keymap.ResolveHotkey(kit.keybinds(), tc.key)
 		if !ok || got != tc.want {
 			t.Errorf("%s → %q,%v want %q", tc.key, got, ok, tc.want)
 		}
+	}
+}
+
+func TestHotkeyCyclesRoleDebounced(t *testing.T) {
+	t.Cleanup(role.ClearStatusChips)
+	var calls []string
+	orig := role.Run
+	role.Run = func(_, script string) error {
+		calls = append(calls, script)
+		return nil
+	}
+	t.Cleanup(func() { role.Run = orig })
+
+	kit := testKit(t)
+	kit.d.App.Cfg.Keybinds = config.DefaultKeybinds()
+	kit.d.App.Directives.Roles = map[string]config.RoleDef{
+		"ops": {Name: "ops", Hooks: config.RoleHooks{
+			Enter: config.RoleShellHooks{Bash: "enter-ops", PowerShell: "enter-ops"},
+			Exit:  config.RoleShellHooks{Bash: "exit-ops", PowerShell: "exit-ops"},
+		}},
+		"triage": {Name: "triage", Home: "default", Flights: []string{"default"}, Hooks: config.RoleHooks{
+			Enter: config.RoleShellHooks{Bash: "enter-triage", PowerShell: "enter-triage"},
+			Exit:  config.RoleShellHooks{Bash: "exit-triage", PowerShell: "exit-triage"},
+		}},
+		"weekly": {Name: "weekly", Hooks: config.RoleHooks{
+			Enter: config.RoleShellHooks{Bash: "enter-weekly", PowerShell: "enter-weekly"},
+		}},
+	}
+	kit.d.App.Cfg.Role = ""
+	if err := kit.d.App.ActivateRole("ops"); err != nil {
+		t.Fatal(err)
+	}
+	calls = nil
+
+	host := deck.New(kit.Home(), deck.WithKeyHook(kit.KeyHook()), deck.WithMsgHook(kit.MsgHook()))
+	host = step(host, tea.WindowSizeMsg{Width: 100, Height: 40})
+	body := host.View()
+	if !strings.Contains(body, "alt+]") || !strings.Contains(body, "next role") {
+		t.Fatalf("home hints missing role cycle: %q", body)
+	}
+
+	// Burst: ops → triage → weekly via alt+] (do not run ticks yet).
+	var settleCmds []tea.Cmd
+	for i := 0; i < 2; i++ {
+		var cmd tea.Cmd
+		host, cmd = update(host, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}, Alt: true})
+		if cmd != nil {
+			settleCmds = append(settleCmds, cmd)
+		}
+	}
+	if kit.d.App.Cfg.Role != "weekly" {
+		t.Fatalf("role after burst = %q, want weekly", kit.d.App.Cfg.Role)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("hooks during burst = %v", calls)
+	}
+	if ctx := kit.menuCtx(); len(ctx) == 0 || ctx[0][1] != "weekly" {
+		t.Fatalf("menuCtx after burst = %v", ctx)
+	}
+	if len(settleCmds) < 2 {
+		t.Fatalf("expected settle ticks, got %d", len(settleCmds))
+	}
+
+	for _, c := range settleCmds {
+		host = step(host, c())
+	}
+	if len(calls) != 2 || calls[0] != "exit-ops" || calls[1] != "enter-weekly" {
+		t.Fatalf("settle hooks = %v", calls)
 	}
 }
 
