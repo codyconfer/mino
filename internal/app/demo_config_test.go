@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -53,17 +54,21 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 
 	home := t.TempDir()
 	for _, rel := range []string{
-		filepath.Join(config.DirQueries, "demo.yaml"),
-		filepath.Join(config.DirQueries, "demo-reviews.yaml"),
-		filepath.Join(config.DirFilters, "demo.yaml"),
-		filepath.Join(config.DirFlights, "demo.yaml"),
+		path.Join(config.DirQueries, "demo.yaml"),
+		path.Join(config.DirQueries, "demo-reviews.yaml"),
+		path.Join(config.DirFilters, "demo.yaml"),
+		path.Join(config.DirFlights, "demo.yaml"),
 		"demo.yaml",
 	} {
-		path := filepath.Join(home, rel)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		body, ok := got[rel]
+		if !ok || body == "" {
+			t.Fatalf("seed %s missing or empty", rel)
+		}
+		dest := filepath.Join(home, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(path, []byte(got[rel]), 0o644); err != nil {
+		if err := os.WriteFile(dest, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

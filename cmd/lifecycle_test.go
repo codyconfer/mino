@@ -26,6 +26,7 @@ func TestInstallAfterNukeDefaultsToStockHome(t *testing.T) {
 		root.SetErr(&buf)
 		root.SetArgs(args)
 		err := root.Execute()
+		Shutdown()
 		return buf.String(), err
 	}
 
@@ -74,7 +75,9 @@ func TestInstallRespectsHomeAndDirFlags(t *testing.T) {
 		root.SetOut(&buf)
 		root.SetErr(&buf)
 		root.SetArgs(args)
-		return root.Execute()
+		err := root.Execute()
+		Shutdown()
+		return err
 	}
 
 	viaHome := filepath.Join(userHome, "via-home")

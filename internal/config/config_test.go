@@ -187,13 +187,15 @@ func TestHomePrecedence(t *testing.T) {
 		t.Errorf("global home override = %q, want %q", h, wantGlobal)
 	}
 
-	if h, _ := Home("/explicit"); h != "/explicit" {
-		t.Errorf("explicit override = %q, want /explicit", h)
+	wantExplicit := filepath.Join(t.TempDir(), "explicit")
+	if h, _ := Home(wantExplicit); h != wantExplicit {
+		t.Errorf("explicit override = %q, want %q", h, wantExplicit)
 	}
 
-	t.Setenv("MUNIN_HOME", "/from-env")
-	if h, _ := Home(""); h != "/from-env" {
-		t.Errorf("env override = %q, want /from-env", h)
+	wantEnv := filepath.Join(t.TempDir(), "from-env")
+	t.Setenv("MUNIN_HOME", wantEnv)
+	if h, _ := Home(""); h != wantEnv {
+		t.Errorf("env override = %q, want %q", h, wantEnv)
 	}
 }
 

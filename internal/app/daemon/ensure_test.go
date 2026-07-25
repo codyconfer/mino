@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -104,13 +103,4 @@ func TestBindDeckLifelineCancelsOnPipeClose(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("context did not cancel after lifeline close")
 	}
-}
-
-func processAlive(pid int) bool {
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	err = p.Signal(syscall.Signal(0))
-	return err == nil
 }

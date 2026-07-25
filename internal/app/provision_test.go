@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -22,13 +23,15 @@ func TestInstallPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat home: %v", err)
 	}
-	if got := di.Mode().Perm(); got != 0o700 {
-		t.Errorf("home dir mode = %o, want 700", got)
-	}
-
 	fi, err := os.Stat(filepath.Join(home, "config.yaml"))
 	if err != nil {
 		t.Fatalf("stat config.yaml: %v", err)
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not modelled on Windows")
+	}
+	if got := di.Mode().Perm(); got != 0o700 {
+		t.Errorf("home dir mode = %o, want 700", got)
 	}
 	if got := fi.Mode().Perm(); got != 0o600 {
 		t.Errorf("config.yaml mode = %o, want 600", got)

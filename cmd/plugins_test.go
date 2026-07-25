@@ -92,6 +92,7 @@ func TestPluginsInstallUninstallCLI(t *testing.T) {
 		root.SetOut(&buf)
 		root.SetErr(&buf)
 		err := root.Execute()
+		Shutdown()
 		return buf.String(), err
 	}
 

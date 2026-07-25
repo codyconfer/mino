@@ -32,7 +32,9 @@ func TestVersionCmd(t *testing.T) {
 	root.SetOut(&out)
 	root.SetErr(&out)
 	root.SetArgs([]string{"version"})
-	if err := root.Execute(); err != nil {
+	err := root.Execute()
+	Shutdown()
+	if err != nil {
 		t.Fatalf("version: %v\n%s", err, out.String())
 	}
 	got := strings.TrimSpace(out.String())

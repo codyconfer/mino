@@ -131,4 +131,7 @@ func newRootCmd() *cobra.Command {
 
 func Root() *cobra.Command { return newRootCmd() }
 
-func Shutdown() { shared.Shutdown() }
+func Shutdown() {
+	shared.Shutdown()
+	shared = nil
+}
