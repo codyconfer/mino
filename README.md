@@ -1,4 +1,4 @@
-# Munin SRE shift assistant
+# Munin shift assistant
 
 [![CI](https://github.com/codyconfer/munin/actions/workflows/ci.yml/badge.svg)](https://github.com/codyconfer/munin/actions/workflows/ci.yml)
 
