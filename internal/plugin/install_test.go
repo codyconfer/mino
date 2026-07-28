@@ -169,7 +169,6 @@ func TestDisableKeepsInstalledUninstallClears(t *testing.T) {
 			t.Fatal("uninstalled plugin still in ListInstalled")
 		}
 	}
-	// Re-install brings it back enabled.
 	if _, err := Install(home, id, InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +283,6 @@ func TestInternalPluginsAlwaysInstalled(t *testing.T) {
 	if !Installed(id) {
 		t.Fatal("failed uninstall must leave internal installed")
 	}
-	// Seed refresh via Install remains allowed.
 	if _, err := Install(t.TempDir(), id, InstallOptions{}); err != nil {
 		t.Fatalf("install seeds for built-in: %v", err)
 	}

@@ -18,7 +18,7 @@ func TestTruncateStatus(t *testing.T) {
 		{"abcdefghijklmnopqrstuvwxyz", "abcdefghijklmnopqrst"},
 		{"line1\nline2", "line1"},
 		{"  padded line  \nmore", "padded line"},
-		{"日本語テスト一二三四五六七八", "日本語テスト一二三四五六七八"}, // 14 runes
+		{"日本語テスト一二三四五六七八", "日本語テスト一二三四五六七八"},
 		{strings.Repeat("あ", 25), strings.Repeat("あ", 20)},
 	}
 	for _, tc := range cases {

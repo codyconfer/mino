@@ -6,8 +6,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// ReportStyles are shared checklist styles for verify/onboard (keep lipgloss
-// out of cmd/ and app/verify callers).
 type ReportStyles struct {
 	Title   lipgloss.Style
 	OK      lipgloss.Style
@@ -19,7 +17,6 @@ type ReportStyles struct {
 	Fix     lipgloss.Style
 }
 
-// NewReportStyles builds renderer-bound styles for a writer.
 func NewReportStyles(w io.Writer) ReportStyles {
 	r := lipgloss.NewRenderer(w)
 	return ReportStyles{

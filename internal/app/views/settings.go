@@ -80,8 +80,6 @@ func (k *Kit) setvHasConfigFile() bool {
 	return err == nil && len(raw) > 0
 }
 
-// setvFinish pops n views (typically Settings, or Confirm+Settings), then shows
-// a fresh Settings menu under a result message so create/delete visibility updates.
 func (k *Kit) setvFinish(a *vkdeck.Model, pops int, title, body string) tea.Cmd {
 	for i := 0; i < pops; i++ {
 		_ = a.Pop()
@@ -258,12 +256,8 @@ func (v *setvAppearanceForm) submit(a *vkdeck.Model) tea.Cmd {
 	return tea.Batch(pop, push)
 }
 
-// statusBarEntry is one show/hide row: the chip id and its display label.
 type statusBarEntry struct{ id, label string }
 
-// statusBarBuiltinEntries are chrome chips built into the status strip provider.
-// The daemon chip lives in settings_daemon.go so it is absent from `nodaemon`
-// builds, which never render it.
 var statusBarBuiltinEntries = []statusBarEntry{
 	{"github", "github"},
 	{"slack", "slack"},
@@ -372,8 +366,6 @@ func (v *setvStatusBarForm) submit(a *vkdeck.Model) tea.Cmd {
 	}
 	pop := a.Pop()
 	push := a.Push(vkdeck.NewMessage("status bar", body, v.k.setvCtx()))
-	// Re-run the status provider so adaptStatus picks up the new hide list
-	// immediately (otherwise chrome waits for the 60s refresh ticker).
 	return tea.Batch(pop, push, a.RefreshStatus())
 }
 

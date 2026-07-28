@@ -20,8 +20,6 @@ type pendingAction struct {
 	serviceOnly  bool
 }
 
-// Register adds a compile-time plugin descriptor. Panics on duplicate id or
-// invalid Kind/Ref/Signal.
 func Register(d Descriptor) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -117,10 +115,8 @@ func queueActionKindLocked(signal, name string, serviceOnly bool) {
 	})
 }
 
-// InternalPrefix is the id namespace for stock munin (builtin) plugins.
 const InternalPrefix = "munin."
 
-// IsInternal reports whether id is a stock munin plugin (builtin / internal).
 func IsInternal(id string) bool {
 	return strings.HasPrefix(id, InternalPrefix)
 }
@@ -133,7 +129,6 @@ func lessMenuID(a, b string) bool {
 	return a < b
 }
 
-// All returns registered descriptors sorted by id (includes companions).
 func All() []Descriptor {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -145,8 +140,6 @@ func All() []Descriptor {
 	return out
 }
 
-// Primaries returns enableable descriptors (Parent empty), with stock munin.*
-// ids first, then others; secondary order is alphabetical by id.
 func Primaries() []Descriptor {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -160,7 +153,6 @@ func Primaries() []Descriptor {
 	return out
 }
 
-// AllOfKind returns descriptors of kind, sorted by id.
 func AllOfKind(kind Kind) []Descriptor {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -174,7 +166,6 @@ func AllOfKind(kind Kind) []Descriptor {
 	return out
 }
 
-// ByKind returns the descriptor for a Kind+Ref (or Signal for KindSignal).
 func ByKind(kind Kind, ref string) (Descriptor, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -186,7 +177,6 @@ func ByKind(kind Kind, ref string) (Descriptor, bool) {
 	return d, ok
 }
 
-// KnownRefs returns Ref (or Signal) keys registered for kind.
 func KnownRefs(kind Kind) map[string]bool {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -198,7 +188,6 @@ func KnownRefs(kind Kind) map[string]bool {
 	return out
 }
 
-// Lookup returns a descriptor by id.
 func Lookup(id string) (Descriptor, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -206,7 +195,6 @@ func Lookup(id string) (Descriptor, bool) {
 	return d, ok
 }
 
-// BySignal returns the plugin registered for a config signal name.
 func BySignal(signal string) (Descriptor, bool) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -218,7 +206,6 @@ func BySignal(signal string) (Descriptor, bool) {
 	return d, ok
 }
 
-// KnownSignals returns signal names that are registered (regardless of enable).
 func KnownSignals() map[string]bool {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -229,7 +216,6 @@ func KnownSignals() map[string]bool {
 	return out
 }
 
-// HasCapability reports whether the signal's plugin advertises cap.
 func HasCapability(signal string, cap Capability) bool {
 	d, ok := BySignal(signal)
 	if !ok {
@@ -243,7 +229,6 @@ func HasCapability(signal string, cap Capability) bool {
 	return false
 }
 
-// SplitActionRef parses KindAction Ref "signal/name".
 func SplitActionRef(ref string) (signal, name string, ok bool) {
 	i := strings.IndexByte(ref, '/')
 	if i <= 0 || i == len(ref)-1 {
@@ -252,7 +237,6 @@ func SplitActionRef(ref string) (signal, name string, ok bool) {
 	return ref[:i], ref[i+1:], true
 }
 
-// OwnerID returns the primary plugin id for enablement (Parent or self).
 func OwnerID(d Descriptor) string {
 	if d.Parent != "" {
 		return d.Parent

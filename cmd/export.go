@@ -31,7 +31,7 @@ func newExportCmd() *cobra.Command {
 		Use:   "export <directive>",
 		Short: "Write a directive's current version from the DuckDB store to files",
 		Long: "Materializes the current version of a directive held in the DuckDB store back\n" +
-			"onto disk. <directive> is one of: config, queries, filters, flights, roles, all.\n" +
+			"onto disk. <directive> is one of: config, queries, flights, roles, all.\n" +
 			"config is written as config.yaml/config.json; each collection is written as\n" +
 			"individual files under <out>/<directive>/. Defaults to the munin home directory.\n" +
 			"Secret values in config are masked unless --include-secrets is set.",
@@ -65,7 +65,7 @@ func newImportCmd() *cobra.Command {
 		Long: "Reads directive files from the munin home directory and writes them into the\n" +
 			"DuckDB store as a new current version (archiving any prior version). Never\n" +
 			"prompts, so it is safe in scripts and hooks.\n" +
-			"[directive] is one of: config, queries, filters, flights, roles, all (default all).",
+			"[directive] is one of: config, queries, flights, roles, all (default all).",
 		Args:        cobra.MaximumNArgs(1),
 		Annotations: map[string]string{annoReconcile: "session"},
 		RunE: func(cmd *cobra.Command, args []string) error {

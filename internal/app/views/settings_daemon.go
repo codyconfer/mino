@@ -8,8 +8,6 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 )
 
-// setvDaemonFields are the daemon.* rows of the edit-config form. See
-// settings_nodaemon.go for the build without daemon mode.
 func setvDaemonFields(c *config.Config) []forms.Field {
 	return []forms.Field{
 		{Key: "daemon.interval", Label: "daemon.interval", Kind: forms.FieldText, Text: c.Daemon.Interval},
@@ -20,7 +18,6 @@ func setvDaemonFields(c *config.Config) []forms.Field {
 	}
 }
 
-// setvDaemonValues copies the submitted daemon.* form values into set.
 func setvDaemonValues(vals, set map[string]any) {
 	set["daemon.interval"] = setvString(vals["daemon.interval"])
 	set["daemon.bell"] = setvBool(vals["daemon.bell"])
@@ -29,7 +26,6 @@ func setvDaemonValues(vals, set map[string]any) {
 	set["daemon.theme"] = setvString(vals["daemon.theme"])
 }
 
-// setvStatusBarDaemonEntries is the daemon chip's show/hide toggle.
 func setvStatusBarDaemonEntries() []statusBarEntry {
 	return []statusBarEntry{{"daemon", "daemon"}}
 }

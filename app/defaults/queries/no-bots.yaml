@@ -1,0 +1,6 @@
+# A filter-only document: no signal, so it is not runnable on its own.
+# Reference it from any query's `filters:` list.
+name: no-bots
+rules:
+  - field: meta.author
+    exclude: "(?i)bot$"

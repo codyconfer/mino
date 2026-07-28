@@ -16,8 +16,16 @@ import (
 
 type Query struct {
 	Label   string
+	Title   string
 	Src     signals.Signal
 	Filters []filter.Compiled
+}
+
+func (q Query) Display() string {
+	if q.Title != "" {
+		return q.Title
+	}
+	return q.Label
 }
 
 func Emit(w io.Writer, format string, sections []signals.Section) error {

@@ -9,8 +9,6 @@ import (
 
 const activeRoleFile = "active-role"
 
-// LoadActive returns the last role for which enter hooks completed a transition
-// (empty when none). Used so exit hooks can run across CLI invocations.
 func LoadActive(home string) string {
 	if home == "" {
 		return ""
@@ -22,7 +20,6 @@ func LoadActive(home string) string {
 	return strings.TrimSpace(string(b))
 }
 
-// SaveActive persists the role currently considered "entered" for hooks.
 func SaveActive(home, role string) error {
 	if home == "" {
 		return nil

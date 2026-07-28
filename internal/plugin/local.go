@@ -15,22 +15,10 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-// LocalPlugin is a discoverable unit under <home>/.plugins/<name>/.
-//
-// Layout:
-//
-//	<home>/.plugins/<name>/
-//	  plugin.yaml|yml|json   # optional: id, description
-//	  queries/*.yaml         # optional home-relative directive seeds
-//	  filters/*.yaml
-//	  flights/*.yaml
-//
-// Directory name is used as id when the manifest omits id. Entries with Go
-// sources only (no seeds and not compile-linked) are listed as incompatible.
 type LocalPlugin struct {
 	ID          string
-	Name        string // directory basename
-	Dir         string // absolute path
+	Name        string
+	Dir         string
 	Description string
 	Seeds       []FileSeed
 	Registered  bool
@@ -38,14 +26,13 @@ type LocalPlugin struct {
 	Reason      string
 }
 
-// InstallCandidate is one row in the TUI install picker.
 type InstallCandidate struct {
 	ID          string
 	Label       string
 	Desc        string
-	Source      string // registry | local | local+registry
+	Source      string
 	LocalDir    string
-	Seeds       []FileSeed // local seeds (may be empty for registry-only)
+	Seeds       []FileSeed
 	Installable bool
 	Reason      string
 }
@@ -56,11 +43,8 @@ type localManifest struct {
 	Description string `yaml:"description" json:"description"`
 }
 
-// PluginsDir returns <home>/.plugins (same as config.PluginsDir).
 func PluginsDir(home string) string { return config.PluginsDir(home) }
 
-// DiscoverLocal lists install candidates under <home>/.plugins.
-// Missing .plugins is not an error (returns empty).
 func DiscoverLocal(home string) ([]LocalPlugin, error) {
 	root := PluginsDir(home)
 	ents, err := os.ReadDir(root)
@@ -141,7 +125,7 @@ func readLocalManifest(dir string) (localManifest, bool, error) {
 
 func collectLocalSeeds(dir string) ([]FileSeed, error) {
 	var out []FileSeed
-	for _, role := range []string{config.DirQueries, config.DirFilters, config.DirFlights} {
+	for _, role := range []string{config.DirQueries, config.DirFlights} {
 		roleDir := filepath.Join(dir, role)
 		ents, err := os.ReadDir(roleDir)
 		if err != nil {
@@ -170,11 +154,6 @@ func collectLocalSeeds(dir string) ([]FileSeed, error) {
 	return out, nil
 }
 
-// ListInstallCandidates returns picker rows for plugins not yet in the
-// managed/installed set: uninstalled registered primaries plus discoverable
-// <home>/.plugins entries. Local packs that share a registered id are merged
-// (local+registry) rather than duplicated. Already-installed plugins are
-// omitted — they stay on the main Plugins list (enable/disable/uninstall).
 func ListInstallCandidates(home string) ([]InstallCandidate, error) {
 	ensureLoaded()
 	local, err := DiscoverLocal(home)
@@ -262,8 +241,6 @@ func seedCount(n int) string {
 	return fmt.Sprintf("%d seeds", n)
 }
 
-// InstallCandidateEntry enables a registered plugin when linked and provisions
-// catalog seeds plus any local .plugins seeds for the candidate.
 func InstallCandidateEntry(home string, c InstallCandidate, opts InstallOptions) (InstallResult, error) {
 	if !c.Installable {
 		reason := c.Reason
@@ -302,7 +279,6 @@ func InstallCandidateEntry(home string, c InstallCandidate, opts InstallOptions)
 	if err != nil {
 		return res, err
 	}
-	// Prefer reporting local writes; catalog skips already recorded by Install.
 	res.Written = appendUnique(res.Written, written...)
 	res.Skipped = appendUnique(res.Skipped, skipped...)
 	return res, nil

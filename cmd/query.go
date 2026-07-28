@@ -8,6 +8,7 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/render/glyph"
@@ -17,6 +18,10 @@ func buildQuery(name string) (query, error) {
 	q, ok := shared.Directives.Queries[name]
 	if !ok {
 		return query{}, errs.Newf(errs.KindUsage, "no saved query named %q", name).WithHint("run `munin query list` to see saved queries")
+	}
+	if !q.Runnable() {
+		return query{}, errs.Newf(errs.KindUsage, "%q defines no signal, so there is nothing to run", name).
+			WithHint("it is a filter-only document; reference it from a query's `filters:` list")
 	}
 	resolved, err := shared.Directives.Resolve(q)
 	if err != nil {
@@ -34,7 +39,7 @@ func buildQuery(name string) (query, error) {
 	if err != nil {
 		return query{}, err
 	}
-	return query{Label: name, Src: src, Filters: compiled}, nil
+	return query{Label: name, Title: q.Display(), Src: src, Filters: compiled}, nil
 }
 
 func newQueryCmd() *cobra.Command {
@@ -108,9 +113,23 @@ func listQueries(cmd *cobra.Command) error {
 	marker := theme.Cur().Accent.Render(glyph.Bullet())
 	for _, n := range names {
 		q := shared.Directives.Queries[n]
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %-24s signal=%s\n", marker, n, q.Signal)
+		line := fmt.Sprintf("%s %-24s %s", marker, n, querySummary(q))
+		if q.Title != "" {
+			line += "  " + theme.Cur().Dim.Render(q.Title)
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), line)
 	}
 	return nil
+}
+
+func querySummary(q config.Query) string {
+	if !q.Runnable() {
+		return theme.Cur().Dim.Render("filter-only")
+	}
+	if q.HasRules() {
+		return fmt.Sprintf("signal=%s +rules", q.Signal)
+	}
+	return "signal=" + q.Signal
 }
 
 func completeQueryNames(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {

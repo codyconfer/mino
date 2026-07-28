@@ -16,7 +16,6 @@ import (
 	"github.com/codyconfer/munin/internal/render"
 )
 
-// RunCLI runs guided OAuth login for provider p (prompts for missing creds on a TTY).
 func RunCLI(ctx context.Context, a *app.App, p Provider, in io.Reader, out, errOut io.Writer) error {
 	if p.Authed(a) {
 		fmt.Fprintln(out, notify.Render(notify.AlreadyAuthed(p.Label)))
@@ -66,7 +65,6 @@ func readCredential(reader *bufio.Reader, secret bool) (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
-// ResolveOrErr resolves a login target or returns a usage error listing names.
 func ResolveOrErr(name string) (Provider, error) {
 	p, ok := Resolve(name)
 	if !ok {

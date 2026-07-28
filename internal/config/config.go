@@ -74,8 +74,6 @@ func expandHomePath(p string) (string, error) {
 	return p, nil
 }
 
-// DefaultKeybinds are demo TUI hotkeys (Alt avoids colliding with list n/r/t
-// binds inside notes/tasks/reminders views). Role cycle uses [ / ].
 func DefaultKeybinds() map[string]string {
 	return map[string]string{
 		"alt+n": "ntr.note.new",
@@ -116,7 +114,6 @@ func ReadConfigFile(homeOverride string) (home string, raw []byte, format string
 	return home, raw, format, nil
 }
 
-// ConfigFilePath returns the on-disk config path (config.yaml/.yml/.json) under home.
 func ConfigFilePath(homeOverride string) (string, error) {
 	home, err := Home(homeOverride)
 	if err != nil {

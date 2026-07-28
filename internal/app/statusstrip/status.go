@@ -1,4 +1,3 @@
-// Package statusstrip builds the deck chrome status strip from app auth state.
 package statusstrip
 
 import (
@@ -14,12 +13,8 @@ import (
 	gh "github.com/codyconfer/munin/internal/signals/github"
 )
 
-// DaemonStatus reports the installed/running munin daemon for the status strip.
 type DaemonStatus func() deck.ServiceStatus
 
-// Provider loads chrome StatusInfo for deck.WithStatus.
-// Hard-coded auth chips (github/slack/google signals) honor plugin.SignalEnabled
-// the same way CollectStatusContributions / PluginServices do.
 func Provider(a *app.App, daemon DaemonStatus) deck.StatusFunc {
 	return func(ctx context.Context) deck.StatusInfo {
 		apiURL, _ := gh.NormalizeAPIURL(a.Cfg.GitHub.APIURL)
@@ -57,7 +52,6 @@ func Provider(a *app.App, daemon DaemonStatus) deck.StatusFunc {
 			if auth.GoogleAuthed(a.Tokens) {
 				googleLevel = deck.StatusOK
 			}
-			// Logo-only chip: the Google glyph is enough, no signal list text.
 			info.Services = append(info.Services, deck.ServiceStatus{
 				ID:    "google",
 				Name:  "google",

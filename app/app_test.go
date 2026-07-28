@@ -56,7 +56,7 @@ func TestListDefaultsEmbedded(t *testing.T) {
 		"queries/demo.yaml",
 		"queries/demo-reviews.yaml",
 		"queries/notify-smoke.yaml",
-		"filters/demo.yaml",
+		"queries/no-bots.yaml",
 		"flights/default.yaml",
 		"flights/demo.yaml",
 		"flights/notify-smoke.yaml",

@@ -90,8 +90,6 @@ func (s *Store) Items(runID int64) ([]IntelRow, error) {
 	return out, nil
 }
 
-// Sections reconstructs signals.Section slices for a recorded run, matching
-// CLI history show: flights expand child queries; other kinds load their items.
 func (s *Store) Sections(id int64) ([]signals.Section, error) {
 	if s == nil {
 		return nil, nil

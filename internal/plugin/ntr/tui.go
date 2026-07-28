@@ -22,12 +22,9 @@ func init() {
 	plugin.RegisterView(PluginID, "ntr.home", func() vkdeck.View { return &HomeView{} })
 	plugin.RegisterView(PluginID, "ntr.notes", func() vkdeck.View { return &notesList{} })
 	plugin.RegisterView(PluginID, "ntr.tasks", func() vkdeck.View { return &tasksList{} })
-	// Reminders are delivered by the scheduled ReminderJob under serve/daemon;
-	// hide the management surface unless a live service is attached.
 	plugin.RegisterView(PluginID, "ntr.reminders", func() vkdeck.View { return &remindList{} }, plugin.WithServiceOnly())
 }
 
-// RunTUI opens the NTR deck on viewkit/deck.
 func RunTUI(home, role string) error {
 	if role == "" {
 		role = "default"
@@ -38,14 +35,12 @@ func RunTUI(home, role string) error {
 	}), vkdeck.WithKeyMapQuit())
 }
 
-// HomeView is the NTR root menu (notes / tasks / reminders).
 type HomeView struct {
 	home string
 	role string
 	menu *vkdeck.Menu
 }
 
-// NewHomeView constructs the NTR home menu.
 func NewHomeView(home, role string) *HomeView {
 	if role == "" {
 		role = "default"
@@ -70,22 +65,18 @@ func NewHomeView(home, role string) *HomeView {
 	return v
 }
 
-// RemindersUIVisible reports whether the reminders menu entry should show.
 func RemindersUIVisible() bool {
 	return plugin.ViewUIVisible("ntr.reminders")
 }
 
-// NewNoteForm opens the create-note form (hotkey / deep-link entry).
 func NewNoteForm(home, role string) vkdeck.View {
 	return newNoteForm(home, role, 0, "", "", nil)
 }
 
-// NewTaskForm opens the create-task form (hotkey / deep-link entry).
 func NewTaskForm(home, role string) vkdeck.View {
 	return newTaskForm(home, role, nil)
 }
 
-// NewRemindForm opens the create-reminder form (hotkey / deep-link entry).
 func NewRemindForm(home, role string) vkdeck.View {
 	return newRemindForm(home, role, nil)
 }

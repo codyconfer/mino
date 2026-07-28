@@ -86,7 +86,6 @@ func TestPluginsListsInternalAsBuiltIn(t *testing.T) {
 	if !strings.Contains(body, id) || !strings.Contains(body, "built-in") {
 		t.Fatalf("body missing built-in internal plugin:\n%s", body)
 	}
-	// Built-ins are never install candidates.
 	cands, err := plugin.ListInstallCandidates(kit.d.App.Cfg.Home)
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +95,6 @@ func TestPluginsListsInternalAsBuiltIn(t *testing.T) {
 			t.Fatalf("internal plugin offered as install candidate: %+v", c)
 		}
 	}
-	// Uninstall hint omitted while cursor is on a built-in.
 	for i, row := range page.rows {
 		if row.id == id {
 			page.cursor = i
@@ -244,7 +242,6 @@ func TestPluginsUninstallRemovesExternalFromListAndReinstallRestores(t *testing.
 		}
 	}
 
-	// Re-install via API (picker coverage is separate); list should regain the row.
 	installTestPlugin(t, home, id)
 	page.reload()
 	found := false
@@ -457,7 +454,6 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 	if !found {
 		t.Fatalf("installed plugin not listed: %+v", page.rows)
 	}
-	// After install, candidate should leave the picker set.
 	cands, err = plugin.ListInstallCandidates(home)
 	if err != nil {
 		t.Fatal(err)

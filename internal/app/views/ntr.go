@@ -9,7 +9,6 @@ import (
 	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
-// NTR returns the Notes/Tasks/Reminders home menu (same views as `munin notes ui`).
 func (k *Kit) NTR() vkdeck.View {
 	home := ""
 	role := ""

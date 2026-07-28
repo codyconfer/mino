@@ -28,7 +28,6 @@ type directiveKind int
 
 const (
 	directiveQuery directiveKind = iota
-	directiveFilter
 	directiveFlight
 	directiveRole
 )
@@ -37,8 +36,6 @@ func directiveLabel(k directiveKind) string {
 	switch k {
 	case directiveQuery:
 		return "Queries"
-	case directiveFilter:
-		return "Filters"
 	case directiveFlight:
 		return "Flights"
 	case directiveRole:
@@ -51,8 +48,6 @@ func directiveSingular(k directiveKind) string {
 	switch k {
 	case directiveQuery:
 		return "query"
-	case directiveFilter:
-		return "filter"
 	case directiveFlight:
 		return "flight"
 	case directiveRole:
@@ -65,8 +60,6 @@ func directiveKey(k directiveKind) string {
 	switch k {
 	case directiveQuery:
 		return config.DirQueries
-	case directiveFilter:
-		return config.DirFilters
 	case directiveFlight:
 		return config.DirFlights
 	case directiveRole:
@@ -75,8 +68,14 @@ func directiveKey(k directiveKind) string {
 	return ""
 }
 
-func directiveRunnable(k directiveKind) bool {
-	return k == directiveQuery || k == directiveFlight
+func (kit *Kit) directiveRunnable(k directiveKind, name string) bool {
+	switch k {
+	case directiveQuery:
+		return kit.d.App.Directives.Queries[name].Runnable()
+	case directiveFlight:
+		return true
+	}
+	return false
 }
 
 func (kit *Kit) directiveNames(k directiveKind) []string {
@@ -84,8 +83,6 @@ func (kit *Kit) directiveNames(k directiveKind) []string {
 	switch k {
 	case directiveQuery:
 		return st.QueryNames()
-	case directiveFilter:
-		return st.FilterNames()
 	case directiveFlight:
 		return st.FlightNames()
 	case directiveRole:
@@ -99,8 +96,6 @@ func (kit *Kit) directiveItem(k directiveKind, name string) any {
 	switch k {
 	case directiveQuery:
 		return st.Queries[name]
-	case directiveFilter:
-		return st.Filters[name]
 	case directiveFlight:
 		return st.Flights[name]
 	case directiveRole:
@@ -144,7 +139,6 @@ func (kit *Kit) directivesMenu() vkdeck.View {
 	}
 	return vkdeck.NewMenu("directives", kit.menuCtx(),
 		pick(directiveQuery),
-		pick(directiveFilter),
 		pick(directiveFlight),
 		pick(directiveRole),
 	)
@@ -177,7 +171,7 @@ func (kit *Kit) directiveActionsMenu(k directiveKind, name string) vkdeck.View {
 			return a.Push(kit.directiveViewContent(k, name))
 		}},
 	}
-	if directiveRunnable(k) {
+	if kit.directiveRunnable(k, name) {
 		items = append(items, vkdeck.MenuItem{Label: "Run", Desc: "fetch and render results", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(kit.directiveRunContent(k, name))
 		}})
@@ -222,10 +216,6 @@ func (kit *Kit) directiveRunContent(k directiveKind, name string) vkdeck.View {
 func (kit *Kit) directiveValidateContent(k directiveKind, name string) vkdeck.View {
 	return vkdeck.NewScroll("validate: "+name, kit.directiveItemCtx(k, name), nil, func() string {
 		th := theme.Cur()
-		if k == directiveFilter {
-			return layout.NewFrame(theme.BodyWidth).Panel("validation",
-				th.Dim.Render("no dedicated validation for filters"))
-		}
 		var findings []Finding
 		switch k {
 		case directiveQuery:
@@ -325,23 +315,19 @@ func (kit *Kit) directiveFormFields(k directiveKind, name string) []forms.Field 
 				refs = append(refs, qf.Ref)
 			}
 		}
+		var r filter.Rule
+		if len(q.Rules) > 0 {
+			r = q.Rules[0]
+		}
 		return []forms.Field{
 			text("name", "name", q.Name),
-			text("signal", "signal", q.Signal),
+			text("type", "type (query, filter, blank = infer)", string(q.Type)),
+			text("signal", "signal (blank = filter only)", q.Signal),
 			text("query", "query param", q.Params["query"]),
 			text("filters", "filters (comma-sep)", strings.Join(refs, ", ")),
-		}
-	case directiveFilter:
-		f := st.Filters[name]
-		var r filter.Rule
-		if len(f.Rules) > 0 {
-			r = f.Rules[0]
-		}
-		return []forms.Field{
-			text("name", "name", f.Name),
-			text("field", "field", r.Field),
-			text("include", "include regex", r.Include),
-			text("exclude", "exclude regex", r.Exclude),
+			text("field", "rule field", r.Field),
+			text("include", "rule include regex", r.Include),
+			text("exclude", "rule exclude regex", r.Exclude),
 		}
 	case directiveFlight:
 		fl := st.Flights[name]
@@ -355,7 +341,6 @@ func (kit *Kit) directiveFormFields(k directiveKind, name string) []forms.Field 
 			text("name", "name", rd.Name),
 			text("flights", "flights (comma-sep)", strings.Join(rd.Flights, ", ")),
 			text("queries", "queries (comma-sep)", strings.Join(rd.Queries, ", ")),
-			text("filters", "filters (comma-sep)", strings.Join(rd.Filters, ", ")),
 		}
 	}
 	return nil
@@ -413,25 +398,26 @@ func (v *directiveFormView) submit(a *vkdeck.Model) tea.Cmd {
 	var item any
 	switch v.kind {
 	case directiveQuery:
-		q := config.Query{Name: name, Signal: directiveStr(vals, "signal")}
+		q := config.Query{
+			Name:   name,
+			Type:   config.QueryType(directiveStr(vals, "type")),
+			Signal: directiveStr(vals, "signal"),
+		}
 		if qp := directiveStr(vals, "query"); qp != "" {
 			q.Params = map[string]string{"query": qp}
 		}
 		for _, ref := range directiveSplit(directiveStr(vals, "filters")) {
 			q.Filters = append(q.Filters, config.QueryFilter{Ref: ref})
 		}
-		item = q
-	case directiveFilter:
-		f := filter.Filter{Name: name}
 		r := filter.Rule{
 			Field:   directiveStr(vals, "field"),
 			Include: directiveStr(vals, "include"),
 			Exclude: directiveStr(vals, "exclude"),
 		}
 		if r.Field != "" || r.Include != "" || r.Exclude != "" {
-			f.Rules = []filter.Rule{r}
+			q.Rules = []filter.Rule{r}
 		}
-		item = f
+		item = q
 	case directiveFlight:
 		item = config.Flight{
 			Name:    name,
@@ -442,7 +428,6 @@ func (v *directiveFormView) submit(a *vkdeck.Model) tea.Cmd {
 			Name:    name,
 			Flights: directiveSplit(directiveStr(vals, "flights")),
 			Queries: directiveSplit(directiveStr(vals, "queries")),
-			Filters: directiveSplit(directiveStr(vals, "filters")),
 		}
 	}
 

@@ -38,7 +38,7 @@ func Bullet() string      { return vk.Bullet() }
 func GitHub() string      { return vk.GitHub() }
 func Slack() string       { return vk.Slack() }
 func Google() string      { return vk.Google() }
-func Flight() string      { return vk.Flight() }
+func Flight() string      { return vk.Diamond() }
 func History() string     { return vk.History() }
 func Directives() string  { return vk.List() }
 func Audit() string       { return vk.Database() }
@@ -69,9 +69,6 @@ func SigningOK() string  { return signingOK.String() }
 func SigningBad() string { return signingBad.String() }
 func Login() string      { return login.String() }
 
-// ForTool returns a brand logo/glyph for a known tool or signal name.
-// Empty means callers should keep the plain-text name (no distinct logo).
-// Resolution goes through the viewkit glyph registry (builtin brands + app ids).
 func ForTool(name string) string { return vk.ResolveID(name) }
 
 type Kind = vk.Severity

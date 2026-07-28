@@ -12,37 +12,26 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-// FileSeed is an example directive seed (re-export of public SDK).
 type FileSeed = pub.FileSeed
 
-// RegisterSeeds associates example directive seeds with a compile-time plugin id.
-// Prefer github.com/codyconfer/munin/plugin.RegisterSeeds from overlays.
 func RegisterSeeds(pluginID string, files []FileSeed) { pub.RegisterSeeds(pluginID, files) }
 
-// SeedsFor returns example seeds for pluginID.
 func SeedsFor(pluginID string) []FileSeed { return pub.SeedsFor(pluginID) }
 
-// SeedPluginIDs returns plugin ids that have registered example seeds.
 func SeedPluginIDs() []string { return pub.SeedPluginIDs() }
 
-// InstallOptions controls plugins install behavior.
 type InstallOptions struct {
-	// Force overwrites existing seed files even when contents differ.
 	Force bool
 }
 
-// InstallResult reports what plugins install did.
 type InstallResult struct {
 	PluginID  string
 	Installed bool
 	Enabled   bool
-	Written   []string // home-relative paths created or overwritten
-	Skipped   []string // home-relative paths left untouched
+	Written   []string
+	Skipped   []string
 }
 
-// Install adds a compile-time registered plugin to the managed/installed set,
-// enables it, and provisions its example directive seeds into home. It does
-// not load shared libraries or mutate the Go plugin registry at runtime.
 func Install(home, id string, opts InstallOptions) (InstallResult, error) {
 	res := InstallResult{PluginID: id}
 	if _, ok := Lookup(id); !ok {
@@ -87,30 +76,19 @@ func writeSeeds(home string, seeds []FileSeed, opts InstallOptions) (written, sk
 	return written, skipped, nil
 }
 
-// UninstallOptions controls plugins uninstall behavior.
 type UninstallOptions struct {
-	// KeepSeeds disables the plugin without removing provisioned example files.
 	KeepSeeds bool
-	// Force removes seed files even when the on-disk content no longer matches
-	// the catalog (user edits). Without Force, modified files are preserved.
-	Force bool
+	Force     bool
 }
 
-// UninstallResult reports what plugins uninstall did.
 type UninstallResult struct {
 	PluginID    string
 	Uninstalled bool
 	Disabled    bool
 	Removed     []string
-	Kept        []string // skipped (modified without --force, or --keep-seeds)
+	Kept        []string
 }
 
-// Uninstall removes a compile-time registered plugin from the managed/installed
-// set, disables it, and by default removes example directive seeds that still
-// match the catalog. Disable alone (SetEnabled false) keeps the plugin listed;
-// uninstall is what drops an external plugin from the Plugins TUI until
-// installed again. Internal (munin.*) plugins cannot be uninstalled — use
-// disable instead. It never unloads compile-linked plugin code.
 func Uninstall(home, id string, opts UninstallOptions) (UninstallResult, error) {
 	res := UninstallResult{PluginID: id}
 	if _, ok := Lookup(id); !ok {
@@ -121,7 +99,6 @@ func Uninstall(home, id string, opts UninstallOptions) (UninstallResult, error) 
 		return res, errs.Newf(errs.KindConfig, "cannot uninstall built-in plugin %q", id).
 			WithHint("internal plugins are always present; use disable to deactivate, or reinstall to refresh seeds")
 	}
-	// Clear installed + disable in one write (disable ≠ uninstall).
 	if err := setInstalledEnabled(id, false, false); err != nil {
 		return res, err
 	}

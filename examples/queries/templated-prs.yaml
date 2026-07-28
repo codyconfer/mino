@@ -1,4 +1,10 @@
+# One file, two documents, separated by `---`. Queries and filters share a
+# collection now, so a filter can sit next to the query that uses it.
 # Query params are expanded with Go templates / braced aliases from filters.
+name: repos-alias
+aliases:
+  REPOS_ALIAS: "repo:example/one repo:example/two"
+---
 name: templated-prs
 signal: github
 params:

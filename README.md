@@ -59,7 +59,7 @@ arguments via `ARGS="…"`), and a fixed stdin/stdout/stderr contract:
 `make run` is deck only — it does not leave a serve process behind. `munin deck` is
 the interactive front-end (formerly `munin tui`, still accepted as a hidden alias):
 a main menu, live flight runs, run **history**, a **directives** browser
-(view/run/validate/create/edit/delete queries, filters, flights, roles), **Notes**
+(view/run/validate/create/edit/delete queries, flights, roles), **Notes**
 (notes/tasks/reminders), a **Plugins** enable/disable screen, accounts, an ad-hoc
 read-only **audit query** screen, and **settings**. `munin deck <flight>` jumps
 straight to a flight; `munin settings` opens just the settings screens. Its status
@@ -83,11 +83,18 @@ rest. Every run is recorded to a local audit trail (see
 
 ## Queries and filters
 
-A **query** names a signal, its parameters, and the filters to apply; a
-**filter** is an ordered set of regex include/exclude rules targeting a field.
-Save them once under `~/.munin/queries/` and `~/.munin/filters/` and recall them
-by name (`munin query <name>`), or apply filters ad-hoc with `--include` /
-`--exclude` / `--filter`.
+Queries and filters share one collection, `~/.munin/queries/`. A document with a
+`signal:` is a **query** — a signal, its parameters, and the filters to apply. A
+document with `rules:`, `aliases:`, or `keywords:` is a **filter** — an ordered
+set of regex include/exclude rules targeting a field, plus any aliases it
+exposes. A document can be both: a query may carry its own rules inline. Add
+`type: query` or `type: filter` to state the intent explicitly and have munin
+enforce it.
+
+Documents may sit one-per-file or share a file (`---`-separated YAML documents,
+a top-level YAML list, or a JSON array), so a filter can live right next to the
+query that uses it. Recall a query by name (`munin query <name>`), or apply
+filters ad-hoc with `--include` / `--exclude` / `--filter`.
 
 → [How to create query and filter config](#create-a-query-and-filter-config)
 
@@ -110,7 +117,8 @@ default path. Try `munin fly demo`, `munin serve notify-smoke`, or
 ## Roles
 
 **Roles** scope what Munin shows so you see only what's relevant to the hat
-you're wearing. A role names the flights, queries, and filters it surfaces; while
+you're wearing. A role names the flights and queries it surfaces (filters are
+queries, so one `queries:` list covers both); while
 that role is active, lists and the TUI show only those, and a bare `munin fly`
 runs the role's first flight. With no active role, everything is listed. Set the
 active role with `--role`, `$MUNIN_ROLE`, or `role:` in config, and inspect your
@@ -204,10 +212,13 @@ under `daemon:` in config and are overridden by flags.
 
 ## Create a query and filter config
 
-A **filter set** (`~/.munin/filters/no-bots.yaml`) is an ordered list of regex
-rules. An item is kept only if it satisfies every `include` rule and matches no
-`exclude` rule; exclusion wins on conflict. Rules target a field: `title`,
-`subtitle`, `body` (default), or `meta.<key>`.
+Queries and filters both live in `~/.munin/queries/`.
+
+A **filter set** (`~/.munin/queries/no-bots.yaml`) is an ordered list of regex
+rules and no signal. An item is kept only if it satisfies every `include` rule
+and matches no `exclude` rule; exclusion wins on conflict. Rules target a field:
+`title`, `subtitle`, `body` (default), or `meta.<key>`. Without a signal there is
+nothing to run, so it is only ever referenced by name:
 
 ```yaml
 name: no-bots
@@ -223,6 +234,7 @@ and the filters to apply — a saved filter set by name, or an inline rule:
 
 ```yaml
 name: slack-standup
+title: Standup chatter        # optional display name for flight panels
 signal: slack
 params:
   channel: eng-standup
@@ -232,10 +244,54 @@ filters:
   - exclude: "^:tada:"    # or an inline rule
 ```
 
+A query can also carry `rules:` of its own, which apply only to its own results:
+
+```yaml
+name: slack-standup
+signal: slack
+params:
+  channel: eng-standup
+rules:
+  - field: meta.author
+    exclude: "(?i)bot$"
+```
+
+Put both in one file with `---` when a filter is only interesting next to its
+query. Every document in a multi-document file needs its own `name`:
+
+```yaml
+# ~/.munin/queries/standup.yaml
+name: no-bots
+type: filter
+rules:
+  - field: meta.author
+    exclude: "(?i)bot$"
+---
+name: slack-standup
+type: query
+signal: slack
+filters: [no-bots]
+params:
+  channel: eng-standup
+```
+
+`type:` is optional — munin infers `query` from a `signal:` and `filter` from
+`rules:`/`aliases:`/`keywords:`. Setting it makes the intent explicit and
+enforced: `type: query` requires a signal and keeps that document's `rules:`
+private to it, `type: filter` forbids a signal and requires filter content.
+
+`name` stays the invocable identifier (`munin query slack-standup`) and the audit
+key; `title` is only what you read. When set, `munin fly` heads that query's
+results panel with the title instead of the name — rename it freely without
+breaking flights, roles, or history.
+
 ```sh
 munin query slack-standup       # run it
 munin query show slack-standup  # inspect the definition
-munin filter list               # list saved filters
+munin list queries              # queries the active role can see
+munin list filters              # filters the active role can see
+munin list --all                # everything, ignoring the active role
+munin filter list               # saved filters plus plugin filter engines
 ```
 
 Every file may be YAML (`.yaml`/`.yml`) or JSON (`.json`) — the two mix freely.
@@ -269,8 +325,7 @@ role: triage
 # ~/.munin/triage.yaml — a role definition
 name: triage
 flights: [triage]            # bare `munin fly` runs the first of these
-queries: [incidents, loki-errors, my-open-prs]
-filters: [no-bots]
+queries: [incidents, loki-errors, my-open-prs, no-bots]
 # Optional enter/exit shell hooks (bash on Unix, PowerShell on Windows).
 hooks:
   enter:
@@ -281,8 +336,9 @@ hooks:
       echo leaving triage
 ```
 
-While a role is active, only the flights, queries, and filters it names appear in
-lists and the TUI; with no active role, everything is listed. Asking for a
+One `queries:` list covers both queries and filters, since a filter is just a
+document in the same collection. While a role is active, only the flights and
+queries it names appear in lists and the TUI; with no active role, everything is listed. Asking for a
 query or flight the active role doesn't name reports why. Validate references and
 enums with `munin verify`. On a role switch, munin runs the previous role’s exit
 hooks, then the new role’s enter hooks (see `examples/README.md`).
@@ -295,12 +351,11 @@ Config lives under `~/.munin/`:
 ~/.munin/
   config.yaml          # global settings + per-signal defaults
   *.yaml               # role definitions (one per file, alongside config.yaml)
-  queries/*.yaml       # named, reusable query definitions
-  filters/*.yaml       # named, reusable regex filter sets
+  queries/*.yaml       # named queries and filters (one or many per file)
   flights/*.yaml       # named flights (one per file)
   icons/*.png          # optional per-state tray/notification icon overrides
   logs/munin.log       # rotating command/serve/deck log sink (cleanable/nukable)
-  .data/config.duckdb  # versioned store: source of truth for config + the four directive kinds
+  .data/config.duckdb  # versioned store: source of truth for config + the three directive kinds
   .data/audit.duckdb   # run history (see Audit trail)
   .data/tokens.duckdb  # cached OAuth credentials
   .data/serve.duckdb   # realtime cursors/watermarks for serve/daemon
@@ -322,7 +377,7 @@ file). The log dir resolves as `$MUNIN_LOG_DIR` → `log_dir:` in `settings.yaml
 `<home>/logs`; `munin clean` archives it and `munin nuke` removes it.
 
 **DuckDB is the source of truth.** `.data/config.duckdb` is the store holding the live
-state for the config *and* the four directive kinds. On startup Munin
+state for the config *and* the three directive kinds. On startup Munin
 hash-compares each directive's files against DuckDB:
 
 - **match** → load DuckDB (no change).
@@ -524,11 +579,12 @@ DB.
 | `munin plugins enable/disable <id>` | Runtime activation only (`disabled_plugins` in settings). |
 | `munin plugins install/uninstall <id>` | Enable/disable plus provision or remove example directive seeds (not dynamic `.so` loading). |
 | `munin plugins scaffold <id>` | Generate an overlay-friendly plugin package (public `munin/plugin` SDK). |
-| `munin clean` | Archive config/query/filter files into `.archive/<timestamp>/`. |
+| `munin clean` | Archive config/query/flight files into `.archive/<timestamp>/`. |
 | `munin nuke [--yes]` | Delete the config directory and DuckDB (run `munin install` to recreate defaults). |
 | `munin role` | Show the active role and defined roles. |
 | `munin login <service>` | OAuth login for github/google/slack. |
-| `munin filter list` / `filter show <name>` | Inspect saved filters. |
+| `munin list [queries\|filters\|flights\|roles]` | List what the active role can see (`--all` to ignore the role). |
+| `munin filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
 | `munin export <directive>` | Materialize DuckDB → files. |
 | `munin apply [directive]` | Write staged files → DuckDB. Never prompts; defaults to `all`. Alias: `munin import`. |
 | `munin settings` | Open just the settings screens of the deck. |
@@ -538,7 +594,7 @@ DB.
 - `--output, -o terminal|json` — output format (JSON is pipeable to `jq`).
 - `--home <dir>` — use a different config directory.
 - `--config <file>` — use a config file for this session only (not persisted).
-- `--role <name>` — activate a role, scoping visible flights/queries/filters.
+- `--role <name>` — activate a role, scoping visible flights and queries.
 - `--timeout <dur>` — per-signal fetch timeout (e.g. `45s`, `2m`).
 - `--reconcile prompt|apply|session|ignore` — answer the staged-config panel up front.
 - `--filter <name>` — apply a saved filter set (repeatable).

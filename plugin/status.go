@@ -7,11 +7,8 @@ import (
 	"github.com/codyconfer/viewkit/glyph"
 )
 
-// StatusFactory builds a status-strip contribution. home/role are the active
-// config values; plugins that ignore them may use blank parameters.
 type StatusFactory func(home, role string) glyph.StatusContribution
 
-// StatusEntry pairs a plugin id with its status-strip contribution.
 type StatusEntry struct {
 	PluginID string
 	Contrib  glyph.StatusContribution
@@ -23,14 +20,10 @@ var (
 	pluginEnabledFn func(id string) bool
 )
 
-// SetPluginEnabledFunc wires host enablement checks for [CollectStatusContributions].
-// Stock munin calls this from internal/plugin init; overlays rarely need it.
 func SetPluginEnabledFunc(fn func(id string) bool) {
 	pluginEnabledFn = fn
 }
 
-// RegisterStatusContribution registers a plugin status-strip contribution.
-// Idempotent for the same plugin id (init + tests). Call alongside Descriptor.
 func RegisterStatusContribution(pluginID string, f StatusFactory) {
 	if pluginID == "" || f == nil {
 		panic("plugin: RegisterStatusContribution requires plugin id and factory")
@@ -43,8 +36,6 @@ func RegisterStatusContribution(pluginID string, f StatusFactory) {
 	statusBy[pluginID] = f
 }
 
-// StatusContributionIDs returns all registered status contribution plugin ids,
-// sorted, without enablement filtering.
 func StatusContributionIDs() []string {
 	statusMu.RLock()
 	defer statusMu.RUnlock()
@@ -56,7 +47,6 @@ func StatusContributionIDs() []string {
 	return ids
 }
 
-// LookupStatusContribution builds a contribution without enablement filtering.
 func LookupStatusContribution(pluginID, home, role string) (glyph.StatusContribution, bool) {
 	statusMu.RLock()
 	f := statusBy[pluginID]
@@ -67,8 +57,6 @@ func LookupStatusContribution(pluginID, home, role string) (glyph.StatusContribu
 	return f(home, role), true
 }
 
-// CollectStatusEntries returns enabled plugin status contributions with ids,
-// sorted by plugin id for stable strip order.
 func CollectStatusEntries(home, role string) []StatusEntry {
 	ids := StatusContributionIDs()
 	out := make([]StatusEntry, 0, len(ids))
@@ -87,8 +75,6 @@ func CollectStatusEntries(home, role string) []StatusEntry {
 	return out
 }
 
-// CollectStatusContributions returns contributions for enabled plugins,
-// sorted by plugin id for stable strip order.
 func CollectStatusContributions(home, role string) []glyph.StatusContribution {
 	entries := CollectStatusEntries(home, role)
 	out := make([]glyph.StatusContribution, 0, len(entries))

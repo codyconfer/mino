@@ -45,7 +45,6 @@ func Install() {
 	}
 }
 
-// Menu returns nav bindings from the active scheme (viewkit/keys).
 func Menu() *keys.Map {
 	sc := keys.Cur()
 	return keys.NewMap(
@@ -57,8 +56,6 @@ func Menu() *keys.Map {
 	)
 }
 
-// Plugins returns Menu bindings plus enable/disable, install, and uninstall.
-// Enter/d toggles enablement (plugin stays listed); u uninstalls (removes from list).
 func Plugins() *keys.Map {
 	sc := keys.Cur()
 	confirm := sc.Binding(keys.Confirm)
@@ -76,7 +73,6 @@ func Plugins() *keys.Map {
 	)
 }
 
-// Form returns editor-safe bindings plus munin Save.
 func Form(extra ...keys.Binding) *keys.Map {
 	sc := keys.Cur()
 	bs := editorBindings(sc,

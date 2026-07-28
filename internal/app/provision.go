@@ -35,13 +35,15 @@ params:
 `
 	sampleDemoQueryYAML = `name: demo
 signal: github
-filters: [demo]
 params:
   query: "is:open is:pr author:@me"
+rules:
+  - field: meta.author
+    exclude: "(?i)bot$"
 `
 	sampleDemoReviewsQueryYAML = `name: demo-reviews
 signal: github
-filters: [demo]
+filters: [no-bots]
 params:
   query: "is:open is:pr review-requested:@me"
 `
@@ -49,11 +51,6 @@ params:
 signal: demo
 `
 	sampleFilterYAML = `name: no-bots
-rules:
-  - field: meta.author
-    exclude: "(?i)bot$"
-`
-	sampleDemoFilterYAML = `name: demo
 rules:
   - field: meta.author
     exclude: "(?i)bot$"
@@ -69,8 +66,7 @@ queries: [notify-smoke]
 `
 	sampleDemoRoleYAML = `name: demo
 flights: [demo]
-queries: [demo, demo-reviews]
-filters: [demo]
+queries: [demo, demo-reviews, no-bots]
 `
 )
 
@@ -90,8 +86,7 @@ func installSpec(home string, force bool) lifecycle.InstallSpec {
 		{RelPath: path.Join(config.DirQueries, "demo.yaml"), Content: []byte(sampleDemoQueryYAML)},
 		{RelPath: path.Join(config.DirQueries, "demo-reviews.yaml"), Content: []byte(sampleDemoReviewsQueryYAML)},
 		{RelPath: path.Join(config.DirQueries, "notify-smoke.yaml"), Content: []byte(sampleNotifySmokeQueryYAML)},
-		{RelPath: path.Join(config.DirFilters, "no-bots.yaml"), Content: []byte(sampleFilterYAML)},
-		{RelPath: path.Join(config.DirFilters, "demo.yaml"), Content: []byte(sampleDemoFilterYAML)},
+		{RelPath: path.Join(config.DirQueries, "no-bots.yaml"), Content: []byte(sampleFilterYAML)},
 		{RelPath: path.Join(config.DirFlights, "default.yaml"), Content: []byte(sampleFlightYAML)},
 		{RelPath: path.Join(config.DirFlights, "demo.yaml"), Content: []byte(sampleDemoFlightYAML)},
 		{RelPath: path.Join(config.DirFlights, "notify-smoke.yaml"), Content: []byte(sampleNotifySmokeFlightYAML)},
@@ -101,7 +96,7 @@ func installSpec(home string, force bool) lifecycle.InstallSpec {
 		Home:  home,
 		Force: force,
 		Dirs: []string{
-			config.DirQueries, config.DirFilters, config.DirFlights, config.DirLogs, config.DirData,
+			config.DirQueries, config.DirFlights, config.DirLogs, config.DirData,
 		},
 		Files: mergeFileSeeds(stock, walkDefaults(getDefaultsFS())),
 		After: seedStores,
@@ -207,7 +202,7 @@ func Install(home string, force bool) ([]string, error) {
 func Clean(w io.Writer, home string) error {
 	entries := []string{
 		"config.yaml", "config.yml", "config.json",
-		config.DirQueries, config.DirFilters, config.DirFlights, config.DirLogs,
+		config.DirQueries, config.DirFlights, config.DirLogs,
 	}
 	entries = append(entries, config.RoleFiles(home)...)
 	dest, moved, err := lifecycle.Clean(home, entries)

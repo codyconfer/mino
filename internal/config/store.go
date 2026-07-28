@@ -17,7 +17,7 @@ import (
 const ConfigDirective = "config"
 
 func CollectionDirectives() []string {
-	return []string{DirQueries, DirFilters, DirFlights, KindRoles}
+	return []string{DirQueries, DirFlights, KindRoles}
 }
 
 func ValidDirectives() []string {

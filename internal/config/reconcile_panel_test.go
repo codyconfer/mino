@@ -161,7 +161,7 @@ func TestRenderReconcileBatchPanelListsAllDirectives(t *testing.T) {
 			},
 		},
 		{
-			Name:        DirFilters,
+			Name:        DirFlights,
 			FileFormat:  "collection",
 			FileContent: collectionBlob(t, map[string]string{"b.yaml": "x"}),
 			HasDB:       true,
@@ -173,7 +173,7 @@ func TestRenderReconcileBatchPanelListsAllDirectives(t *testing.T) {
 		},
 	}
 	out := renderReconcileBatchPanel(os.Stderr, recs)
-	for _, want := range []string{"config, queries, filters", "config", "queries", "filters", "write all staged files"} {
+	for _, want := range []string{"config, queries, flights", "config", "queries", "flights", "write all staged files"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("batch panel missing %q:\n%s", want, out)
 		}

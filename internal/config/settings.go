@@ -11,29 +11,19 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-// GlobalSettings is ~/.config/munin/settings.yaml (theme/keys/onboarding, not per-home).
 type GlobalSettings struct {
-	Home            string `yaml:"home"`
-	Theme           string `yaml:"theme"`
-	Keys            string `yaml:"keys"`
-	PreferDB        bool   `yaml:"prefer_duckdb"`
-	LogLevel        string `yaml:"log_level"`
-	LogColor        string `yaml:"log_color"`
-	LogDir          string `yaml:"log_dir"`
-	Onboarded       bool   `yaml:"onboarded"`
-	OnboardedDomain string `yaml:"onboarded_domain"`
-	// InstalledPlugins lists external/compile-time plugin ids in the managed
-	// set (shown in the Plugins TUI). Internal munin.* plugins are always
-	// treated as installed and need not appear here. Distinct from
-	// DisabledPlugins: disable keeps the id here; uninstall removes it.
+	Home             string   `yaml:"home"`
+	Theme            string   `yaml:"theme"`
+	Keys             string   `yaml:"keys"`
+	PreferDB         bool     `yaml:"prefer_duckdb"`
+	LogLevel         string   `yaml:"log_level"`
+	LogColor         string   `yaml:"log_color"`
+	LogDir           string   `yaml:"log_dir"`
+	Onboarded        bool     `yaml:"onboarded"`
+	OnboardedDomain  string   `yaml:"onboarded_domain"`
 	InstalledPlugins []string `yaml:"installed_plugins,omitempty"`
-	// DisabledPlugins lists compile-time plugin ids that are runtime-disabled.
-	// A disabled plugin may still be installed (listed); uninstall clears both
-	// for external plugins. Built-ins cannot be uninstalled.
-	DisabledPlugins []string `yaml:"disabled_plugins,omitempty"`
-	// HiddenStatusBar lists status-bar chip ids the user chose to hide.
-	// Display-only: does not disable or uninstall plugins.
-	HiddenStatusBar []string `yaml:"hidden_status_bar,omitempty"`
+	DisabledPlugins  []string `yaml:"disabled_plugins,omitempty"`
+	HiddenStatusBar  []string `yaml:"hidden_status_bar,omitempty"`
 }
 
 func LogDir(home string) string {
@@ -88,8 +78,6 @@ func SaveGlobalSettings(gs GlobalSettings) error {
 
 func globalHome() string { return LoadGlobalSettings().Home }
 
-// legacyGoogleStatusBarIDs are pre-collapse per-signal hide keys. They map to
-// the single "google" status-bar chip.
 var legacyGoogleStatusBarIDs = []string{"calendar", "gmail", "docs", "drive", "tasks"}
 
 func isLegacyGoogleStatusBarID(id string) bool {
@@ -101,9 +89,6 @@ func isLegacyGoogleStatusBarID(id string) bool {
 	return false
 }
 
-// StatusBarHidden reports whether id is in the display-only hide list.
-// The collapsed "google" chip is hidden when "google" or any legacy Google
-// signal key (calendar/gmail/docs/drive/tasks) is listed.
 func StatusBarHidden(id string) bool {
 	if id == "" {
 		return false
@@ -125,7 +110,6 @@ func StatusBarHidden(id string) bool {
 	return false
 }
 
-// SetHiddenStatusBar replaces the status-bar hide list and persists settings.
 func SetHiddenStatusBar(ids []string) error {
 	gs := LoadGlobalSettings()
 	gs.HiddenStatusBar = normalizeHiddenStatusBar(ids)

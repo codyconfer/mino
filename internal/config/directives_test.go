@@ -13,10 +13,9 @@ func seedDirectives(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
-	mkdir(t, filepath.Join(home, DirFilters))
 	mkdir(t, filepath.Join(home, DirFlights))
 
-	write(t, filepath.Join(home, DirFilters, "no-bots.yaml"), `
+	write(t, filepath.Join(home, DirQueries, "no-bots.yaml"), `
 name: no-bots
 rules:
   - field: meta.author
@@ -40,8 +39,7 @@ queries: [standup, my-prs]
 name: triage
 home: morning
 flights: [morning]
-queries: [standup]
-filters: [no-bots]
+queries: [standup, no-bots]
 contexts:
   kubectl: prod
   gcx: myorg.grafana.net
@@ -71,9 +69,9 @@ func TestLoadStoreFromFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Queries) != 1 || len(s.Filters) != 1 || len(s.Flights) != 1 || len(s.Roles) != 1 {
-		t.Fatalf("map sizes q=%d f=%d fl=%d r=%d, want 1 each",
-			len(s.Queries), len(s.Filters), len(s.Flights), len(s.Roles))
+	if len(s.Queries) != 2 || len(s.Flights) != 1 || len(s.Roles) != 1 {
+		t.Fatalf("map sizes q=%d fl=%d r=%d, want 2/1/1",
+			len(s.Queries), len(s.Flights), len(s.Roles))
 	}
 
 	q := s.Queries["standup"]
@@ -97,8 +95,7 @@ func TestLoadStoreFromFiles(t *testing.T) {
 
 	rd := s.Roles["triage"]
 	if rd.Name != "triage" || len(rd.Flights) != 1 || rd.Flights[0] != "morning" ||
-		len(rd.Queries) != 1 || rd.Queries[0] != "standup" ||
-		len(rd.Filters) != 1 || rd.Filters[0] != "no-bots" {
+		len(rd.Queries) != 2 || rd.Queries[0] != "standup" {
 		t.Errorf("role not parsed: %#v", rd)
 	}
 	if !strings.Contains(rd.Hooks.Enter.Bash, "entering triage") ||
@@ -113,8 +110,11 @@ func TestLoadStoreFromFiles(t *testing.T) {
 		t.Errorf("role status not parsed: %#v", rd.Status)
 	}
 
-	if got := s.QueryNames(); len(got) != 1 || got[0] != "standup" {
+	if got := s.QueryNames(); len(got) != 2 || got[0] != "no-bots" || got[1] != "standup" {
 		t.Errorf("QueryNames = %v", got)
+	}
+	if got := s.RunnableNames(); len(got) != 1 || got[0] != "standup" {
+		t.Errorf("RunnableNames = %v", got)
 	}
 	if got := s.FilterNames(); len(got) != 1 || got[0] != "no-bots" {
 		t.Errorf("FilterNames = %v", got)
@@ -142,17 +142,8 @@ func TestSerializeDirRoundTrip(t *testing.T) {
 		q.Filters[0].Ref != "no-bots" || q.Filters[1].Inline == nil {
 		t.Errorf("ParseQueries round-trip wrong: %#v", queries)
 	}
-
-	fBlob, _, err := sconfig.SerializeDir(filepath.Join(home, DirFilters))
-	if err != nil {
-		t.Fatal(err)
-	}
-	filters, err := ParseFilters(fBlob)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if f, ok := filters["no-bots"]; !ok || len(f.Rules) != 1 || f.Rules[0].Field != "meta.author" {
-		t.Errorf("ParseFilters round-trip wrong: %#v", filters)
+	if f, ok := queries["no-bots"]; !ok || len(f.Rules) != 1 || f.Rules[0].Field != "meta.author" {
+		t.Errorf("filter document round-trip wrong: %#v", queries)
 	}
 
 	flBlob, _, err := sconfig.SerializeDir(filepath.Join(home, DirFlights))
@@ -186,29 +177,117 @@ func TestSerializeDirRoundTrip(t *testing.T) {
 		t.Errorf("ParseRoles status = %#v", rd.Status)
 	}
 
-	s, err := NewDirectives(qBlob, fBlob, flBlob, rBlob)
+	s, err := NewDirectives(qBlob, flBlob, rBlob)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Queries) != 1 || len(s.Filters) != 1 || len(s.Flights) != 1 || len(s.Roles) != 1 {
+	if len(s.Queries) != 2 || len(s.Flights) != 1 || len(s.Roles) != 1 {
 		t.Errorf("NewDirectives map sizes wrong: %+v", s)
 	}
 }
 
 func TestParseNameFromFilename(t *testing.T) {
 	home := t.TempDir()
-	mkdir(t, filepath.Join(home, DirFilters))
-	write(t, filepath.Join(home, DirFilters, "quiet.yaml"), "rules:\n  - exclude: noise\n")
-	blob, _, err := sconfig.SerializeDir(filepath.Join(home, DirFilters))
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "quiet.yaml"), "rules:\n  - exclude: noise\n")
+	blob, _, err := sconfig.SerializeDir(filepath.Join(home, DirQueries))
 	if err != nil {
 		t.Fatal(err)
 	}
-	filters, err := ParseFilters(blob)
+	queries, err := ParseQueries(blob)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := filters["quiet"]; !ok {
-		t.Errorf("name should default to filename base: %v", filters)
+	if _, ok := queries["quiet"]; !ok {
+		t.Errorf("name should default to filename base: %v", queries)
+	}
+}
+
+func TestParseMultiDocYAMLFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "standup.yaml"), `
+name: no-bots
+rules:
+  - field: meta.author
+    exclude: "(?i)bot$"
+---
+name: standup
+signal: slack
+filters: [no-bots]
+params:
+  channel: eng-standup
+`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Queries) != 2 {
+		t.Fatalf("expected both documents, got %v", s.QueryNames())
+	}
+	if got := s.RunnableNames(); len(got) != 1 || got[0] != "standup" {
+		t.Errorf("RunnableNames = %v", got)
+	}
+	if got := s.FilterNames(); len(got) != 1 || got[0] != "no-bots" {
+		t.Errorf("FilterNames = %v", got)
+	}
+	resolved, err := s.Resolve(s.Queries["standup"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resolved) != 1 || resolved[0].Name != "no-bots" {
+		t.Errorf("cross-document reference not resolved: %+v", resolved)
+	}
+}
+
+func TestParseYAMLSequenceFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "set.yaml"), `
+- name: no-bots
+  rules:
+    - exclude: "(?i)bot$"
+- name: standup
+  signal: slack
+`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Queries) != 2 {
+		t.Fatalf("expected both list entries, got %v", s.QueryNames())
+	}
+}
+
+func TestParseJSONArrayFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "set.json"), `[
+	  { "name": "no-bots", "rules": [ { "exclude": "(?i)bot$" } ] },
+	  { "name": "standup", "signal": "slack", "filters": ["no-bots"] }
+	]`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Queries) != 2 {
+		t.Fatalf("expected both array entries, got %v", s.QueryNames())
+	}
+	if _, err := s.Resolve(s.Queries["standup"]); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestParseMultiDocRequiresNames(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "set.yaml"), "signal: slack\n---\nname: other\nsignal: github\n")
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("expected an error for an unnamed document in a multi-document file")
+	}
+	if !strings.Contains(err.Error(), "no name") {
+		t.Errorf("error should explain the missing name, got %v", err)
 	}
 }
 
@@ -217,7 +296,7 @@ func TestLoadStoreFromFilesMissingDirs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing dirs should be fine: %v", err)
 	}
-	if len(s.Queries) != 0 || len(s.Filters) != 0 || len(s.Flights) != 0 || len(s.Roles) != 0 {
+	if len(s.Queries) != 0 || len(s.Flights) != 0 || len(s.Roles) != 0 {
 		t.Errorf("expected empty directives, got %+v", s)
 	}
 }
@@ -225,8 +304,7 @@ func TestLoadStoreFromFilesMissingDirs(t *testing.T) {
 func TestLoadStoreFromFilesJSON(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
-	mkdir(t, filepath.Join(home, DirFilters))
-	write(t, filepath.Join(home, DirFilters, "no-bots.json"), `{
+	write(t, filepath.Join(home, DirQueries, "no-bots.json"), `{
 	  "name": "no-bots",
 	  "rules": [ { "field": "meta.author", "exclude": "(?i)bot$" } ]
 	}`)
@@ -250,16 +328,16 @@ func TestLoadStoreFromFilesJSON(t *testing.T) {
 		q.Filters[1].Inline.Exclude != "^:tada:" {
 		t.Fatalf("json query filters not parsed: %#v", q.Filters)
 	}
-	if _, ok := s.Filters["no-bots"]; !ok {
+	if _, ok := s.Filter("no-bots"); !ok {
 		t.Fatalf("json filter not loaded: %v", s.FilterNames())
 	}
 }
 
 func TestParseDuplicateNameErrors(t *testing.T) {
 	home := t.TempDir()
-	mkdir(t, filepath.Join(home, DirFilters))
-	write(t, filepath.Join(home, DirFilters, "a.yaml"), "name: dup\nrules: []\n")
-	write(t, filepath.Join(home, DirFilters, "b.yaml"), "name: dup\nrules: []\n")
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "a.yaml"), "name: dup\nrules: []\n")
+	write(t, filepath.Join(home, DirQueries, "b.yaml"), "name: dup\nrules: []\n")
 	if _, err := LoadDirectivesFromFiles(home); err == nil {
 		t.Fatal("expected duplicate-name error")
 	}
@@ -267,8 +345,8 @@ func TestParseDuplicateNameErrors(t *testing.T) {
 
 func TestParseBadRegexFailsFast(t *testing.T) {
 	home := t.TempDir()
-	mkdir(t, filepath.Join(home, DirFilters))
-	write(t, filepath.Join(home, DirFilters, "bad.yaml"), "name: bad\nrules:\n  - exclude: \"(\"\n")
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "bad.yaml"), "name: bad\nrules:\n  - exclude: \"(\"\n")
 	if _, err := LoadDirectivesFromFiles(home); err == nil {
 		t.Fatal("expected bad-regex error at load time")
 	}
@@ -295,6 +373,142 @@ func TestResolveDereferencesNamedFilters(t *testing.T) {
 	}
 }
 
+func TestResolveIncludesOwnRules(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"), `
+name: prs
+signal: github
+rules:
+  - field: meta.author
+    exclude: "(?i)bot$"
+filters:
+  - include: "deploy"
+`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := s.Resolve(s.Queries["prs"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resolved) != 1 {
+		t.Fatalf("own rules and inline rules should form one set, got %d", len(resolved))
+	}
+	if len(resolved[0].Rules) != 2 ||
+		resolved[0].Rules[0].Exclude != "(?i)bot$" || resolved[0].Rules[1].Include != "deploy" {
+		t.Errorf("own rules should come before inline rules: %+v", resolved[0].Rules)
+	}
+}
+
+func TestFilterRejectsSignalOnlyQuery(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"), "name: prs\nsignal: github\n")
+	write(t, filepath.Join(home, DirQueries, "other.yaml"), "name: other\nsignal: github\nfilters: [prs]\n")
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.Filter("prs"); ok {
+		t.Error("a query with no rules/aliases/keywords is not a filter")
+	}
+	if _, err := s.Resolve(s.Queries["other"]); err == nil {
+		t.Fatal("referencing a query with no filter content should error")
+	}
+}
+
+func TestExplicitTypes(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "set.yaml"), `
+name: no-bots
+type: filter
+rules:
+  - exclude: "(?i)bot$"
+---
+name: prs
+type: query
+signal: github
+filters: [no-bots]
+`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k := s.Queries["no-bots"].Kind(); k != TypeFilter {
+		t.Errorf("no-bots Kind = %q, want filter", k)
+	}
+	if k := s.Queries["prs"].Kind(); k != TypeQuery {
+		t.Errorf("prs Kind = %q, want query", k)
+	}
+	if s.Queries["no-bots"].Runnable() {
+		t.Error("type: filter should never be runnable")
+	}
+	if got := s.RunnableNames(); len(got) != 1 || got[0] != "prs" {
+		t.Errorf("RunnableNames = %v", got)
+	}
+	if got := s.FilterNames(); len(got) != 1 || got[0] != "no-bots" {
+		t.Errorf("FilterNames = %v", got)
+	}
+}
+
+func TestTypeQueryKeepsItsRulesPrivate(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "set.yaml"), `
+name: prs
+type: query
+signal: github
+rules:
+  - exclude: "(?i)bot$"
+---
+name: other
+signal: github
+filters: [prs]
+`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.Filter("prs"); ok {
+		t.Error("a type: query document should not be referenceable as a filter")
+	}
+	if got := s.FilterNames(); len(got) != 0 {
+		t.Errorf("FilterNames = %v, want none", got)
+	}
+	if _, err := s.Resolve(s.Queries["other"]); err == nil {
+		t.Fatal("referencing a type: query document should error")
+	}
+	resolved, err := s.Resolve(s.Queries["prs"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resolved) != 1 || len(resolved[0].Rules) != 1 {
+		t.Errorf("its own rules should still apply to itself: %+v", resolved)
+	}
+}
+
+func TestInvalidTypesRejected(t *testing.T) {
+	cases := map[string]string{
+		"query without a signal": "name: x\ntype: query\n",
+		"filter with a signal":   "name: x\ntype: filter\nsignal: github\nrules:\n  - exclude: y\n",
+		"filter with no rules":   "name: x\ntype: filter\n",
+		"unknown type":           "name: x\ntype: flight\nsignal: github\n",
+	}
+	for label, body := range cases {
+		t.Run(label, func(t *testing.T) {
+			home := t.TempDir()
+			mkdir(t, filepath.Join(home, DirQueries))
+			write(t, filepath.Join(home, DirQueries, "x.yaml"), body)
+			if _, err := LoadDirectivesFromFiles(home); err == nil {
+				t.Fatalf("expected an error for %s", label)
+			}
+		})
+	}
+}
+
 func TestResolveUnknownFilterErrors(t *testing.T) {
 	s, err := LoadDirectivesFromFiles(seedDirectives(t))
 	if err != nil {
@@ -310,8 +524,7 @@ func TestResolveUnknownFilterErrors(t *testing.T) {
 func TestExpandParamsFromFilterAliases(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
-	mkdir(t, filepath.Join(home, DirFilters))
-	write(t, filepath.Join(home, DirFilters, "repos.yaml"), `
+	write(t, filepath.Join(home, DirQueries, "repos.yaml"), `
 name: repos
 aliases:
   REPOS_ALIAS: "repo:org/a repo:org/b"
@@ -340,6 +553,69 @@ filters: [repos]
 	}
 	if strings.Contains(q, "{REPOS_ALIAS}") || strings.Contains(q, "days ago") {
 		t.Fatalf("shorthand left unexpanded: %q", q)
+	}
+}
+
+func TestExpandParamsFromOwnAliases(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"), `
+name: prs
+signal: github
+aliases:
+  REPOS_ALIAS: "repo:org/a"
+params:
+  query: "is:open is:pr {REPOS_ALIAS}"
+`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	params, err := s.ExpandParams(s.Queries["prs"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := params["query"]; !strings.Contains(got, "repo:org/a") {
+		t.Fatalf("a query's own aliases should expand its params: %q", got)
+	}
+}
+
+func TestQueryTitleParsesAndFallsBackToName(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "my-open-prs.yaml"), `
+name: my-open-prs
+title: Open pull requests
+signal: github
+`)
+	write(t, filepath.Join(home, DirQueries, "standup.yaml"), `
+name: standup
+signal: slack
+`)
+
+	blob, _, err := sconfig.SerializeDir(filepath.Join(home, DirQueries))
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries, err := ParseQueries(blob)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	titled, ok := queries["my-open-prs"]
+	if !ok {
+		t.Fatalf("my-open-prs missing from %v", queries)
+	}
+	if titled.Title != "Open pull requests" {
+		t.Errorf("Title = %q, want %q", titled.Title, "Open pull requests")
+	}
+	if got := titled.Display(); got != "Open pull requests" {
+		t.Errorf("Display = %q, want the title", got)
+	}
+
+	untitled := queries["standup"]
+	if got := untitled.Display(); got != "standup" {
+		t.Errorf("Display without a title = %q, want the name", got)
 	}
 }
 

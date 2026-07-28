@@ -1,4 +1,6 @@
-# A reusable filter set. Copy to ~/.munin/filters/no-bots.yaml.
+# A reusable filter set. Copy to ~/.munin/queries/no-bots.yaml.
+# There is no `signal`, so this document is a filter only: it cannot be run,
+# but any query can pull it in with `filters: [no-bots]`.
 # Rules are applied in order; an item is kept only if it satisfies every
 # inclusive (include) rule and matches no exclusive (exclude) rule.
 name: no-bots

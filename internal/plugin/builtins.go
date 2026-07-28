@@ -7,8 +7,6 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-// RegisterBuiltins registers stock munin signal plugins with the compile-time
-// registry. Call once from init of the host (signals/build).
 func RegisterBuiltins() {
 	type sig struct {
 		id, signal string

@@ -14,7 +14,6 @@ var (
 	loaded    bool
 )
 
-// LoadEnabled reads installed/disabled plugin sets from global settings.
 func LoadEnabled() {
 	gs := config.LoadGlobalSettings()
 	enableMu.Lock()
@@ -39,13 +38,6 @@ func ensureLoaded() {
 	}
 }
 
-// Enabled reports whether plugin id is active. Companion contributions
-// (Parent set) inherit the owning primary plugin's enablement. Unknown ids
-// are treated as disabled for verify clarity.
-//
-// Enablement is independent of the installed set: plugins default to enabled
-// until disabled. Internal (munin.*) plugins stay listed when disabled;
-// external plugins leave the Plugins TUI list only when uninstalled.
 func Enabled(id string) bool {
 	ensureLoaded()
 	d, ok := Lookup(id)
@@ -58,10 +50,6 @@ func Enabled(id string) bool {
 	return !disabled[owner]
 }
 
-// Installed reports whether plugin id is in the managed/installed set
-// (Plugins TUI list). Companions inherit the owning primary's install state.
-// Internal (munin.*) plugins are always installed — they are compile-linked
-// into the binary and cannot be removed from the managed set.
 func Installed(id string) bool {
 	ensureLoaded()
 	d, ok := Lookup(id)
@@ -77,7 +65,6 @@ func Installed(id string) bool {
 	return installed[owner]
 }
 
-// SignalEnabled reports whether the plugin backing signal is enabled.
 func SignalEnabled(signal string) bool {
 	d, ok := BySignal(signal)
 	if !ok {
@@ -133,9 +120,6 @@ func withInstalled(gs config.GlobalSettings, id string, want bool) config.Global
 	return gs
 }
 
-// SetEnabled persists enable/disable for a registered primary plugin.
-// Companion ids (Parent set) are rejected — toggle the owning primary instead.
-// Disable keeps the plugin installed (listed); use Uninstall to remove it.
 func SetEnabled(id string, on bool) error {
 	if _, err := primaryDescriptor(id); err != nil {
 		return err
@@ -144,7 +128,6 @@ func SetEnabled(id string, on bool) error {
 	return savePluginSets(gs)
 }
 
-// MarkInstalled adds id to the managed/installed set without changing enablement.
 func MarkInstalled(id string) error {
 	if _, err := primaryDescriptor(id); err != nil {
 		return err
@@ -153,8 +136,6 @@ func MarkInstalled(id string) error {
 	return savePluginSets(gs)
 }
 
-// ClearInstalled removes id from the managed/installed set without changing
-// enablement. Uninstall clears installed and disables in one step.
 func ClearInstalled(id string) error {
 	if _, err := primaryDescriptor(id); err != nil {
 		return err
@@ -163,7 +144,6 @@ func ClearInstalled(id string) error {
 	return savePluginSets(gs)
 }
 
-// setInstalledEnabled marks installed and sets enablement in one settings write.
 func setInstalledEnabled(id string, installedOn, enabledOn bool) error {
 	if _, err := primaryDescriptor(id); err != nil {
 		return err
@@ -174,9 +154,6 @@ func setInstalledEnabled(id string, installedOn, enabledOn bool) error {
 	return savePluginSets(gs)
 }
 
-// ListEnabled returns primary plugin ids and whether each is enabled.
-// Order matches Primaries: munin.* (internal) first, then alpha by id.
-// This includes uninstalled plugins (CLI discovery); the TUI uses ListInstalled.
 func ListEnabled() []struct {
 	ID      string
 	Enabled bool
@@ -196,10 +173,6 @@ func ListEnabled() []struct {
 	return out
 }
 
-// ListInstalled returns installed primary plugins and whether each is enabled.
-// Internal (munin.*) plugins are always included. Disabled plugins remain
-// listed; uninstalled external ones do not.
-// Order matches Primaries among the installed subset.
 func ListInstalled() []struct {
 	ID      string
 	Enabled bool

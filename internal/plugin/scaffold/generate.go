@@ -10,23 +10,15 @@ import (
 	"unicode"
 )
 
-// GenerateOptions controls [Generate].
 type GenerateOptions struct {
-	// ID is the plugin id (e.g. team.example). Required.
-	ID string
-	// Dir is the destination directory for the package. Required.
-	Dir string
-	// Signal overrides the config signal name (default: last id segment).
-	Signal string
-	// Package overrides the Go package name (default: sanitized signal).
+	ID      string
+	Dir     string
+	Signal  string
 	Package string
-	// Module is an optional go module path written into a short README hint.
-	Module string
-	// Force overwrites existing generated files.
-	Force bool
+	Module  string
+	Force   bool
 }
 
-// GenerateResult lists paths written relative to Dir.
 type GenerateResult struct {
 	Dir     string
 	Written []string
@@ -34,8 +26,6 @@ type GenerateResult struct {
 
 var identRE = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
-// Generate writes an overlay-friendly plugin package using the public
-// munin/plugin SDK. Destination files must not exist unless Force.
 func Generate(opts GenerateOptions) (GenerateResult, error) {
 	id := strings.TrimSpace(opts.ID)
 	if id == "" {

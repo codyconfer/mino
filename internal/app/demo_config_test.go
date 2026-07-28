@@ -22,7 +22,7 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 	for _, want := range []string{
 		"queries/demo.yaml",
 		"queries/demo-reviews.yaml",
-		"filters/demo.yaml",
+		"queries/no-bots.yaml",
 		"demo.yaml",
 		"flights/demo.yaml",
 		"queries/notify-smoke.yaml",
@@ -56,7 +56,7 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 	for _, rel := range []string{
 		path.Join(config.DirQueries, "demo.yaml"),
 		path.Join(config.DirQueries, "demo-reviews.yaml"),
-		path.Join(config.DirFilters, "demo.yaml"),
+		path.Join(config.DirQueries, "no-bots.yaml"),
 		path.Join(config.DirFlights, "demo.yaml"),
 		"demo.yaml",
 	} {
@@ -91,8 +91,20 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if len(resolved) != 1 || resolved[0].Name != "demo" {
+	if len(resolved) != 1 || resolved[0].Name != "demo (inline)" {
 		t.Fatalf("resolved filters = %#v", resolved)
+	}
+
+	reviews, ok := dirs.Queries["demo-reviews"]
+	if !ok {
+		t.Fatal("missing demo-reviews query")
+	}
+	refResolved, err := dirs.Resolve(reviews)
+	if err != nil {
+		t.Fatalf("Resolve demo-reviews: %v", err)
+	}
+	if len(refResolved) != 1 || refResolved[0].Name != "no-bots" {
+		t.Fatalf("demo-reviews should pull in the shared no-bots filter: %#v", refResolved)
 	}
 
 	compiled, err := filter.CompileAll(resolved)
@@ -117,11 +129,11 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 
 	access := config.NewAccess("demo", dirs.Roles)
 	if !access.FlightVisible("demo") || !access.QueryVisible("demo") ||
-		!access.QueryVisible("demo-reviews") || !access.FilterVisible("demo") {
+		!access.QueryVisible("demo-reviews") || !access.QueryVisible("no-bots") {
 		t.Fatalf("demo role should expose demo flight/queries/filter")
 	}
 	if access.FlightVisible("default") || access.QueryVisible("my-open-prs") ||
-		access.QueryVisible("notify-smoke") || access.FilterVisible("no-bots") {
+		access.QueryVisible("notify-smoke") {
 		t.Fatalf("demo role should hide non-demo directives")
 	}
 }

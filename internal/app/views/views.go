@@ -133,7 +133,6 @@ func (k *Kit) Home() vkdeck.View {
 	return withHotkeyHints(withLiveContext(shell, k.menuCtx), k.hotkeyHints())
 }
 
-// hintView appends footer hotkey cues without changing navigation.
 type hintView struct {
 	vkdeck.View
 	extra [][2]string
@@ -150,7 +149,6 @@ func (h *hintView) Hints() [][2]string {
 	return append(append([][2]string{}, h.View.Hints()...), h.extra...)
 }
 
-// liveContextView refreshes chrome context cues (e.g. active role) each frame.
 type liveContextView struct {
 	vkdeck.View
 	ctx func() [][2]string

@@ -60,7 +60,6 @@ type pluginsPage struct {
 	queue  *vnotify.Queue
 }
 
-// Plugins returns the main-deck plugins enable/disable screen.
 func (k *Kit) Plugins() vkdeck.View {
 	_ = build.KnownSignals()
 	plugin.LoadEnabled()
@@ -114,7 +113,6 @@ func (p *pluginsPage) Hints() [][2]string {
 		{"enter/d", "enable/disable"},
 		{"i", "install…"},
 	}
-	// Uninstall only applies to external/managed plugins — built-ins stay present.
 	if len(p.rows) > 0 && !plugin.IsInternal(p.rows[p.cursor].id) {
 		hints = append(hints, [2]string{"u", "uninstall"})
 	}
@@ -207,8 +205,6 @@ func (p *pluginsPage) pruneTick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return pluginsToastPruneMsg(t) })
 }
 
-// pluginsInstallPicker lists registered plugins and discoverable units under
-// <home>/.plugins for install + ReloadDirectives.
 func (k *Kit) pluginsInstallPicker() vkdeck.View {
 	home := k.d.App.Cfg.Home
 	app := k.d.App
@@ -234,7 +230,6 @@ func (k *Kit) pluginsInstallPicker() vkdeck.View {
 			Label: c.Label,
 			Desc:  c.Desc,
 			Do: func(a *vkdeck.Model) tea.Cmd {
-				// Pop picker first so pluginsInstalledMsg lands on the plugins list.
 				resize := a.Pop()
 				return tea.Batch(resize, func() tea.Msg {
 					res, err := plugin.InstallCandidateEntry(home, c, plugin.InstallOptions{})

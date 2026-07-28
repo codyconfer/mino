@@ -12,11 +12,8 @@ import (
 	"github.com/codyconfer/munin/internal/plugin/ntr"
 )
 
-// roleLifecycleSettleMsg is emitted after RoleCycleDebounce quiet time.
 type roleLifecycleSettleMsg struct{ gen uint64 }
 
-// KeyHook returns a deck global key interceptor that opens keybind targets
-// (NTR create forms, role cycle, or named flights). Wired via deck.WithKeyHook.
 func (k *Kit) KeyHook() vkdeck.KeyHook {
 	return func(m *vkdeck.Model, key tea.KeyMsg) (tea.Cmd, bool) {
 		binds := k.keybinds()
@@ -29,8 +26,6 @@ func (k *Kit) KeyHook() vkdeck.KeyHook {
 	}
 }
 
-// MsgHook settles debounced role lifecycle (hooks/status/contexts) after a
-// quiet period following role.next / role.prev hotkeys.
 func (k *Kit) MsgHook() vkdeck.MsgHook {
 	return func(m *vkdeck.Model, msg tea.Msg) (tea.Cmd, bool) {
 		s, ok := msg.(roleLifecycleSettleMsg)
@@ -110,7 +105,6 @@ func (k *Kit) ntrHomeRole() (home, role string) {
 	return home, role
 }
 
-// hotkeyHints returns footer hints for configured NTR create and role-cycle binds.
 func (k *Kit) hotkeyHints() [][2]string {
 	binds := k.keybinds()
 	if len(binds) == 0 {

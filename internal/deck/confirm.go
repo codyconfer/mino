@@ -6,7 +6,6 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-// Confirm runs a yes/no prompt via viewkit/deck.
 func Confirm(title, message, yesLabel, noLabel string) (bool, error) {
 	ok, err := vkdeck.Confirm(title, message, yesLabel, noLabel)
 	if err != nil {

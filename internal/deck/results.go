@@ -9,7 +9,6 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-// NewResults builds an ItemList that maps signals.Section → list rows.
 func NewResults(title string, ctx [][2]string, load func() []signals.Section) *vkdeck.ItemList {
 	return vkdeck.NewItemList(title, ctx,
 		func() any {

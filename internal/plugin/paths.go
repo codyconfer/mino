@@ -7,8 +7,6 @@ var (
 	knownDataPaths []func(home string) string
 )
 
-// RegisterDataPath records a function that returns a plugin DB path under home.
-// Backup runners should union these with sisyphus/store.BackupPaths().
 func RegisterDataPath(fn func(home string) string) {
 	if fn == nil {
 		return
@@ -18,7 +16,6 @@ func RegisterDataPath(fn func(home string) string) {
 	pathMu.Unlock()
 }
 
-// DataPaths returns known plugin data paths for home (deduped, non-empty).
 func DataPaths(home string) []string {
 	pathMu.Lock()
 	fns := append([]func(string) string{}, knownDataPaths...)

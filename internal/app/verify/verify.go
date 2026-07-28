@@ -150,15 +150,6 @@ func Roles(directives *config.Directives) []Finding {
 				missing = append(missing, "query "+q)
 			}
 		}
-		for _, fl := range rd.Filters {
-			if _, ok := directives.Filters[fl]; ok {
-				continue
-			}
-			if plugin.HasFilter(fl) {
-				continue
-			}
-			missing = append(missing, "filter "+fl)
-		}
 		if len(missing) > 0 {
 			out = append(out, Finding{Name: name, OK: false,
 				Msg:     "references undefined: " + strings.Join(missing, ", "),
@@ -180,15 +171,23 @@ func Flights(directives *config.Directives) []Finding {
 		if len(fl.Queries) == 0 {
 			f.OK, f.Msg, f.Snippet = false, "flight has no queries", snippet()
 		} else {
-			var missing []string
+			var missing, notRunnable []string
 			for _, q := range fl.Queries {
-				if _, ok := directives.Queries[q]; !ok {
+				def, ok := directives.Queries[q]
+				switch {
+				case !ok:
 					missing = append(missing, q)
+				case !def.Runnable():
+					notRunnable = append(notRunnable, q)
 				}
 			}
-			if len(missing) > 0 {
+			switch {
+			case len(missing) > 0:
 				f.OK, f.Msg, f.Snippet = false,
 					"unknown queries: "+strings.Join(missing, ", "), snippet()
+			case len(notRunnable) > 0:
+				f.OK, f.Msg, f.Snippet = false,
+					"filter-only, nothing to run: "+strings.Join(notRunnable, ", "), snippet()
 			}
 		}
 		out = append(out, f)
@@ -196,7 +195,6 @@ func Flights(directives *config.Directives) []Finding {
 	return out
 }
 
-// Plugins verifies plugin↔host registry sync for every Kind.
 func Plugins() []Finding {
 	var out []Finding
 	builders := build.BuilderSignals()
@@ -304,17 +302,19 @@ func Queries(directives *config.Directives) []Finding {
 		snippet := func() string { return toYAML(q) }
 
 		switch {
-		case !build.KnownSignals()[q.Signal]:
+		case !q.Runnable() && !q.HasFilter() && len(q.Filters) == 0:
+			f.OK, f.Warn, f.Msg, f.Snippet = true, true, "defines neither a signal nor any filter rules", snippet()
+		case q.Runnable() && !build.KnownSignals()[q.Signal]:
 			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("unknown signal %q", q.Signal), snippet()
-		case !build.HasBuilder(q.Signal):
+		case q.Runnable() && !build.HasBuilder(q.Signal):
 			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("signal %q registered but has no host builder", q.Signal), snippet()
-		case !plugin.SignalEnabled(q.Signal):
+		case q.Runnable() && !plugin.SignalEnabled(q.Signal):
 			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("signal %q references disabled plugin", q.Signal), snippet()
 		default:
 			var missing []string
 			for _, qf := range q.Filters {
 				if qf.Ref != "" {
-					if _, ok := directives.Filters[qf.Ref]; ok {
+					if _, ok := directives.Filter(qf.Ref); ok {
 						continue
 					}
 					if plugin.HasFilter(qf.Ref) {

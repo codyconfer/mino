@@ -113,11 +113,8 @@ func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePo
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	var q, f, fl, roles []byte
+	var q, fl, roles []byte
 	if q, err = applyCollectionStage(context.Background(), mgr, resolver, byName[DirQueries]); err != nil {
-		return nil, nil, nil, err
-	}
-	if f, err = applyCollectionStage(context.Background(), mgr, resolver, byName[DirFilters]); err != nil {
 		return nil, nil, nil, err
 	}
 	if fl, err = applyCollectionStage(context.Background(), mgr, resolver, byName[DirFlights]); err != nil {
@@ -126,7 +123,7 @@ func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePo
 	if roles, err = applyCollectionStage(context.Background(), mgr, resolver, byName[KindRoles]); err != nil {
 		return nil, nil, nil, err
 	}
-	directives, err := NewDirectives(q, f, fl, roles)
+	directives, err := NewDirectives(q, fl, roles)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -137,12 +134,9 @@ func loadDirectives(mgr *sisyphus.Manager, res *Resolver, home string) (*Directi
 	if mgr == nil {
 		return LoadDirectivesFromFiles(home)
 	}
-	var q, f, fl, r []byte
+	var q, fl, r []byte
 	var err error
 	if q, err = reconcileCollection(mgr, res, home, DirQueries); err != nil {
-		return nil, err
-	}
-	if f, err = reconcileCollection(mgr, res, home, DirFilters); err != nil {
 		return nil, err
 	}
 	if fl, err = reconcileCollection(mgr, res, home, DirFlights); err != nil {
@@ -151,12 +145,9 @@ func loadDirectives(mgr *sisyphus.Manager, res *Resolver, home string) (*Directi
 	if r, err = reconcileCollection(mgr, res, home, KindRoles); err != nil {
 		return nil, err
 	}
-	return NewDirectives(q, f, fl, r)
+	return NewDirectives(q, fl, r)
 }
 
-// ReloadDirectives reloads queries/filters/flights/roles without opening a new
-// store. When mgr is nil, files under home are used. Otherwise collections are
-// reconciled with policy (use ReconcileApply after provisioning new seeds).
 func ReloadDirectives(mgr *sisyphus.Manager, home string, policy ReconcilePolicy) (*Directives, error) {
 	if mgr == nil {
 		return LoadDirectivesFromFiles(home)
@@ -413,8 +404,6 @@ func (r *Resolver) confirmDiscardAll(in *bufio.Reader, recs []sisyphus.Reconcili
 	return true, nil
 }
 
-// readPromptKey returns the first keypress as a string. On a TTY it briefly
-// enables raw mode so Enter is not required. Enter/Return yield "" (default).
 func readPromptKey(raw io.Reader, in *bufio.Reader) (string, error) {
 	restore := enterRawTerminal(raw)
 	defer restore()
@@ -425,7 +414,7 @@ func readPromptKey(raw io.Reader, in *bufio.Reader) (string, error) {
 	switch b {
 	case '\r', '\n':
 		return "", nil
-	case 0x03: // Ctrl+C in raw mode
+	case 0x03:
 		return "", io.EOF
 	default:
 		return string(b), nil

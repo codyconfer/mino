@@ -15,10 +15,8 @@ import (
 	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
-// ConfirmFunc asks the user whether to re-check after incomplete onboarding.
 type ConfirmFunc func(title, message, yes, no string) (bool, error)
 
-// Hint returns the standard "run munin onboard" guidance string.
 func Hint() string {
 	if RequiredEmailDomain != "" {
 		return "run `munin onboard` to finish setup (GitHub auth + a GitHub-verified GPG or SSH signing key with a verified @" + RequiredEmailDomain + " identity)"
@@ -26,7 +24,6 @@ func Hint() string {
 	return "run `munin onboard` to finish setup (GitHub auth + a GitHub-verified GPG or SSH signing key)"
 }
 
-// Reset clears the onboarded marker in global settings.
 func Reset(w io.Writer) error {
 	gs := config.LoadGlobalSettings()
 	gs.Onboarded = false
@@ -37,7 +34,6 @@ func Reset(w io.Writer) error {
 	return nil
 }
 
-// RunCLI prints onboarding status and optionally marks ready / loops on confirm.
 func RunCLI(ctx context.Context, tokens auth.TokenStore, apiURL string, w io.Writer, statusOnly bool, confirm ConfirmFunc) error {
 	sty := render.NewReportStyles(w)
 	interactive := !statusOnly && term.IsTerminal(os.Stdout.Fd())
@@ -80,7 +76,6 @@ func RunCLI(ctx context.Context, tokens auth.TokenStore, apiURL string, w io.Wri
 	}
 }
 
-// PrintStatus writes the onboarding checklist.
 func PrintStatus(w io.Writer, sty render.ReportStyles, st Status) {
 	fmt.Fprintln(w, sty.Title.Render("Onboarding"))
 	for _, r := range st.Results {
@@ -99,7 +94,6 @@ func PrintStatus(w io.Writer, sty render.ReportStyles, st Status) {
 	fmt.Fprintln(w)
 }
 
-// IsOnboarded reports whether global settings mark this domain as onboarded.
 func IsOnboarded() bool {
 	gs := config.LoadGlobalSettings()
 	return gs.Onboarded && gs.OnboardedDomain == RequiredEmailDomain

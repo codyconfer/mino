@@ -143,14 +143,12 @@ func TestSyncRoleLifecycleOrderAndPersist(t *testing.T) {
 		t.Fatalf("first enter calls = %v", calls)
 	}
 
-	// Same role: no hook re-run.
 	calls = nil
 	a.syncRoleLifecycle()
 	if len(calls) != 0 {
 		t.Fatalf("same-role hooks = %v", calls)
 	}
 
-	// Switch: exit previous, then enter next.
 	calls = nil
 	if err := a.ActivateRole("ops"); err != nil {
 		t.Fatal(err)
@@ -165,7 +163,6 @@ func TestSyncRoleLifecycleOrderAndPersist(t *testing.T) {
 		t.Fatalf("switch calls = %v", calls)
 	}
 
-	// Clear role: exit only.
 	calls = nil
 	if err := a.ActivateRole(""); err != nil {
 		t.Fatal(err)
@@ -177,7 +174,6 @@ func TestSyncRoleLifecycleOrderAndPersist(t *testing.T) {
 		t.Fatalf("clear calls = %v", calls)
 	}
 
-	// State file lives under .data/
 	if _, err := filepath.Glob(filepath.Join(home, ".data", "*")); err != nil {
 		t.Fatal(err)
 	}

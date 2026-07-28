@@ -14,22 +14,15 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 )
 
-// StatusTextMax is the maximum display length for a status block's stdout.
 const StatusTextMax = 20
 
-// CaptureFunc executes a shell script and returns captured stdout.
 type CaptureFunc func(kind, script string) (string, error)
 
-// Capture is the process-level stdout-capturing runner; tests may replace it.
 var Capture CaptureFunc = defaultCapture
 
-// Chip is one active role status-bar contribution.
 type Chip struct {
-	// Glyph is the configured glyph name (tool logo id or registry id).
 	Glyph string
-	// Text is the truncated command output for display.
-	Text string
-	// Index is the block index in RoleDef.Status (stable hide-preference key).
+	Text  string
 	Index int
 }
 
@@ -38,7 +31,6 @@ var (
 	statusChips []Chip
 )
 
-// StatusChips returns a copy of the active role's status chips.
 func StatusChips() []Chip {
 	statusMu.RLock()
 	defer statusMu.RUnlock()
@@ -50,7 +42,6 @@ func StatusChips() []Chip {
 	return out
 }
 
-// SetStatusChips replaces the active role status chips.
 func SetStatusChips(chips []Chip) {
 	statusMu.Lock()
 	defer statusMu.Unlock()
@@ -61,13 +52,10 @@ func SetStatusChips(chips []Chip) {
 	statusChips = append([]Chip(nil), chips...)
 }
 
-// ClearStatusChips drops all role status chips (role exit / clear).
 func ClearStatusChips() {
 	SetStatusChips(nil)
 }
 
-// TruncateStatus trims stdout for status-bar display: leading/trailing
-// whitespace removed, first line only, then at most StatusTextMax runes.
 func TruncateStatus(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -82,9 +70,6 @@ func TruncateStatus(s string) string {
 	return string([]rune(s)[:StatusTextMax])
 }
 
-// CollectStatus runs each status block's platform command (same Select rules
-// as hooks), captures stdout, and truncates for display. Failures are returned
-// as warnings; they do not abort collection of other blocks.
 func CollectStatus(rd config.RoleDef) (chips []Chip, warnings []error) {
 	for i, block := range rd.Status {
 		kind, script, ok := Select(block.Hooks())

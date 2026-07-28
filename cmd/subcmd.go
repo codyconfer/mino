@@ -23,7 +23,7 @@ func (ff *filterFlags) bind(cmd *cobra.Command) {
 func (ff *filterFlags) compile() ([]filter.Compiled, error) {
 	var sets []filter.Filter
 	for _, n := range ff.names {
-		f, ok := shared.Directives.Filters[n]
+		f, ok := shared.Directives.LookupFilter(n)
 		if !ok {
 			return nil, errs.Newf(errs.KindUsage, "unknown filter %q", n).
 				WithHint("see `munin filter list`")

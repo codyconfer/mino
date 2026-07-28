@@ -13,24 +13,22 @@ import (
 func TestVisibleNamesRespectActiveRole(t *testing.T) {
 	directives := &config.Directives{
 		Queries: map[string]config.Query{
-			"incidents": {Name: "incidents"},
-			"today":     {Name: "today"},
-		},
-		Filters: map[string]filter.Filter{
-			"no-bots":   {Name: "no-bots"},
-			"only-mine": {Name: "only-mine"},
+			"incidents": {Name: "incidents", Signal: "github"},
+			"today":     {Name: "today", Signal: "calendar"},
+			"no-bots":   {Name: "no-bots", Rules: []filter.Rule{{Exclude: "bot$"}}},
+			"only-mine": {Name: "only-mine", Rules: []filter.Rule{{Include: "me"}}},
 		},
 		Flights: map[string]config.Flight{
 			"triage":  {Name: "triage"},
 			"default": {Name: "default"},
 		},
 		Roles: map[string]config.RoleDef{
-			"triage": {Name: "triage", Flights: []string{"triage"}, Queries: []string{"incidents"}, Filters: []string{"no-bots"}},
+			"triage": {Name: "triage", Flights: []string{"triage"}, Queries: []string{"incidents", "no-bots"}},
 		},
 	}
 
 	a := &App{Cfg: &config.Config{Role: ""}, Directives: directives}
-	if got := a.VisibleQueries(); !reflect.DeepEqual(got, []string{"incidents", "today"}) {
+	if got := a.VisibleQueries(); !reflect.DeepEqual(got, []string{"incidents", "no-bots", "only-mine", "today"}) {
 		t.Errorf("no role, queries = %v, want all", got)
 	}
 	if got := a.VisibleFlights(); !reflect.DeepEqual(got, []string{"default", "triage"}) {
@@ -41,8 +39,8 @@ func TestVisibleNamesRespectActiveRole(t *testing.T) {
 	}
 
 	a.Cfg = &config.Config{Role: "triage"}
-	if got := a.VisibleQueries(); !reflect.DeepEqual(got, []string{"incidents"}) {
-		t.Errorf("triage, queries = %v, want [incidents]", got)
+	if got := a.VisibleQueries(); !reflect.DeepEqual(got, []string{"incidents", "no-bots"}) {
+		t.Errorf("triage, queries = %v, want [incidents no-bots]", got)
 	}
 	if got := a.VisibleFlights(); !reflect.DeepEqual(got, []string{"triage"}) {
 		t.Errorf("triage, flights = %v, want [triage]", got)
@@ -58,7 +56,6 @@ func TestReloadDirectivesPicksUpNewFiles(t *testing.T) {
 		Cfg: &config.Config{Home: home},
 		Directives: &config.Directives{
 			Queries: map[string]config.Query{},
-			Filters: map[string]filter.Filter{},
 			Flights: map[string]config.Flight{},
 			Roles:   map[string]config.RoleDef{},
 		},

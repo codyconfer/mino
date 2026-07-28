@@ -8,17 +8,14 @@ import (
 	"sync"
 )
 
-// Context is a per-tool active selection.
 type Context struct {
 	Tool string
 	Name string
 }
 
-// ContextProvider is implemented by plugins that own a switchable context.
 type ContextProvider interface {
 	Tool() string
 	Switch(ctx context.Context, name string) error
-	// Current is optional; when absent the host renders "as of last switch".
 	Current(ctx context.Context) (name string, ok bool, err error)
 }
 
@@ -28,8 +25,6 @@ var (
 	lastSwitch = map[string]string{}
 )
 
-// RegisterContextProvider registers a tool context provider without a
-// KindContext descriptor. Prefer RegisterContext so verify can route the kind.
 func RegisterContextProvider(p ContextProvider) {
 	if p == nil || p.Tool() == "" {
 		return
@@ -39,8 +34,6 @@ func RegisterContextProvider(p ContextProvider) {
 	ctxMu.Unlock()
 }
 
-// RegisterContext registers a ContextProvider and a KindContext companion
-// under parentID (Ref = tool name).
 func RegisterContext(parentID string, p ContextProvider) {
 	if parentID == "" {
 		panic("plugin: RegisterContext requires parent plugin id")
@@ -65,7 +58,6 @@ func RegisterContext(parentID string, p ContextProvider) {
 	})
 }
 
-// HasContextProvider reports whether tool has a registered ContextProvider.
 func HasContextProvider(tool string) bool {
 	ctxMu.RLock()
 	defer ctxMu.RUnlock()
@@ -73,7 +65,6 @@ func HasContextProvider(tool string) bool {
 	return ok
 }
 
-// ContextTools returns registered context tool names sorted.
 func ContextTools() []string {
 	ctxMu.RLock()
 	defer ctxMu.RUnlock()
@@ -85,7 +76,6 @@ func ContextTools() []string {
 	return out
 }
 
-// ResetContextProvidersForTest clears context providers (tests only).
 func ResetContextProvidersForTest() {
 	ctxMu.Lock()
 	providers = map[string]ContextProvider{}
@@ -93,7 +83,6 @@ func ResetContextProvidersForTest() {
 	ctxMu.Unlock()
 }
 
-// SwitchContext switches the named tool to name and records the selection.
 func SwitchContext(ctx context.Context, tool, name string) error {
 	ctxMu.RLock()
 	p, ok := providers[tool]
@@ -110,8 +99,6 @@ func SwitchContext(ctx context.Context, tool, name string) error {
 	return nil
 }
 
-// CurrentContext returns the active context for tool. Prefers Current() probe;
-// falls back to last switch.
 func CurrentContext(ctx context.Context, tool string) (Context, bool) {
 	ctxMu.RLock()
 	p, ok := providers[tool]
@@ -129,7 +116,6 @@ func CurrentContext(ctx context.Context, tool string) (Context, bool) {
 	return Context{Tool: tool}, true
 }
 
-// ListContexts returns last-known contexts for all registered tools.
 func ListContexts(ctx context.Context) []Context {
 	ctxMu.RLock()
 	tools := make([]string, 0, len(providers))
@@ -147,9 +133,6 @@ func ListContexts(ctx context.Context) []Context {
 	return out
 }
 
-// ApplyRoleContexts runs role context bindings (tool → name) in stable tool
-// order. Failures are collected so one bad tool does not skip the rest;
-// a joined error is returned when any binding fails.
 func ApplyRoleContexts(ctx context.Context, bindings map[string]string) error {
 	if len(bindings) == 0 {
 		return nil

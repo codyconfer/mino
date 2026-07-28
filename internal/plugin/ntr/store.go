@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS reminders (
 CREATE SEQUENCE IF NOT EXISTS ntr_id_seq;
 `
 
-// Store is the role-namespaced NTR DuckDB.
 type Store struct {
 	db   *store.DB
 	role string
@@ -190,7 +189,6 @@ func (s *Store) DueReminders(ctx context.Context, now time.Time) ([]Reminder, er
 	return out, nil
 }
 
-// ListReminders returns open (or all) reminders ordered by due time.
 func (s *Store) ListReminders(ctx context.Context, includeDone bool) ([]Reminder, error) {
 	q := `SELECT id, title, due, done FROM reminders WHERE role = ?`
 	if !includeDone {

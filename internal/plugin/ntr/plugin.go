@@ -41,7 +41,6 @@ func init() {
 	plugin.RegisterStatusContribution(PluginID, StatusContribution)
 }
 
-// Signal lists notes/tasks for the active role (Query capability).
 type Signal struct {
 	Home string
 	Role string
@@ -86,8 +85,6 @@ func (s Signal) Fetch(ctx context.Context) ([]signals.Section, error) {
 	return []signals.Section{{Signal: SignalName, Title: "notes", Items: items}}, nil
 }
 
-// ReminderJob implements Scheduled for due reminders.
-// Fetch is delivery-only; Ack marks done + watermark after notify succeeds.
 type ReminderJob struct {
 	Home string
 	Role string
@@ -120,8 +117,6 @@ func (r ReminderJob) Next(ctx context.Context, now time.Time) (due time.Time, re
 	return now.Add(time.Minute), false, nil
 }
 
-// Fetch loads due reminders for delivery. It does not mark them done or stamp
-// the watermark — call Ack after the notify sink accepts the event.
 func (r ReminderJob) Fetch(ctx context.Context) ([]signals.Section, error) {
 	st, err := Open(ctx, r.Home, r.Role)
 	if err != nil {
@@ -145,8 +140,6 @@ func (r ReminderJob) Fetch(ctx context.Context) ([]signals.Section, error) {
 	return []signals.Section{{Signal: SignalName, Title: "reminders", Items: items}}, nil
 }
 
-// Ack marks delivered reminder IDs done and advances the catch-up watermark.
-// Safe to call with empty sections (no-op).
 func (r ReminderJob) Ack(ctx context.Context, sections []signals.Section) error {
 	var ids []int64
 	for _, sec := range sections {
@@ -182,7 +175,6 @@ func (r ReminderJob) Ack(ctx context.Context, sections []signals.Section) error 
 	return nil
 }
 
-// StatusContribution reports due-today reminder count.
 func StatusContribution(home, role string) glyph.StatusContribution {
 	return glyph.StatusContribution{
 		BrandGlyph: glyph.ResolveID(GlyphID),

@@ -1,16 +1,3 @@
-// Package scaffold is the canonical plugin template.
-//
-// Use `munin plugins scaffold <id> --dir <path>` to generate an overlay-friendly
-// package from [Generate] (public munin/plugin SDK). This package remains the
-// in-tree reference implementation for hosts/tests.
-//
-// A complete plugin typically provides:
-//   - plugin.RegisterSignal(Descriptor{…}, Builders{…}) for registry + builders + verify
-//   - Query (signals.Signal) and optionally Stream / Action / Scheduled
-//   - glyph.Register + plugin.RegisterStatusContribution for status strip
-//   - plugin.RegisterContext when the tool has switchable context
-//   - plugin.RegisterFilterEngine (or RegisterFilter) for KindFilter contributions
-//   - a fixture test + example directive YAML
 package scaffold
 
 import (
@@ -29,8 +16,6 @@ const (
 	ContextTool = "scaffold"
 )
 
-// Register installs the example plugin contributions. Hosts and tests call
-// this explicitly; production binaries do not import scaffold by default.
 func Register() {
 	if _, ok := plugin.Lookup(PluginID); ok {
 		return
@@ -49,7 +34,6 @@ func Register() {
 	plugin.RegisterContext(PluginID, &provider{})
 }
 
-// Signal is a minimal Query capability implementation.
 type Signal struct{}
 
 func (Signal) Name() string { return SignalName }
@@ -81,7 +65,6 @@ func (p *provider) Current(context.Context) (string, bool, error) {
 	return p.current, true, nil
 }
 
-// ExampleDirective is a sample query YAML body for docs/fixtures.
 const ExampleDirective = `name: scaffold-ping
 signal: scaffold
 params: {}

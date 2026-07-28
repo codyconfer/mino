@@ -92,9 +92,6 @@ func Load(opts Options) (*App, error) {
 	return a, nil
 }
 
-// ActivateRole switches the active role in-process: exit hooks for the previous
-// role, then enter hooks and contexts for name (empty clears the role).
-// Immediate (not debounced); cancels any pending TUI role-cycle settle.
 func (a *App) ActivateRole(name string) error {
 	if a == nil || a.Cfg == nil {
 		return errs.New(errs.KindInternal, "app not loaded")
@@ -108,11 +105,6 @@ func (a *App) ActivateRole(name string) error {
 	return nil
 }
 
-// syncRoleLifecycle runs exit/enter hooks when the configured role differs from
-// the last hooked role (persisted under .data/), then applies role contexts.
-// Status blocks run with enter (and refresh when the same role is already
-// active in a new process). Hook/status/context failures are warned; they do
-// not abort activation.
 func (a *App) syncRoleLifecycle() {
 	if a == nil || a.Cfg == nil {
 		return
@@ -127,7 +119,6 @@ func (a *App) syncRoleLifecycle() {
 			log.Warnf("role state: %v", err)
 		}
 	} else if next != "" {
-		// Same role already marked active (e.g. new process): refresh chips only.
 		a.refreshRoleStatus(next)
 	} else {
 		role.ClearStatusChips()
@@ -201,10 +192,6 @@ func (a *App) applyRoleContexts() {
 	}
 }
 
-// ReloadDirectives reloads directives from disk/store into a.Directives and
-// reapplies role contexts. Does not re-run enter/exit hooks (role unchanged).
-// Uses ReconcileApply so newly provisioned seed files surface without
-// restarting. Reuses a.Mgr when present.
 func (a *App) ReloadDirectives() error {
 	if a == nil || a.Cfg == nil {
 		return errs.New(errs.KindInternal, "app not loaded")
@@ -293,7 +280,7 @@ func (a *App) VisibleFilters() []string {
 	ac := a.Access()
 	var out []string
 	for _, n := range a.Directives.FilterNames() {
-		if ac.FilterVisible(n) {
+		if ac.QueryVisible(n) {
 			out = append(out, n)
 		}
 	}

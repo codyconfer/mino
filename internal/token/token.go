@@ -18,7 +18,6 @@ const (
 
 var errUnavailable = errs.New(errs.KindStore, "token store unavailable")
 
-// Store is munin's credential facade over sisyphus/sealed.
 type Store struct {
 	s *sealed.Store
 }
@@ -35,7 +34,6 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	return &Store{s: s}, nil
 }
 
-// OpenWithKey is for tests that inject encryption key material.
 func OpenWithKey(ctx context.Context, path string, keyProvider func(context.Context) ([]byte, error)) (*Store, error) {
 	s, err := sealed.Open(ctx, path, sealed.Options{
 		Namespace:   namespace,

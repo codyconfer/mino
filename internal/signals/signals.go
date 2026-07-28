@@ -1,4 +1,3 @@
-// Package signals re-exports public plugin SDK types for host packages.
 package signals
 
 import "github.com/codyconfer/munin/plugin"

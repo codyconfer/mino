@@ -17,8 +17,9 @@ func newFilterCmd() *cobra.Command {
 		Short: "Inspect saved regex filter sets and plugin filter engines",
 		Long: `List and show filter contributions.
 
-Saved YAML filters live under ~/.munin/filters. Plugins may also register
-KindFilter contributions:
+Saved YAML filters live under ~/.munin/queries alongside the queries that use
+them: any document carrying rules, aliases, or keywords is a filter, whether or
+not it also names a signal. Plugins may also register KindFilter contributions:
 
   RegisterFilter         — YAML-shaped rules, aliases, and keywords
   RegisterFilterEngine   — custom Go filter logic (same query ref syntax)
@@ -38,12 +39,12 @@ Plugin engines appear in list with kind=engine.`,
 				out := cmd.OutOrStdout()
 				names := visibleFilterNames()
 				if len(names) == 0 && len(plugin.FilterNames()) == 0 {
-					fmt.Fprintln(out, "no saved filters visible (check --role, or add YAML files under ~/.munin/filters)")
+					fmt.Fprintln(out, "no saved filters visible (check --role, or add rules to a YAML file under ~/.munin/queries)")
 					return nil
 				}
 				seen := map[string]bool{}
 				for _, n := range names {
-					f := shared.Directives.Filters[n]
+					f, _ := shared.Directives.Filter(n)
 					fmt.Fprintf(out, "%-24s kind=yaml   %d rule(s) %d alias(es)\n", n, len(f.Rules), len(f.Aliases))
 					seen[n] = true
 				}
@@ -72,7 +73,7 @@ Plugin engines appear in list with kind=engine.`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				_ = build.KnownSignals()
 				name := args[0]
-				if f, ok := shared.Directives.Filters[name]; ok {
+				if f, ok := shared.Directives.Filter(name); ok {
 					out, err := yaml.Marshal(f)
 					if err != nil {
 						return err

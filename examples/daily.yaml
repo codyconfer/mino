@@ -3,7 +3,7 @@ name: daily
 home: morning
 # A bare `munin --role daily fly` runs the first flight listed here.
 flights: [default, morning, ntr, demo]
-queries: [my-open-prs, today, unread-mail, recent-docs, slack-standup, ntr-list, demo, demo-reviews]
+queries: [my-open-prs, today, unread-mail, recent-docs, slack-standup, ntr-list, demo, demo-reviews, no-bots]
 # Per-tool context bindings applied on role activation.
 contexts:
   kubectl: prod

@@ -20,7 +20,6 @@ func openCLI(ctx context.Context, home, role string) (*Store, error) {
 	return Open(ctx, home, role)
 }
 
-// CLINotesList writes open notes as id\ttitle lines.
 func CLINotesList(ctx context.Context, w io.Writer, home, role string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
@@ -37,7 +36,6 @@ func CLINotesList(ctx context.Context, w io.Writer, home, role string) error {
 	return nil
 }
 
-// CLINotesAdd creates a note.
 func CLINotesAdd(ctx context.Context, w io.Writer, home, role, title, body string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
@@ -52,7 +50,6 @@ func CLINotesAdd(ctx context.Context, w io.Writer, home, role, title, body strin
 	return nil
 }
 
-// CLINotesUpdate updates a note's title and body.
 func CLINotesUpdate(ctx context.Context, w io.Writer, home, role, idStr, title, body string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -70,7 +67,6 @@ func CLINotesUpdate(ctx context.Context, w io.Writer, home, role, idStr, title, 
 	return nil
 }
 
-// CLINotesRM deletes a note by id string.
 func CLINotesRM(ctx context.Context, w io.Writer, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -88,7 +84,6 @@ func CLINotesRM(ctx context.Context, w io.Writer, home, role, idStr string) erro
 	return nil
 }
 
-// CLITasksList writes open tasks.
 func CLITasksList(ctx context.Context, w io.Writer, home, role string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
@@ -105,7 +100,6 @@ func CLITasksList(ctx context.Context, w io.Writer, home, role string) error {
 	return nil
 }
 
-// CLITasksAdd creates a task.
 func CLITasksAdd(ctx context.Context, w io.Writer, home, role, title string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
@@ -120,7 +114,6 @@ func CLITasksAdd(ctx context.Context, w io.Writer, home, role, title string) err
 	return nil
 }
 
-// CLITasksDone marks a task done.
 func CLITasksDone(ctx context.Context, w io.Writer, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -138,7 +131,6 @@ func CLITasksDone(ctx context.Context, w io.Writer, home, role, idStr string) er
 	return nil
 }
 
-// CLITasksUndo reopens a done task (TUI toggle counterpart).
 func CLITasksUndo(ctx context.Context, w io.Writer, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -156,7 +148,6 @@ func CLITasksUndo(ctx context.Context, w io.Writer, home, role, idStr string) er
 	return nil
 }
 
-// CLITasksRM deletes a task by id string.
 func CLITasksRM(ctx context.Context, w io.Writer, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -174,7 +165,6 @@ func CLITasksRM(ctx context.Context, w io.Writer, home, role, idStr string) erro
 	return nil
 }
 
-// CLIRemindList writes open reminders.
 func CLIRemindList(ctx context.Context, w io.Writer, home, role string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
@@ -191,7 +181,6 @@ func CLIRemindList(ctx context.Context, w io.Writer, home, role string) error {
 	return nil
 }
 
-// CLIRemindAdd creates a reminder due after duration.
 func CLIRemindAdd(ctx context.Context, w io.Writer, home, role, title, dur string) error {
 	d, err := time.ParseDuration(dur)
 	if err != nil {
@@ -210,7 +199,6 @@ func CLIRemindAdd(ctx context.Context, w io.Writer, home, role, title, dur strin
 	return nil
 }
 
-// CLIRemindDone marks a reminder complete (TUI enter / remove-from-open equivalent).
 func CLIRemindDone(ctx context.Context, w io.Writer, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -228,7 +216,6 @@ func CLIRemindDone(ctx context.Context, w io.Writer, home, role, idStr string) e
 	return nil
 }
 
-// CLICatchUp fires due reminders (Fetch → print → Ack) using serve.duckdb watermark.
 func CLICatchUp(ctx context.Context, w io.Writer, home, role string) error {
 	if role == "" {
 		role = "default"

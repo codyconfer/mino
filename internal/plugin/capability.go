@@ -30,8 +30,6 @@ type Action = pub.Action
 type Scheduled = pub.Scheduled
 type Descriptor = pub.Descriptor
 
-// KnownKinds lists every Kind the host routes and verifies.
 func KnownKinds() []Kind { return pub.KnownKinds() }
 
-// ValidKind reports whether k is a routed contribution surface.
 func ValidKind(k Kind) bool { return pub.ValidKind(k) }

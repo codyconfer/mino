@@ -9,8 +9,6 @@ import (
 
 var openConfigEditor = OpenPathInEditor
 
-// EditorCmd returns a command that opens path with $VISUAL or $EDITOR.
-// VISUAL wins when set; otherwise EDITOR. Returns an error if neither is set.
 func EditorCmd(path string) (*exec.Cmd, string, error) {
 	ed := strings.TrimSpace(os.Getenv("VISUAL"))
 	if ed == "" {
@@ -22,7 +20,6 @@ func EditorCmd(path string) (*exec.Cmd, string, error) {
 	return exec.Command("sh", "-c", ed+` "$1"`, "munin-editor", path), ed, nil
 }
 
-// OpenPathInEditor opens path with $VISUAL or $EDITOR (same resolution as EditorCmd).
 func OpenPathInEditor(path string) error {
 	cmd, ed, err := EditorCmd(path)
 	if err != nil {

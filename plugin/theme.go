@@ -4,8 +4,6 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 )
 
-// RegisterTheme registers a viewkit theme palette and a KindTheme descriptor
-// (Ref = key). Empty parentID makes the theme a primary enableable plugin.
 func RegisterTheme(parentID, key, displayName string, p theme.Palette) {
 	if key == "" {
 		panic("plugin: RegisterTheme requires key")
@@ -26,7 +24,6 @@ func RegisterTheme(parentID, key, displayName string, p theme.Palette) {
 	})
 }
 
-// HasTheme reports whether key is registered in the theme registry.
 func HasTheme(key string) bool {
 	_, ok := theme.Named(key)
 	return ok

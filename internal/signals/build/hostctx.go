@@ -37,7 +37,6 @@ func (c hostBuildCtx) Role() string {
 	return c.cfg.Role
 }
 
-// GetToken implements [plugin.TokenSource] for sealed credentials.
 func (c hostBuildCtx) GetToken(ctx context.Context, service string) (accessToken, scope string, ok bool, err error) {
 	if c.tokens == nil {
 		return "", "", false, nil
@@ -49,7 +48,6 @@ func (c hostBuildCtx) GetToken(ctx context.Context, service string) (accessToken
 	return cred.AccessToken, cred.Scope, true, nil
 }
 
-// AsHost unpacks cfg/tokens/state for stock builders registered in this package.
 func asHost(bc plugin.BuildContext) (hostBuildCtx, bool) {
 	h, ok := bc.(hostBuildCtx)
 	return h, ok

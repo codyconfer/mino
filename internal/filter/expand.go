@@ -12,8 +12,6 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-// ExternalKeywords looks up plugin-contributed computed keywords for a named
-// filter. Wired by plugin.init; nil when unused (tests).
 var ExternalKeywords func(name string) (map[string]string, bool)
 
 var (
@@ -22,8 +20,6 @@ var (
 	relativeRe    = regexp.MustCompile(`(?i)^(\d+)\s+(day|days|week|weeks|hour|hours)\s+ago$`)
 )
 
-// TemplateContext merges aliases and keywords from resolved filters into one
-// map for query param expansion. Duplicate keys with differing values error.
 func TemplateContext(filters []Filter) (map[string]string, error) {
 	ctx := make(map[string]string)
 	put := func(kind, filterName, key, val string) error {
@@ -61,7 +57,6 @@ func TemplateContext(filters []Filter) (map[string]string, error) {
 	return ctx, nil
 }
 
-// ExpandParams expands each param value with [Expand] using filter template context.
 func ExpandParams(params map[string]string, filters []Filter) (map[string]string, error) {
 	if len(params) == 0 {
 		return params, nil
@@ -81,15 +76,6 @@ func ExpandParams(params map[string]string, filters []Filter) (map[string]string
 	return out, nil
 }
 
-// Expand applies relative-date shorthands, braced aliases, then Go templates.
-//
-// Shorthands (motivating on-call style):
-//
-//	{REPOS_ALIAS} created:(3 days ago)
-//
-// Go templates (full power):
-//
-//	{{.REPOS_ALIAS}} {{created "3 days ago"}}
 func Expand(s string, ctx map[string]string) (string, error) {
 	if s == "" {
 		return s, nil

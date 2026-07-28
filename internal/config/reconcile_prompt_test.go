@@ -114,7 +114,7 @@ func TestReconcilePromptAllListsEveryDirectiveOnce(t *testing.T) {
 	recs := []sisyphus.Reconciliation{
 		stagedQueries(t),
 		{
-			Name:        DirFilters,
+			Name:        DirFlights,
 			FileFormat:  "collection",
 			FileContent: collectionBlob(t, map[string]string{"f.yaml": "name: f\n"}),
 			HasDB:       true,
@@ -138,7 +138,7 @@ func TestReconcilePromptAllListsEveryDirectiveOnce(t *testing.T) {
 	if strings.Count(text, "new config changes staged") != 1 {
 		t.Fatalf("want exactly one staged panel, got:\n%s", text)
 	}
-	for _, want := range []string{"queries", "filters", "press"} {
+	for _, want := range []string{"queries", "flights", "press"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("batch prompt missing %q:\n%s", want, text)
 		}

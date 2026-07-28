@@ -43,7 +43,7 @@ func runQueries(ctx context.Context, w io.Writer, queries []query, parentID int6
 	tasks := make([]deck.Task, len(queries))
 	for i, q := range queries {
 		tasks[i] = deck.Task{
-			Label: q.Label,
+			Label: q.Display(),
 			Run:   func(ctx context.Context) []signals.Section { return fetchQuery(ctx, q, parentID) },
 		}
 	}

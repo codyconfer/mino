@@ -50,7 +50,7 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 	for _, want := range []string{
 		"queries/demo.yaml",
 		"queries/demo-reviews.yaml",
-		"filters/demo.yaml",
+		"queries/no-bots.yaml",
 		"flights/demo.yaml",
 		"demo.yaml",
 		"queries/notify-smoke.yaml",
@@ -66,18 +66,21 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 		t.Fatalf("demo flight = %q", got["flights/demo.yaml"])
 	}
 	if !strings.Contains(got["queries/demo.yaml"], "signal: github") ||
-		!strings.Contains(got["queries/demo.yaml"], "filters: [demo]") {
+		!strings.Contains(got["queries/demo.yaml"], "rules:") {
 		t.Fatalf("demo query = %q", got["queries/demo.yaml"])
+	}
+	if !strings.Contains(got["queries/demo-reviews.yaml"], "filters: [no-bots]") {
+		t.Fatalf("demo-reviews query = %q", got["queries/demo-reviews.yaml"])
 	}
 	if strings.Contains(got["queries/demo.yaml"], "signal: demo") {
 		t.Fatalf("demo query must not be synthetic: %q", got["queries/demo.yaml"])
 	}
-	if !strings.Contains(got["filters/demo.yaml"], "meta.author") {
-		t.Fatalf("demo filter = %q", got["filters/demo.yaml"])
+	if !strings.Contains(got["queries/no-bots.yaml"], "meta.author") {
+		t.Fatalf("no-bots filter = %q", got["queries/no-bots.yaml"])
 	}
 	if !strings.Contains(got["demo.yaml"], "flights: [demo]") ||
 		!strings.Contains(got["demo.yaml"], "demo-reviews") ||
-		!strings.Contains(got["demo.yaml"], "filters: [demo]") {
+		!strings.Contains(got["demo.yaml"], "no-bots") {
 		t.Fatalf("demo role = %q", got["demo.yaml"])
 	}
 	if !strings.Contains(got["queries/notify-smoke.yaml"], "signal: demo") {

@@ -52,7 +52,6 @@ func NewState(store *kv.Store) *State {
 	return &State{kv: store}
 }
 
-// KV returns the underlying persistence surface (may be nil).
 func (s *State) KV() daemon.KV {
 	if s == nil {
 		return nil

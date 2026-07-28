@@ -1,15 +1,19 @@
 # Munin directive examples (Lane D)
 
-One file per directive — copy `queries/`, `filters/`, and `flights/` into
-`~/.munin/`, and the loose role `*.yaml` next to `config.yaml`. Filenames become
-the directive name when `name:` is omitted.
+Copy `queries/` and `flights/` into `~/.munin/`, and the loose role `*.yaml`
+next to `config.yaml`. A filename becomes the directive name when `name:` is
+omitted — but only for single-document files.
 
 | Path | Purpose |
 |---|---|
-| `queries/` | Saved signal fetches (`signal:` + optional `params` / `filters`) |
-| `filters/` | Named filter rules, aliases, and keywords referenced by queries |
+| `queries/` | Saved signal fetches (`signal:` + optional `params` / `filters`) **and** filters (`rules:` / `aliases:` / `keywords:`). A document can be both; add `type: query` or `type: filter` to be explicit. |
 | `flights/` | Ordered lists of query names for `munin fly` / `munin serve` |
 | `*.yaml` (top level) | Roles: visibility scopes + optional `contexts:` / `hooks:` / `status:` (ADR-9) |
+
+Queries and filters share the `queries/` collection, so they can sit in separate
+files or share one — see `queries/no-bots.yaml` (a filter on its own) and
+`queries/templated-prs.yaml` (a filter and its query in one `---`-separated
+file).
 
 ## Role `contexts:`, `hooks:`, and `status:`
 

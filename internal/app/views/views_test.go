@@ -28,8 +28,10 @@ func testKit(t *testing.T) *Kit {
 	cfg := config.Defaults()
 	cfg.Home = t.TempDir()
 	directives := &config.Directives{
-		Queries: map[string]config.Query{"q1": {Name: "q1", Signal: "github"}},
-		Filters: map[string]filter.Filter{"f1": {Name: "f1"}},
+		Queries: map[string]config.Query{
+			"q1": {Name: "q1", Signal: "github"},
+			"f1": {Name: "f1", Rules: []filter.Rule{{Exclude: "bot$"}}},
+		},
 		Flights: map[string]config.Flight{"default": {Name: "default", Queries: []string{"q1"}}},
 		Roles:   map[string]config.RoleDef{"triage": {Name: "triage", Flights: []string{"default"}}},
 	}
@@ -84,7 +86,6 @@ func TestMainMenuIncludesNotesEntry(t *testing.T) {
 		t.Fatalf("main menu view missing Notes: %q", body)
 	}
 
-	// Main: Fly, Notes, … — one down lands on Notes.
 	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
@@ -102,7 +103,6 @@ func TestMainMenuIncludesNotesEntry(t *testing.T) {
 			t.Fatalf("NTR home missing %q after Notes enter: %q", want, got)
 		}
 	}
-	// Reminders are service-only; no live serve/daemon in this kit.
 	if strings.Contains(got, "Reminders") {
 		t.Fatalf("NTR home showed Reminders without attached service: %q", got)
 	}
@@ -252,7 +252,6 @@ func TestMainMenuToolingSubmenu(t *testing.T) {
 	if !strings.Contains(app.View(), "Tooling") {
 		t.Fatalf("main menu view missing Tooling: %q", app.View())
 	}
-	// Main: Fly, Notes, Query DuckDB, Tooling — three downs land on Tooling.
 	for range 3 {
 		app = step(app, tea.KeyMsg{Type: tea.KeyDown})
 	}

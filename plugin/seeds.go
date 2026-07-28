@@ -7,9 +7,6 @@ import (
 	"sync"
 )
 
-// FileSeed is an example directive (or other home-relative file) provisioned by
-// `munin plugins install`. Content is compile-time data — not a dynamically
-// loaded binary.
 type FileSeed struct {
 	RelPath string
 	Content []byte
@@ -20,9 +17,6 @@ var (
 	seedCatalog = map[string][]FileSeed{}
 )
 
-// RegisterSeeds associates example directive seeds with a compile-time plugin id.
-// Call from app.Options.RegisterPlugins (overlays) or package init (stock).
-// Passing a nil/empty files slice clears any prior seeds for that id.
 func RegisterSeeds(pluginID string, files []FileSeed) {
 	if pluginID == "" {
 		return
@@ -43,7 +37,6 @@ func RegisterSeeds(pluginID string, files []FileSeed) {
 	seedCatalog[pluginID] = dst
 }
 
-// SeedsFor returns a copy of example seeds registered for pluginID (may be empty).
 func SeedsFor(pluginID string) []FileSeed {
 	seedMu.RLock()
 	defer seedMu.RUnlock()
@@ -61,7 +54,6 @@ func SeedsFor(pluginID string) []FileSeed {
 	return out
 }
 
-// SeedPluginIDs returns plugin ids that have registered example seeds.
 func SeedPluginIDs() []string {
 	seedMu.RLock()
 	defer seedMu.RUnlock()

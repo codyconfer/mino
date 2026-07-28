@@ -1,12 +1,10 @@
 package config
 
-// Access scopes which flights/queries/filters are visible for a role.
 type Access struct {
 	Role    string
 	all     bool
 	flights map[string]bool
 	queries map[string]bool
-	filters map[string]bool
 }
 
 func NewAccess(role string, roles map[string]RoleDef) Access {
@@ -21,13 +19,11 @@ func NewAccess(role string, roles map[string]RoleDef) Access {
 		Role:    role,
 		flights: toSet(rd.Flights),
 		queries: toSet(rd.Queries),
-		filters: toSet(rd.Filters),
 	}
 }
 
 func (a Access) FlightVisible(name string) bool { return a.all || a.flights[name] }
 func (a Access) QueryVisible(name string) bool  { return a.all || a.queries[name] }
-func (a Access) FilterVisible(name string) bool { return a.all || a.filters[name] }
 
 func toSet(xs []string) map[string]bool {
 	if len(xs) == 0 {

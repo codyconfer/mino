@@ -10,7 +10,6 @@ import (
 	"github.com/codyconfer/munin/internal/deck"
 )
 
-// InstallState classifies the OS service / socket ownership for status UI.
 type InstallState int
 
 const (
@@ -19,7 +18,6 @@ const (
 	InstallRunning
 )
 
-// ClassifyInstall reports whether a munin daemon is listening or installed.
 func (s *Server) ClassifyInstall(flight string, interval time.Duration, bell, desktop, tray bool, theme string) InstallState {
 	if sysdaemon.IsListening(daemonName, s.SocketPath()) {
 		return InstallRunning
@@ -39,7 +37,6 @@ func (s *Server) ClassifyInstall(flight string, interval time.Duration, bell, de
 	}
 }
 
-// ServiceStatusChip maps ClassifyInstall to a chrome status chip.
 func (s *Server) ServiceStatusChip(flight string, interval time.Duration, bell, desktop, tray bool, theme string) deck.ServiceStatus {
 	switch s.ClassifyInstall(flight, interval, bell, desktop, tray, theme) {
 	case InstallRunning:

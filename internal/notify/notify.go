@@ -52,13 +52,10 @@ func Render(n vnotify.Notification) string {
 	return panels.NotificationToast(layout.NewFrame(theme.BodyWidth), n)
 }
 
-// AlreadyAuthed is the toast shown when a guided login is skipped because the
-// provider is already authorized.
 func AlreadyAuthed(label string) vnotify.Notification {
 	return vnotify.Neutral("accounts", label+" already authorized")
 }
 
-// PluginToggled is the toast shown after enabling or disabling a plugin in the TUI.
 func PluginToggled(id string, on bool) vnotify.Notification {
 	if on {
 		return vnotify.Positive("plugins", id+" enabled")
@@ -66,12 +63,10 @@ func PluginToggled(id string, on bool) vnotify.Notification {
 	return vnotify.Neutral("plugins", id+" disabled")
 }
 
-// PluginInstalled is the toast shown after provisioning a plugin's example seeds.
 func PluginInstalled(id string, written, skipped int) vnotify.Notification {
 	return vnotify.Positive("plugins", fmt.Sprintf("%s installed (wrote %d, skipped %d)", id, written, skipped))
 }
 
-// PluginUninstalled is the toast shown after disabling a plugin and removing matching seeds.
 func PluginUninstalled(id string, removed, kept int) vnotify.Notification {
 	return vnotify.Neutral("plugins", fmt.Sprintf("%s uninstalled (removed %d, kept %d)", id, removed, kept))
 }

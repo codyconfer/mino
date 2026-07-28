@@ -4,9 +4,6 @@ import (
 	"github.com/codyconfer/viewkit/deck"
 )
 
-// RegisterView registers a viewkit/deck view and a KindView companion
-// descriptor (Ref = viewID) under parentID. Optional [Option] values
-// (e.g. [WithServiceOnly]) configure the companion descriptor.
 func RegisterView(parentID, viewID string, ctor func() deck.View, opts ...Option) {
 	if parentID == "" || viewID == "" || ctor == nil {
 		panic("plugin: RegisterView requires parentID, viewID, and ctor")
@@ -25,7 +22,6 @@ func RegisterView(parentID, viewID string, ctor func() deck.View, opts ...Option
 	Register(d)
 }
 
-// HasView reports whether viewID is registered in the deck view registry.
 func HasView(viewID string) bool {
 	_, ok := deck.LookupView(viewID)
 	return ok

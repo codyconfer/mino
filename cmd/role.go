@@ -51,11 +51,10 @@ func newRoleCmd() *cobra.Command {
 				if n == a.Role {
 					marker = theme.Cur().Can.Render(glyph.StatusOK()) + " "
 				}
-				fmt.Fprintf(out, "%s%-12s home=%s flights=[%s] queries=[%s] filters=[%s]\n",
+				fmt.Fprintf(out, "%s%-12s home=%s flights=[%s] queries=[%s]\n",
 					marker, n, dashRole(rd.Home),
 					strings.Join(rd.Flights, ", "),
-					strings.Join(rd.Queries, ", "),
-					strings.Join(rd.Filters, ", "))
+					strings.Join(rd.Queries, ", "))
 			}
 			return nil
 		},

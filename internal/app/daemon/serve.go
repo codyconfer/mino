@@ -1,8 +1,5 @@
 //go:build !nodaemon
 
-// Package daemon implements munin's serve/daemon mode: the realtime watcher,
-// its local event socket, and the OS service wiring. The whole package is
-// omitted from `nodaemon` builds.
 package daemon
 
 import (
@@ -127,6 +124,10 @@ func (s *Server) activeQueries(flight string, names []string, interval time.Dura
 		q, ok := s.Directives.Queries[name]
 		if !ok {
 			log.Debugf("serve: unknown query %q in flight %q", name, flight)
+			continue
+		}
+		if !q.Runnable() {
+			log.Debugf("serve: %q is filter-only, not a runnable query (skipping)", name)
 			continue
 		}
 		resolved, err := s.Directives.Resolve(q)
@@ -357,8 +358,6 @@ func (s *Server) RunTray(parent context.Context, name string, interval time.Dura
 	}
 }
 
-// Watch runs the daemon watcher: optional system tray when tray is true, otherwise
-// the headless notify loop. Used by the installed OS service (`daemon run`).
 func (s *Server) Watch(ctx context.Context, name string, interval time.Duration, bell, desktop, tray bool, theme string) error {
 	if desktop || tray {
 		icons.LoadStateIcons(s.Cfg.Home, theme)
@@ -401,7 +400,6 @@ func (s *Server) Service(name string, interval time.Duration, bell, desktop, tra
 	})
 }
 
-// DaemonRunArgs is the argv the OS service uses to start the watcher process.
 func DaemonRunArgs(name string, interval time.Duration, bell, desktop bool, theme string) []string {
 	args := []string{"daemon", "run", name, "--interval", interval.String()}
 	if !bell {

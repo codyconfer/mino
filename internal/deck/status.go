@@ -14,7 +14,6 @@ import (
 	"github.com/codyconfer/munin/internal/role"
 )
 
-// StatusLevel is glyph.Severity for status chips (single severity vocabulary).
 type StatusLevel = vkglyph.Severity
 
 const (
@@ -24,29 +23,22 @@ const (
 	StatusBad   = vkglyph.SeverityNegative
 )
 
-// ServiceStatus is one right-strip status chip (munin-facing).
 type ServiceStatus struct {
-	// ID is the stable hide-preference key (plugin id or builtin name).
-	// When empty, Name is used.
 	ID     string
 	Name   string
 	Detail string
 	Level  StatusLevel
-	// Glyph optionally overrides theme.SeverityGlyph(Level) (plugin contribs).
-	Glyph string
+	Glyph  string
 }
 
-// StatusInfo is munin's chrome identity payload.
 type StatusInfo struct {
 	GitHubUser      string
 	SigningVerified bool
 	Services        []ServiceStatus
 }
 
-// StatusFunc loads status asynchronously for the chrome strip.
 type StatusFunc func(context.Context) StatusInfo
 
-// PluginServices converts enabled plugin status contributions into chrome chips.
 func PluginServices(home, roleName string) []ServiceStatus {
 	entries := plugin.CollectStatusEntries(home, roleName)
 	out := make([]ServiceStatus, 0, len(entries))
@@ -68,7 +60,6 @@ func PluginServices(home, roleName string) []ServiceStatus {
 	return out
 }
 
-// RoleServices converts the active role's status blocks into chrome chips.
 func RoleServices() []ServiceStatus {
 	chips := role.StatusChips()
 	if len(chips) == 0 {
@@ -115,7 +106,6 @@ func statusBarHidden(s ServiceStatus) bool {
 	return config.StatusBarHidden(id)
 }
 
-// serviceLabel prefers a tool logo when one exists; otherwise keeps the text name.
 func serviceLabel(name string) string {
 	if logo := glyph.ForTool(name); logo != "" {
 		return logo
@@ -123,10 +113,6 @@ func serviceLabel(name string) string {
 	return name
 }
 
-// serviceChip builds the chip label passed to viewkit. Tool logos with detail
-// (e.g. GitHub rate limit) are joined via glyph.Lead so nerd-font icons get
-// breathing room; logo-only chips (Google) stay unpadded so separators stay tight.
-// Plain-text names keep Detail separate for viewkit's single-space join.
 func serviceChip(name, detail string) (string, string) {
 	if logo := glyph.ForTool(name); logo != "" {
 		if detail != "" {

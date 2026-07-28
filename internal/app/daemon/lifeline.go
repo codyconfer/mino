@@ -11,9 +11,6 @@ import (
 
 const deckLifelineEnv = "MUNIN_DECK_LIFELINE"
 
-// BindDeckLifeline derives a context that cancels when the deck lifeline pipe
-// (if any) closes. When the env var is unset, it is equivalent to
-// context.WithCancel(parent).
 func BindDeckLifeline(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)
 	fdStr := os.Getenv(deckLifelineEnv)

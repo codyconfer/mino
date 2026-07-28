@@ -76,7 +76,7 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 	}
 	sawMenuHint := false
 	for _, h := range home.Hints() {
-		if h[0] == "tab" && h[1] == "menu" {
+		if strings.HasPrefix(h[0], "tab") && h[1] == "menu" {
 			sawMenuHint = true
 		}
 	}

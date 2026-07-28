@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// Item is one row inside a [Section].
 type Item struct {
 	Kind      string            `json:"kind"`
 	Title     string            `json:"title"`
@@ -17,7 +16,6 @@ type Item struct {
 	Meta      map[string]string `json:"meta,omitempty"`
 }
 
-// Section is a named bundle of items from a signal query or stream.
 type Section struct {
 	Signal string `json:"signal"`
 	Title  string `json:"title"`
@@ -25,7 +23,6 @@ type Section struct {
 	Err    error  `json:"-"`
 }
 
-// ErrString returns the section error message, or empty when nil.
 func (s Section) ErrString() string {
 	if s.Err == nil {
 		return ""
@@ -40,7 +37,6 @@ type wireSection struct {
 	Err    string `json:"err,omitempty"`
 }
 
-// MarshalJSON encodes Err as a string field.
 func (s Section) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireSection{
 		Signal: s.Signal,
@@ -50,7 +46,6 @@ func (s Section) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// UnmarshalJSON decodes the string err field into Err.
 func (s *Section) UnmarshalJSON(b []byte) error {
 	var w wireSection
 	if err := json.Unmarshal(b, &w); err != nil {
@@ -67,7 +62,6 @@ func (s *Section) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Event is one stream emission from an active signal.
 type Event struct {
 	Source  string
 	Section Section

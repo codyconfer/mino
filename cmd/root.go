@@ -95,6 +95,7 @@ func newRootCmd() *cobra.Command {
 
 	root.AddCommand(
 		newFlyCmd(),
+		newListCmd(),
 		newQueryCmd(),
 		newFilterCmd(),
 		newRoleCmd(),

@@ -98,7 +98,6 @@ func TestSettingsStatusBarFormTogglesVisibility(t *testing.T) {
 		return info
 	}))
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
-	// Seed chrome the same way Init's status fetch would.
 	if cmd := app.RefreshStatus(); cmd != nil {
 		app = step(app, cmd())
 	}
@@ -123,7 +122,6 @@ func TestSettingsStatusBarFormTogglesVisibility(t *testing.T) {
 		t.Fatalf("status bar UI should not suggest uninstall: %q", body)
 	}
 
-	// First field is github (shown). ← sets toggle off, then save.
 	app = step(app, tea.KeyMsg{Type: tea.KeyLeft})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if cmd != nil {
@@ -155,7 +153,6 @@ func TestSettingsEditConfigWritesHome(t *testing.T) {
 
 	app := deck.New(kit.setvEditConfigView())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
-	// output is the first field; → selects json when options are [terminal, json].
 	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if cmd != nil {
@@ -230,7 +227,6 @@ func TestSettingsImportExportRequireConfirmation(t *testing.T) {
 	app := deck.New(kit.Settings())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
-	// Import config is the 3rd item (Edit, Delete, Import, Export...).
 	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
 	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
@@ -254,7 +250,6 @@ func TestSettingsImportExportRequireConfirmation(t *testing.T) {
 	app = step(app, tea.KeyMsg{Type: tea.KeyEsc})
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
-	// Export config follows Import.
 	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
 	app, cmd = update(app, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {

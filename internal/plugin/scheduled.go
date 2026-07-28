@@ -9,15 +9,10 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-// ScheduledAck is the optional second phase after Fetch: mark work complete
-// only once the host notify path has accepted the event.
 type ScheduledAck interface {
 	Ack(ctx context.Context, sections []signals.Section) error
 }
 
-// RunScheduled drives Scheduled plugins via sisyphus daemon.Schedule until ctx
-// cancels. onFire receives sections for the notify pipeline.
-// When a job implements ScheduledAck, Ack runs only after onFire succeeds.
 func RunScheduled(ctx context.Context, jobs []Scheduled, onFire func(name string, sections []signals.Section) error) error {
 	if onFire == nil {
 		onFire = func(string, []signals.Section) error { return nil }

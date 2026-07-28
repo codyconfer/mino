@@ -59,7 +59,6 @@ func TestHotkeyOpensFlight(t *testing.T) {
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
 	if !strings.Contains(got, "flight: default") && !strings.Contains(got, "flight:default") {
-		// Title is "flight: default" from FlightResults
 		if !strings.Contains(strings.ToLower(got), "default") {
 			t.Fatalf("alt+f did not open flight: %q", got)
 		}
@@ -124,7 +123,6 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 		t.Fatalf("home hints missing role cycle: %q", body)
 	}
 
-	// Burst: ops → triage → weekly via alt+] (do not run ticks yet).
 	var settleCmds []tea.Cmd
 	for i := 0; i < 2; i++ {
 		var cmd tea.Cmd

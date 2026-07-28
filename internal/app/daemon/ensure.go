@@ -14,20 +14,6 @@ import (
 	"github.com/codyconfer/munin/internal/log"
 )
 
-// EnsureLiveProvider dials an existing serve socket, or starts `munin serve
-// <flight>` as a silent background process owned by this deck session.
-//
-// The returned stop func terminates a serve that this call started; it is a
-// no-op when an existing provider was reused via Dial (so an installed daemon
-// or a manually started serve is never killed).
-//
-// Ownership is enforced two ways on Unix:
-//   - stop() closes a held lifeline pipe and signals the child (normal quit)
-//   - the child watches that pipe and exits when the write end closes, which
-//     the kernel does if this process dies unexpectedly (SIGKILL/crash/SIGHUP)
-//
-// On Windows, stop() kills the owned child; unexpected parent death does not
-// auto-reap (no ExtraFiles / job-object wiring yet).
 func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs ...string) (stop func()) {
 	stop = func() {}
 	if _, ok := s.Dial(ctx); ok {
@@ -44,8 +30,6 @@ func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs
 		log.Debugf("deck: could not start a serve provider: %v", err)
 		return stop
 	}
-	// Wait briefly so ServiceAttached / UI visibility see the socket before
-	// the deck builds menus (reminders and other service-only contributions).
 	waitListening(s.SocketPath(), 2*time.Second)
 	return owned.Stop
 }

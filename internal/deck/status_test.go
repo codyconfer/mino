@@ -154,8 +154,6 @@ func TestAdaptStatusHidesConfiguredEntries(t *testing.T) {
 
 func TestAdaptStatusHidesGoogleViaLegacyKey(t *testing.T) {
 	testenv.Isolate(t)
-	// Persist a pre-collapse hide list without going through SetHiddenStatusBar
-	// normalize, then confirm the google chip is still filtered.
 	gs := config.LoadGlobalSettings()
 	gs.HiddenStatusBar = []string{"gmail"}
 	if err := config.SaveGlobalSettings(gs); err != nil {

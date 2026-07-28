@@ -81,22 +81,18 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	return plugin.BuildStream(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, state: state})
 }
 
-// KnownSignals returns config signal names from the plugin registry.
 func KnownSignals() map[string]bool {
 	return plugin.KnownSignals()
 }
 
-// HasBuilder reports whether the host can construct a Query for signal.
 func HasBuilder(signal string) bool {
 	return plugin.HasBuilder(signal)
 }
 
-// HasActiveBuilder reports whether signal has a Stream builder.
 func HasActiveBuilder(signal string) bool {
 	return plugin.HasStreamBuilder(signal)
 }
 
-// BuilderSignals returns signal names with registered builders.
 func BuilderSignals() map[string]bool {
 	return plugin.BuilderSignals()
 }

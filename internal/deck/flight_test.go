@@ -21,12 +21,12 @@ func TestFlightTaskAdaptsSectionsToContent(t *testing.T) {
 			}}
 		},
 	}}
-	vt := make([]vkdeck.Task, len(tasks))
+	w := make(vkdeck.Work, len(tasks))
 	for i, task := range tasks {
 		label, run := task.Label, task.Run
-		vt[i] = vkdeck.Task{
+		w[i] = vkdeck.Job{
 			Label: label,
-			Run: func(ctx context.Context) (vkdeck.Content, error) {
+			Do: func(ctx context.Context) (vkdeck.Content, error) {
 				sections := run(ctx)
 				body := ""
 				if len(sections) > 0 {
@@ -36,7 +36,7 @@ func TestFlightTaskAdaptsSectionsToContent(t *testing.T) {
 			},
 		}
 	}
-	out, err := vkdeck.Execute(context.Background(), vt)
+	out, err := w.Execute(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

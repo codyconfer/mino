@@ -7,10 +7,8 @@ import (
 	"sync"
 )
 
-// ActionFunc is a named write/side-effect capability implementation.
 type ActionFunc func(ctx context.Context, params map[string]string) error
 
-// ActionSpec describes a registered action under a signal.
 type ActionSpec struct {
 	Signal string
 	Name   string
@@ -24,11 +22,6 @@ var (
 
 func actionKey(signal, name string) string { return signal + "\x00" + name }
 
-// RegisterAction registers a CapAction implementation for signal/name and
-// links a KindAction companion descriptor (Ref = "signal/name") once the
-// KindSignal plugin is registered. Optional [Option] values
-// (e.g. [WithServiceOnly]) configure the companion descriptor.
-// Panics on duplicate.
 func RegisterAction(signal, name string, run ActionFunc, opts ...Option) {
 	if signal == "" || name == "" || run == nil {
 		panic("plugin: RegisterAction requires signal, name, and run")
@@ -49,7 +42,6 @@ func RegisterAction(signal, name string, run ActionFunc, opts ...Option) {
 	mu.Unlock()
 }
 
-// LookupAction returns a registered action.
 func LookupAction(signal, name string) (ActionSpec, bool) {
 	actionMu.RLock()
 	defer actionMu.RUnlock()
@@ -57,7 +49,6 @@ func LookupAction(signal, name string) (ActionSpec, bool) {
 	return a, ok
 }
 
-// ActionsFor lists actions registered for signal, sorted by name.
 func ActionsFor(signal string) []ActionSpec {
 	actionMu.RLock()
 	defer actionMu.RUnlock()
@@ -73,13 +64,10 @@ func ActionsFor(signal string) []ActionSpec {
 
 var signalEnabledFn func(signal string) bool
 
-// SetSignalEnabledFunc wires host enablement checks for [RunAction].
-// Stock munin calls this from internal/plugin init; overlays rarely need it.
 func SetSignalEnabledFunc(fn func(signal string) bool) {
 	signalEnabledFn = fn
 }
 
-// RunAction executes a registered action.
 func RunAction(ctx context.Context, signal, name string, params map[string]string) error {
 	a, ok := LookupAction(signal, name)
 	if !ok {

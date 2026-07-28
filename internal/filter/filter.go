@@ -15,14 +15,9 @@ type Rule struct {
 }
 
 type Filter struct {
-	Name  string `yaml:"name" json:"name"`
-	Rules []Rule `yaml:"rules,omitempty" json:"rules,omitempty"`
-	// Aliases are static fragments exposed to query param templates
-	// (e.g. REPOS_ALIAS → "repo:org/a repo:org/b"). Queries may reference
-	// them as {REPOS_ALIAS} or {{.REPOS_ALIAS}}.
-	Aliases map[string]string `yaml:"aliases,omitempty" json:"aliases,omitempty"`
-	// Keywords are named values for query templates (static in YAML; plugins
-	// may also contribute computed keywords via ExternalKeywords).
+	Name     string            `yaml:"name" json:"name"`
+	Rules    []Rule            `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Aliases  map[string]string `yaml:"aliases,omitempty" json:"aliases,omitempty"`
 	Keywords map[string]string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
 }
 
@@ -38,8 +33,6 @@ type Compiled struct {
 	engine func([]signals.Item) []signals.Item
 }
 
-// ExternalEngine looks up plugin-contributed Go filter engines (KindFilter).
-// Wired by plugin.init to plugin.LookupFilterEngine; nil when unused (tests).
 var ExternalEngine func(name string) (func([]signals.Item) []signals.Item, bool)
 
 func Compile(f Filter) (Compiled, error) {
@@ -111,7 +104,6 @@ func (c Compiled) Apply(items []signals.Item) []signals.Item {
 	return out
 }
 
-// IsEngine reports whether this compiled filter is backed by a Go engine.
 func (c Compiled) IsEngine() bool { return c.engine != nil }
 
 func ApplyAll(filters []Compiled, items []signals.Item) []signals.Item {

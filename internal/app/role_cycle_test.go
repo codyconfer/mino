@@ -110,7 +110,6 @@ func TestRoleCycleDebounceSkipsIntermediateHooks(t *testing.T) {
 	if len(calls) != 0 {
 		t.Fatalf("hooks during burst = %v", calls)
 	}
-	// Intermediate role should not have replaced status chips yet.
 	chips := role.StatusChips()
 	if len(chips) != 1 || chips[0].Text != "ops-chip" {
 		t.Fatalf("chips during burst = %+v", chips)

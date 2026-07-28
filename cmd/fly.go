@@ -65,7 +65,8 @@ func flightQueries(flight string, names []string) []query {
 		q, err := buildQuery(name)
 		if err != nil {
 			verbosef("flight %q: %v", flight, err)
-			out = append(out, query{Label: name, Src: errSignal{name: name, err: err}})
+			title := shared.Directives.Queries[name].Display()
+			out = append(out, query{Label: name, Title: title, Src: errSignal{name: name, err: err}})
 			continue
 		}
 		out = append(out, q)
