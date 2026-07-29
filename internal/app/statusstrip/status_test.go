@@ -79,6 +79,39 @@ func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
 	}
 }
 
+func TestProviderOmitsUninstalledDaemonChip(t *testing.T) {
+	testenv.Isolate(t)
+
+	a := &app.App{Cfg: &config.Config{}}
+	daemon := func() (deck.ServiceStatus, bool) { return deck.ServiceStatus{}, false }
+	info := Provider(a, daemon)(context.Background())
+
+	if hasName(serviceNames(info.Services), "daemon") {
+		t.Fatalf("uninstalled daemon still in status chips: %+v", info.Services)
+	}
+}
+
+func TestProviderIncludesInstalledDaemonChip(t *testing.T) {
+	testenv.Isolate(t)
+
+	a := &app.App{Cfg: &config.Config{}}
+	daemon := func() (deck.ServiceStatus, bool) {
+		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Level: deck.StatusWarn}, true
+	}
+	info := Provider(a, daemon)(context.Background())
+
+	found := false
+	for _, s := range info.Services {
+		if s.Name == "daemon" && s.Detail == "stopped" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("installed daemon chip missing: %+v", info.Services)
+	}
+}
+
 func serviceNames(svcs []deck.ServiceStatus) []string {
 	out := make([]string, 0, len(svcs))
 	for _, s := range svcs {

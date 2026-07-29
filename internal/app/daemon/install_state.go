@@ -37,13 +37,13 @@ func (s *Server) ClassifyInstall(flight string, interval time.Duration, bell, de
 	}
 }
 
-func (s *Server) ServiceStatusChip(flight string, interval time.Duration, bell, desktop, tray bool, theme string) deck.ServiceStatus {
+func (s *Server) ServiceStatusChip(flight string, interval time.Duration, bell, desktop, tray bool, theme string) (deck.ServiceStatus, bool) {
 	switch s.ClassifyInstall(flight, interval, bell, desktop, tray, theme) {
 	case InstallRunning:
-		return deck.ServiceStatus{Name: "daemon", Detail: "running", Level: deck.StatusOK}
+		return deck.ServiceStatus{Name: "daemon", Detail: "running", Level: deck.StatusOK}, true
 	case InstallStopped:
-		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Level: deck.StatusWarn}
+		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Level: deck.StatusWarn}, true
 	default:
-		return deck.ServiceStatus{Name: "daemon", Detail: "not installed", Level: deck.StatusMuted}
+		return deck.ServiceStatus{}, false
 	}
 }

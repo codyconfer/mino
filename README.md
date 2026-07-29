@@ -62,8 +62,8 @@ a main menu, run **history**, **query** and **flight** builders that build, run,
 validate, save, and delete in one view each, a **directives** browser for roles,
 **Notes** (notes/tasks/reminders), a **Plugins** enable/disable screen, accounts, an ad-hoc
 read-only **audit query** screen, and **settings**. `munin deck <flight>` jumps
-straight to a flight; `munin settings` opens just the settings screens. Its status
-strip shows whether the background daemon is installed and running.
+straight to a flight; `munin settings` opens just the settings screens. When the
+background daemon is installed, its status strip shows whether it is running.
 
 Flight and query results render as a **git-style tree** — the run is the trunk,
 each signal a branch, each item a leaf — in both cli output and the deck. The

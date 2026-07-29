@@ -13,7 +13,7 @@ import (
 	gh "github.com/codyconfer/munin/internal/signals/github"
 )
 
-type DaemonStatus func() deck.ServiceStatus
+type DaemonStatus func() (deck.ServiceStatus, bool)
 
 func Provider(a *app.App, daemon DaemonStatus) deck.StatusFunc {
 	return func(ctx context.Context) deck.StatusInfo {
@@ -59,7 +59,9 @@ func Provider(a *app.App, daemon DaemonStatus) deck.StatusFunc {
 			})
 		}
 		if daemon != nil {
-			info.Services = append(info.Services, daemon())
+			if chip, ok := daemon(); ok {
+				info.Services = append(info.Services, chip)
+			}
 		}
 		home, roleName := a.Cfg.Home, a.Cfg.Role
 		info.Services = append(info.Services, deck.PluginServices(home, roleName)...)

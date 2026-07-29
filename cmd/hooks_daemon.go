@@ -22,7 +22,7 @@ func ensureServeProvider(ctx context.Context, flight string) (stop func()) {
 }
 
 func daemonStatusChip() statusstrip.DaemonStatus {
-	return func() deck.ServiceStatus {
+	return func() (deck.ServiceStatus, bool) {
 		return serveServer().ServiceStatusChip(
 			defaultFlightName(),
 			configServeInterval(),
