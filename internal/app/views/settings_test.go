@@ -75,6 +75,8 @@ func setvBreakConfigDir(t *testing.T) {
 	}
 	t.Setenv("XDG_CONFIG_HOME", blocker)
 	t.Setenv("AppData", blocker)
+	t.Setenv("HOME", blocker)
+	t.Setenv("USERPROFILE", blocker)
 }
 
 func setvKeepAppearance(t *testing.T) {
