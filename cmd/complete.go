@@ -22,10 +22,6 @@ func completeArg(pos int, load func() []string) completer {
 	}
 }
 
-func completeStatic(vals ...string) completer {
-	return completeNames(func() []string { return vals })
-}
-
 func completeFlagValues(load func() []string) completer {
 	return func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return load(), cobra.ShellCompDirectiveNoFileComp

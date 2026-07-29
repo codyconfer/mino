@@ -131,7 +131,7 @@ func TestTabAcceptsSuggestionThenSwitchesFocus(t *testing.T) {
 
 	// Nothing left to complete, so tab reverts to its focus meaning. There
 	// are no results yet, so setFocus is a no-op and focus stays on the form.
-	a, _ = updateBuilder(a, tea.KeyMsg{Type: tea.KeyTab})
+	updateBuilder(a, tea.KeyMsg{Type: tea.KeyTab})
 	if v.OnResults() {
 		t.Fatal("with no results, focus stays on the form")
 	}

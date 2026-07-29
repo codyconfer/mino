@@ -109,9 +109,7 @@ func (f *queryBuildFlags) apply(signal string, vals map[string]any) {
 			f.params = append(f.params, k+"="+v)
 		}
 	}
-	for _, pair := range splitList(forms.Str(vals, "extra")) {
-		f.params = append(f.params, pair)
-	}
+	f.params = append(f.params, splitList(forms.Str(vals, "extra"))...)
 	f.filters = splitList(forms.Str(vals, "filters"))
 	f.field = forms.Str(vals, "field")
 	f.include = forms.Str(vals, "include")
