@@ -8,14 +8,14 @@ import (
 
 func TestExpandBracedAliasAndRelativeCreated(t *testing.T) {
 	ctx := map[string]string{
-		"REPOS_ALIAS": "repo:grafana/a repo:grafana/b",
+		"REPOS_ALIAS": "repo:acme/a repo:acme/b",
 	}
 	got, err := Expand(`is:open is:pr {REPOS_ALIAS} created:(3 days ago)`, ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	wantDay := time.Now().AddDate(0, 0, -3).UTC().Format("2006-01-02")
-	want := "is:open is:pr repo:grafana/a repo:grafana/b created:>=" + wantDay
+	want := "is:open is:pr repo:acme/a repo:acme/b created:>=" + wantDay
 	if got != want {
 		t.Fatalf("got %q\nwant %q", got, want)
 	}

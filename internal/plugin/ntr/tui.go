@@ -2,6 +2,7 @@ package ntr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,7 +13,9 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
+	"github.com/codyconfer/viewkit/panels"
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/timefmt"
 
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/plugin"
@@ -105,13 +108,9 @@ func listCursor(key tea.KeyMsg, cursor, n int) (int, keys.Action, bool) {
 	}
 	switch act {
 	case keys.Up:
-		if cursor > 0 {
-			cursor--
-		}
+		cursor = panels.MoveIndex(cursor, -1, n)
 	case keys.Down:
-		if cursor < n-1 {
-			cursor++
-		}
+		cursor = panels.MoveIndex(cursor, 1, n)
 	}
 	return cursor, act, true
 }
@@ -132,7 +131,7 @@ func renderRows(width, cursor int, title string, rows []string, empty string) st
 		}
 		lines[i] = cursorMark + body
 	}
-	return f.TitledBox(title, lines...)
+	return f.TitledBox(title, layout.CursorRows(lines, cursor, 0)...)
 }
 
 type notesList struct {
@@ -242,106 +241,93 @@ func (v *notesList) Body(width, _ int) string {
 	return renderRows(width, v.cursor, "NOTES", rows, "(none — press n)")
 }
 
-type noteForm struct {
-	home, role string
-	id         int64
-	form       *forms.Form
-	onSaved    func() tea.Cmd
-	err        string
-}
-
 type savedMsg struct {
 	err    string
 	reload func() tea.Cmd
 }
 
-func newNoteForm(home, role string, id int64, title, body string, onSaved func() tea.Cmd) *noteForm {
-	return &noteForm{
-		home: home, role: role, id: id, onSaved: onSaved,
-		form: forms.NewForm(
-			forms.Field{Key: "title", Label: "title", Kind: forms.FieldText, Text: title},
-			forms.Field{Key: "body", Label: "body", Kind: forms.FieldMultiline, Text: body},
-		),
-	}
+type formSaver func(vals map[string]any) (tea.Cmd, string)
+
+func formKeys() vkdeck.FormKeys {
+	return vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save}
 }
 
-func (v *noteForm) Title() string {
-	if v.id == 0 {
-		return "new note"
+func newSaveForm(spec vkdeck.FormSpec, save formSaver) *vkdeck.FormView {
+	var v *vkdeck.FormView
+	spec.OnSubmit = func(_ *vkdeck.Model, vals map[string]any) tea.Cmd {
+		cmd, problem := save(vals)
+		v.Status(problem)
+		return cmd
 	}
-	return "edit note"
-}
-func (v *noteForm) Init() tea.Cmd        { return nil }
-func (v *noteForm) Context() [][2]string { return [][2]string{{"role", v.role}} }
-func (v *noteForm) Hints() [][2]string {
-	return [][2]string{{"↑/↓", "field"}, {"ctrl+s", "save"}}
-}
-func (v *noteForm) Body(width, _ int) string {
-	body := v.form.Render(layout.NewFrame(width), v.Title())
-	if v.err != "" {
-		return body + "\n" + theme.Cur().Cant.Render(v.err)
+	spec.OnMsg = func(h *vkdeck.Model, msg tea.Msg) (tea.Cmd, bool) {
+		return applySaved(v, h, msg)
 	}
-	return body
+	v = vkdeck.NewFormView(spec)
+	return v
 }
 
-func (v *noteForm) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
-	switch m := msg.(type) {
-	case savedMsg:
-		if m.err != "" {
-			v.err = m.err
-			return nil
+func applySaved(v *vkdeck.FormView, h *vkdeck.Model, msg tea.Msg) (tea.Cmd, bool) {
+	m, ok := msg.(savedMsg)
+	if !ok {
+		return nil, false
+	}
+	if m.err != "" {
+		v.Status(m.err)
+		return nil, true
+	}
+	cmds := []tea.Cmd{h.Pop()}
+	if m.reload != nil {
+		cmds = append(cmds, m.reload())
+	}
+	return tea.Batch(cmds...), true
+}
+
+func formString(vals map[string]any, key string) string {
+	s, _ := vals[key].(string)
+	return s
+}
+
+func newNoteForm(home, role string, id int64, title, body string, onSaved func() tea.Cmd) *vkdeck.FormView {
+	name := "new note"
+	if id != 0 {
+		name = "edit note"
+	}
+	return newSaveForm(vkdeck.FormSpec{
+		Title: name,
+		Fields: []forms.Field{
+			{Key: "title", Label: "title", Kind: forms.FieldText, Text: title},
+			{Key: "body", Label: "body", Kind: forms.FieldMultiline, Text: body},
+		},
+		Keys:    formKeys(),
+		Context: [][2]string{{"role", role}},
+		Hints:   [][2]string{{"↑/↓", "field"}, {"ctrl+s", "save"}},
+	}, saveNote(home, role, id, onSaved))
+}
+
+func saveNote(home, role string, id int64, onSaved func() tea.Cmd) formSaver {
+	return func(vals map[string]any) (tea.Cmd, string) {
+		title := strings.TrimSpace(formString(vals, "title"))
+		body := formString(vals, "body")
+		if title == "" {
+			return nil, "title required"
 		}
-		cmds := []tea.Cmd{h.Pop()}
-		if m.reload != nil {
-			cmds = append(cmds, m.reload())
-		}
-		return tea.Batch(cmds...)
-	case tea.KeyMsg:
-		act, ok := keymap.Form().Action(m.String())
-		if !ok {
-			if m.Type == tea.KeyRunes {
-				v.form.Insert(string(m.Runes))
+		return func() tea.Msg {
+			st, ctx, cancel, err := openStore(home, role)
+			if err != nil {
+				return savedMsg{err: err.Error()}
 			}
-			return nil
-		}
-		switch act {
-		case keys.Cancel:
-			return h.Pop()
-		case keymap.Save:
-			return v.save()
-		default:
-			v.form.Handle(act)
-		}
-	}
-	return nil
-}
-
-func (v *noteForm) save() tea.Cmd {
-	vals := v.form.Values()
-	title, _ := vals["title"].(string)
-	body, _ := vals["body"].(string)
-	title = strings.TrimSpace(title)
-	if title == "" {
-		v.err = "title required"
-		return nil
-	}
-	home, role, id, onSaved := v.home, v.role, v.id, v.onSaved
-	return func() tea.Msg {
-		st, ctx, cancel, err := openStore(home, role)
-		if err != nil {
-			return savedMsg{err: err.Error()}
-		}
-		defer cancel()
-		defer st.Close()
-		if id == 0 {
-			_, err = st.CreateNote(ctx, title, body)
-		} else {
-			err = st.UpdateNote(ctx, id, title, body)
-		}
-		if err != nil {
-			return savedMsg{err: err.Error()}
-		}
-		return savedMsg{reload: onSaved}
+			defer cancel()
+			defer st.Close()
+			if id == 0 {
+				_, err = st.CreateNote(ctx, title, body)
+			} else {
+				err = st.UpdateNote(ctx, id, title, body)
+			}
+			if err != nil {
+				return savedMsg{err: err.Error()}
+			}
+			return savedMsg{reload: onSaved}
+		}, ""
 	}
 }
 
@@ -473,85 +459,37 @@ func (v *tasksList) Body(width, _ int) string {
 	return renderRows(width, v.cursor, "TASKS", rows, "(none — press n)")
 }
 
-type taskForm struct {
-	home, role string
-	form       *forms.Form
-	onSaved    func() tea.Cmd
-	err        string
+func newTaskForm(home, role string, onSaved func() tea.Cmd) *vkdeck.FormView {
+	return newSaveForm(vkdeck.FormSpec{
+		Title: "new task",
+		Fields: []forms.Field{
+			{Key: "title", Label: "title", Kind: forms.FieldText},
+		},
+		Keys:    formKeys(),
+		Context: [][2]string{{"role", role}},
+		Hints:   [][2]string{{"ctrl+s", "save"}},
+	}, saveTask(home, role, onSaved))
 }
 
-func newTaskForm(home, role string, onSaved func() tea.Cmd) *taskForm {
-	return &taskForm{
-		home: home, role: role, onSaved: onSaved,
-		form: forms.NewForm(
-			forms.Field{Key: "title", Label: "title", Kind: forms.FieldText},
-		),
-	}
-}
-
-func (v *taskForm) Title() string        { return "new task" }
-func (v *taskForm) Init() tea.Cmd        { return nil }
-func (v *taskForm) Context() [][2]string { return [][2]string{{"role", v.role}} }
-func (v *taskForm) Hints() [][2]string {
-	return [][2]string{{"ctrl+s", "save"}}
-}
-func (v *taskForm) Body(width, _ int) string {
-	body := v.form.Render(layout.NewFrame(width), v.Title())
-	if v.err != "" {
-		return body + "\n" + theme.Cur().Cant.Render(v.err)
-	}
-	return body
-}
-
-func (v *taskForm) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
-	switch m := msg.(type) {
-	case savedMsg:
-		if m.err != "" {
-			v.err = m.err
-			return nil
+func saveTask(home, role string, onSaved func() tea.Cmd) formSaver {
+	return func(vals map[string]any) (tea.Cmd, string) {
+		title := strings.TrimSpace(formString(vals, "title"))
+		if title == "" {
+			return nil, "title required"
 		}
-		cmds := []tea.Cmd{h.Pop()}
-		if m.reload != nil {
-			cmds = append(cmds, m.reload())
-		}
-		return tea.Batch(cmds...)
-	case tea.KeyMsg:
-		act, ok := keymap.Form().Action(m.String())
-		if !ok {
-			if m.Type == tea.KeyRunes {
-				v.form.Insert(string(m.Runes))
+		return func() tea.Msg {
+			st, ctx, cancel, err := openStore(home, role)
+			if err != nil {
+				return savedMsg{err: err.Error()}
 			}
-			return nil
-		}
-		switch act {
-		case keys.Cancel:
-			return h.Pop()
-		case keymap.Save:
-			vals := v.form.Values()
-			title, _ := vals["title"].(string)
-			title = strings.TrimSpace(title)
-			if title == "" {
-				v.err = "title required"
-				return nil
+			defer cancel()
+			defer st.Close()
+			if _, err := st.CreateTask(ctx, title, time.Time{}); err != nil {
+				return savedMsg{err: err.Error()}
 			}
-			home, role, onSaved := v.home, v.role, v.onSaved
-			return func() tea.Msg {
-				st, ctx, cancel, err := openStore(home, role)
-				if err != nil {
-					return savedMsg{err: err.Error()}
-				}
-				defer cancel()
-				defer st.Close()
-				if _, err := st.CreateTask(ctx, title, time.Time{}); err != nil {
-					return savedMsg{err: err.Error()}
-				}
-				return savedMsg{reload: onSaved}
-			}
-		default:
-			v.form.Handle(act)
-		}
+			return savedMsg{reload: onSaved}
+		}, ""
 	}
-	return nil
 }
 
 type remindList struct {
@@ -660,110 +598,51 @@ func (v *remindList) Body(width, _ int) string {
 	return renderRows(width, v.cursor, "REMINDERS", rows, "(none — press n)")
 }
 
-type remindForm struct {
-	home, role string
-	form       *forms.Form
-	onSaved    func() tea.Cmd
-	err        string
+func newRemindForm(home, role string, onSaved func() tea.Cmd) *vkdeck.FormView {
+	return newSaveForm(vkdeck.FormSpec{
+		Title: "new reminder",
+		Fields: []forms.Field{
+			{Key: "title", Label: "title", Kind: forms.FieldText},
+			{Key: "due", Label: "due (RFC3339 or +1h)", Kind: forms.FieldText, Text: "+1h"},
+		},
+		Keys:    formKeys(),
+		Context: [][2]string{{"role", role}},
+		Hints:   [][2]string{{"ctrl+s", "save"}},
+	}, saveRemind(home, role, onSaved))
 }
 
-func newRemindForm(home, role string, onSaved func() tea.Cmd) *remindForm {
-	return &remindForm{
-		home: home, role: role, onSaved: onSaved,
-		form: forms.NewForm(
-			forms.Field{Key: "title", Label: "title", Kind: forms.FieldText},
-			forms.Field{Key: "due", Label: "due (RFC3339 or +1h)", Kind: forms.FieldText, Text: "+1h"},
-		),
-	}
-}
-
-func (v *remindForm) Title() string        { return "new reminder" }
-func (v *remindForm) Init() tea.Cmd        { return nil }
-func (v *remindForm) Context() [][2]string { return [][2]string{{"role", v.role}} }
-func (v *remindForm) Hints() [][2]string {
-	return [][2]string{{"ctrl+s", "save"}}
-}
-func (v *remindForm) Body(width, _ int) string {
-	body := v.form.Render(layout.NewFrame(width), v.Title())
-	if v.err != "" {
-		return body + "\n" + theme.Cur().Cant.Render(v.err)
-	}
-	return body
-}
-
-func (v *remindForm) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
-	switch m := msg.(type) {
-	case savedMsg:
-		if m.err != "" {
-			v.err = m.err
-			return nil
+func saveRemind(home, role string, onSaved func() tea.Cmd) formSaver {
+	return func(vals map[string]any) (tea.Cmd, string) {
+		title := strings.TrimSpace(formString(vals, "title"))
+		if title == "" {
+			return nil, "title required"
 		}
-		cmds := []tea.Cmd{h.Pop()}
-		if m.reload != nil {
-			cmds = append(cmds, m.reload())
+		due, err := parseDue(formString(vals, "due"))
+		if err != nil {
+			return nil, err.Error()
 		}
-		return tea.Batch(cmds...)
-	case tea.KeyMsg:
-		act, ok := keymap.Form().Action(m.String())
-		if !ok {
-			if m.Type == tea.KeyRunes {
-				v.form.Insert(string(m.Runes))
-			}
-			return nil
-		}
-		switch act {
-		case keys.Cancel:
-			return h.Pop()
-		case keymap.Save:
-			vals := v.form.Values()
-			title, _ := vals["title"].(string)
-			dueRaw, _ := vals["due"].(string)
-			title = strings.TrimSpace(title)
-			if title == "" {
-				v.err = "title required"
-				return nil
-			}
-			due, err := parseDue(dueRaw)
+		return func() tea.Msg {
+			st, ctx, cancel, err := openStore(home, role)
 			if err != nil {
-				v.err = err.Error()
-				return nil
+				return savedMsg{err: err.Error()}
 			}
-			home, role, onSaved := v.home, v.role, v.onSaved
-			return func() tea.Msg {
-				st, ctx, cancel, err := openStore(home, role)
-				if err != nil {
-					return savedMsg{err: err.Error()}
-				}
-				defer cancel()
-				defer st.Close()
-				if _, err := st.CreateReminder(ctx, title, due); err != nil {
-					return savedMsg{err: err.Error()}
-				}
-				return savedMsg{reload: onSaved}
+			defer cancel()
+			defer st.Close()
+			if _, err := st.CreateReminder(ctx, title, due); err != nil {
+				return savedMsg{err: err.Error()}
 			}
-		default:
-			v.form.Handle(act)
-		}
+			return savedMsg{reload: onSaved}
+		}, ""
 	}
-	return nil
 }
 
 func parseDue(s string) (time.Time, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
+	due, err := timefmt.ParseWhen(s)
+	switch {
+	case errors.Is(err, timefmt.ErrEmptyTime):
 		return time.Now().UTC().Add(time.Hour), nil
+	case err != nil:
+		return time.Time{}, fmt.Errorf("due: %w", err)
 	}
-	if strings.HasPrefix(s, "+") {
-		d, err := time.ParseDuration(s[1:])
-		if err != nil {
-			return time.Time{}, fmt.Errorf("due duration: %w", err)
-		}
-		return time.Now().UTC().Add(d), nil
-	}
-	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04", "2006-01-02"} {
-		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
-			return t.UTC(), nil
-		}
-	}
-	return time.Time{}, fmt.Errorf("due: want RFC3339, YYYY-MM-DD, or +1h")
+	return due, nil
 }

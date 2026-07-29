@@ -92,100 +92,43 @@ func (k *Kit) setvRed(title, msg string) vkdeck.View {
 	return vkdeck.NewMessage(title, theme.Cur().Cant.Render(msg), k.setvCtx())
 }
 
-func setvString(v any) string { s, _ := v.(string); return s }
-func setvBool(v any) bool     { b, _ := v.(bool); return b }
-
-func setvFirst(opts []string, cur string) []string {
-	found := false
-	rest := make([]string, 0, len(opts))
-	for _, o := range opts {
-		if o == cur {
-			found = true
-			continue
-		}
-		rest = append(rest, o)
-	}
-	if !found {
-		return opts
-	}
-	return append([]string{cur}, rest...)
-}
-
-type setvEditForm struct {
-	k    *Kit
-	form *forms.Form
-}
-
 func (k *Kit) setvEditConfigView() vkdeck.View {
 	c := k.d.App.Cfg
 	fields := []forms.Field{
-		{Key: "output", Label: "output", Kind: forms.FieldSelect, Options: setvFirst([]string{"terminal", "json"}, c.Output)},
+		{Key: "output", Label: "output", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"terminal", "json"}, c.Output)},
 		{Key: "audit.enabled", Label: "audit.enabled", Kind: forms.FieldToggle, On: c.Audit.Enabled},
 		{Key: "timeout", Label: "timeout", Kind: forms.FieldText, Text: c.Timeout},
-		{Key: "backup.destination", Label: "backup.destination", Kind: forms.FieldSelect, Options: setvFirst([]string{"local", "gdrive"}, c.Backup.Destination)},
+		{Key: "backup.destination", Label: "backup.destination", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"local", "gdrive"}, c.Backup.Destination)},
 		{Key: "backup.keep", Label: "backup.keep", Kind: forms.FieldText, Text: strconv.Itoa(c.Backup.Keep)},
 	}
 	fields = append(fields, setvDaemonFields(c)...)
-	return &setvEditForm{k: k, form: forms.NewForm(fields...)}
+	return vkdeck.NewFormView(vkdeck.FormSpec{
+		Title:       "edit config",
+		Fields:      fields,
+		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
+		ContextFunc: k.setvCtx,
+		Hints:       [][2]string{{"↑/↓", "field"}, {"←/→", "change"}, {"ctrl+s", "save"}},
+		OnSubmit:    k.setvSaveConfig,
+	})
 }
 
-func (v *setvEditForm) Title() string        { return "edit config" }
-func (v *setvEditForm) Init() tea.Cmd        { return nil }
-func (v *setvEditForm) Context() [][2]string { return v.k.setvCtx() }
-func (v *setvEditForm) Hints() [][2]string {
-	return [][2]string{{"↑/↓", "field"}, {"←/→", "change"}, {"ctrl+s", "save"}}
-}
-
-func (v *setvEditForm) Body(width, _ int) string {
-	return v.form.Render(layout.NewFrame(width), "edit config")
-}
-
-func (v *setvEditForm) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return nil
-	}
-	act, ok := keymap.Form().Action(key.String())
-	if !ok {
-		if key.Type == tea.KeyRunes {
-			v.form.Insert(string(key.Runes))
-		}
-		return nil
-	}
-	switch act {
-	case keys.Cancel:
-		return a.Pop()
-	case keymap.Save:
-		return v.submit(a)
-	default:
-		v.form.Handle(act)
-	}
-	return nil
-}
-
-func (v *setvEditForm) submit(a *vkdeck.Model) tea.Cmd {
-	vals := v.form.Values()
-	keep, _ := strconv.Atoi(setvString(vals["backup.keep"]))
+func (k *Kit) setvSaveConfig(a *vkdeck.Model, vals map[string]any) tea.Cmd {
+	keep := forms.Int(vals, "backup.keep")
 	set := map[string]any{
-		"output":             setvString(vals["output"]),
-		"timeout":            setvString(vals["timeout"]),
-		"audit.enabled":      setvBool(vals["audit.enabled"]),
-		"backup.destination": setvString(vals["backup.destination"]),
+		"output":             forms.Str(vals, "output"),
+		"timeout":            forms.Str(vals, "timeout"),
+		"audit.enabled":      forms.Bool(vals, "audit.enabled"),
+		"backup.destination": forms.Str(vals, "backup.destination"),
 		"backup.keep":        keep,
 	}
 	setvDaemonValues(vals, set)
-	path, err := config.SetValues(v.k.setvHome(), set)
+	path, err := config.SetValues(k.setvHome(), set)
 	if err != nil {
-		return a.Push(v.k.setvRed("edit config", err.Error()))
+		return a.Push(k.setvRed("edit config", err.Error()))
 	}
 	pop := a.Pop()
-	push := a.Push(vkdeck.NewMessage("edit config", "wrote "+path, v.k.setvCtx()))
+	push := a.Push(vkdeck.NewMessage("edit config", "wrote "+path, k.setvCtx()))
 	return tea.Batch(pop, push)
-}
-
-type setvAppearanceForm struct {
-	k    *Kit
-	form *forms.Form
 }
 
 func (k *Kit) setvAppearanceView() vkdeck.View {
@@ -198,51 +141,25 @@ func (k *Kit) setvAppearanceView() vkdeck.View {
 	if ky == "" {
 		ky = keymap.DefaultSchemeKey
 	}
-	form := forms.NewForm(
-		forms.Field{Key: "theme", Label: "theme", Kind: forms.FieldSelect, Options: setvFirst(theme.Keys(), th)},
-		forms.Field{Key: "keys", Label: "keys", Kind: forms.FieldSelect, Options: setvFirst(keys.Keys(), ky)},
-	)
-	return &setvAppearanceForm{k: k, form: form}
+	return vkdeck.NewFormView(vkdeck.FormSpec{
+		Title: "appearance",
+		Fields: []forms.Field{
+			{Key: "theme", Label: "theme", Kind: forms.FieldSelect, Options: forms.SelectFirst(theme.Keys(), th)},
+			{Key: "keys", Label: "keys", Kind: forms.FieldSelect, Options: forms.SelectFirst(keys.Keys(), ky)},
+		},
+		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
+		ContextFunc: k.setvCtx,
+		Hints:       [][2]string{{"↑/↓", "field"}, {"←/→", "change"}, {"ctrl+s", "save"}},
+		OnSubmit:    k.setvSaveAppearance,
+	})
 }
 
-func (v *setvAppearanceForm) Title() string        { return "appearance" }
-func (v *setvAppearanceForm) Init() tea.Cmd        { return nil }
-func (v *setvAppearanceForm) Context() [][2]string { return v.k.setvCtx() }
-func (v *setvAppearanceForm) Hints() [][2]string {
-	return [][2]string{{"↑/↓", "field"}, {"←/→", "change"}, {"ctrl+s", "save"}}
-}
-
-func (v *setvAppearanceForm) Body(width, _ int) string {
-	return v.form.Render(layout.NewFrame(width), "appearance")
-}
-
-func (v *setvAppearanceForm) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return nil
-	}
-	act, ok := keymap.Form().Action(key.String())
-	if !ok {
-		return nil
-	}
-	switch act {
-	case keys.Cancel:
-		return a.Pop()
-	case keymap.Save:
-		return v.submit(a)
-	default:
-		v.form.Handle(act)
-	}
-	return nil
-}
-
-func (v *setvAppearanceForm) submit(a *vkdeck.Model) tea.Cmd {
-	vals := v.form.Values()
+func (k *Kit) setvSaveAppearance(a *vkdeck.Model, vals map[string]any) tea.Cmd {
 	gs := config.LoadGlobalSettings()
-	gs.Theme = setvString(vals["theme"])
-	gs.Keys = setvString(vals["keys"])
+	gs.Theme = forms.Str(vals, "theme")
+	gs.Keys = forms.Str(vals, "keys")
 	if err := config.SaveGlobalSettings(gs); err != nil {
-		return a.Push(v.k.setvRed("appearance", err.Error()))
+		return a.Push(k.setvRed("appearance", err.Error()))
 	}
 	if t, ok := theme.Named(gs.Theme); ok {
 		theme.Use(t)
@@ -252,7 +169,7 @@ func (v *setvAppearanceForm) submit(a *vkdeck.Model) tea.Cmd {
 	}
 	body := "theme: " + theme.DisplayName(gs.Theme) + "\nkeys:  " + keys.DisplayName(gs.Keys)
 	pop := a.Pop()
-	push := a.Push(vkdeck.NewMessage("appearance", body, v.k.setvCtx()))
+	push := a.Push(vkdeck.NewMessage("appearance", body, k.setvCtx()))
 	return tea.Batch(pop, push)
 }
 
@@ -262,12 +179,6 @@ var statusBarBuiltinEntries = []statusBarEntry{
 	{"github", "github"},
 	{"slack", "slack"},
 	{"google", "google"},
-}
-
-type setvStatusBarForm struct {
-	k       *Kit
-	form    *forms.Form
-	entries []statusBarEntry
 }
 
 func (k *Kit) setvStatusBarEntries() []statusBarEntry {
@@ -309,53 +220,31 @@ func (k *Kit) setvStatusBarView() vkdeck.View {
 			On:    !config.StatusBarHidden(e.id),
 		})
 	}
-	return &setvStatusBarForm{k: k, form: forms.NewForm(fields...), entries: entries}
+	return vkdeck.NewFormView(vkdeck.FormSpec{
+		Title:       "status bar",
+		PanelTitle:  "status bar (show = visible chip)",
+		Fields:      fields,
+		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
+		ContextFunc: k.setvCtx,
+		Hints:       [][2]string{{"↑/↓", "field"}, {"←/→", "show/hide"}, {"ctrl+s", "save"}},
+		OnSubmit: func(a *vkdeck.Model, vals map[string]any) tea.Cmd {
+			return k.setvSaveStatusBar(a, entries, vals)
+		},
+	})
 }
 
-func (v *setvStatusBarForm) Title() string        { return "status bar" }
-func (v *setvStatusBarForm) Init() tea.Cmd        { return nil }
-func (v *setvStatusBarForm) Context() [][2]string { return v.k.setvCtx() }
-func (v *setvStatusBarForm) Hints() [][2]string {
-	return [][2]string{{"↑/↓", "field"}, {"←/→", "show/hide"}, {"ctrl+s", "save"}}
-}
-
-func (v *setvStatusBarForm) Body(width, _ int) string {
-	return v.form.Render(layout.NewFrame(width), "status bar (show = visible chip)")
-}
-
-func (v *setvStatusBarForm) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return nil
-	}
-	act, ok := keymap.Form().Action(key.String())
-	if !ok {
-		return nil
-	}
-	switch act {
-	case keys.Cancel:
-		return a.Pop()
-	case keymap.Save:
-		return v.submit(a)
-	default:
-		v.form.Handle(act)
-	}
-	return nil
-}
-
-func (v *setvStatusBarForm) submit(a *vkdeck.Model) tea.Cmd {
-	vals := v.form.Values()
-	hidden := make([]string, 0, len(v.entries))
-	shown := make([]string, 0, len(v.entries))
-	for _, e := range v.entries {
-		if setvBool(vals[e.id]) {
+func (k *Kit) setvSaveStatusBar(a *vkdeck.Model, entries []statusBarEntry, vals map[string]any) tea.Cmd {
+	hidden := make([]string, 0, len(entries))
+	shown := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if forms.Bool(vals, e.id) {
 			shown = append(shown, e.label)
 			continue
 		}
 		hidden = append(hidden, e.id)
 	}
 	if err := config.SetHiddenStatusBar(hidden); err != nil {
-		return a.Push(v.k.setvRed("status bar", err.Error()))
+		return a.Push(k.setvRed("status bar", err.Error()))
 	}
 	body := "all status chips shown"
 	if len(hidden) > 0 {
@@ -365,7 +254,7 @@ func (v *setvStatusBarForm) submit(a *vkdeck.Model) tea.Cmd {
 		}
 	}
 	pop := a.Pop()
-	push := a.Push(vkdeck.NewMessage("status bar", body, v.k.setvCtx()))
+	push := a.Push(vkdeck.NewMessage("status bar", body, k.setvCtx()))
 	return tea.Batch(pop, push, a.RefreshStatus())
 }
 

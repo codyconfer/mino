@@ -12,94 +12,50 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	sconfig "github.com/codyconfer/sisyphus/config"
-
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
 )
 
 type directiveKind int
 
 const (
-	directiveQuery directiveKind = iota
-	directiveFlight
-	directiveRole
+	directiveRole directiveKind = iota
 )
 
 func directiveLabel(k directiveKind) string {
-	switch k {
-	case directiveQuery:
-		return "Queries"
-	case directiveFlight:
-		return "Flights"
-	case directiveRole:
+	if k == directiveRole {
 		return "Roles"
 	}
 	return "?"
 }
 
 func directiveSingular(k directiveKind) string {
-	switch k {
-	case directiveQuery:
-		return "query"
-	case directiveFlight:
-		return "flight"
-	case directiveRole:
+	if k == directiveRole {
 		return "role"
 	}
 	return "item"
 }
 
 func directiveKey(k directiveKind) string {
-	switch k {
-	case directiveQuery:
-		return config.DirQueries
-	case directiveFlight:
-		return config.DirFlights
-	case directiveRole:
+	if k == directiveRole {
 		return config.KindRoles
 	}
 	return ""
 }
 
-func (kit *Kit) directiveRunnable(k directiveKind, name string) bool {
-	switch k {
-	case directiveQuery:
-		return kit.d.App.Directives.Queries[name].Runnable()
-	case directiveFlight:
-		return true
-	}
-	return false
-}
-
 func (kit *Kit) directiveNames(k directiveKind) []string {
-	st := kit.d.App.Directives
-	switch k {
-	case directiveQuery:
-		return st.QueryNames()
-	case directiveFlight:
-		return st.FlightNames()
-	case directiveRole:
-		return st.RoleNames()
+	if k == directiveRole {
+		return kit.d.App.Directives.RoleNames()
 	}
 	return nil
 }
 
 func (kit *Kit) directiveItem(k directiveKind, name string) any {
-	st := kit.d.App.Directives
-	switch k {
-	case directiveQuery:
-		return st.Queries[name]
-	case directiveFlight:
-		return st.Flights[name]
-	case directiveRole:
-		return st.Roles[name]
+	if k == directiveRole {
+		return kit.d.App.Directives.Roles[name]
 	}
 	return nil
 }
@@ -122,13 +78,6 @@ func directiveSplit(s string) []string {
 	return out
 }
 
-func directiveStr(vals map[string]any, key string) string {
-	if v, ok := vals[key].(string); ok {
-		return strings.TrimSpace(v)
-	}
-	return ""
-}
-
 func (kit *Kit) directivesMenu() vkdeck.View {
 	pick := func(k directiveKind) vkdeck.MenuItem {
 		return vkdeck.MenuItem{
@@ -137,11 +86,7 @@ func (kit *Kit) directivesMenu() vkdeck.View {
 			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.directiveBrowser(k)) },
 		}
 	}
-	return vkdeck.NewMenu("directives", kit.menuCtx(),
-		pick(directiveQuery),
-		pick(directiveFlight),
-		pick(directiveRole),
-	)
+	return vkdeck.NewMenu("directives", kit.menuCtx(), pick(directiveRole))
 }
 
 func (kit *Kit) directiveBrowser(k directiveKind) vkdeck.View {
@@ -171,11 +116,6 @@ func (kit *Kit) directiveActionsMenu(k directiveKind, name string) vkdeck.View {
 			return a.Push(kit.directiveViewContent(k, name))
 		}},
 	}
-	if kit.directiveRunnable(k, name) {
-		items = append(items, vkdeck.MenuItem{Label: "Run", Desc: "fetch and render results", Do: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(kit.directiveRunContent(k, name))
-		}})
-	}
 	items = append(items,
 		vkdeck.MenuItem{Label: "Validate", Desc: "check for problems", Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(kit.directiveValidateContent(k, name))
@@ -201,30 +141,10 @@ func (kit *Kit) directiveViewContent(k directiveKind, name string) vkdeck.View {
 	})
 }
 
-func (kit *Kit) directiveRunContent(k directiveKind, name string) vkdeck.View {
-	return deck.NewResults("run: "+name, kit.directiveItemCtx(k, name), func() []signals.Section {
-		switch k {
-		case directiveQuery:
-			return kit.d.FetchQuery(name)
-		case directiveFlight:
-			return kit.d.FetchFlight(name)
-		}
-		return nil
-	})
-}
-
 func (kit *Kit) directiveValidateContent(k directiveKind, name string) vkdeck.View {
 	return vkdeck.NewScroll("validate: "+name, kit.directiveItemCtx(k, name), nil, func() string {
 		th := theme.Cur()
-		var findings []Finding
-		switch k {
-		case directiveQuery:
-			findings = kit.d.Verify("queries")
-		case directiveFlight:
-			findings = kit.d.Verify("flights")
-		case directiveRole:
-			findings = kit.d.Verify("roles")
-		}
+		findings := kit.d.Verify(config.KindRoles)
 		var lines []string
 		for _, f := range findings {
 			if f.Name != name {
@@ -307,34 +227,6 @@ func (kit *Kit) directiveFormFields(k directiveKind, name string) []forms.Field 
 		return forms.Field{Key: key, Label: label, Kind: forms.FieldText, Text: val}
 	}
 	switch k {
-	case directiveQuery:
-		q := st.Queries[name]
-		var refs []string
-		for _, qf := range q.Filters {
-			if qf.Ref != "" {
-				refs = append(refs, qf.Ref)
-			}
-		}
-		var r filter.Rule
-		if len(q.Rules) > 0 {
-			r = q.Rules[0]
-		}
-		return []forms.Field{
-			text("name", "name", q.Name),
-			text("type", "type (query, filter, blank = infer)", string(q.Type)),
-			text("signal", "signal (blank = filter only)", q.Signal),
-			text("query", "query param", q.Params["query"]),
-			text("filters", "filters (comma-sep)", strings.Join(refs, ", ")),
-			text("field", "rule field", r.Field),
-			text("include", "rule include regex", r.Include),
-			text("exclude", "rule exclude regex", r.Exclude),
-		}
-	case directiveFlight:
-		fl := st.Flights[name]
-		return []forms.Field{
-			text("name", "name", fl.Name),
-			text("queries", "queries (comma-sep)", strings.Join(fl.Queries, ", ")),
-		}
 	case directiveRole:
 		rd := st.Roles[name]
 		return []forms.Field{
@@ -390,44 +282,18 @@ func (v *directiveFormView) Body(width, _ int) string {
 
 func (v *directiveFormView) submit(a *vkdeck.Model) tea.Cmd {
 	vals := v.form.Values()
-	name := directiveStr(vals, "name")
+	name := forms.Str(vals, "name")
 	if name == "" {
 		return a.Push(vkdeck.NewMessage("save failed", "name is required", v.ctx))
 	}
 
 	var item any
 	switch v.kind {
-	case directiveQuery:
-		q := config.Query{
-			Name:   name,
-			Type:   config.QueryType(directiveStr(vals, "type")),
-			Signal: directiveStr(vals, "signal"),
-		}
-		if qp := directiveStr(vals, "query"); qp != "" {
-			q.Params = map[string]string{"query": qp}
-		}
-		for _, ref := range directiveSplit(directiveStr(vals, "filters")) {
-			q.Filters = append(q.Filters, config.QueryFilter{Ref: ref})
-		}
-		r := filter.Rule{
-			Field:   directiveStr(vals, "field"),
-			Include: directiveStr(vals, "include"),
-			Exclude: directiveStr(vals, "exclude"),
-		}
-		if r.Field != "" || r.Include != "" || r.Exclude != "" {
-			q.Rules = []filter.Rule{r}
-		}
-		item = q
-	case directiveFlight:
-		item = config.Flight{
-			Name:    name,
-			Queries: directiveSplit(directiveStr(vals, "queries")),
-		}
 	case directiveRole:
 		item = config.RoleDef{
 			Name:    name,
-			Flights: directiveSplit(directiveStr(vals, "flights")),
-			Queries: directiveSplit(directiveStr(vals, "queries")),
+			Flights: directiveSplit(forms.Str(vals, "flights")),
+			Queries: directiveSplit(forms.Str(vals, "queries")),
 		}
 	}
 
@@ -439,17 +305,19 @@ func (v *directiveFormView) submit(a *vkdeck.Model) tea.Cmd {
 }
 
 func (kit *Kit) directiveWriteFile(k directiveKind, name string, item any) (string, error) {
-	data, err := yaml.Marshal(item)
-	if err != nil {
-		return "", err
-	}
 	key := directiveKey(k)
-	dir := config.CollectionDir(kit.d.App.Cfg.Home, key)
-	path, err := sconfig.WriteItem(dir, name+".yaml", data)
+	path, stored, err := config.SaveCollectionItem(kit.d.App.Mgr, kit.d.App.Cfg.Home, key, name, item)
 	if err != nil {
 		return "", err
 	}
-	return "wrote " + path + "\n\n" +
-		"DuckDB is the source of truth; this file takes effect after\n" +
-		"reconcile: run `munin import " + key + "` or restart munin.", nil
+	if !stored {
+		return "wrote " + path + "\n\n" +
+			"the config store is unavailable, so this file takes effect after\n" +
+			"reconcile: run `munin import " + key + "` or restart munin.", nil
+	}
+	summary := "wrote " + path + "\nimported the " + key + " collection into DuckDB."
+	if err := kit.d.App.RefreshDirectives(config.ReconcileIgnore); err != nil {
+		return summary + "\n\nreload failed, so it is not live yet: " + err.Error(), nil
+	}
+	return summary + "\nit is live in this session.", nil
 }

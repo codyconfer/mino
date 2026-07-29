@@ -210,13 +210,27 @@ func registerStockBuilders() {
 }
 
 func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Store) (signals.Signal, error) {
-	queries := cfg.GitHub.Queries
-	if q := params["query"]; q != "" {
-		queries = []string{q}
-	}
 	backend, err := githubBackend(cfg, tokens)
 	if err != nil {
 		return nil, err
+	}
+	if ref := params["project"]; ref != "" {
+		owner, number, err := gh.ParseProjectRef(ref)
+		if err != nil {
+			return nil, err
+		}
+		spec := gh.ProjectSpec{
+			Owner:  owner,
+			Number: number,
+			Filter: params["filter"],
+			Title:  params["title"],
+			Field:  params["field"],
+		}
+		return gh.NewProject(spec, backend, cfg.GitHub.Max), nil
+	}
+	queries := cfg.GitHub.Queries
+	if q := params["query"]; q != "" {
+		queries = []string{q}
 	}
 	return gh.New(queries, backend, cfg.GitHub.Max), nil
 }

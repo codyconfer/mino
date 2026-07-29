@@ -86,7 +86,7 @@ func TestFlightTreeGapStemContinuesConnectors(t *testing.T) {
 		t.Fatalf("section GapStem = %q, want %q", sectionStem, "|  ")
 	}
 
-	items := SectionItems(layout.NewFrame(80), secs)
+	items := SectionItems(layout.NewFrame(80), "run", secs)
 	var found bool
 	for _, it := range items {
 		if it.Key == "u1" {

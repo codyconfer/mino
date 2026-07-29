@@ -24,8 +24,8 @@ func sourceTimeout() time.Duration {
 
 type query = flight.Query
 
-func emit(w io.Writer, sections []signals.Section) error {
-	return flight.Emit(w, shared.Cfg.Output, sections)
+func emit(w io.Writer, root string, sections []signals.Section) error {
+	return flight.Emit(w, shared.Cfg.Output, root, sections)
 }
 
 func fetchQuery(ctx context.Context, q query, parentID int64) []signals.Section {
@@ -36,9 +36,9 @@ func fetchQueries(ctx context.Context, queries []query, parentID int64) []signal
 	return flight.FetchQueries(ctx, shared.Audit, shared.Cfg.Role, sourceTimeout(), queries, parentID)
 }
 
-func runQueries(ctx context.Context, w io.Writer, queries []query, parentID int64) error {
+func runQueries(ctx context.Context, w io.Writer, root string, queries []query, parentID int64) error {
 	if !interactiveTTY() {
-		return emit(w, fetchQueries(ctx, queries, parentID))
+		return emit(w, root, fetchQueries(ctx, queries, parentID))
 	}
 	tasks := make([]deck.Task, len(queries))
 	for i, q := range queries {

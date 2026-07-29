@@ -11,8 +11,6 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
-	vnotify "github.com/codyconfer/viewkit/notify"
-	"github.com/codyconfer/viewkit/panels"
 	"github.com/codyconfer/viewkit/theme"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
@@ -24,19 +22,15 @@ import (
 	"github.com/codyconfer/munin/internal/render/glyph"
 )
 
-const loginToastTTL = 3 * time.Second
-
 type loginAlreadyAuthedMsg struct{ label string }
-type loginToastPruneMsg time.Time
-
 type loginPage struct {
 	kit   *Kit
 	menu  vkdeck.View
-	queue *vnotify.Queue
+	toast *vkdeck.Toaster
 }
 
 func (k *Kit) Login() vkdeck.View {
-	page := &loginPage{kit: k, queue: vnotify.NewQueue(4)}
+	page := &loginPage{kit: k, toast: vkdeck.NewToaster(4, 3*time.Second)}
 	var items []vkdeck.MenuItem
 	for i, p := range loginflow.Providers() {
 		p := p
@@ -63,32 +57,17 @@ func (p *loginPage) Hints() [][2]string   { return p.menu.Hints() }
 func (p *loginPage) Init() tea.Cmd        { return p.menu.Init() }
 
 func (p *loginPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
-	switch m := msg.(type) {
-	case loginAlreadyAuthedMsg:
-		p.queue.PushFor(mnotify.AlreadyAuthed(m.label), time.Now(), loginToastTTL)
-		return p.pruneTick()
-	case loginToastPruneMsg:
-		p.queue.Prune(time.Time(m))
-		if p.queue.Active() {
-			return p.pruneTick()
-		}
-		return nil
+	if cmd, handled := p.toast.Update(msg); handled {
+		return cmd
+	}
+	if m, ok := msg.(loginAlreadyAuthedMsg); ok {
+		return p.toast.Push(mnotify.AlreadyAuthed(m.label))
 	}
 	return p.menu.Update(a, msg)
 }
 
-func (p *loginPage) pruneTick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return loginToastPruneMsg(t) })
-}
-
 func (p *loginPage) Body(width, height int) string {
-	body := p.menu.Body(width, height)
-	n, ok := p.queue.Current()
-	if !ok {
-		return body
-	}
-	f := layout.ScreenFrame(width)
-	return panels.NotificationOverlay(body, f, n, layout.OverlayPos{XFrac: 0.5, YFrac: 0})
+	return p.toast.Body(p.menu.Body(width, height), width)
 }
 
 func (k *Kit) loginStatus(p loginflow.Provider) string {
@@ -317,5 +296,5 @@ func (v *loginFlowView) Body(width, _ int) string {
 }
 
 func logLines(s string) []string {
-	return strings.Split(strings.TrimRight(s, "\n"), "\n")
+	return layout.Lines(s)
 }

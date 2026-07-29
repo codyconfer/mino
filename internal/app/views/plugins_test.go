@@ -187,7 +187,7 @@ func TestPluginsDisableKeepsRow(t *testing.T) {
 	if !strings.Contains(body, "disabled") {
 		t.Fatalf("view missing disabled:\n%s", body)
 	}
-	if !page.queue.Active() {
+	if !page.toast.Queue().Active() {
 		t.Fatal("expected toast after toggle")
 	}
 }
@@ -476,5 +476,36 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 	}
 	if !strings.Contains(joined, "enable/disable") {
 		t.Fatalf("hints missing enable/disable: %v", hints)
+	}
+}
+
+func TestPluginsListSpacesOnlyTheCursorRow(t *testing.T) {
+	kit := testKit(t)
+	page, ok := kit.Plugins().(*pluginsPage)
+	if !ok {
+		t.Fatal("Plugins did not return a pluginsPage")
+	}
+	if len(page.rows) < 3 {
+		t.Skipf("need at least 3 plugin rows, have %d", len(page.rows))
+	}
+
+	lines := strings.Split(page.Body(100, 40), "\n")
+	at := func(id string) int {
+		for i, ln := range lines {
+			if strings.Contains(ln, id) {
+				return i
+			}
+		}
+		return -1
+	}
+	first, second, third := at(page.rows[0].id), at(page.rows[1].id), at(page.rows[2].id)
+	if first < 0 || second < 0 || third < 0 {
+		t.Fatalf("rows missing from render:\n%s", strings.Join(lines, "\n"))
+	}
+	if second-first != 2 {
+		t.Errorf("cursor row should be followed by a blank line, gap = %d:\n%s", second-first, strings.Join(lines, "\n"))
+	}
+	if third-second != 1 {
+		t.Errorf("rows away from the cursor should stay tight, gap = %d:\n%s", third-second, strings.Join(lines, "\n"))
 	}
 }

@@ -109,10 +109,32 @@ func TestItemLinesShowsAuthor(t *testing.T) {
 }
 
 func TestNewUnknownFormat(t *testing.T) {
-	if _, err := New(Format("xml")); err == nil {
+	if _, err := New(Format("xml"), "run"); err == nil {
 		t.Fatal("expected error for unknown format")
 	}
-	if _, err := New(FormatJSON); err != nil {
+	if _, err := New(FormatJSON, "run"); err != nil {
 		t.Fatalf("json format should be valid: %v", err)
+	}
+}
+
+func TestRootLabelReplacesTheHardcodedFlight(t *testing.T) {
+	secs := []signals.Section{{Signal: "github", Title: "Open PRs", Items: []signals.Item{{Title: "one"}}}}
+
+	out := ansi.Strip(Panels(layout.NewFrame(80), "my-open-prs", secs))
+	if !strings.Contains(out, "my-open-prs") {
+		t.Errorf("tree root did not use the supplied label:\n%s", out)
+	}
+	if strings.Contains(out, "flight") {
+		t.Errorf("tree root still says flight for a query run:\n%s", out)
+	}
+
+	fallback := ansi.Strip(Panels(layout.NewFrame(80), "", secs))
+	if !strings.Contains(fallback, DefaultRoot) {
+		t.Errorf("empty label should fall back to %q:\n%s", DefaultRoot, fallback)
+	}
+
+	items := SectionItems(layout.NewFrame(80), "my-open-prs", secs)
+	if len(items) == 0 || !strings.Contains(ansi.Strip(items[0].Block), "my-open-prs") {
+		t.Errorf("SectionItems root did not use the label: %#v", items)
 	}
 }

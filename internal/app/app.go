@@ -193,10 +193,14 @@ func (a *App) applyRoleContexts() {
 }
 
 func (a *App) ReloadDirectives() error {
+	return a.RefreshDirectives(config.ReconcileApply)
+}
+
+func (a *App) RefreshDirectives(policy config.ReconcilePolicy) error {
 	if a == nil || a.Cfg == nil {
 		return errs.New(errs.KindInternal, "app not loaded")
 	}
-	d, err := config.ReloadDirectives(a.Mgr, a.Cfg.Home, config.ReconcileApply)
+	d, err := config.ReloadDirectives(a.Mgr, a.Cfg.Home, policy)
 	if err != nil {
 		return err
 	}

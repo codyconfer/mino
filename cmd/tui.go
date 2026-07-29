@@ -57,12 +57,25 @@ func buildViews() *views.Kit {
 	return views.New(views.Deps{
 		App:                shared,
 		FetchQuery:         fetchQuerySections,
-		FetchFlight:        fetchFlightSections,
 		FetchFlightAudited: fetchFlightAuditedSections,
 		FetchHomeFlight:    fetchHomeFlightSections,
+		FetchAdhoc:         fetchAdhocSections,
+		FetchFlightQueries: fetchFlightQueriesSections,
 		Verify:             verifyFindings,
 		ExportDirectives:   exportDirectivesToFiles,
 	})
+}
+
+func fetchAdhocSections(q config.Query) []signals.Section {
+	label := q.Name
+	if label == "" {
+		label = "ad-hoc"
+	}
+	built, err := buildQueryFrom(label, q)
+	if err != nil {
+		return []signals.Section{{Signal: q.Signal, Title: label, Err: err}}
+	}
+	return fetchQueries(context.Background(), []query{built}, 0)
 }
 
 func fetchQuerySections(name string) []signals.Section {
@@ -73,15 +86,13 @@ func fetchQuerySections(name string) []signals.Section {
 	return fetchQueries(context.Background(), []query{q}, 0)
 }
 
-func fetchFlightSections(name string) []signals.Section {
-	fl := shared.Directives.Flights[name]
-	return fetchQueries(context.Background(), flightQueries(name, fl.Queries), 0)
+func fetchFlightAuditedSections(name string) []signals.Section {
+	return fetchFlightQueriesSections(name, shared.Directives.Flights[name].Queries)
 }
 
-func fetchFlightAuditedSections(name string) []signals.Section {
-	fl := shared.Directives.Flights[name]
-	queries := flightQueries(name, fl.Queries)
-	fid := shared.Audit.StartFlight(name, shared.Cfg.Role)
+func fetchFlightQueriesSections(label string, names []string) []signals.Section {
+	queries := flightQueries(label, names)
+	fid := shared.Audit.StartFlight(label, shared.Cfg.Role)
 	sections := fetchQueries(context.Background(), queries, fid)
 	shared.Audit.FinishFlight(fid)
 	return sections

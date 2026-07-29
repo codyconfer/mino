@@ -14,7 +14,7 @@ queries:
 # Applied on role activation.
 contexts:
   kubectl: prod
-  gcx: myorg.grafana.net
+  gcx: myorg.example.net
   gooseai: default
   pi: default
   opencode: default

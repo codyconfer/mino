@@ -4,6 +4,9 @@ import (
 	"io"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/codyconfer/viewkit/glyph"
+	"github.com/codyconfer/viewkit/theme"
 )
 
 type ReportStyles struct {
@@ -19,14 +22,15 @@ type ReportStyles struct {
 
 func NewReportStyles(w io.Writer) ReportStyles {
 	r := lipgloss.NewRenderer(w)
+	th := theme.Cur()
 	return ReportStyles{
 		Title:   r.NewStyle().Bold(true).Underline(true),
-		OK:      r.NewStyle().Foreground(lipgloss.Color("10")),
-		Err:     r.NewStyle().Foreground(lipgloss.Color("9")).Bold(true),
-		Warn:    r.NewStyle().Foreground(lipgloss.Color("11")),
+		OK:      r.NewStyle().Foreground(theme.SeverityColor(glyph.SeverityPositive)),
+		Err:     r.NewStyle().Foreground(theme.SeverityColor(glyph.SeverityNegative)).Bold(true),
+		Warn:    r.NewStyle().Foreground(theme.SeverityColor(glyph.SeverityWarning)),
 		Name:    r.NewStyle().Bold(true),
 		Dim:     r.NewStyle().Faint(true),
 		Snippet: r.NewStyle().Faint(true),
-		Fix:     r.NewStyle().Foreground(lipgloss.Color("12")),
+		Fix:     r.NewStyle().Foreground(th.Accent.GetForeground()),
 	}
 }

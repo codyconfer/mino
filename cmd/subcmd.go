@@ -69,5 +69,5 @@ func runSignal(cmd *cobra.Command, name string, params map[string]string, ff *fi
 	if err != nil {
 		return err
 	}
-	return runQueries(cmd.Context(), cmd.OutOrStdout(), []query{{Label: name, Src: src, Filters: compiled}}, 0)
+	return runQueries(cmd.Context(), cmd.OutOrStdout(), name, []query{{Label: name, Src: src, Filters: compiled}}, 0)
 }

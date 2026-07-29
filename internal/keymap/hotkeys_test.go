@@ -1,6 +1,10 @@
 package keymap
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/codyconfer/viewkit/keys"
+)
 
 func TestResolveHotkeyDemoDefaults(t *testing.T) {
 	binds := map[string]string{
@@ -17,15 +21,15 @@ func TestResolveHotkeyDemoDefaults(t *testing.T) {
 		{"alt+t", TargetTaskNew},
 	}
 	for _, tc := range cases {
-		got, ok := ResolveHotkey(binds, tc.key)
+		got, ok := keys.Resolve(binds, tc.key)
 		if !ok || got != tc.want {
-			t.Errorf("ResolveHotkey(%q) = %q,%v want %q,true", tc.key, got, ok, tc.want)
+			t.Errorf("keys.Resolve(%q) = %q,%v want %q,true", tc.key, got, ok, tc.want)
 		}
 	}
-	if _, ok := ResolveHotkey(binds, "n"); ok {
+	if _, ok := keys.Resolve(binds, "n"); ok {
 		t.Error("plain n must not resolve (reserved for in-list new)")
 	}
-	if _, ok := ResolveHotkey(nil, "alt+n"); ok {
+	if _, ok := keys.Resolve(nil, "alt+n"); ok {
 		t.Error("nil binds")
 	}
 }
@@ -53,10 +57,10 @@ func TestResolveHotkeyRoleCycle(t *testing.T) {
 		"alt+[": TargetRolePrev,
 		"alt+]": TargetRoleNext,
 	}
-	if got, ok := ResolveHotkey(binds, "alt+["); !ok || got != TargetRolePrev {
+	if got, ok := keys.Resolve(binds, "alt+["); !ok || got != TargetRolePrev {
 		t.Errorf("alt+[ = %q,%v", got, ok)
 	}
-	if got, ok := ResolveHotkey(binds, "alt+]"); !ok || got != TargetRoleNext {
+	if got, ok := keys.Resolve(binds, "alt+]"); !ok || got != TargetRoleNext {
 		t.Errorf("alt+] = %q,%v", got, ok)
 	}
 }

@@ -38,8 +38,8 @@ func TestServeViewRendersAndPrunes(t *testing.T) {
 		t.Fatal("body with a live notification should render")
 	}
 
-	_ = v.Update(app, servePruneMsg(time.Now().Add(time.Hour)))
-	if got := v.queue.Len(); got != 0 {
+	v.toast.Queue().Prune(time.Now().Add(time.Hour))
+	if got := v.toast.Queue().Len(); got != 0 {
 		t.Fatalf("far-future prune should drain the queue, got %d", got)
 	}
 

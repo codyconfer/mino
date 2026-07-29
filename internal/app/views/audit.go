@@ -2,15 +2,14 @@ package views
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/codyconfer/sisyphus/store"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
+	"github.com/codyconfer/viewkit/panels"
 	"github.com/codyconfer/viewkit/theme"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
@@ -29,17 +28,23 @@ var auditvDefaultSQL = map[string]string{
 
 const auditvChrome = 10
 
-const auditvMaxCell = 40
+type auditResult struct {
+	cols []string
+	rows [][]string
+	err  string
+	ran  bool
+}
 
 type auditView struct {
 	home    string
 	dbIndex int
 	sql     string
-	result  string
+	result  auditResult
 
-	vp    viewport.Model
-	ready bool
-	width int
+	scroll layout.ScrollState
+	height int
+	ready  bool
+	width  int
 }
 
 func (k *Kit) AuditQuery() vkdeck.View {
@@ -68,13 +73,9 @@ func (me *auditView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		if h < 1 {
 			h = 1
 		}
-		if !me.ready {
-			me.vp = viewport.New(m.Width, h)
-			me.ready = true
-		} else {
-			me.vp.Width, me.vp.Height = m.Width, h
-		}
-		me.vp.SetContent(me.result)
+		me.height = h
+		me.ready = true
+		me.scrollBy(0)
 		return nil
 	case tea.KeyMsg:
 		act, ok := keymap.Form(keys.Binding{Keys: []string{"tab"}, Action: keys.Right}).Action(m.String())
@@ -97,26 +98,42 @@ func (me *auditView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 			return nil
 		case keys.Confirm:
 			me.run()
-			if me.ready {
-				me.vp.SetContent(me.result)
-				me.vp.GotoTop()
-			}
+			me.scroll.Offset = 0
 			return nil
 		case keys.Erase:
 			if n := len(me.sql); n > 0 {
 				me.sql = me.sql[:n-1]
 			}
 			return nil
-		case keys.Up, keys.Down, keys.PageUp, keys.PageDown:
-			if me.ready {
-				var cmd tea.Cmd
-				me.vp, cmd = me.vp.Update(msg)
-				return cmd
-			}
+		case keys.Up:
+			me.scrollBy(-1)
+		case keys.Down:
+			me.scrollBy(1)
+		case keys.PageUp:
+			me.scrollBy(-me.windowRows())
+		case keys.PageDown:
+			me.scrollBy(me.windowRows())
 		}
 	}
 	return nil
 }
+
+func (me *auditView) windowRows() int {
+	rows := layout.ViewportContentRows(me.height)
+	if rows < 1 {
+		rows = 1
+	}
+	return rows
+}
+
+func (me *auditView) scrollBy(delta int) {
+	if !me.ready {
+		return
+	}
+	me.scroll.Scroll(delta, layout.CountLines(me.results(me.frame())), me.windowRows())
+}
+
+func (me *auditView) frame() layout.Frame { return layout.NewFrame(me.width) }
 
 func (me *auditView) cycle(delta int) {
 	n := len(auditvDBs)
@@ -131,21 +148,20 @@ func (me *auditView) defaultSQL() string {
 }
 
 func (me *auditView) run() {
-	th := theme.Cur()
 	query := strings.TrimSpace(me.sql)
 	if query == "" {
 		query = me.defaultSQL()
 	}
 	if !auditvReadOnly(query) {
-		me.result = th.Cant.Render("only read-only statements are allowed (select/with/pragma/describe/show)")
+		me.result = auditResult{err: "only read-only statements are allowed (select/with/pragma/describe/show)", ran: true}
 		return
 	}
-	out, err := me.exec(query)
+	res, err := me.exec(query)
 	if err != nil {
-		me.result = th.Cant.Render(err.Error())
+		me.result = auditResult{err: err.Error(), ran: true}
 		return
 	}
-	me.result = out
+	me.result = res
 }
 
 func auditvReadOnly(query string) bool {
@@ -158,88 +174,24 @@ func auditvReadOnly(query string) bool {
 	return false
 }
 
-func (me *auditView) exec(query string) (string, error) {
+func (me *auditView) exec(query string) (auditResult, error) {
 	path := config.DataPath(me.home, me.db()+".duckdb")
 	res, err := store.Query(context.Background(), path, query)
 	if err != nil {
-		return "", err
+		return auditResult{}, err
 	}
-	return auditvTable(res.Columns, res.Rows), nil
+	return auditResult{cols: res.Columns, rows: res.Rows, ran: true}, nil
 }
 
-func auditvTable(cols []string, data [][]string) string {
+func (me *auditView) results(f layout.Frame) string {
 	th := theme.Cur()
-	if len(cols) == 0 {
-		return th.Dim.Render("(no columns)")
+	switch {
+	case me.result.err != "":
+		return th.Cant.Render(me.result.err)
+	case !me.result.ran:
+		return th.Dim.Render("press enter to run")
 	}
-
-	widths := make([]int, len(cols))
-	for i, c := range cols {
-		widths[i] = auditvClamp(len(c))
-	}
-	for _, row := range data {
-		for i, cell := range row {
-			if w := auditvClamp(len(cell)); w > widths[i] {
-				widths[i] = w
-			}
-		}
-	}
-
-	var b strings.Builder
-	b.WriteString(th.Key.Render(auditvRow(cols, widths)))
-	b.WriteString("\n")
-
-	sep := make([]string, len(cols))
-	for i, w := range widths {
-		sep[i] = strings.Repeat("─", w)
-	}
-	b.WriteString(th.Dim.Render(strings.Join(sep, "─┼─")))
-	b.WriteString("\n")
-
-	if len(data) == 0 {
-		b.WriteString(th.Dim.Render("(0 rows)"))
-		return b.String()
-	}
-	for _, row := range data {
-		cells := make([]string, len(row))
-		for i, cell := range row {
-			cells[i] = auditvOneLine(cell)
-		}
-		b.WriteString(th.Val.Render(auditvRow(cells, widths)))
-		b.WriteString("\n")
-	}
-	b.WriteString(th.Dim.Render(fmt.Sprintf("(%d rows)", len(data))))
-	return b.String()
-}
-
-func auditvOneLine(s string) string {
-	s = strings.ReplaceAll(s, "\r\n", " ")
-	s = strings.ReplaceAll(s, "\n", " ")
-	s = strings.ReplaceAll(s, "\t", " ")
-	return s
-}
-
-func auditvClamp(n int) int {
-	if n > auditvMaxCell {
-		return auditvMaxCell
-	}
-	return n
-}
-
-func auditvRow(cells []string, widths []int) string {
-	out := make([]string, len(widths))
-	for i, w := range widths {
-		val := ""
-		if i < len(cells) {
-			val = layout.Fit(cells[i], w)
-		}
-		pad := w - len([]rune(val))
-		if pad < 0 {
-			pad = 0
-		}
-		out[i] = val + strings.Repeat(" ", pad)
-	}
-	return strings.Join(out, " │ ")
+	return panels.Table(f, me.result.cols, me.result.rows)
 }
 
 func (me *auditView) Body(width, height int) string {
@@ -264,11 +216,9 @@ func (me *auditView) Body(width, height int) string {
 	}
 	editor := f.Row("sql", shown+th.Accent.Render("▉"))
 
-	results := me.result
+	results := me.results(f)
 	if me.ready {
-		results = me.vp.View()
-	} else if results == "" {
-		results = th.Dim.Render("press enter to run")
+		results = layout.Viewport(results, me.height, me.scroll.Offset)
 	}
 
 	return layout.StackTight(selector, editor, f.Rule(), results)

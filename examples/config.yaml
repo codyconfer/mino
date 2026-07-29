@@ -35,8 +35,8 @@ keybinds:
   alt+n: ntr.note.new      # open new-note form
   alt+r: ntr.remind.new    # open new-reminder form
   alt+t: ntr.task.new      # open new-task form
-  alt+[: role.prev         # previous configured role (hooks debounced)
-  alt+]: role.next         # next configured role (hooks debounced)
+  alt+[: role.prev         # previous role; cycles through "no role" (hooks debounced)
+  alt+]: role.next         # next role; cycles through "no role" (hooks debounced)
   # alt+f: morning         # example: jump straight to a flight
 
 # Roles, flights, queries, and filters are each their own file store — see

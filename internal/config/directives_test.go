@@ -42,7 +42,7 @@ flights: [morning]
 queries: [standup, no-bots]
 contexts:
   kubectl: prod
-  gcx: myorg.grafana.net
+  gcx: myorg.example.net
 hooks:
   enter:
     bash: |
@@ -168,7 +168,7 @@ func TestSerializeDirRoundTrip(t *testing.T) {
 	}
 	if rd, ok := roles["triage"]; !ok || len(rd.Flights) != 1 || rd.Flights[0] != "morning" || rd.Home != "morning" {
 		t.Errorf("ParseRoles round-trip wrong: %#v", roles)
-	} else if rd.Contexts["kubectl"] != "prod" || rd.Contexts["gcx"] != "myorg.grafana.net" {
+	} else if rd.Contexts["kubectl"] != "prod" || rd.Contexts["gcx"] != "myorg.example.net" {
 		t.Errorf("ParseRoles contexts = %#v", rd.Contexts)
 	} else if !strings.Contains(rd.Hooks.Enter.Bash, "entering triage") ||
 		!strings.Contains(rd.Hooks.Exit.PowerShell, "leaving triage") {
@@ -495,7 +495,11 @@ func TestInvalidTypesRejected(t *testing.T) {
 		"query without a signal": "name: x\ntype: query\n",
 		"filter with a signal":   "name: x\ntype: filter\nsignal: github\nrules:\n  - exclude: y\n",
 		"filter with no rules":   "name: x\ntype: filter\n",
-		"unknown type":           "name: x\ntype: flight\nsignal: github\n",
+		"flight with a signal":   "name: x\ntype: flight\nsignal: github\nqueries: [a]\n",
+		"flight with no queries": "name: x\ntype: flight\n",
+		"flight with rules":      "name: x\ntype: flight\nqueries: [a]\nrules:\n  - exclude: y\n",
+		"role with a signal":     "name: x\ntype: role\nsignal: github\n",
+		"unknown type":           "name: x\ntype: dashboard\nsignal: github\n",
 	}
 	for label, body := range cases {
 		t.Run(label, func(t *testing.T) {
@@ -506,6 +510,102 @@ func TestInvalidTypesRejected(t *testing.T) {
 				t.Fatalf("expected an error for %s", label)
 			}
 		})
+	}
+}
+
+func TestTypeRoutesDocsAcrossCollections(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	mkdir(t, filepath.Join(home, DirFlights))
+	write(t, filepath.Join(home, DirQueries, "triage.yaml"), `
+name: triage
+type: flight
+queries: [incidents]
+---
+name: incidents
+type: query
+signal: github
+---
+name: oncall
+type: role
+flights: [triage]
+`)
+	write(t, filepath.Join(home, DirFlights, "shared.yaml"), `
+name: no-bots
+type: filter
+rules:
+  - exclude: "(?i)bot$"
+`)
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fl, ok := s.Flights["triage"]
+	if !ok || len(fl.Queries) != 1 || fl.Queries[0] != "incidents" {
+		t.Fatalf("flight declared in %s not routed: %#v", DirQueries, s.Flights)
+	}
+	if fl.Type != TypeFlight {
+		t.Errorf("flight Type = %q, want flight", fl.Type)
+	}
+	if _, ok := s.Queries["triage"]; ok {
+		t.Error("a type: flight document should not land in Queries")
+	}
+	rd, ok := s.Roles["oncall"]
+	if !ok || len(rd.Flights) != 1 || rd.Flights[0] != "triage" {
+		t.Fatalf("role declared in %s not routed: %#v", DirQueries, s.Roles)
+	}
+	if _, ok := s.Filter("no-bots"); !ok {
+		t.Errorf("filter declared in %s not routed: %v", DirFlights, s.FilterNames())
+	}
+	if got := s.RunnableNames(); len(got) != 1 || got[0] != "incidents" {
+		t.Errorf("RunnableNames = %v", got)
+	}
+}
+
+func TestCollectionStillDefaultsTheType(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirFlights))
+	write(t, filepath.Join(home, DirFlights, "morning.yaml"), "name: morning\nqueries: [a, b]\n")
+	write(t, filepath.Join(home, "oncall.yaml"), "name: oncall\nqueries: [a]\n")
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.Flights["morning"]; !ok {
+		t.Errorf("untyped doc in %s should stay a flight: %#v", DirFlights, s.Flights)
+	}
+	if _, ok := s.Roles["oncall"]; !ok {
+		t.Errorf("untyped doc at the config root should stay a role: %#v", s.Roles)
+	}
+	if s.Flights["morning"].Type != TypeAuto {
+		t.Errorf("inferred flight should keep an empty Type, got %q", s.Flights["morning"].Type)
+	}
+}
+
+func TestNamesCollideOnlyWithinAKind(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	mkdir(t, filepath.Join(home, DirFlights))
+	write(t, filepath.Join(home, DirQueries, "demo.yaml"), "name: demo\nsignal: github\n")
+	write(t, filepath.Join(home, DirFlights, "demo.yaml"), "name: demo\nqueries: [demo]\n")
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatalf("a query and a flight may share a name: %v", err)
+	}
+	if _, ok := s.Queries["demo"]; !ok {
+		t.Error("query demo missing")
+	}
+	if _, ok := s.Flights["demo"]; !ok {
+		t.Error("flight demo missing")
+	}
+
+	clash := t.TempDir()
+	mkdir(t, filepath.Join(clash, DirQueries))
+	mkdir(t, filepath.Join(clash, DirFlights))
+	write(t, filepath.Join(clash, DirQueries, "a.yaml"), "name: dup\ntype: flight\nqueries: [x]\n")
+	write(t, filepath.Join(clash, DirFlights, "b.yaml"), "name: dup\nqueries: [y]\n")
+	if _, err := LoadDirectivesFromFiles(clash); err == nil {
+		t.Fatal("two flights with the same name should collide across collections")
 	}
 }
 

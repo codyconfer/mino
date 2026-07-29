@@ -13,7 +13,7 @@ func TestKindStyleNegativeUsesErrorTone(t *testing.T) {
 		t.Fatalf("Classify(error) = %v, want KindNegative", got)
 	}
 	th := theme.Cur()
-	neg := kindStyle(th, "error").Render("x")
+	neg := theme.SeverityStyle(glyph.Classify("error")).Render("x")
 	dim := th.Dim.Render("x")
 	cant := th.Cant.Render("x")
 	if neg == dim && neg != cant {

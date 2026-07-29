@@ -238,13 +238,26 @@ func nullTime(t time.Time) any {
 	return t.UTC()
 }
 
+var timeLayouts = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02 15:04:05.999999999 -0700 MST",
+	"2006-01-02 15:04:05.999999999 -0700",
+	"2006-01-02 15:04:05",
+	"2006-01-02",
+}
+
 func parseTime(s string) time.Time {
-	if s == "" || s == "NULL" {
+	s = strings.TrimSpace(s)
+	if s == "" || strings.EqualFold(s, "NULL") {
 		return time.Time{}
 	}
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"} {
+	if i := strings.Index(s, " m="); i > 0 {
+		s = s[:i]
+	}
+	for _, layout := range timeLayouts {
 		if t, err := time.Parse(layout, s); err == nil {
-			return t
+			return t.UTC()
 		}
 	}
 	return time.Time{}

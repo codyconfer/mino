@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/codyconfer/viewkit/keys"
+
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/keymap"
@@ -78,7 +80,7 @@ func TestHotkeyResolveTargets(t *testing.T) {
 		{"alt+[", keymap.TargetRolePrev},
 		{"alt+]", keymap.TargetRoleNext},
 	} {
-		got, ok := keymap.ResolveHotkey(kit.keybinds(), tc.key)
+		got, ok := keys.Resolve(kit.keybinds(), tc.key)
 		if !ok || got != tc.want {
 			t.Errorf("%s → %q,%v want %q", tc.key, got, ok, tc.want)
 		}

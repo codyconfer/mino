@@ -28,8 +28,8 @@ func (q Query) Display() string {
 	return q.Label
 }
 
-func Emit(w io.Writer, format string, sections []signals.Section) error {
-	r, err := render.New(render.Format(format))
+func Emit(w io.Writer, format, root string, sections []signals.Section) error {
+	r, err := render.New(render.Format(format), root)
 	if err != nil {
 		return errs.Wrapf(errs.KindConfig, err, "invalid output format %q", format).
 			WithHint("set output to terminal or json")

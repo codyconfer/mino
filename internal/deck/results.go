@@ -9,7 +9,7 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-func NewResults(title string, ctx [][2]string, load func() []signals.Section) *vkdeck.ItemList {
+func NewResults(title, root string, ctx [][2]string, load func() []signals.Section) *vkdeck.ItemList {
 	return vkdeck.NewItemList(title, ctx,
 		func() any {
 			if load == nil {
@@ -19,7 +19,7 @@ func NewResults(title string, ctx [][2]string, load func() []signals.Section) *v
 		},
 		func(width int, fetched any) []list.Item {
 			sections, _ := fetched.([]signals.Section)
-			return render.SectionItems(layout.ScreenFrame(width-listIndent), sections)
+			return render.SectionItems(layout.ScreenFrame(width-listIndent), root, sections)
 		},
 	)
 }

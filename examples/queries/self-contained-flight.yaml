@@ -1,0 +1,18 @@
+# `type:` picks the kind, so a flight can live in `queries/` beside the queries
+# it composes. Without the `type: flight` line this document would be read as a
+# query or filter, because that is what the `queries/` directory defaults to.
+name: escalations
+type: flight
+queries: [escalations-open, escalations-mine]
+---
+name: escalations-open
+type: query
+signal: github
+params:
+  query: "is:open label:incident sort:created-desc"
+---
+name: escalations-mine
+type: query
+signal: github
+params:
+  query: "is:open label:incident assignee:@me"

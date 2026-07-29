@@ -57,5 +57,5 @@ func addDriveFile(cmd *cobra.Command, name, content, mime, dir string) error {
 	}
 	sections := []signals.Section{{Signal: "drive", Title: "Created file in " + target, Items: []signals.Item{item}}}
 	shared.Audit.RecordAction("drive add", shared.Cfg.Role, started, time.Now(), sections)
-	return emit(cmd.OutOrStdout(), sections)
+	return emit(cmd.OutOrStdout(), "drive", sections)
 }

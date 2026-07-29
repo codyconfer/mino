@@ -164,35 +164,38 @@ func Roles(directives *config.Directives) []Finding {
 func Flights(directives *config.Directives) []Finding {
 	var out []Finding
 	for _, name := range directives.FlightNames() {
-		fl := directives.Flights[name]
-		f := Finding{Name: name, OK: true}
-		snippet := func() string { return toYAML(fl) }
-
-		if len(fl.Queries) == 0 {
-			f.OK, f.Msg, f.Snippet = false, "flight has no queries", snippet()
-		} else {
-			var missing, notRunnable []string
-			for _, q := range fl.Queries {
-				def, ok := directives.Queries[q]
-				switch {
-				case !ok:
-					missing = append(missing, q)
-				case !def.Runnable():
-					notRunnable = append(notRunnable, q)
-				}
-			}
-			switch {
-			case len(missing) > 0:
-				f.OK, f.Msg, f.Snippet = false,
-					"unknown queries: "+strings.Join(missing, ", "), snippet()
-			case len(notRunnable) > 0:
-				f.OK, f.Msg, f.Snippet = false,
-					"filter-only, nothing to run: "+strings.Join(notRunnable, ", "), snippet()
-			}
-		}
-		out = append(out, f)
+		out = append(out, Flight(directives, name, directives.Flights[name]))
 	}
 	return out
+}
+
+func Flight(directives *config.Directives, name string, fl config.Flight) Finding {
+	f := Finding{Name: name, OK: true}
+	snippet := func() string { return toYAML(fl) }
+
+	if len(fl.Queries) == 0 {
+		f.OK, f.Msg, f.Snippet = false, "flight has no queries", snippet()
+	} else {
+		var missing, notRunnable []string
+		for _, q := range fl.Queries {
+			def, ok := directives.Queries[q]
+			switch {
+			case !ok:
+				missing = append(missing, q)
+			case !def.Runnable():
+				notRunnable = append(notRunnable, q)
+			}
+		}
+		switch {
+		case len(missing) > 0:
+			f.OK, f.Msg, f.Snippet = false,
+				"unknown queries: "+strings.Join(missing, ", "), snippet()
+		case len(notRunnable) > 0:
+			f.OK, f.Msg, f.Snippet = false,
+				"filter-only, nothing to run: "+strings.Join(notRunnable, ", "), snippet()
+		}
+	}
+	return f
 }
 
 func Plugins() []Finding {
@@ -297,45 +300,48 @@ func Plugins() []Finding {
 func Queries(directives *config.Directives) []Finding {
 	var out []Finding
 	for _, name := range directives.QueryNames() {
-		q := directives.Queries[name]
-		f := Finding{Name: name, OK: true}
-		snippet := func() string { return toYAML(q) }
-
-		switch {
-		case !q.Runnable() && !q.HasFilter() && len(q.Filters) == 0:
-			f.OK, f.Warn, f.Msg, f.Snippet = true, true, "defines neither a signal nor any filter rules", snippet()
-		case q.Runnable() && !build.KnownSignals()[q.Signal]:
-			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("unknown signal %q", q.Signal), snippet()
-		case q.Runnable() && !build.HasBuilder(q.Signal):
-			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("signal %q registered but has no host builder", q.Signal), snippet()
-		case q.Runnable() && !plugin.SignalEnabled(q.Signal):
-			f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("signal %q references disabled plugin", q.Signal), snippet()
-		default:
-			var missing []string
-			for _, qf := range q.Filters {
-				if qf.Ref != "" {
-					if _, ok := directives.Filter(qf.Ref); ok {
-						continue
-					}
-					if plugin.HasFilter(qf.Ref) {
-						continue
-					}
-					missing = append(missing, qf.Ref)
-				}
-			}
-			if len(missing) > 0 {
-				f.OK, f.Msg, f.Snippet = false, "unknown filters: "+strings.Join(missing, ", "), snippet()
-			} else if resolved, err := directives.Resolve(q); err != nil {
-				f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
-			} else if _, err := filter.ExpandParams(q.Params, resolved); err != nil {
-				f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
-			} else if _, err := filter.CompileAll(resolved); err != nil {
-				f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
-			}
-		}
-		out = append(out, f)
+		out = append(out, Query(directives, name, directives.Queries[name]))
 	}
 	return out
+}
+
+func Query(directives *config.Directives, name string, q config.Query) Finding {
+	f := Finding{Name: name, OK: true}
+	snippet := func() string { return toYAML(q) }
+
+	switch {
+	case !q.Runnable() && !q.HasFilter() && len(q.Filters) == 0:
+		f.OK, f.Warn, f.Msg, f.Snippet = true, true, "defines neither a signal nor any filter rules", snippet()
+	case q.Runnable() && !build.KnownSignals()[q.Signal]:
+		f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("unknown signal %q", q.Signal), snippet()
+	case q.Runnable() && !build.HasBuilder(q.Signal):
+		f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("signal %q registered but has no host builder", q.Signal), snippet()
+	case q.Runnable() && !plugin.SignalEnabled(q.Signal):
+		f.OK, f.Msg, f.Snippet = false, fmt.Sprintf("signal %q references disabled plugin", q.Signal), snippet()
+	default:
+		var missing []string
+		for _, qf := range q.Filters {
+			if qf.Ref != "" {
+				if _, ok := directives.Filter(qf.Ref); ok {
+					continue
+				}
+				if plugin.HasFilter(qf.Ref) {
+					continue
+				}
+				missing = append(missing, qf.Ref)
+			}
+		}
+		if len(missing) > 0 {
+			f.OK, f.Msg, f.Snippet = false, "unknown filters: "+strings.Join(missing, ", "), snippet()
+		} else if resolved, err := directives.Resolve(q); err != nil {
+			f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
+		} else if _, err := filter.ExpandParams(q.Params, resolved); err != nil {
+			f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
+		} else if _, err := filter.CompileAll(resolved); err != nil {
+			f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
+		}
+	}
+	return f
 }
 
 func Onboarding(ctx context.Context, tokens auth.TokenStore, apiURLRaw string) []Finding {

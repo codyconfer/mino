@@ -15,6 +15,12 @@ files or share one — see `queries/no-bots.yaml` (a filter on its own) and
 `queries/templated-prs.yaml` (a filter and its query in one `---`-separated
 file).
 
+`type:` is the kind discriminator across all four kinds — `query`, `filter`,
+`flight`, `role` — so the table above describes defaults, not limits. A document
+carrying an explicit `type:` is read as that kind in whichever directory it
+sits: see `queries/self-contained-flight.yaml`, a flight declared alongside the
+query it composes. Omit `type:` and the directory decides.
+
 ## Role `contexts:`, `hooks:`, and `status:`
 
 On role activation (`--role`, `MUNIN_ROLE`, or config `role:`), munin applies
@@ -23,7 +29,7 @@ On role activation (`--role`, `MUNIN_ROLE`, or config `role:`), munin applies
 ```yaml
 contexts:
   kubectl: prod
-  gcx: myorg.grafana.net
+  gcx: myorg.example.net
 ```
 
 Optional `hooks:` run shell scripts when entering or leaving a role. On a role

@@ -57,5 +57,5 @@ func addTask(cmd *cobra.Command, title, notes, due, list string) error {
 	}
 	sections := []signals.Section{{Signal: "tasks", Title: "Created task in " + target, Items: []signals.Item{item}}}
 	shared.Audit.RecordAction("tasks add", shared.Cfg.Role, started, time.Now(), sections)
-	return emit(cmd.OutOrStdout(), sections)
+	return emit(cmd.OutOrStdout(), "tasks", sections)
 }

@@ -9,8 +9,6 @@ import (
 
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
-	vnotify "github.com/codyconfer/viewkit/notify"
-	"github.com/codyconfer/viewkit/panels"
 	"github.com/codyconfer/viewkit/theme"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
@@ -21,10 +19,6 @@ import (
 	"github.com/codyconfer/munin/internal/render/glyph"
 	"github.com/codyconfer/munin/internal/signals/build"
 )
-
-const pluginsToastTTL = 3 * time.Second
-
-type pluginsToastPruneMsg time.Time
 
 type pluginsToggledMsg struct {
 	id  string
@@ -57,13 +51,13 @@ type pluginsPage struct {
 	kit    *Kit
 	rows   []pluginRow
 	cursor int
-	queue  *vnotify.Queue
+	toast  *vkdeck.Toaster
 }
 
 func (k *Kit) Plugins() vkdeck.View {
 	_ = build.KnownSignals()
 	plugin.LoadEnabled()
-	page := &pluginsPage{kit: k, queue: vnotify.NewQueue(4)}
+	page := &pluginsPage{kit: k, toast: vkdeck.NewToaster(4, 3*time.Second)}
 	page.reload()
 	return page
 }
@@ -120,34 +114,28 @@ func (p *pluginsPage) Hints() [][2]string {
 }
 
 func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
+	if cmd, handled := p.toast.Update(msg); handled {
+		return cmd
+	}
 	switch m := msg.(type) {
 	case pluginsToggledMsg:
 		if m.err != nil {
 			return a.Push(vkdeck.NewMessage("plugins", theme.Cur().Cant.Render(m.err.Error()), p.kit.menuCtx()))
 		}
 		p.reload()
-		p.queue.PushFor(mnotify.PluginToggled(m.id, m.on), time.Now(), pluginsToastTTL)
-		return p.pruneTick()
+		return p.toast.Push(mnotify.PluginToggled(m.id, m.on))
 	case pluginsInstalledMsg:
 		if m.err != nil {
 			return a.Push(vkdeck.NewMessage("plugins", theme.Cur().Cant.Render(m.err.Error()), p.kit.menuCtx()))
 		}
 		p.reload()
-		p.queue.PushFor(mnotify.PluginInstalled(m.id, m.written, m.skipped), time.Now(), pluginsToastTTL)
-		return p.pruneTick()
+		return p.toast.Push(mnotify.PluginInstalled(m.id, m.written, m.skipped))
 	case pluginsUninstalledMsg:
 		if m.err != nil {
 			return a.Push(vkdeck.NewMessage("plugins", theme.Cur().Cant.Render(m.err.Error()), p.kit.menuCtx()))
 		}
 		p.reload()
-		p.queue.PushFor(mnotify.PluginUninstalled(m.id, m.removed, m.kept), time.Now(), pluginsToastTTL)
-		return p.pruneTick()
-	case pluginsToastPruneMsg:
-		p.queue.Prune(time.Time(m))
-		if p.queue.Active() {
-			return p.pruneTick()
-		}
-		return nil
+		return p.toast.Push(mnotify.PluginUninstalled(m.id, m.removed, m.kept))
 	case tea.KeyMsg:
 		act, ok := keymap.Plugins().Action(m.String())
 		if !ok {
@@ -199,10 +187,6 @@ func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		}
 	}
 	return nil
-}
-
-func (p *pluginsPage) pruneTick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return pluginsToastPruneMsg(t) })
 }
 
 func (k *Kit) pluginsInstallPicker() vkdeck.View {
@@ -257,10 +241,11 @@ func (k *Kit) pluginsInstallPicker() vkdeck.View {
 func (p *pluginsPage) Body(width, _ int) string {
 	th := theme.Cur()
 	f := layout.ScreenFrame(width)
-	var lines []string
 	if len(p.rows) == 0 {
-		lines = append(lines, th.Dim.Render("(no managed plugins — press i to install)"))
+		body := f.TitledBox(strings.ToUpper(p.Title()), th.Dim.Render("(no managed plugins — press i to install)"))
+		return p.toast.Body(body, width)
 	}
+	lines := make([]string, 0, len(p.rows))
 	for i, row := range p.rows {
 		cursor := "  "
 		label := th.Val.Render(row.id)
@@ -278,10 +263,7 @@ func (p *pluginsPage) Body(width, _ int) string {
 		}
 		lines = append(lines, line)
 	}
+	lines = layout.CursorRows(lines, p.cursor, 0)
 	body := f.TitledBox(strings.ToUpper(p.Title()), lines...)
-	n, ok := p.queue.Current()
-	if !ok {
-		return body
-	}
-	return panels.NotificationOverlay(body, f, n, layout.OverlayPos{XFrac: 0.5, YFrac: 0})
+	return p.toast.Body(body, width)
 }

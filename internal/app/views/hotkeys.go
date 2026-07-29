@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/keymap"
@@ -17,7 +18,7 @@ type roleLifecycleSettleMsg struct{ gen uint64 }
 func (k *Kit) KeyHook() vkdeck.KeyHook {
 	return func(m *vkdeck.Model, key tea.KeyMsg) (tea.Cmd, bool) {
 		binds := k.keybinds()
-		target, ok := keymap.ResolveHotkey(binds, key.String())
+		target, ok := keys.Resolve(binds, key.String())
 		if !ok {
 			return nil, false
 		}
@@ -126,7 +127,7 @@ func (k *Kit) hotkeyHints() [][2]string {
 		}
 		for key, target := range binds {
 			if target == o.target {
-				out = append(out, [2]string{keymap.NormalizeKey(key), o.label})
+				out = append(out, [2]string{keys.Normalize(key), o.label})
 				break
 			}
 		}

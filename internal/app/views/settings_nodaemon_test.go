@@ -9,7 +9,7 @@ import (
 
 func TestSettingsEditConfigOmitsDaemonFields(t *testing.T) {
 	kit := testKit(t)
-	vals := kit.setvEditConfigView().(*setvEditForm).form.Values()
+	vals := setvFormValues(kit.setvEditConfigView())
 	for key := range vals {
 		if strings.HasPrefix(key, "daemon.") {
 			t.Errorf("nodaemon build still offers config field %q", key)
@@ -27,7 +27,7 @@ func TestSettingsEditConfigOmitsDaemonFields(t *testing.T) {
 
 func TestSettingsStatusBarOmitsDaemonChip(t *testing.T) {
 	kit := testKit(t)
-	if _, ok := kit.setvStatusBarView().(*setvStatusBarForm).form.Values()["daemon"]; ok {
+	if _, ok := setvFormValues(kit.setvStatusBarView())["daemon"]; ok {
 		t.Error("nodaemon build still offers a daemon status chip toggle")
 	}
 	body := setvRender(kit.setvStatusBarView())

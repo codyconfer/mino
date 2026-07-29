@@ -58,15 +58,17 @@ arguments via `ARGS="…"`), and a fixed stdin/stdout/stderr contract:
 
 `make run` is deck only — it does not leave a serve process behind. `munin deck` is
 the interactive front-end (formerly `munin tui`, still accepted as a hidden alias):
-a main menu, live flight runs, run **history**, a **directives** browser
-(view/run/validate/create/edit/delete queries, flights, roles), **Notes**
-(notes/tasks/reminders), a **Plugins** enable/disable screen, accounts, an ad-hoc
+a main menu, run **history**, **query** and **flight** builders that build, run,
+validate, save, and delete in one view each, a **directives** browser for roles,
+**Notes** (notes/tasks/reminders), a **Plugins** enable/disable screen, accounts, an ad-hoc
 read-only **audit query** screen, and **settings**. `munin deck <flight>` jumps
 straight to a flight; `munin settings` opens just the settings screens. Its status
 strip shows whether the background daemon is installed and running.
 
-Flight and query results render as a **git-style tree** — the flight is the trunk,
-each signal a branch, each item a leaf — in both cli output and the deck.
+Flight and query results render as a **git-style tree** — the run is the trunk,
+each signal a branch, each item a leaf — in both cli output and the deck. The
+trunk is labelled with what you ran: the flight name for `munin fly morning`, the
+query name for `munin query my-prs`, the signal for `munin github query`.
 
 ## How it works
 
@@ -120,9 +122,16 @@ default path. Try `munin fly demo`, `munin serve notify-smoke`, or
 you're wearing. A role names the flights and queries it surfaces (filters are
 queries, so one `queries:` list covers both); while
 that role is active, lists and the TUI show only those, and a bare `munin fly`
-runs the role's first flight. With no active role, everything is listed. Set the
+runs the role's first flight. **Fly → Queries** and **Fly → Flights** both honour
+the active role, so the two lists stay consistent with `munin list`.
+
+**No role means everything.** With no active role, every query, filter, and
+flight is listed. That is a first-class position in the role ring, not just the
+startup default: `alt+]` / `alt+[` in the deck cycle *through* no-role, so you can
+step off a role — even the only one you have defined — and see everything again.
+Leaving it also runs the role's `exit` hooks and clears its status chips. Set the
 active role with `--role`, `$MUNIN_ROLE`, or `role:` in config, and inspect your
-context with `munin role`.
+context with `munin role` (which prints `(none)` when no role is active).
 
 → [How to create a role config](#create-a-role-config)
 
@@ -280,6 +289,35 @@ params:
 enforced: `type: query` requires a signal and keeps that document's `rules:`
 private to it, `type: filter` forbids a signal and requires filter content.
 
+`type:` also decides *which kind* a document is, not just which variety of
+query. The four values are `query`, `filter`, `flight`, and `role`, and any of
+them is valid in any collection — a flight can sit in `queries/` next to the
+queries it composes, and a filter can sit in `flights/`:
+
+```yaml
+# ~/.munin/queries/triage.yaml
+name: triage
+type: flight
+queries: [incidents, loki-errors]
+---
+name: incidents
+type: query
+signal: github
+params:
+  query: "org:acme is:issue label:incident"
+```
+
+The directory only supplies the *default* when `type:` is omitted: documents in
+`queries/` default to the query/filter inference above, documents in `flights/`
+default to `flight`, and the loose `*.yaml` files beside `config.yaml` default to
+`role`. Roles and flights are structurally similar — both list `queries:` — so
+crossing collections requires the explicit `type:` line.
+
+An explicit `type:` is enforced: `type: flight` requires `queries:` and forbids
+`signal:` and filter content; `type: role` forbids both too. Names collide only
+within a kind, so a query and a flight may share a name (as `demo` does) but two
+flights may not, wherever they are defined.
+
 `name` stays the invocable identifier (`munin query slack-standup`) and the audit
 key; `title` is only what you read. When set, `munin fly` heads that query's
 results panel with the title instead of the name — rename it freely without
@@ -295,6 +333,96 @@ munin filter list               # saved filters plus plugin filter engines
 ```
 
 Every file may be YAML (`.yaml`/`.yml`) or JSON (`.json`) — the two mix freely.
+
+## Build and manage queries and flights without writing YAML
+
+**Fly → Queries** and **Fly → Flights** are the whole surface for the `queries/`
+and `flights/` collections: **New** first, then every saved document with a
+one-line summary. There are no sub-screens — picking any entry opens one builder
+view, on a blank document or on that one, and everything happens there by
+keybinding:
+
+| key | does |
+|---|---|
+| `ctrl+r` | run the document as it currently stands |
+| `ctrl+t` | validate it and show the findings inline |
+| `ctrl+y` | toggle a YAML panel showing exactly what would be saved |
+| `ctrl+s` | save (needs a name) |
+| `ctrl+x` | delete, with a confirmation dialog (saved documents only) |
+| `tab` | move focus between the form and the results |
+| `esc` | back |
+
+Validation runs against what's in the form, not the file on disk, so it catches
+problems in edits you haven't saved yet — an unknown signal, a disabled plugin, a
+filter reference that doesn't resolve, a regex that won't compile.
+
+Results land in a scrollable panel under the form, not on a separate screen, so
+the query that produced them stays in front of you. Focus moves to the results
+when a run finishes; `tab` goes back to the form, and `↑/↓`, `pgup/pgdn`, and
+`enter` (open the item's link) work on the results while they hold focus.
+
+Both panels are sized to fit the terminal. The form scrolls around the focused
+field, marking clipped edges with `⋯`, and the results take the rows their
+content needs. When even that will not fit, the panel that does *not* have focus
+collapses to a one-line summary; `tab` expands it again. Below roughly 20 rows
+the deck's own header and footer leave too little for the builder to lay out
+usefully.
+
+Both surfaces share the same shell, so the keys, the results panel, and the
+save/delete behaviour are identical; only the fields differ. A flight takes an
+ordered comma-separated list of query names, checked against your saved queries
+before it will run or save. Roles keep their own screens under
+**Fly → Directives**.
+
+In the query builder `type:` is the first field — `(infer)`, `query`, or
+`filter` — and the rest of the form follows it: `type: filter` drops `signal`,
+its params, `extra params`, and `filters` entirely, because a filter document
+cannot have them. `type: query` keeps them and requires a signal. `(infer)` shows
+everything and lets the shape decide, the same way a hand-written file does: a
+`signal:` makes it a query, rules alone make it a filter.
+
+Within a query, picking a signal with `←/→` swaps the param fields to match, so
+you get `query` and `project` for `github` but `channel` and `limit` for `slack`.
+Values you typed into fields that later get hidden are remembered for the
+session, so flipping type to compare and back doesn't cost you your input.
+
+Because a run never leaves the view, tuning a regex and re-running is just
+`tab`, edit, `ctrl+r` — no retyping and no screen changes. Editing a saved document includes
+renaming it: change `name`, save, and the file moves and the old name is dropped
+from the store.
+
+What you save is what the form shows: switch a query to `type: filter` and the
+saved document has no `signal:` or `params:`, so it passes the `type: filter`
+validation rather than failing to load over a field you could no longer see.
+
+The builder shows one inline rule and the params it knows about, but editing
+preserves everything it cannot display: `aliases:`, `keywords:`, rules beyond the
+first, and inline (unnamed) entries in `filters:` all survive a round trip.
+Params the signal doesn't declare show up in the `extra params` field as `k=v`
+pairs rather than being dropped.
+
+The same thing from the shell:
+
+```sh
+munin query build --signal github --param query="is:open is:pr author:@me"
+munin query build --signal slack --param channel=eng-standup --filter no-bots
+munin query build --signal github --param query="is:open" --exclude "(?i)wip" --dry-run
+munin query build --signal gmail --param query="is:unread" --save unread-now
+```
+
+`--param` and `--filter` repeat. `--include`/`--exclude`/`--field` add one inline
+rule. `--dry-run` prints the query document instead of running it, which is the
+quickest way to get a starting point for a file you will hand-edit. Without
+`--save` nothing is written — the query runs and is forgotten.
+
+Params are per-signal; `munin query build --help` lists the ones munin knows.
+Anything else you pass through `--param` (or the builder's `extra params` field)
+reaches the signal untouched, which is how plugin-defined params work.
+
+Saving writes the YAML file **and** imports the `queries` collection into DuckDB,
+so a saved query is immediately runnable by name — no `munin import` or restart.
+Because the store versions a whole collection at a time, that import also commits
+any other staged edits sitting in `~/.munin/queries/`.
 
 ## Create a flight config
 
@@ -585,6 +713,7 @@ DB.
 | `munin login <service>` | OAuth login for github/google/slack. |
 | `munin list [queries\|filters\|flights\|roles]` | List what the active role can see (`--all` to ignore the role). |
 | `munin filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
+| `munin query build --signal <name>` | Compose and run an ad-hoc query; `--save <name>` keeps it, `--dry-run` just prints it. |
 | `munin export <directive>` | Materialize DuckDB → files. |
 | `munin apply [directive]` | Write staged files → DuckDB. Never prompts; defaults to `all`. Alias: `munin import`. |
 | `munin settings` | Open just the settings screens of the deck. |
@@ -612,6 +741,43 @@ DB.
 | Google Drive | `drive query`, `drive add` | **Read + write** | Creates a file **only** in the configured `drive.dir`; a write to any other folder is rejected *before* the API call. Reads any folder. Uses the full `drive` OAuth scope (folder discovery + create). |
 | Google Tasks | `tasks query`, `tasks add` | **Read + write** | Creates a task **only** in the configured `tasks.list`; a write to any other list is rejected *before* the API call. Reads any list. |
 | Slack | `slack query --channel <name>` | Read-only | — |
+
+### GitHub project boards
+
+The `github` signal has two modes. With `query:` it runs a GitHub **search**
+(`is:open is:pr author:@me`). With `project:` it reads a **Projects v2 board** —
+one section per board column, which search alone cannot express, because a
+column is a project field value and `status:` is not a search qualifier:
+
+```yaml
+name: board-in-progress
+signal: github
+params:
+  project: acme/17              # owner/number, or a project URL
+  filter: 'status:"In Progress" repo:acme/escalations is:open -is:pr'
+  title: Escalations · In Progress   # optional section heading
+  field: Status                      # optional, defaults to Status
+```
+
+`filter:` takes the same syntax as a board view's filter bar, so a view's filter
+copies straight across: `status:`, `repo:`, `is:` (`open`/`closed`/`merged`/
+`draft`/`issue`/`pr`), `assignee:`, `author:`, `label:`, `no:`, `sort:`, plus
+bare words as title/body text. Values are comma-OR'd, `-` negates, quote values
+containing spaces, and `@me` resolves to the authenticated user. An unsupported
+qualifier is a config error rather than a silently-ignored text term.
+
+Everything except `status:`/`no:` runs server-side through the search API scoped
+to `project:owner/number`; the field value is read from each result's
+`projectItems` and matched locally. This keeps a query to one or two API calls —
+paging a whole board would be one call per 100 items. Board columns hold only
+issues and pull requests this way; draft (note) cards are not searchable.
+
+Reading a project needs the **`read:project`** scope, which is not in the default
+device-flow scope set: `gh auth refresh -s read:project`, or add it to
+`github.oauth_scopes` before `munin login github`.
+
+Each item carries the field value in `meta.status`, so filter rules can narrow
+further (`field: meta.status`, `field: meta.labels`, `field: meta.assignees`).
 
 The write restriction is Munin policy enforced in `cmd/tasks.go:resolveWriteTarget`
 before the API call — the OAuth token itself grants broader write access, so the

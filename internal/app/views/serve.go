@@ -24,25 +24,23 @@ const serveInboxTTL = 5 * time.Minute
 
 type serveEventMsg struct{ ev signals.Event }
 type serveClosedMsg struct{}
-type servePruneMsg time.Time
-
 type ServeView struct {
 	flight string
 	events <-chan signals.Event
-	queue  *vnotify.Queue
+	toast  *vkdeck.Toaster
 	count  int
 	last   string
 	closed bool
 }
 
 func NewServeView(flight string, events <-chan signals.Event) *ServeView {
-	return &ServeView{flight: flight, events: events, queue: vnotify.NewQueue(500)}
+	return &ServeView{flight: flight, events: events, toast: vkdeck.NewToaster(500, serveInboxTTL)}
 }
 
 func (v *ServeView) Title() string { return "serve" }
 
 func (v *ServeView) Init() tea.Cmd {
-	return tea.Batch(v.waitEvent(), v.pruneTick())
+	return v.waitEvent()
 }
 
 func (v *ServeView) waitEvent() tea.Cmd {
@@ -55,26 +53,22 @@ func (v *ServeView) waitEvent() tea.Cmd {
 	}
 }
 
-func (v *ServeView) pruneTick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return servePruneMsg(t) })
-}
-
 func (v *ServeView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
+	if cmd, handled := v.toast.Update(msg); handled {
+		return cmd
+	}
 	switch m := msg.(type) {
 	case serveEventMsg:
+		var tick tea.Cmd
 		if n, show := mnotify.FromEvent(m.ev); show {
-			now := time.Now()
-			v.queue.PushFor(n, now, serveInboxTTL)
+			tick = v.toast.PushFor(n, serveInboxTTL)
 			v.count++
-			v.last = now.Format("15:04:05")
+			v.last = time.Now().Format("15:04:05")
 		}
-		return v.waitEvent()
+		return tea.Batch(tick, v.waitEvent())
 	case serveClosedMsg:
 		v.closed = true
 		return nil
-	case servePruneMsg:
-		v.queue.Prune(time.Time(m))
-		return v.pruneTick()
 	case tea.KeyMsg:
 		if act, ok := keymap.Menu().Action(m.String()); ok && act == keys.Cancel {
 			return a.Pop()
@@ -85,7 +79,8 @@ func (v *ServeView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 
 func (v *ServeView) Body(width, height int) string {
 	f := layout.ScreenFrame(width)
-	ns := v.queue.Snapshot()
+	v.toast.Prune()
+	ns := v.toast.Queue().Snapshot()
 	recent := make([]vnotify.Notification, 0, len(ns))
 	for i := len(ns) - 1; i >= 0; i-- {
 		recent = append(recent, ns[i])

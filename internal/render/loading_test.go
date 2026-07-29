@@ -71,3 +71,51 @@ func stripANSI(s string) string {
 	}
 	return b.String()
 }
+
+func TestLoadingDoneSettlesIntoACheckmark(t *testing.T) {
+	var buf bytes.Buffer
+	l := StartLoading(LoadingOptions{
+		Writer:      &buf,
+		Message:     "starting…",
+		DoneMessage: "ready",
+		Force:       true,
+		Interval:    5 * time.Millisecond,
+		Frames:      []string{"⠁", "⠂"},
+	})
+
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) && !strings.Contains(buf.String(), "⠂") {
+		time.Sleep(5 * time.Millisecond)
+	}
+	l.Done()
+
+	out := buf.String()
+	if !strings.HasSuffix(out, "\n") {
+		t.Errorf("settled line should end with a newline so later output does not overwrite it: %q", out)
+	}
+	tailAt := strings.LastIndex(out, "\033[K")
+	if tailAt < 0 {
+		t.Fatalf("no line clear before the settled line: %q", out)
+	}
+	tail := out[tailAt:]
+	if !strings.Contains(tail, "ready") {
+		t.Errorf("settled line missing the done message: %q", tail)
+	}
+	for _, frame := range []string{"⠁", "⠂"} {
+		if strings.Contains(tail, frame) {
+			t.Errorf("settled line still shows spinner frame %q: %q", frame, tail)
+		}
+	}
+	if strings.Contains(tail, "starting…") {
+		t.Errorf("settled line should replace the in-progress message: %q", tail)
+	}
+}
+
+func TestLoadingDoneOnNonTTYStaysSilent(t *testing.T) {
+	var buf bytes.Buffer
+	l := StartLoading(LoadingOptions{Writer: &buf, Message: "starting…", DoneMessage: "ready"})
+	l.Done()
+	if buf.Len() != 0 {
+		t.Errorf("non-TTY Done should print nothing, got %q", buf.String())
+	}
+}

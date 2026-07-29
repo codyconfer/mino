@@ -38,8 +38,8 @@ func testKit(t *testing.T) *Kit {
 	return New(Deps{
 		App:                &app.App{Cfg: cfg, Directives: directives},
 		FetchQuery:         func(string) []signals.Section { return nil },
-		FetchFlight:        func(string) []signals.Section { return nil },
 		FetchFlightAudited: func(string) []signals.Section { return nil },
+		FetchFlightQueries: func(string, []string) []signals.Section { return nil },
 		Verify:             func(string) []Finding { return nil },
 		ExportDirectives:   func() ([]string, error) { return nil, nil },
 	})
@@ -187,7 +187,7 @@ func TestFlySubmenuIncludesHistoryWhenPresent(t *testing.T) {
 	for _, it := range kit.flyMenuItems() {
 		flyLabels = append(flyLabels, it.Label)
 	}
-	want := []string{"Flights", "History", "Directives"}
+	want := []string{"Flights", "History", "Queries", "Directives"}
 	if len(flyLabels) != len(want) {
 		t.Fatalf("fly submenu = %v, want %v", flyLabels, want)
 	}
@@ -298,6 +298,10 @@ func TestViewsSmoke(t *testing.T) {
 		"fly":        kit.Fly(),
 		"tooling":    kit.Tooling(),
 		"directives": kit.directivesMenu(),
+		"queries":    kit.Queries(),
+		"flights":    kit.Flights(),
+		"flightnew":  kit.FlightBuilder(),
+		"builder":    kit.QueryBuilder(),
 		"settings":   kit.Settings(),
 		"audit":      kit.AuditQuery(),
 		"ntr":        kit.NTR(),

@@ -11,6 +11,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
@@ -29,6 +31,59 @@ func setvRender(v vkdeck.View) string {
 	app := deck.New(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	return app.View()
+}
+
+func setvFormValues(v vkdeck.View) map[string]any {
+	return v.(*vkdeck.FormView).Values()
+}
+
+func setvFormKeys(t *testing.T, v vkdeck.View) map[string]struct{} {
+	t.Helper()
+	vals := setvFormValues(v)
+	out := make(map[string]struct{}, len(vals))
+	for k := range vals {
+		out[k] = struct{}{}
+	}
+	return out
+}
+
+func setvWantKeys(t *testing.T, v vkdeck.View, want ...string) {
+	t.Helper()
+	got := setvFormKeys(t, v)
+	for _, w := range want {
+		if _, ok := got[w]; !ok {
+			t.Errorf("form %q missing field %q: %v", v.Title(), w, got)
+		}
+	}
+}
+
+func setvStack(kit *Kit, form vkdeck.View) *vkdeck.Model {
+	app := deck.New(kit.Settings())
+	_ = app.Push(form)
+	return app
+}
+
+func setvBody(app *vkdeck.Model) string {
+	return ansi.Strip(step(app, tea.WindowSizeMsg{Width: 120, Height: 40}).View())
+}
+
+func setvBreakConfigDir(t *testing.T) {
+	t.Helper()
+	blocker := filepath.Join(t.TempDir(), "not-a-dir")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatalf("write blocker: %v", err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", blocker)
+	t.Setenv("AppData", blocker)
+}
+
+func setvKeepAppearance(t *testing.T) {
+	t.Helper()
+	th, sc := *theme.Cur(), keys.Cur()
+	t.Cleanup(func() {
+		theme.Use(th)
+		keys.Use(sc)
+	})
 }
 
 func hasLabel(labels []string, want string) bool {
@@ -267,5 +322,193 @@ func TestSettingsImportExportRequireConfirmation(t *testing.T) {
 	}
 	if !strings.Contains(got, "Yes, export") || !strings.Contains(got, "No, cancel") {
 		t.Fatalf("export confirm options missing: %q", got)
+	}
+}
+
+func TestSetvEditConfigFormFields(t *testing.T) {
+	kit := testKit(t)
+	v := kit.setvEditConfigView()
+	setvWantKeys(t, v, "output", "audit.enabled", "timeout", "backup.destination", "backup.keep")
+	if got := v.Title(); got != "edit config" {
+		t.Errorf("title = %q, want edit config", got)
+	}
+	if got := v.Hints(); len(got) != 3 || got[2][0] != "ctrl+s" {
+		t.Errorf("hints = %v, want explicit field/change/ctrl+s legend", got)
+	}
+	for _, h := range v.Hints() {
+		if strings.ContainsAny(h[0], "jk") {
+			t.Errorf("hints advertise unbound single-char keys: %v", v.Hints())
+		}
+	}
+}
+
+func TestSetvSaveConfigPersistsValues(t *testing.T) {
+	kit := testKit(t)
+	home := kit.d.App.Cfg.Home
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("output: terminal\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	app := setvStack(kit, kit.setvEditConfigView())
+	vals := map[string]any{
+		"output":             "json",
+		"timeout":            "45s",
+		"audit.enabled":      true,
+		"backup.destination": "gdrive",
+		"backup.keep":        "7",
+	}
+	if cmd := kit.setvSaveConfig(app, vals); cmd == nil {
+		t.Fatal("setvSaveConfig returned nil cmd")
+	}
+	raw, err := os.ReadFile(filepath.Join(home, "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"output: json", "timeout: 45s", "enabled: true", "destination: gdrive", "keep: 7"} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("config missing %q:\n%s", want, raw)
+		}
+	}
+	if got := app.Top().Title(); got != "edit config" {
+		t.Fatalf("Top title = %q, want edit config", got)
+	}
+	if body := setvBody(app); !strings.Contains(body, "wrote ") {
+		t.Fatalf("expected wrote-path message: %q", body)
+	}
+}
+
+func TestSetvSaveConfigError(t *testing.T) {
+	kit := testKit(t)
+	home := kit.d.App.Cfg.Home
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("\tnot: [valid\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	app := setvStack(kit, kit.setvEditConfigView())
+	if cmd := kit.setvSaveConfig(app, map[string]any{"output": "json"}); cmd == nil {
+		t.Fatal("setvSaveConfig returned nil cmd on error")
+	}
+	body := setvBody(app)
+	if !strings.Contains(body, "parse config file") {
+		t.Fatalf("expected parse error message: %q", body)
+	}
+}
+
+func TestSetvAppearanceFormFields(t *testing.T) {
+	kit := testKit(t)
+	v := kit.setvAppearanceView()
+	setvWantKeys(t, v, "theme", "keys")
+	if got := len(setvFormValues(v)); got != 2 {
+		t.Errorf("appearance form has %d fields, want 2", got)
+	}
+	if got := v.Title(); got != "appearance" {
+		t.Errorf("title = %q, want appearance", got)
+	}
+}
+
+func TestSetvSaveAppearancePersistsValues(t *testing.T) {
+	setvKeepAppearance(t)
+	kit := testKit(t)
+
+	themeKeys, keyKeys := theme.Keys(), keys.Keys()
+	if len(themeKeys) == 0 || len(keyKeys) == 0 {
+		t.Fatalf("no registered themes/schemes: %v %v", themeKeys, keyKeys)
+	}
+	wantTheme, wantKeys := themeKeys[len(themeKeys)-1], keyKeys[len(keyKeys)-1]
+
+	app := setvStack(kit, kit.setvAppearanceView())
+	if cmd := kit.setvSaveAppearance(app, map[string]any{"theme": wantTheme, "keys": wantKeys}); cmd == nil {
+		t.Fatal("setvSaveAppearance returned nil cmd")
+	}
+	gs := config.LoadGlobalSettings()
+	if gs.Theme != wantTheme || gs.Keys != wantKeys {
+		t.Fatalf("saved settings = %q/%q, want %q/%q", gs.Theme, gs.Keys, wantTheme, wantKeys)
+	}
+	if got := app.Top().Title(); got != "appearance" {
+		t.Fatalf("Top title = %q, want appearance", got)
+	}
+	body := setvBody(app)
+	if !strings.Contains(body, theme.DisplayName(wantTheme)) || !strings.Contains(body, keys.DisplayName(wantKeys)) {
+		t.Fatalf("appearance summary missing display names: %q", body)
+	}
+}
+
+func TestSetvSaveAppearanceError(t *testing.T) {
+	setvKeepAppearance(t)
+	kit := testKit(t)
+	app := setvStack(kit, kit.setvAppearanceView())
+	setvBreakConfigDir(t)
+
+	if cmd := kit.setvSaveAppearance(app, map[string]any{"theme": "munin", "keys": "munin"}); cmd == nil {
+		t.Fatal("setvSaveAppearance returned nil cmd on error")
+	}
+	if body := setvBody(app); !strings.Contains(body, "global settings") {
+		t.Fatalf("expected global settings write error: %q", body)
+	}
+}
+
+func TestSetvStatusBarFormFields(t *testing.T) {
+	kit := testKit(t)
+	v := kit.setvStatusBarView()
+	setvWantKeys(t, v, "github", "slack", "google")
+	if got := v.Title(); got != "status bar" {
+		t.Errorf("title = %q, want status bar", got)
+	}
+	if body := setvRender(v); !strings.Contains(strings.ToUpper(body), "SHOW = VISIBLE CHIP") {
+		t.Fatalf("panel caption lost: %q", body)
+	}
+	if got := v.Hints(); len(got) != 3 || got[1][1] != "show/hide" {
+		t.Errorf("hints = %v, want show/hide legend", got)
+	}
+}
+
+func TestSetvSaveStatusBarPersistsHidden(t *testing.T) {
+	kit := testKit(t)
+	entries := []statusBarEntry{{"github", "github"}, {"slack", "slack"}, {"google", "google"}}
+	app := setvStack(kit, kit.setvStatusBarView())
+
+	vals := map[string]any{"github": false, "slack": true, "google": false}
+	if cmd := kit.setvSaveStatusBar(app, entries, vals); cmd == nil {
+		t.Fatal("setvSaveStatusBar returned nil cmd")
+	}
+	if !config.StatusBarHidden("github") || !config.StatusBarHidden("google") {
+		t.Fatalf("expected github+google hidden, got %v", config.LoadGlobalSettings().HiddenStatusBar)
+	}
+	if config.StatusBarHidden("slack") {
+		t.Fatal("slack should stay visible")
+	}
+	body := setvBody(app)
+	if !strings.Contains(body, "hidden: github, google") || !strings.Contains(body, "shown:  slack") {
+		t.Fatalf("status bar summary wrong: %q", body)
+	}
+}
+
+func TestSetvSaveStatusBarAllShown(t *testing.T) {
+	kit := testKit(t)
+	entries := []statusBarEntry{{"github", "github"}, {"slack", "slack"}}
+	app := setvStack(kit, kit.setvStatusBarView())
+
+	if cmd := kit.setvSaveStatusBar(app, entries, map[string]any{"github": true, "slack": true}); cmd == nil {
+		t.Fatal("setvSaveStatusBar returned nil cmd")
+	}
+	if got := config.LoadGlobalSettings().HiddenStatusBar; len(got) != 0 {
+		t.Fatalf("hidden = %v, want empty", got)
+	}
+	if body := setvBody(app); !strings.Contains(body, "all status chips shown") {
+		t.Fatalf("expected all-shown message: %q", body)
+	}
+}
+
+func TestSetvSaveStatusBarError(t *testing.T) {
+	kit := testKit(t)
+	app := setvStack(kit, kit.setvStatusBarView())
+	setvBreakConfigDir(t)
+
+	entries := []statusBarEntry{{"github", "github"}}
+	if cmd := kit.setvSaveStatusBar(app, entries, map[string]any{"github": false}); cmd == nil {
+		t.Fatal("setvSaveStatusBar returned nil cmd on error")
+	}
+	if body := setvBody(app); !strings.Contains(body, "global settings") {
+		t.Fatalf("expected global settings write error: %q", body)
 	}
 }

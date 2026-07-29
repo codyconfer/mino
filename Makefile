@@ -24,7 +24,7 @@ GOFLAGS_DEV := $(if $(RACE),-race,) $(GOFLAGS_TAGS)
 
 # EMAIL_DOMAIN, when set, compiles a locked-down build that only completes
 # onboarding (and thus unlocks munin) if the git signing key has a GitHub-verified
-# identity in that domain, e.g. `make package EMAIL_DOMAIN=grafana.com`. Left empty,
+# identity in that domain, e.g. `make package EMAIL_DOMAIN=example.com`. Left empty,
 # munin builds with no domain restriction.
 EMAIL_DOMAIN ?=
 ifneq ($(EMAIL_DOMAIN),)

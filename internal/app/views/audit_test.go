@@ -2,17 +2,27 @@ package views
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/codyconfer/sisyphus/configdb"
 	"github.com/codyconfer/sisyphus/kv"
+	"github.com/codyconfer/viewkit/layout"
 
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/signals"
 )
+
+func auditRender(res auditResult) string {
+	me := &auditView{result: res}
+	return me.results(layout.NewFrame(120))
+}
 
 func TestAuditDefaultSQLMatchesSchemas(t *testing.T) {
 	me := &auditView{}
@@ -58,10 +68,11 @@ func TestAuditQueryDefaultAgainstAuditDB(t *testing.T) {
 	}
 
 	me := &auditView{home: home, dbIndex: 0}
-	out, err := me.exec(me.defaultSQL())
+	res, err := me.exec(me.defaultSQL())
 	if err != nil {
 		t.Fatalf("exec: %v", err)
 	}
+	out := auditRender(res)
 	if !strings.Contains(out, "morning") && !strings.Contains(out, "incidents") {
 		t.Fatalf("result missing run names: %q", out)
 	}
@@ -85,11 +96,11 @@ func TestAuditQueryDefaultAgainstConfigDB(t *testing.T) {
 
 	me := &auditView{home: home}
 	me.dbIndex = indexOfDB("config")
-	out, err := me.exec(me.defaultSQL())
+	res, err := me.exec(me.defaultSQL())
 	if err != nil {
 		t.Fatalf("exec: %v", err)
 	}
-	if !strings.Contains(out, "queries") {
+	if out := auditRender(res); !strings.Contains(out, "queries") {
 		t.Fatalf("result missing store name: %q", out)
 	}
 }
@@ -109,10 +120,11 @@ func TestAuditQueryDefaultAgainstTokensDB(t *testing.T) {
 
 	me := &auditView{home: home}
 	me.dbIndex = indexOfDB("tokens")
-	out, err := me.exec(me.defaultSQL())
+	res, err := me.exec(me.defaultSQL())
 	if err != nil {
 		t.Fatalf("exec: %v", err)
 	}
+	out := auditRender(res)
 	if !strings.Contains(out, "github") || !strings.Contains(out, "tokens") {
 		t.Fatalf("result missing kv row: %q", out)
 	}
@@ -128,4 +140,236 @@ func indexOfDB(name string) int {
 		}
 	}
 	return 0
+}
+
+func auditAssertAligned(t *testing.T, out string) {
+	t.Helper()
+	lines := strings.Split(out, "\n")
+	if len(lines) < 3 {
+		t.Fatalf("table too short: %q", out)
+	}
+	want := lipgloss.Width(lines[0])
+	for i, ln := range lines[:len(lines)-1] {
+		if got := lipgloss.Width(ln); got != want {
+			t.Fatalf("line %d width = %d, want %d (%q)", i, got, want, ln)
+		}
+	}
+}
+
+func TestAuditResultsRendersTable(t *testing.T) {
+	out := auditRender(auditResult{
+		ran:  true,
+		cols: []string{"name", "kind", "runs"},
+		rows: [][]string{{"morning", "triage", "3"}, {"evening", "review", "11"}},
+	})
+	for _, want := range []string{"name", "kind", "runs", "morning", "evening", "─┼─", " │ ", "(2 rows)"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("table missing %q: %q", want, out)
+		}
+	}
+	auditAssertAligned(t, out)
+}
+
+func TestAuditResultsWideRunesStayAligned(t *testing.T) {
+	out := auditRender(auditResult{
+		ran:  true,
+		cols: []string{"name", "note"},
+		rows: [][]string{
+			{"ascii", "plain text"},
+			{"日本語のながいなまえ", "レビュー待ち"},
+			{"mixed 語", "tail"},
+		},
+	})
+	auditAssertAligned(t, out)
+}
+
+func TestAuditResultsFlattensAndClamps(t *testing.T) {
+	long := strings.Repeat("x", 200)
+	out := auditRender(auditResult{
+		ran:  true,
+		cols: []string{"a", "b"},
+		rows: [][]string{{"one\ntwo\tthree", long}},
+	})
+	if strings.Count(out, "\n") != 3 {
+		t.Fatalf("cell newline leaked into table: %q", out)
+	}
+	if strings.Contains(out, long) {
+		t.Fatalf("long cell was not clamped: %q", out)
+	}
+	auditAssertAligned(t, out)
+}
+
+func TestAuditResultsRaggedAndEmpty(t *testing.T) {
+	auditAssertAligned(t, auditRender(auditResult{
+		ran:  true,
+		cols: []string{"a", "b", "c"},
+		rows: [][]string{{"only"}},
+	}))
+
+	if out := auditRender(auditResult{ran: true}); !strings.Contains(out, "(no columns)") {
+		t.Fatalf("empty columns = %q", out)
+	}
+	if out := auditRender(auditResult{ran: true, cols: []string{"a"}}); !strings.Contains(out, "(0 rows)") {
+		t.Fatalf("empty rows = %q", out)
+	}
+}
+
+func TestAuditResultsStates(t *testing.T) {
+	if out := auditRender(auditResult{}); !strings.Contains(out, "press enter to run") {
+		t.Fatalf("pre-run state = %q", out)
+	}
+	if out := auditRender(auditResult{ran: true, err: "boom"}); !strings.Contains(out, "boom") {
+		t.Fatalf("error state = %q", out)
+	}
+}
+
+func TestAuditNarrowFrameCapsColumns(t *testing.T) {
+	res := auditResult{
+		ran:  true,
+		cols: []string{"a"},
+		rows: [][]string{{strings.Repeat("y", 120)}},
+	}
+	me := &auditView{result: res}
+	narrow := me.results(layout.NewFrame(24))
+	wide := me.results(layout.NewFrame(200))
+	nw := lipgloss.Width(strings.Split(narrow, "\n")[0])
+	ww := lipgloss.Width(strings.Split(wide, "\n")[0])
+	if nw > ww {
+		t.Fatalf("narrow frame column width %d exceeds wide frame %d", nw, ww)
+	}
+	if ww != 40 {
+		t.Fatalf("wide frame column width = %d, want the 40-cell cap", ww)
+	}
+}
+
+func TestAuditRunRejectsWrites(t *testing.T) {
+	me := &auditView{home: t.TempDir(), sql: "DELETE FROM runs"}
+	me.run()
+	if !strings.Contains(me.result.err, "read-only") {
+		t.Fatalf("write statement not rejected: %+v", me.result)
+	}
+}
+
+func auditScrollView(rows int) *auditView {
+	data := make([][]string, rows)
+	for i := range data {
+		data[i] = []string{fmt.Sprintf("r%02d", i), "value"}
+	}
+	return &auditView{
+		ready:  true,
+		width:  120,
+		height: 20,
+		result: auditResult{ran: true, cols: []string{"id", "val"}, rows: data},
+	}
+}
+
+func TestAuditScrollClamping(t *testing.T) {
+	me := auditScrollView(50)
+	total := layout.CountLines(me.results(me.frame()))
+	window := me.windowRows()
+	if total != 53 {
+		t.Fatalf("total lines = %d, want 53", total)
+	}
+	bottom := total - window
+	if bottom <= 0 {
+		t.Fatalf("window %d does not scroll for %d lines", window, total)
+	}
+
+	me.scrollBy(-1)
+	if me.scroll.Offset != 0 {
+		t.Fatalf("scroll up at top = %d, want 0", me.scroll.Offset)
+	}
+
+	me.scrollBy(5)
+	if me.scroll.Offset != 5 {
+		t.Fatalf("mid scroll = %d, want 5", me.scroll.Offset)
+	}
+	first := strings.Split(layout.Viewport(me.results(me.frame()), me.height, me.scroll.Offset), "\n")[0]
+	if !strings.Contains(first, "r03") {
+		t.Fatalf("first visible line at offset 5 = %q", first)
+	}
+
+	me.scrollBy(1000)
+	if me.scroll.Offset != bottom {
+		t.Fatalf("scroll down past end = %d, want %d", me.scroll.Offset, bottom)
+	}
+	me.scrollBy(1)
+	if me.scroll.Offset != bottom {
+		t.Fatalf("scroll down at bottom = %d, want %d", me.scroll.Offset, bottom)
+	}
+
+	me.scrollBy(-1000)
+	if me.scroll.Offset != 0 {
+		t.Fatalf("scroll up past start = %d, want 0", me.scroll.Offset)
+	}
+}
+
+func TestAuditScrollShorterThanWindow(t *testing.T) {
+	me := auditScrollView(2)
+	body := me.results(me.frame())
+	if layout.CountLines(body) >= me.windowRows() {
+		t.Fatalf("fixture is not shorter than the window")
+	}
+
+	me.scrollBy(1000)
+	if me.scroll.Offset != 0 {
+		t.Fatalf("offset = %d, want 0 for content shorter than window", me.scroll.Offset)
+	}
+	if got := layout.Viewport(body, me.height, me.scroll.Offset); got != body {
+		t.Fatalf("short body was windowed:\n%q\nwant\n%q", got, body)
+	}
+}
+
+func TestAuditScrollKeysAndRunReset(t *testing.T) {
+	me := auditScrollView(50)
+	me.sql = "DROP TABLE runs"
+
+	for i := 0; i < 3; i++ {
+		me.Update(nil, tea.KeyMsg{Type: tea.KeyDown})
+	}
+	if me.scroll.Offset != 3 {
+		t.Fatalf("offset after three downs = %d, want 3", me.scroll.Offset)
+	}
+	me.Update(nil, tea.KeyMsg{Type: tea.KeyUp})
+	if me.scroll.Offset != 2 {
+		t.Fatalf("offset after up = %d, want 2", me.scroll.Offset)
+	}
+	me.Update(nil, tea.KeyMsg{Type: tea.KeyPgDown})
+	if me.scroll.Offset != 2+me.windowRows() {
+		t.Fatalf("offset after pgdown = %d, want %d", me.scroll.Offset, 2+me.windowRows())
+	}
+	me.Update(nil, tea.KeyMsg{Type: tea.KeyPgUp})
+	if me.scroll.Offset != 2 {
+		t.Fatalf("offset after pgup = %d, want 2", me.scroll.Offset)
+	}
+
+	me.Update(nil, tea.KeyMsg{Type: tea.KeyEnter})
+	if me.scroll.Offset != 0 {
+		t.Fatalf("offset after run = %d, want 0", me.scroll.Offset)
+	}
+	if !strings.Contains(me.result.err, "read-only") {
+		t.Fatalf("run did not reject the write statement: %+v", me.result)
+	}
+}
+
+func TestAuditScrollNotReady(t *testing.T) {
+	me := auditScrollView(50)
+	me.ready = false
+	me.scrollBy(10)
+	if me.scroll.Offset != 0 {
+		t.Fatalf("offset before first size msg = %d, want 0", me.scroll.Offset)
+	}
+}
+
+func TestAuditWindowSizeClampsOffset(t *testing.T) {
+	me := auditScrollView(50)
+	me.scrollBy(1000)
+	tall := me.scroll.Offset
+	me.Update(nil, tea.WindowSizeMsg{Width: 120, Height: 200})
+	if me.scroll.Offset >= tall {
+		t.Fatalf("offset %d not clamped after growing the window (was %d)", me.scroll.Offset, tall)
+	}
+	if me.scroll.Offset != 0 {
+		t.Fatalf("offset = %d, want 0 once the body fits", me.scroll.Offset)
+	}
 }

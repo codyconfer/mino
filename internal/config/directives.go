@@ -25,19 +25,41 @@ const (
 
 func PluginsDir(home string) string { return filepath.Join(home, DirPlugins) }
 
-type QueryType string
+type DirectiveType string
 
 const (
-	TypeAuto   QueryType = ""
-	TypeQuery  QueryType = "query"
-	TypeFilter QueryType = "filter"
+	TypeAuto   DirectiveType = ""
+	TypeQuery  DirectiveType = "query"
+	TypeFilter DirectiveType = "filter"
+	TypeFlight DirectiveType = "flight"
+	TypeRole   DirectiveType = "role"
 )
 
-func QueryTypes() []QueryType { return []QueryType{TypeQuery, TypeFilter} }
+func DirectiveTypes() []DirectiveType {
+	return []DirectiveType{TypeQuery, TypeFilter, TypeFlight, TypeRole}
+}
+
+func collectionType(collection string) DirectiveType {
+	switch collection {
+	case DirFlights:
+		return TypeFlight
+	case KindRoles:
+		return TypeRole
+	}
+	return TypeAuto
+}
+
+func typeLabel(k DirectiveType) string {
+	switch k {
+	case TypeQuery, TypeFilter, TypeFlight, TypeRole:
+		return string(k)
+	}
+	return "directive"
+}
 
 type Query struct {
-	Name     string            `yaml:"name" json:"name"`
-	Type     QueryType         `yaml:"type,omitempty" json:"type,omitempty"`
+	Name     string            `yaml:"name,omitempty" json:"name,omitempty"`
+	Type     DirectiveType     `yaml:"type,omitempty" json:"type,omitempty"`
 	Title    string            `yaml:"title,omitempty" json:"title,omitempty"`
 	Signal   string            `yaml:"signal,omitempty" json:"signal,omitempty"`
 	Params   map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
@@ -62,7 +84,7 @@ func (q Query) HasRules() bool {
 
 func (q Query) HasFilter() bool { return q.Type != TypeQuery && q.HasRules() }
 
-func (q Query) Kind() QueryType {
+func (q Query) Kind() DirectiveType {
 	if q.Type != TypeAuto {
 		return q.Type
 	}
@@ -70,29 +92,6 @@ func (q Query) Kind() QueryType {
 		return TypeQuery
 	}
 	return TypeFilter
-}
-
-func (q Query) validateType() error {
-	switch q.Type {
-	case TypeAuto:
-		return nil
-	case TypeQuery:
-		if q.Signal == "" {
-			return errs.Newf(errs.KindConfig, "%q is declared `type: query` but names no signal", q.Name).
-				WithHint("add a `signal:`, or drop the `type:` line")
-		}
-	case TypeFilter:
-		if q.Signal != "" {
-			return errs.Newf(errs.KindConfig, "%q is declared `type: filter` but names signal %q", q.Name, q.Signal).
-				WithHint("filters cannot run; use `type: query` or remove the signal")
-		}
-		if !q.HasRules() {
-			return errs.Newf(errs.KindConfig, "%q is declared `type: filter` but has no rules, aliases, or keywords", q.Name)
-		}
-	default:
-		return errs.Newf(errs.KindConfig, "%q has unknown type %q: want one of %v", q.Name, q.Type, QueryTypes())
-	}
-	return nil
 }
 
 func (q Query) AsFilter() filter.Filter {
@@ -148,26 +147,150 @@ func (qf QueryFilter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(qf.Inline)
 }
 
+type directiveDoc struct {
+	Name     string            `yaml:"name" json:"name"`
+	Type     DirectiveType     `yaml:"type" json:"type"`
+	Title    string            `yaml:"title" json:"title"`
+	Signal   string            `yaml:"signal" json:"signal"`
+	Params   map[string]string `yaml:"params" json:"params"`
+	Filters  []QueryFilter     `yaml:"filters" json:"filters"`
+	Rules    []filter.Rule     `yaml:"rules" json:"rules"`
+	Aliases  map[string]string `yaml:"aliases" json:"aliases"`
+	Keywords map[string]string `yaml:"keywords" json:"keywords"`
+	Queries  []string          `yaml:"queries" json:"queries"`
+	Flights  []string          `yaml:"flights" json:"flights"`
+	Home     string            `yaml:"home" json:"home"`
+	Contexts map[string]string `yaml:"contexts" json:"contexts"`
+	Hooks    RoleHooks         `yaml:"hooks" json:"hooks"`
+	Status   []RoleStatusBlock `yaml:"status" json:"status"`
+}
+
+func (d directiveDoc) kind(def DirectiveType) DirectiveType {
+	switch {
+	case d.Type != TypeAuto:
+		return d.Type
+	case def != TypeAuto:
+		return def
+	case d.Signal != "":
+		return TypeQuery
+	}
+	return TypeFilter
+}
+
+func (d directiveDoc) hasFilterContent() bool {
+	return len(d.Rules) > 0 || len(d.Aliases) > 0 || len(d.Keywords) > 0
+}
+
+func (d directiveDoc) query() Query {
+	return Query{
+		Name:     d.Name,
+		Type:     d.Type,
+		Title:    d.Title,
+		Signal:   d.Signal,
+		Params:   d.Params,
+		Filters:  d.Filters,
+		Rules:    d.Rules,
+		Aliases:  d.Aliases,
+		Keywords: d.Keywords,
+	}
+}
+
+func (d directiveDoc) flight() Flight {
+	return Flight{Name: d.Name, Type: d.Type, Queries: d.Queries}
+}
+
+func (d directiveDoc) role() RoleDef {
+	return RoleDef{
+		Name:     d.Name,
+		Type:     d.Type,
+		Home:     d.Home,
+		Flights:  d.Flights,
+		Queries:  d.Queries,
+		Contexts: d.Contexts,
+		Hooks:    d.Hooks,
+		Status:   d.Status,
+	}
+}
+
+func (d directiveDoc) validate(k DirectiveType) error {
+	switch k {
+	case TypeQuery:
+		if d.Signal == "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: query` but names no signal", d.Name).
+				WithHint("add a `signal:`, or drop the `type:` line")
+		}
+	case TypeFilter:
+		if d.Signal != "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: filter` but names signal %q", d.Name, d.Signal).
+				WithHint("filters cannot run; use `type: query` or remove the signal")
+		}
+		if d.Type == TypeFilter && !d.hasFilterContent() {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: filter` but has no rules, aliases, or keywords", d.Name)
+		}
+	case TypeFlight:
+		if d.Type == TypeAuto {
+			return nil
+		}
+		if d.Signal != "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: flight` but names signal %q", d.Name, d.Signal).
+				WithHint("flights compose queries; give the signal its own `type: query` document")
+		}
+		if d.hasFilterContent() {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: flight` but carries rules, aliases, or keywords", d.Name).
+				WithHint("flights only take `queries:`; move filter content to a `type: filter` document")
+		}
+		if len(d.Queries) == 0 {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: flight` but lists no queries", d.Name).
+				WithHint("add `queries: [name, ...]`")
+		}
+	case TypeRole:
+		if d.Type == TypeAuto {
+			return nil
+		}
+		if d.Signal != "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: role` but names signal %q", d.Name, d.Signal).
+				WithHint("roles compose flights and queries; give the signal its own `type: query` document")
+		}
+		if d.hasFilterContent() {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: role` but carries rules, aliases, or keywords", d.Name).
+				WithHint("move filter content to a `type: filter` document")
+		}
+	default:
+		return errs.Newf(errs.KindConfig, "%q has unknown type %q: want one of %v", d.Name, d.Type, DirectiveTypes())
+	}
+	return nil
+}
+
 type Directives struct {
 	Queries map[string]Query
 	Flights map[string]Flight
 	Roles   map[string]RoleDef
 }
 
+func newDirectives() *Directives {
+	return &Directives{
+		Queries: map[string]Query{},
+		Flights: map[string]Flight{},
+		Roles:   map[string]RoleDef{},
+	}
+}
+
 func NewDirectives(queries, flights, roles []byte) (*Directives, error) {
-	q, err := ParseQueries(queries)
-	if err != nil {
-		return nil, err
+	d := newDirectives()
+	sources := []struct {
+		blob       []byte
+		collection string
+	}{
+		{queries, DirQueries},
+		{flights, DirFlights},
+		{roles, KindRoles},
 	}
-	fl, err := ParseFlights(flights)
-	if err != nil {
-		return nil, err
+	for _, src := range sources {
+		if err := d.absorb(src.blob, src.collection); err != nil {
+			return nil, err
+		}
 	}
-	r, err := ParseRoles(roles)
-	if err != nil {
-		return nil, err
-	}
-	return &Directives{Queries: q, Flights: fl, Roles: r}, nil
+	return d, nil
 }
 
 func LoadDirectivesFromFiles(home string) (*Directives, error) {
@@ -186,59 +309,98 @@ func LoadDirectivesFromFiles(home string) (*Directives, error) {
 	return NewDirectives(q, fl, r)
 }
 
-func parseCollection[T any](blob []byte, kind string, name func(*T) *string, validate func(T) error) (map[string]T, error) {
+func (s *Directives) absorb(blob []byte, collection string) error {
 	c, err := decodeCollection(blob)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	out := make(map[string]T, len(c))
+	def := collectionType(collection)
 	for _, fn := range sortedKeys(c) {
-		docs, err := decodeDocs[T](fn, []byte(c[fn]))
+		docs, err := decodeDocs[directiveDoc](fn, []byte(c[fn]))
 		if err != nil {
-			return nil, err
+			return err
 		}
-		for i := range docs {
-			np := name(&docs[i])
-			if *np == "" {
+		for i, doc := range docs {
+			k := doc.kind(def)
+			if doc.Name == "" {
 				if len(docs) > 1 {
-					return nil, errs.Newf(errs.KindConfig, "%s %d in %s has no name", kind, i+1, fn).
+					return errs.Newf(errs.KindConfig, "%s %d in %s has no name", typeLabel(k), i+1, fn).
 						WithHint("every document in a multi-document file needs its own `name`")
 				}
-				*np = baseName(fn)
+				doc.Name = baseName(fn)
 			}
-			if _, dup := out[*np]; dup {
-				return nil, errs.Newf(errs.KindConfig, "duplicate %s name %q", kind, *np).WithHint("defined again in %s", fn)
+			if err := doc.validate(k); err != nil {
+				return err
 			}
-			if validate != nil {
-				if err := validate(docs[i]); err != nil {
-					return nil, err
-				}
+			if err := s.add(k, doc, fn); err != nil {
+				return err
 			}
-			out[*np] = docs[i]
 		}
 	}
-	return out, nil
+	return nil
+}
+
+func (s *Directives) add(k DirectiveType, doc directiveDoc, file string) error {
+	dup := func() error {
+		return errs.Newf(errs.KindConfig, "duplicate %s name %q", typeLabel(k), doc.Name).
+			WithHint("defined again in %s", file)
+	}
+	switch k {
+	case TypeQuery, TypeFilter:
+		if _, exists := s.Queries[doc.Name]; exists {
+			return dup()
+		}
+		q := doc.query()
+		if q.HasRules() {
+			if _, err := filter.Compile(q.AsFilter()); err != nil {
+				return err
+			}
+		}
+		s.Queries[doc.Name] = q
+	case TypeFlight:
+		if _, exists := s.Flights[doc.Name]; exists {
+			return dup()
+		}
+		s.Flights[doc.Name] = doc.flight()
+	case TypeRole:
+		if _, exists := s.Roles[doc.Name]; exists {
+			return dup()
+		}
+		s.Roles[doc.Name] = doc.role()
+	}
+	return nil
+}
+
+func parseOne(blob []byte, collection string) (*Directives, error) {
+	d := newDirectives()
+	if err := d.absorb(blob, collection); err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
 func ParseQueries(blob []byte) (map[string]Query, error) {
-	return parseCollection(blob, "query", func(q *Query) *string { return &q.Name }, func(q Query) error {
-		if err := q.validateType(); err != nil {
-			return err
-		}
-		if !q.HasRules() {
-			return nil
-		}
-		_, err := filter.Compile(q.AsFilter())
-		return err
-	})
+	d, err := parseOne(blob, DirQueries)
+	if err != nil {
+		return nil, err
+	}
+	return d.Queries, nil
 }
 
 func ParseFlights(blob []byte) (map[string]Flight, error) {
-	return parseCollection(blob, "flight", func(fl *Flight) *string { return &fl.Name }, nil)
+	d, err := parseOne(blob, DirFlights)
+	if err != nil {
+		return nil, err
+	}
+	return d.Flights, nil
 }
 
 func ParseRoles(blob []byte) (map[string]RoleDef, error) {
-	return parseCollection(blob, "role", func(rd *RoleDef) *string { return &rd.Name }, nil)
+	d, err := parseOne(blob, KindRoles)
+	if err != nil {
+		return nil, err
+	}
+	return d.Roles, nil
 }
 
 var ExternalFilter func(name string) (filter.Filter, bool)

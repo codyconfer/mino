@@ -28,7 +28,7 @@ func NewHome(title string, ctx [][2]string, items []vkdeck.MenuItem, flightName 
 			if len(sections) == 0 {
 				return []list.Item{{Block: th.Dim.Render("nothing to show")}}
 			}
-			return render.SectionItems(layout.ScreenFrame(width-listIndent), sections)
+			return render.SectionItems(layout.ScreenFrame(width-listIndent), flightName, sections)
 		}
 	}
 	return shell

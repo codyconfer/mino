@@ -18,10 +18,10 @@ type Renderer interface {
 	Render(w io.Writer, sections []signals.Section) error
 }
 
-func New(f Format) (Renderer, error) {
+func New(f Format, root string) (Renderer, error) {
 	switch f {
 	case FormatTerminal, "":
-		return &TerminalRenderer{}, nil
+		return &TerminalRenderer{Root: root}, nil
 	case FormatJSON:
 		return &JSONRenderer{}, nil
 	default:

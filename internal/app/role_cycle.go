@@ -3,6 +3,8 @@ package app
 import (
 	"sync"
 	"time"
+
+	"github.com/codyconfer/viewkit/layout"
 )
 
 const RoleCycleDebounce = 400 * time.Millisecond
@@ -13,13 +15,18 @@ type roleDebounce struct {
 	pending bool
 }
 
+const NoRole = ""
+
 func NextRole(names []string, current string, delta int) (next string, ok bool) {
-	n := len(names)
-	if n == 0 || delta == 0 {
-		return "", false
+	if len(names) == 0 || delta == 0 {
+		return NoRole, false
 	}
+	ring := make(layout.Ring, 0, len(names)+1)
+	ring = append(ring, NoRole)
+	ring = append(ring, names...)
+
 	idx := -1
-	for i, name := range names {
+	for i, name := range ring {
 		if name == current {
 			idx = i
 			break
@@ -29,15 +36,11 @@ func NextRole(names []string, current string, delta int) (next string, ok bool) 
 		if delta > 0 {
 			return names[0], true
 		}
-		return names[n-1], true
+		return names[len(names)-1], true
 	}
-	nextIdx := (idx + delta) % n
-	if nextIdx < 0 {
-		nextIdx += n
-	}
-	next = names[nextIdx]
+	next = ring.At(ring.Step(idx, delta))
 	if next == current {
-		return "", false
+		return NoRole, false
 	}
 	return next, true
 }

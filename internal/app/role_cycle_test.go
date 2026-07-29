@@ -15,17 +15,21 @@ func TestNextRoleOrderAndEdges(t *testing.T) {
 		t.Fatalf("next from ops = %q,%v", got, ok)
 	}
 	got, ok = NextRole(names, "weekly", 1)
-	if !ok || got != "ops" {
-		t.Fatalf("wrap next = %q,%v", got, ok)
+	if !ok || got != NoRole {
+		t.Fatalf("past the last role should land on no-role, got %q,%v", got, ok)
 	}
 	got, ok = NextRole(names, "ops", -1)
-	if !ok || got != "weekly" {
-		t.Fatalf("wrap prev = %q,%v", got, ok)
+	if !ok || got != NoRole {
+		t.Fatalf("before the first role should land on no-role, got %q,%v", got, ok)
 	}
 
-	got, ok = NextRole(names, "", 1)
+	got, ok = NextRole(names, NoRole, 1)
 	if !ok || got != "ops" {
-		t.Fatalf("empty current next = %q,%v", got, ok)
+		t.Fatalf("no-role next = %q,%v", got, ok)
+	}
+	got, ok = NextRole(names, NoRole, -1)
+	if !ok || got != "weekly" {
+		t.Fatalf("no-role prev = %q,%v", got, ok)
 	}
 	got, ok = NextRole(names, "ghost", -1)
 	if !ok || got != "weekly" {
@@ -35,12 +39,93 @@ func TestNextRoleOrderAndEdges(t *testing.T) {
 	if _, ok := NextRole(nil, "ops", 1); ok {
 		t.Fatal("empty names should no-op")
 	}
-	if _, ok := NextRole([]string{"solo"}, "solo", 1); ok {
-		t.Fatal("single role wrap to self should no-op")
+	got, ok = NextRole([]string{"solo"}, "solo", 1)
+	if !ok || got != NoRole {
+		t.Fatalf("the only role should still be escapable to no-role, got %q,%v", got, ok)
 	}
-	got, ok = NextRole([]string{"solo"}, "", 1)
+	got, ok = NextRole([]string{"solo"}, NoRole, 1)
 	if !ok || got != "solo" {
-		t.Fatalf("single role from empty = %q,%v", got, ok)
+		t.Fatalf("single role from no-role = %q,%v", got, ok)
+	}
+}
+
+func TestNextRoleRingReachesEveryStateInBothDirections(t *testing.T) {
+	names := []string{"ops", "triage", "weekly"}
+	want := []string{"ops", "triage", "weekly", NoRole}
+
+	cur := NoRole
+	for i, expect := range want {
+		next, ok := NextRole(names, cur, 1)
+		if !ok {
+			t.Fatalf("step %d from %q reported no change", i, cur)
+		}
+		if next != expect {
+			t.Fatalf("step %d from %q = %q, want %q", i, cur, next, expect)
+		}
+		cur = next
+	}
+	if cur != NoRole {
+		t.Fatalf("forward cycle ended at %q, want back at no-role", cur)
+	}
+
+	backward := []string{"weekly", "triage", "ops", NoRole}
+	for i, expect := range backward {
+		next, ok := NextRole(names, cur, -1)
+		if !ok {
+			t.Fatalf("back step %d from %q reported no change", i, cur)
+		}
+		if next != expect {
+			t.Fatalf("back step %d from %q = %q, want %q", i, cur, next, expect)
+		}
+		cur = next
+	}
+}
+
+func TestCycleToNoRoleClearsActiveState(t *testing.T) {
+	home := t.TempDir()
+	t.Cleanup(role.ClearStatusChips)
+
+	var calls []string
+	orig := role.Run
+	role.Run = func(_, script string) error {
+		calls = append(calls, script)
+		return nil
+	}
+	t.Cleanup(func() { role.Run = orig })
+
+	dirs := &config.Directives{
+		Roles: map[string]config.RoleDef{
+			"ops": {Name: "ops", Hooks: config.RoleHooks{
+				Enter: config.RoleShellHooks{Bash: "enter-ops", PowerShell: "enter-ops"},
+				Exit:  config.RoleShellHooks{Bash: "exit-ops", PowerShell: "exit-ops"},
+			}},
+		},
+	}
+	a := &App{Cfg: &config.Config{Home: home, Role: "ops"}, Directives: dirs}
+	a.syncRoleLifecycle()
+	calls = nil
+
+	next, ok := NextRole(a.Directives.RoleNames(), a.Cfg.Role, 1)
+	if !ok || next != NoRole {
+		t.Fatalf("cycling off the only role = %q,%v", next, ok)
+	}
+	if err := a.ActivateRole(next); err != nil {
+		t.Fatal(err)
+	}
+	if a.Cfg.Role != NoRole {
+		t.Fatalf("role = %q, want cleared", a.Cfg.Role)
+	}
+	if len(calls) != 1 || calls[0] != "exit-ops" {
+		t.Fatalf("hooks = %v, want just exit-ops", calls)
+	}
+	if got := role.LoadActive(home); got != NoRole {
+		t.Fatalf("persisted active role = %q, want cleared", got)
+	}
+	if chips := role.StatusChips(); len(chips) != 0 {
+		t.Errorf("status chips = %+v, want none with no role", chips)
+	}
+	if !a.Access().QueryVisible("anything") || !a.Access().FlightVisible("anything") {
+		t.Error("no role should make everything visible")
 	}
 }
 

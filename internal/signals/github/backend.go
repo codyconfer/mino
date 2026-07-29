@@ -2,10 +2,12 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/codyconfer/munin/internal/auth"
@@ -14,6 +16,7 @@ import (
 
 type Backend interface {
 	SearchIssues(ctx context.Context, query string, perPage int) ([]byte, error)
+	GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error)
 }
 
 func NormalizeAPIURL(raw string) (string, error) {
@@ -40,6 +43,38 @@ type CLIBackend struct{}
 func (CLIBackend) SearchIssues(ctx context.Context, query string, perPage int) ([]byte, error) {
 	return auth.GH(ctx, "api", "-X", "GET", "search/issues",
 		"-f", "q="+query, "-f", fmt.Sprintf("per_page=%d", perPage))
+}
+
+func (CLIBackend) GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error) {
+	args := []string{"api", "graphql", "-f", "query=" + query}
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		switch v := vars[k].(type) {
+		case nil:
+		case string:
+			if v != "" {
+				args = append(args, "-f", k+"="+v)
+			}
+		default:
+			args = append(args, "-F", fmt.Sprintf("%s=%v", k, v))
+		}
+	}
+	out, err := auth.GH(ctx, args...)
+	if err != nil {
+		return nil, graphQLCLIError(err)
+	}
+	return out, nil
+}
+
+func graphQLCLIError(err error) error {
+	if strings.Contains(err.Error(), "INSUFFICIENT_SCOPES") || strings.Contains(err.Error(), "read:project") {
+		return errs.Wrap(errs.KindAuth, err, "github: graphql").WithHint("%s", projectScopeHint)
+	}
+	return err
 }
 
 type APIBackend struct {
@@ -69,4 +104,42 @@ func (b APIBackend) SearchIssues(ctx context.Context, query string, perPage int)
 		return nil, err
 	}
 	return body, nil
+}
+
+func (b APIBackend) GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error) {
+	payload, err := json.Marshal(map[string]any{"query": query, "variables": vars})
+	if err != nil {
+		return nil, errs.Wrap(errs.KindSignal, err, "github: encoding graphql request")
+	}
+	req, err := newGitHubPost(ctx, graphQLURL(b.BaseURL), b.Token, payload)
+	if err != nil {
+		return nil, errs.Wrap(errs.KindSignal, err, "github: building graphql request")
+	}
+
+	hc := b.HTTP
+	if hc == nil {
+		hc = http.DefaultClient
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, errs.Wrap(errs.KindSignal, err, "github: graphql request failed")
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if err := checkGitHubStatus(resp, body, "the read:project scope"); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func graphQLURL(raw string) string {
+	base := strings.TrimRight(raw, "/")
+	switch {
+	case base == "" || base == "https://api.github.com":
+		return "https://api.github.com/graphql"
+	case strings.HasSuffix(base, "/api/v3"):
+		return strings.TrimSuffix(base, "/v3") + "/graphql"
+	default:
+		return base + "/graphql"
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/codyconfer/sisyphus/lifecycle"
+	"github.com/codyconfer/viewkit/layout"
 
 	"github.com/codyconfer/munin/internal/config"
 )
@@ -57,13 +58,7 @@ func ClearStatusChips() {
 }
 
 func TruncateStatus(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return ""
-	}
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = strings.TrimSpace(s[:i])
-	}
+	s = layout.FirstLine(s)
 	if utf8.RuneCountInString(s) <= StatusTextMax {
 		return s
 	}

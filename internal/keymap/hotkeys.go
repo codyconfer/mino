@@ -13,30 +13,6 @@ const (
 	flightPrefix    = "flight:"
 )
 
-func NormalizeKey(key string) string {
-	return strings.ToLower(strings.TrimSpace(key))
-}
-
-func ResolveHotkey(binds map[string]string, key string) (target string, ok bool) {
-	if len(binds) == 0 {
-		return "", false
-	}
-	want := NormalizeKey(key)
-	if want == "" {
-		return "", false
-	}
-	if t, hit := binds[want]; hit {
-		return strings.TrimSpace(t), t != ""
-	}
-	for k, t := range binds {
-		if NormalizeKey(k) == want {
-			t = strings.TrimSpace(t)
-			return t, t != ""
-		}
-	}
-	return "", false
-}
-
 func FlightTarget(target string) (name string, ok bool) {
 	target = strings.TrimSpace(target)
 	if target == "" {

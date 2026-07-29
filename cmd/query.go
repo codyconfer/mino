@@ -23,23 +23,31 @@ func buildQuery(name string) (query, error) {
 		return query{}, errs.Newf(errs.KindUsage, "%q defines no signal, so there is nothing to run", name).
 			WithHint("it is a filter-only document; reference it from a query's `filters:` list")
 	}
+	return buildQueryFrom(name, q)
+}
+
+func buildQueryFrom(label string, q config.Query) (query, error) {
 	resolved, err := shared.Directives.Resolve(q)
 	if err != nil {
 		return query{}, err
 	}
 	params, err := filter.ExpandParams(q.Params, resolved)
 	if err != nil {
-		return query{}, errs.Wrapf(errs.KindConfig, err, "query %q", name)
+		return query{}, errs.Wrapf(errs.KindConfig, err, "query %q", label)
 	}
 	src, err := buildSignal(q.Signal, params)
 	if err != nil {
-		return query{}, errs.Wrapf(errs.KindSignal, err, "query %q", name)
+		return query{}, errs.Wrapf(errs.KindSignal, err, "query %q", label)
 	}
 	compiled, err := filter.CompileAll(resolved)
 	if err != nil {
 		return query{}, err
 	}
-	return query{Label: name, Title: q.Display(), Src: src, Filters: compiled}, nil
+	title := q.Display()
+	if title == "" {
+		title = label
+	}
+	return query{Label: label, Title: title, Src: src, Filters: compiled}, nil
 }
 
 func newQueryCmd() *cobra.Command {
@@ -65,10 +73,10 @@ func newQueryCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runQueries(cmd.Context(), cmd.OutOrStdout(), []query{j}, 0)
+			return runQueries(cmd.Context(), cmd.OutOrStdout(), name, []query{j}, 0)
 		},
 	}
-	c.AddCommand(newQueryListCmd(), newQueryShowCmd())
+	c.AddCommand(newQueryListCmd(), newQueryShowCmd(), newQueryBuildCmd())
 	return c
 }
 

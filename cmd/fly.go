@@ -54,7 +54,7 @@ func newFlyCmd() *cobra.Command {
 			flightID := shared.Audit.StartFlight(name, shared.Cfg.Role)
 			defer shared.Audit.FinishFlight(flightID)
 
-			return runQueries(cmd.Context(), cmd.OutOrStdout(), queries, flightID)
+			return runQueries(cmd.Context(), cmd.OutOrStdout(), name, queries, flightID)
 		},
 	}
 }

@@ -1,0 +1,7 @@
+name: board-column
+title: Board · In Progress
+signal: github
+params:
+  project: acme/17
+  filter: 'status:"In Progress" repo:acme/escalations is:open -is:pr'
+  title: Board · In Progress

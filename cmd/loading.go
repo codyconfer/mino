@@ -35,8 +35,9 @@ func startLaunchLoading() {
 		return
 	}
 	launchLoad = render.StartLoading(render.LoadingOptions{
-		Writer:  os.Stderr,
-		Message: "starting…",
+		Writer:      os.Stderr,
+		Message:     "starting…",
+		DoneMessage: "ready",
 	})
 }
 
@@ -46,6 +47,6 @@ func stopLaunchLoading() {
 	if launchLoad == nil {
 		return
 	}
-	launchLoad.Stop()
+	launchLoad.Done()
 	launchLoad = nil
 }

@@ -7,7 +7,7 @@ queries: [incidents, loki-errors, datasource-a-health, my-open-prs, gcx-status, 
 # Per-tool context bindings applied on role activation.
 contexts:
   kubectl: prod
-  gcx: myorg.grafana.net
+  gcx: myorg.example.net
 # Optional shell hooks on role enter/exit (bash on Unix, PowerShell on Windows).
 # On switch: previous role exit hooks run, then new role enter hooks.
 hooks:

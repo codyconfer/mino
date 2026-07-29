@@ -91,7 +91,8 @@ type SlackConfig struct {
 }
 
 type RoleDef struct {
-	Name     string            `yaml:"name" json:"name"`
+	Name     string            `yaml:"name,omitempty" json:"name,omitempty"`
+	Type     DirectiveType     `yaml:"type,omitempty" json:"type,omitempty"`
 	Home     string            `yaml:"home" json:"home"`
 	Flights  []string          `yaml:"flights" json:"flights"`
 	Queries  []string          `yaml:"queries" json:"queries"`
@@ -121,6 +122,7 @@ func (b RoleStatusBlock) Hooks() RoleShellHooks {
 }
 
 type Flight struct {
-	Name    string   `yaml:"name" json:"name"`
-	Queries []string `yaml:"queries" json:"queries"`
+	Name    string        `yaml:"name,omitempty" json:"name,omitempty"`
+	Type    DirectiveType `yaml:"type,omitempty" json:"type,omitempty"`
+	Queries []string      `yaml:"queries" json:"queries"`
 }

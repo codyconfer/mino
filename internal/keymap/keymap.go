@@ -12,9 +12,44 @@ const DefaultSchemeKey = "munin"
 
 const (
 	Save            keys.Action = "munin.save"
+	Run             keys.Action = "munin.run"
+	Delete          keys.Action = "munin.delete"
+	Validate        keys.Action = "munin.validate"
+	Preview         keys.Action = "munin.preview"
+	Focus           keys.Action = "munin.focus"
 	PluginInstall   keys.Action = "munin.plugin.install"
 	PluginUninstall keys.Action = "munin.plugin.uninstall"
 )
+
+func RunBinding() keys.Binding {
+	return keys.Binding{Keys: []string{"ctrl+r"}, Action: Run, Glyph: "ctrl+r", Label: "run"}
+}
+
+func DeleteBinding() keys.Binding {
+	return keys.Binding{Keys: []string{"ctrl+x"}, Action: Delete, Glyph: "ctrl+x", Label: "delete"}
+}
+
+func ValidateBinding() keys.Binding {
+	return keys.Binding{Keys: []string{"ctrl+t"}, Action: Validate, Glyph: "ctrl+t", Label: "validate"}
+}
+
+func PreviewBinding() keys.Binding {
+	return keys.Binding{Keys: []string{"ctrl+y"}, Action: Preview, Glyph: "ctrl+y", Label: "yaml"}
+}
+
+func FocusBinding() keys.Binding {
+	return keys.Binding{Keys: []string{"tab"}, Action: Focus, Glyph: "tab", Label: "focus"}
+}
+
+func BuilderBindings() []keys.Binding {
+	return []keys.Binding{
+		RunBinding(),
+		ValidateBinding(),
+		PreviewBinding(),
+		DeleteBinding(),
+		FocusBinding(),
+	}
+}
 
 func muninScheme() keys.Scheme {
 	return keys.Default().With(
@@ -73,34 +108,22 @@ func Plugins() *keys.Map {
 	)
 }
 
+func ConfirmMap() *keys.Map {
+	sc := keys.Cur()
+	return keys.NewMap(
+		sc.Binding(keys.Left),
+		sc.Binding(keys.Right),
+		sc.Binding(keys.Confirm),
+		sc.Binding(keys.Cancel),
+	)
+}
+
 func Form(extra ...keys.Binding) *keys.Map {
 	sc := keys.Cur()
-	bs := editorBindings(sc,
+	bs := sc.EditorBindings(
 		keys.Up, keys.Down, keys.Left, keys.Right,
 		keys.Confirm, keys.Cancel, keys.Erase, keys.PageUp, keys.PageDown,
 	)
 	bs = append(bs, keys.Binding{Keys: []string{"ctrl+s"}, Action: Save, Glyph: "ctrl+s", Label: "save"})
 	return keys.NewMap(append(bs, extra...)...)
-}
-
-func editorBindings(sc keys.Scheme, actions ...keys.Action) []keys.Binding {
-	out := make([]keys.Binding, 0, len(actions))
-	for _, a := range actions {
-		b := sc.Binding(a)
-		b.Keys = controlKeys(b.Keys)
-		if len(b.Keys) > 0 {
-			out = append(out, b)
-		}
-	}
-	return out
-}
-
-func controlKeys(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, k := range in {
-		if len([]rune(k)) > 1 {
-			out = append(out, k)
-		}
-	}
-	return out
 }

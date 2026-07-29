@@ -2,7 +2,6 @@ package views
 
 import (
 	"fmt"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/app/verify"
 	"github.com/codyconfer/munin/internal/audit"
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/render/glyph"
 	"github.com/codyconfer/munin/internal/signals"
@@ -24,9 +24,10 @@ type Deps struct {
 	App *app.App
 
 	FetchQuery         func(name string) []signals.Section
-	FetchFlight        func(name string) []signals.Section
 	FetchFlightAudited func(name string) []signals.Section
 	FetchHomeFlight    func(name string) []signals.Section
+	FetchAdhoc         func(q config.Query) []signals.Section
+	FetchFlightQueries func(label string, queries []string) []signals.Section
 
 	Verify func(kind string) []verify.Finding
 
@@ -70,8 +71,8 @@ func (k *Kit) Fly() vkdeck.View {
 
 func (k *Kit) flyMenuItems() []vkdeck.MenuItem {
 	items := []vkdeck.MenuItem{
-		{Label: "Flights", Desc: "aggregate saved queries", Icon: glyph.Flight(), Hue: 1, Do: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.flightPicker())
+		{Label: "Flights", Desc: "build, run, save, and manage flights", Icon: glyph.Flight(), Hue: 1, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.Flights())
 		}},
 	}
 	if k.hasHistory() {
@@ -79,9 +80,14 @@ func (k *Kit) flyMenuItems() []vkdeck.MenuItem {
 			return a.Push(k.History())
 		}})
 	}
-	items = append(items, vkdeck.MenuItem{Label: "Directives", Desc: "queries, filters, flights, roles", Icon: glyph.Directives(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
-		return a.Push(k.directivesMenu())
-	}})
+	items = append(items,
+		vkdeck.MenuItem{Label: "Queries", Desc: "build, run, save, and manage queries and filters", Icon: glyph.Builder(), Hue: 3, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.Queries())
+		}},
+		vkdeck.MenuItem{Label: "Directives", Desc: "roles", Icon: glyph.Directives(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.directivesMenu())
+		}},
+	)
 	return items
 }
 
@@ -130,38 +136,8 @@ func (k *Kit) Home() vkdeck.View {
 			return k.d.FetchHomeFlight(name)
 		})
 	}
-	return withHotkeyHints(withLiveContext(shell, k.menuCtx), k.hotkeyHints())
+	return vkdeck.WithExtraHints(vkdeck.WithLiveContext(shell, k.menuCtx), k.hotkeyHints())
 }
-
-type hintView struct {
-	vkdeck.View
-	extra [][2]string
-}
-
-func withHotkeyHints(inner vkdeck.View, extra [][2]string) vkdeck.View {
-	if len(extra) == 0 {
-		return inner
-	}
-	return &hintView{View: inner, extra: extra}
-}
-
-func (h *hintView) Hints() [][2]string {
-	return append(append([][2]string{}, h.View.Hints()...), h.extra...)
-}
-
-type liveContextView struct {
-	vkdeck.View
-	ctx func() [][2]string
-}
-
-func withLiveContext(inner vkdeck.View, ctx func() [][2]string) vkdeck.View {
-	if ctx == nil {
-		return inner
-	}
-	return &liveContextView{View: inner, ctx: ctx}
-}
-
-func (v *liveContextView) Context() [][2]string { return v.ctx() }
 
 func (k *Kit) homeFlightName() string {
 	role := k.d.App.Cfg.Role
@@ -178,25 +154,9 @@ func (k *Kit) homeFlightName() string {
 	return rd.Home
 }
 
-func (k *Kit) flightPicker() vkdeck.View {
-	var items []vkdeck.MenuItem
-	for _, n := range k.d.App.VisibleFlights() {
-		fl := k.d.App.Directives.Flights[n]
-		items = append(items, vkdeck.MenuItem{
-			Label: n,
-			Desc:  strings.Join(fl.Queries, ", "),
-			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(k.FlightResults(n)) },
-		})
-	}
-	if len(items) == 0 {
-		items = append(items, vkdeck.MenuItem{Label: "(no flights visible)"})
-	}
-	return vkdeck.NewMenu("flights", k.menuCtx(), items...)
-}
-
 func (k *Kit) FlightResults(name string) vkdeck.View {
 	ctx := append(k.menuCtx(), [2]string{"flight", name})
-	return deck.NewResults("flight: "+name, ctx, func() []signals.Section {
+	return deck.NewResults("flight: "+name, name, ctx, func() []signals.Section {
 		return k.d.FetchFlightAudited(name)
 	})
 }
@@ -240,7 +200,7 @@ func (k *Kit) historyResults(r audit.AuditRow) vkdeck.View {
 	}
 	ctx := append(k.menuCtx(), [2]string{r.Kind, r.Name})
 	id := r.ID
-	return deck.NewResults(title, ctx, func() []signals.Section {
+	return deck.NewResults(title, r.Name, ctx, func() []signals.Section {
 		st := k.d.App.Audit
 		if st == nil {
 			return []signals.Section{{Signal: r.Name, Title: r.Name, Err: fmt.Errorf("audit disabled")}}

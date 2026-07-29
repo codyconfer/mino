@@ -1,13 +1,16 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
+	"gopkg.in/yaml.v3"
 
 	"github.com/codyconfer/munin/internal/errs"
 )
@@ -41,6 +44,40 @@ func WriteCollection(home, name string, blob []byte) ([]string, error) {
 		}
 	}
 	return sconfig.WriteCollection(CollectionDir(home, name), blob)
+}
+
+func WriteCollectionItem(home, name, item string, doc any) (string, error) {
+	data, err := yaml.Marshal(doc)
+	if err != nil {
+		return "", errs.Wrapf(errs.KindConfig, err, "encoding %s %q", name, item)
+	}
+	return sconfig.WriteItem(CollectionDir(home, name), item+".yaml", data)
+}
+
+func SaveCollectionItem(mgr *sisyphus.Manager, home, name, item string, doc any) (path string, stored bool, err error) {
+	path, err = WriteCollectionItem(home, name, item, doc)
+	if err != nil {
+		return "", false, err
+	}
+	stored, err = SyncCollection(mgr, home, name)
+	return path, stored, err
+}
+
+func SyncCollection(mgr *sisyphus.Manager, home, name string) (stored bool, err error) {
+	if mgr == nil {
+		return false, nil
+	}
+	blob, has, err := SerializeCollection(home, name)
+	if err != nil {
+		return false, err
+	}
+	if !has {
+		blob = []byte("{}")
+	}
+	if err := mgr.Import(context.Background(), name, blob, "collection"); err != nil {
+		return false, errs.Wrapf(errs.KindStore, err, "importing %s into the store", name)
+	}
+	return true, nil
 }
 
 func ClearCollection(home, name string) ([]string, error) {
