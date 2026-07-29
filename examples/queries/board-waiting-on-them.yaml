@@ -1,0 +1,16 @@
+# A board column narrowed to the items where the ball is in their court.
+# `team:` resolves an org team's members (needs read:org, cached for 24h), so
+# every item gets meta.last_comment_by (the last human commenter, bots skipped)
+# and meta.last_comment_team. Rows render a reply chip: green `·us`, amber `·them`.
+name: board-waiting-on-them
+title: Board · Waiting on them
+signal: github
+params:
+  project: acme/17
+  filter: 'status:Waiting repo:acme/escalations is:open -is:pr'
+  title: Board · Waiting on them
+  team: acme/platform
+rules:
+  # Inclusive: keep only items whose last human comment came from outside the team.
+  - field: meta.last_comment_team
+    include: "false"

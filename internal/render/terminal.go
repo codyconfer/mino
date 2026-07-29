@@ -90,6 +90,22 @@ func LoadingPanel(title, status string) string {
 	return TitledBox(layout.NewFrame(theme.BodyWidth), false, title, theme.Cur().Dim.Render(status))
 }
 
+func lastCommentChip(th *theme.Theme, it signals.Item) string {
+	last := signals.Clean(it.Meta["last_comment_by"])
+	if last == "" {
+		return ""
+	}
+	chip := glyph.Lead(glyph.Reply()) + "@" + last
+	switch it.Meta["last_comment_team"] {
+	case "true":
+		return theme.SeverityStyle(glyph.KindPositive).Render(chip + " ·us")
+	case "false":
+		return theme.SeverityStyle(glyph.KindWarning).Render(chip + " ·them")
+	default:
+		return th.Dim.Render(chip)
+	}
+}
+
 func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
 	icon := theme.SeverityStyle(glyph.Classify(it.Kind)).Render(glyph.Lead(glyph.ForKind(it.Kind)))
 	head := icon + th.Val.Render(signals.Clean(it.Title))
@@ -99,9 +115,16 @@ func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
 	if author := signals.Clean(it.Meta["author"]); author != "" {
 		head += "  " + th.Dim.Render("@"+author)
 	}
-	var lines []string
+	tail := lastCommentChip(th, it)
 	if !it.Timestamp.IsZero() {
-		lines = append(lines, f.Spread(head, th.Dim.Render(timefmt.Rel(it.Timestamp))))
+		if tail != "" {
+			tail += "  "
+		}
+		tail += th.Dim.Render(timefmt.Rel(it.Timestamp))
+	}
+	var lines []string
+	if tail != "" {
+		lines = append(lines, f.Spread(head, tail))
 	} else {
 		lines = append(lines, head)
 	}

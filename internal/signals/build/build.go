@@ -225,8 +225,13 @@ func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Sto
 			Filter: params["filter"],
 			Title:  params["title"],
 			Field:  params["field"],
+			Team:   params["team"],
 		}
-		return gh.NewProject(spec, backend, cfg.GitHub.Max), nil
+		var cache gh.RosterCache
+		if spec.Team != "" {
+			cache = rosterCache{home: cfg.Home}
+		}
+		return gh.NewProject(spec, backend, cfg.GitHub.Max, cache), nil
 	}
 	queries := cfg.GitHub.Queries
 	if q := params["query"]; q != "" {

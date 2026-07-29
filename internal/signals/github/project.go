@@ -25,6 +25,7 @@ type ProjectSpec struct {
 	Filter string
 	Title  string
 	Field  string
+	Team   string
 }
 
 func (s ProjectSpec) Ref() string { return s.Owner + "/" + strconv.Itoa(s.Number) }
@@ -63,30 +64,33 @@ type projectSignal struct {
 	spec    ProjectSpec
 	backend Backend
 	max     int
+	cache   RosterCache
 }
 
-func NewProject(spec ProjectSpec, backend Backend, max int) signals.Signal {
+func NewProject(spec ProjectSpec, backend Backend, max int, cache RosterCache) signals.Signal {
 	if spec.Field == "" {
 		spec.Field = statusFieldName
 	}
 	if max <= 0 {
 		max = defaultPerPage
 	}
-	return &projectSignal{spec: spec, backend: backend, max: max}
+	return &projectSignal{spec: spec, backend: backend, max: max, cache: cache}
 }
 
 func (p *projectSignal) Name() string { return "github" }
 
 type projectItem struct {
-	item      signals.Item
-	status    string
-	repo      string
-	author    string
-	assignees []string
-	labels    []string
-	state     string
-	kind      string
-	draft     bool
+	item            signals.Item
+	status          string
+	repo            string
+	author          string
+	assignees       []string
+	labels          []string
+	state           string
+	kind            string
+	draft           bool
+	lastCommentBy   string
+	lastCommentTeam bool
 }
 
 func (p *projectSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
@@ -97,6 +101,13 @@ func (p *projectSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 	viewer := ""
 	if pf.needsViewer {
 		viewer, err = p.viewerLogin(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var roster *Roster
+	if p.spec.Team != "" {
+		roster, err = ResolveTeam(ctx, p.backend, p.cache, p.spec.Team)
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +123,7 @@ func (p *projectSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 			return nil, err
 		}
 		for _, node := range res.Nodes {
-			it, ok := node.toProjectItem(p.spec)
+			it, ok := node.toProjectItem(p.spec, roster)
 			if !ok || !local.keeps(it, viewer) {
 				continue
 			}
@@ -163,6 +174,14 @@ type searchNode struct {
 	Author *struct {
 		Login string `json:"login"`
 	} `json:"author"`
+	Comments struct {
+		Nodes []struct {
+			Author *struct {
+				Login    string `json:"login"`
+				TypeName string `json:"__typename"`
+			} `json:"author"`
+		} `json:"nodes"`
+	} `json:"comments"`
 	Assignees struct {
 		Nodes []struct {
 			Login string `json:"login"`
@@ -188,7 +207,7 @@ type searchNode struct {
 	} `json:"projectItems"`
 }
 
-func (n searchNode) toProjectItem(spec ProjectSpec) (projectItem, bool) {
+func (n searchNode) toProjectItem(spec ProjectSpec, roster *Roster) (projectItem, bool) {
 	if n.Title == "" && n.URL == "" {
 		return projectItem{}, false
 	}
@@ -216,6 +235,8 @@ func (n searchNode) toProjectItem(spec ProjectSpec) (projectItem, bool) {
 	for _, l := range n.Labels.Nodes {
 		it.labels = append(it.labels, l.Name)
 	}
+	it.lastCommentBy = lastResponder(n)
+	it.lastCommentTeam = roster.Has(it.lastCommentBy)
 
 	var ts time.Time
 	if n.UpdatedAt != "" {
@@ -239,6 +260,12 @@ func (n searchNode) toProjectItem(spec ProjectSpec) (projectItem, bool) {
 	}
 	if it.draft {
 		meta["draft"] = "true"
+	}
+	if it.lastCommentBy != "" {
+		meta["last_comment_by"] = it.lastCommentBy
+		if roster.Configured() {
+			meta["last_comment_team"] = strconv.FormatBool(it.lastCommentTeam)
+		}
 	}
 	it.item = signals.Item{
 		Kind:      it.kind,
@@ -285,6 +312,19 @@ type graphQLResponse struct {
 		Viewer *struct {
 			Login string `json:"login"`
 		} `json:"viewer"`
+		Organization *struct {
+			Team *struct {
+				Members struct {
+					PageInfo struct {
+						HasNextPage bool   `json:"hasNextPage"`
+						EndCursor   string `json:"endCursor"`
+					} `json:"pageInfo"`
+					Nodes []struct {
+						Login string `json:"login"`
+					} `json:"nodes"`
+				} `json:"members"`
+			} `json:"team"`
+		} `json:"organization"`
 	} `json:"data"`
 	Errors []struct {
 		Type    string `json:"type"`
@@ -292,7 +332,9 @@ type graphQLResponse struct {
 	} `json:"errors"`
 }
 
-func (r graphQLResponse) err() error {
+func (r graphQLResponse) err() error { return r.errHint(projectScopeHint) }
+
+func (r graphQLResponse) errHint(scopeHint string) error {
 	if len(r.Errors) == 0 {
 		return nil
 	}
@@ -306,7 +348,7 @@ func (r graphQLResponse) err() error {
 	}
 	joined := strings.Join(msgs, "; ")
 	if scopes {
-		return errs.Newf(errs.KindAuth, "github: graphql: %s", joined).WithHint("%s", projectScopeHint)
+		return errs.Newf(errs.KindAuth, "github: graphql: %s", joined).WithHint("%s", scopeHint)
 	}
 	return errs.Newf(errs.KindSignal, "github: graphql: %s", joined)
 }
@@ -333,7 +375,8 @@ func (p *projectSignal) page(ctx context.Context, search, cursor string) (*searc
 	return resp.Data.Search, nil
 }
 
-const projectItemFields = `title url body updatedAt state repository{nameWithOwner} author{login} ` +
+var projectItemFields = `title url body updatedAt state repository{nameWithOwner} author{login} ` +
+	`comments(last:` + strconv.Itoa(commentWindow) + `){nodes{author{login __typename}}} ` +
 	`assignees(first:20){nodes{login}} labels(first:30){nodes{name}} ` +
 	`projectItems(first:20){nodes{project{number owner{... on Organization{login} ... on User{login}}} ` +
 	`status: fieldValueByName(name:$field){... on ProjectV2ItemFieldSingleSelectValue{name}}}}`

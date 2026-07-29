@@ -2,16 +2,19 @@ package github
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
 
 type fakeGraphQL struct {
-	pages    []string
-	viewer   string
-	calls    int
-	cursors  []string
-	searches []string
+	pages     []string
+	viewer    string
+	calls     int
+	cursors   []string
+	searches  []string
+	teamPages []string
+	teamCalls int
 }
 
 func (f *fakeGraphQL) SearchIssues(ctx context.Context, query string, perPage int) ([]byte, error) {
@@ -21,6 +24,14 @@ func (f *fakeGraphQL) SearchIssues(ctx context.Context, query string, perPage in
 func (f *fakeGraphQL) GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error) {
 	if strings.Contains(query, "viewer") {
 		return []byte(`{"data":{"viewer":{"login":"` + f.viewer + `"}}}`), nil
+	}
+	if strings.Contains(query, "organization") {
+		if f.teamCalls >= len(f.teamPages) {
+			return nil, errors.New("unexpected team call")
+		}
+		page := f.teamPages[f.teamCalls]
+		f.teamCalls++
+		return []byte(page), nil
 	}
 	if q, ok := vars["q"].(string); ok {
 		f.searches = append(f.searches, q)
@@ -63,6 +74,11 @@ var (
 	offBoardNode   = `{"__typename":"Issue","title":"elsewhere","url":"https://github.com/acme/other/issues/9",` +
 		`"updatedAt":"2026-07-20T10:00:00Z","state":"OPEN","repository":{"nameWithOwner":"acme/other"},` +
 		`"projectItems":{"nodes":[{"project":{"number":42,"owner":{"login":"acme"}},"status":{"name":"Incoming"}}]}}`
+
+	teamReplyNode = node("Issue", "team replied", "Waiting", "acme/escalations",
+		`"comments":{"nodes":[{"author":{"login":"custuser","__typename":"User"}},{"author":{"login":"alice","__typename":"User"}}]},`)
+	custReplyNode = node("Issue", "customer replied", "Waiting", "acme/escalations",
+		`"comments":{"nodes":[{"author":{"login":"alice","__typename":"User"}},{"author":{"login":"custuser","__typename":"User"}}]},`)
 )
 
 func TestParseProjectRef(t *testing.T) {
@@ -100,7 +116,7 @@ func TestParseProjectRef(t *testing.T) {
 
 func TestProjectFetchFiltersByStatus(t *testing.T) {
 	be := &fakeGraphQL{pages: []string{searchPage(false, "", strings.Join([]string{inProgressNode, prNode, incomingNode}, ","))}}
-	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: `status:"In Progress" repo:acme/escalations is:open -is:pr`}, be, 30)
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: `status:"In Progress" repo:acme/escalations is:open -is:pr`}, be, 30, nil)
 
 	secs, err := sig.Fetch(context.Background())
 	if err != nil {
@@ -142,7 +158,7 @@ func TestProjectFetchFiltersByStatus(t *testing.T) {
 
 func TestProjectFetchSkipsItemsOnOtherBoards(t *testing.T) {
 	be := &fakeGraphQL{pages: []string{searchPage(false, "", incomingNode+","+offBoardNode)}}
-	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 30)
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 30, nil)
 
 	secs, err := sig.Fetch(context.Background())
 	if err != nil {
@@ -158,7 +174,7 @@ func TestProjectFetchResolvesViewer(t *testing.T) {
 		pages:  []string{searchPage(false, "", inProgressNode+","+prNode)},
 		viewer: "codyconfer",
 	}
-	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: `is:pr status:"Needs Review" assignee:@me`}, be, 30)
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: `is:pr status:"Needs Review" assignee:@me`}, be, 30, nil)
 
 	secs, err := sig.Fetch(context.Background())
 	if err != nil {
@@ -177,7 +193,7 @@ func TestProjectFetchPagesAndCapsAtMax(t *testing.T) {
 		searchPage(true, "cur1", incomingNode),
 		searchPage(false, "", incomingNode+","+incomingNode),
 	}}
-	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 2)
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 2, nil)
 
 	secs, err := sig.Fetch(context.Background())
 	if err != nil {
@@ -196,7 +212,7 @@ func TestProjectFetchPagesAndCapsAtMax(t *testing.T) {
 
 func TestProjectFetchScopeError(t *testing.T) {
 	be := &fakeGraphQL{pages: []string{`{"errors":[{"type":"INSUFFICIENT_SCOPES","message":"needs read:project"}]}`}}
-	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17}, be, 30)
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17}, be, 30, nil)
 
 	_, err := sig.Fetch(context.Background())
 	if err == nil {
@@ -209,7 +225,7 @@ func TestProjectFetchScopeError(t *testing.T) {
 
 func TestProjectFetchRejectsBadFilter(t *testing.T) {
 	be := &fakeGraphQL{pages: []string{searchPage(false, "", inProgressNode)}}
-	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "column:Incoming"}, be, 30)
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "column:Incoming"}, be, 30, nil)
 
 	_, err := sig.Fetch(context.Background())
 	if err == nil {
@@ -222,7 +238,7 @@ func TestProjectFetchRejectsBadFilter(t *testing.T) {
 
 func TestProjectSectionTitle(t *testing.T) {
 	be := &fakeGraphQL{pages: []string{searchPage(false, "", inProgressNode)}}
-	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Title: "Blocked"}, be, 30)
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Title: "Blocked"}, be, 30, nil)
 	secs, err := sig.Fetch(context.Background())
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -232,13 +248,71 @@ func TestProjectSectionTitle(t *testing.T) {
 	}
 
 	be = &fakeGraphQL{pages: []string{searchPage(false, "", inProgressNode)}}
-	sig = NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Blocked"}, be, 30)
+	sig = NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Blocked"}, be, 30, nil)
 	secs, err = sig.Fetch(context.Background())
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
 	if secs[0].Title != "project acme/17 · status:Blocked" {
 		t.Errorf("section title = %q", secs[0].Title)
+	}
+}
+
+func TestProjectFetchMarksTeamReplies(t *testing.T) {
+	be := &fakeGraphQL{
+		pages:     []string{searchPage(false, "", teamReplyNode+","+custReplyNode)},
+		teamPages: []string{teamPage(false, "", "alice", "bob")},
+	}
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Waiting", Team: "acme/platform"}, be, 30, nil)
+
+	secs, err := sig.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	items := secs[0].Items
+	if len(items) != 2 {
+		t.Fatalf("want 2 items, got %d", len(items))
+	}
+	if got := items[0].Meta["last_comment_by"]; got != "alice" {
+		t.Errorf("last_comment_by = %q, want alice", got)
+	}
+	if got := items[0].Meta["last_comment_team"]; got != "true" {
+		t.Errorf("last_comment_team = %q, want true", got)
+	}
+	if got := items[1].Meta["last_comment_by"]; got != "custuser" {
+		t.Errorf("last_comment_by = %q, want custuser", got)
+	}
+	if got := items[1].Meta["last_comment_team"]; got != "false" {
+		t.Errorf("last_comment_team = %q, want false", got)
+	}
+	if !strings.Contains(be.searches[0], "project:acme/17") {
+		t.Errorf("search = %q", be.searches[0])
+	}
+}
+
+func TestProjectFetchWithoutTeamOmitsTeamMeta(t *testing.T) {
+	be := &fakeGraphQL{pages: []string{searchPage(false, "", custReplyNode)}}
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Waiting"}, be, 30, nil)
+
+	secs, err := sig.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	it := secs[0].Items[0]
+	if got := it.Meta["last_comment_by"]; got != "custuser" {
+		t.Errorf("last_comment_by = %q, want custuser", got)
+	}
+	if _, ok := it.Meta["last_comment_team"]; ok {
+		t.Error("last_comment_team must be absent when no team is configured")
+	}
+	if be.teamCalls != 0 {
+		t.Errorf("team calls = %d, want 0", be.teamCalls)
+	}
+}
+
+func TestProjectSearchQueryRequestsComments(t *testing.T) {
+	if !strings.Contains(projectSearchQuery, "comments(last:5){nodes{author{login __typename}}}") {
+		t.Error("project search query must request the last comments")
 	}
 }
 

@@ -15,6 +15,7 @@ var queryParams = map[string][]ParamSpec{
 		{Key: "filter", Desc: "project board filter (needs project)", Example: "status:In Progress"},
 		{Key: "title", Desc: "project board section title (needs project)", Example: "Sprint board"},
 		{Key: "field", Desc: "project board field to group by (needs project)", Example: "Status"},
+		{Key: "team", Desc: "org team whose members count as ours (needs project)", Example: "acme/platform"},
 	},
 	"gmail": {
 		{Key: "query", Desc: "Gmail search expression", Example: "is:unread in:inbox newer_than:2d"},

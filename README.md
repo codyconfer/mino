@@ -757,6 +757,7 @@ params:
   filter: 'status:"In Progress" repo:acme/escalations is:open -is:pr'
   title: Escalations · In Progress   # optional section heading
   field: Status                      # optional, defaults to Status
+  team: acme/platform                # optional, owner/team-slug
 ```
 
 `filter:` takes the same syntax as a board view's filter bar, so a view's filter
@@ -778,6 +779,37 @@ device-flow scope set: `gh auth refresh -s read:project`, or add it to
 
 Each item carries the field value in `meta.status`, so filter rules can narrow
 further (`field: meta.status`, `field: meta.labels`, `field: meta.assignees`).
+
+### Who owes the next reply
+
+For a board column like *Waiting*, the useful question is not who opened an item
+but who spoke last. Every project item carries `meta.last_comment_by` — the
+author of the last **human** comment, skipping bots, falling back to the issue
+author when there are no comments. Only the last few comments are inspected, so a
+thread whose recent history is all bots reports the author.
+
+Set `team: owner/team-slug` and each item also gets `meta.last_comment_team`
+(`true` when the last commenter is on that team). Rows then render a reply chip
+next to the author — green `↩ @alice ·us` when the ball is in our court, amber
+`↩ @cust22 ·them` when it is in theirs — and a filter rule can keep only one
+side:
+
+```yaml
+name: escalations-waiting
+signal: github
+params:
+  project: acme/17
+  filter: 'status:Waiting repo:acme/escalations is:open -is:pr'
+  team: acme/platform
+rules:
+  - field: meta.last_comment_team
+    include: "false"
+```
+
+Team membership costs one extra GraphQL call, cached for 24h in
+`.data/serve.duckdb`, and needs the **`read:org`** scope (part of the default
+scope set). Without `team:`, `meta.last_comment_team` is absent and the chip
+renders dim — so a missing key always means "not configured", never "external".
 
 The write restriction is Munin policy enforced in `cmd/tasks.go:resolveWriteTarget`
 before the API call — the OAuth token itself grants broader write access, so the

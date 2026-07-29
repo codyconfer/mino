@@ -49,6 +49,7 @@ func Clock() string       { return vk.Clock() }
 func Notes() string       { return notes.String() }
 func Plugins() string     { return plugins.String() }
 func Builder() string     { return builder.String() }
+func Reply() string       { return reply.String() }
 
 var (
 	brand      = vk.Variants{Nerd: "▚▚", Uni: "▚▚", ASCII: "##"}
@@ -58,6 +59,7 @@ var (
 	notes      = vk.Variants{Nerd: "", Uni: "✎", ASCII: "nt"}
 	plugins    = vk.Variants{Nerd: "", Uni: "▣", ASCII: "P"}
 	builder    = vk.Variants{Nerd: "", Uni: "⚒", ASCII: "qb"}
+	reply      = vk.Variants{Nerd: "", Uni: "↩", ASCII: "<-"}
 )
 
 func init() {
@@ -65,6 +67,7 @@ func init() {
 	vk.Register("ntr", notes)
 	vk.Register("plugins", plugins)
 	vk.Register("builder", builder)
+	vk.Register("reply", reply)
 }
 
 func Brand() string      { return brand.String() }
