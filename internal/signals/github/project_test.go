@@ -54,13 +54,19 @@ func searchPage(hasNext bool, cursor, nodes string) string {
 		`"nodes":[` + nodes + `]}}}`
 }
 
+const (
+	nodeOpenedAt = "2026-07-01T10:00:00Z"
+	firstReplyAt = "2026-07-18T10:00:00Z"
+	lastReplyAt  = "2026-07-19T10:00:00Z"
+)
+
 func node(typename, title, status, repo string, extra string) string {
 	statusJSON := "null"
 	if status != "" {
 		statusJSON = `{"name":"` + status + `"}`
 	}
 	return `{"__typename":"` + typename + `","title":"` + title + `","url":"https://github.com/` + repo + `/issues/1",` +
-		`"body":"details","updatedAt":"2026-07-20T10:00:00Z","state":"OPEN",` +
+		`"body":"details","createdAt":"` + nodeOpenedAt + `","updatedAt":"2026-07-20T10:00:00Z","state":"OPEN",` +
 		`"repository":{"nameWithOwner":"` + repo + `"},"author":{"login":"reporter"},` +
 		`"assignees":{"nodes":[{"login":"codyconfer"}]},"labels":{"nodes":[{"name":"type/bug"}]},` +
 		extra +
@@ -76,9 +82,11 @@ var (
 		`"projectItems":{"nodes":[{"project":{"number":42,"owner":{"login":"acme"}},"status":{"name":"Incoming"}}]}}`
 
 	teamReplyNode = node("Issue", "team replied", "Waiting", "acme/escalations",
-		`"comments":{"nodes":[{"author":{"login":"custuser","__typename":"User"}},{"author":{"login":"alice","__typename":"User"}}]},`)
+		`"comments":{"nodes":[{"createdAt":"`+firstReplyAt+`","author":{"login":"custuser","__typename":"User"}},`+
+			`{"createdAt":"`+lastReplyAt+`","author":{"login":"alice","__typename":"User"}}]},`)
 	custReplyNode = node("Issue", "customer replied", "Waiting", "acme/escalations",
-		`"comments":{"nodes":[{"author":{"login":"alice","__typename":"User"}},{"author":{"login":"custuser","__typename":"User"}}]},`)
+		`"comments":{"nodes":[{"createdAt":"`+firstReplyAt+`","author":{"login":"alice","__typename":"User"}},`+
+			`{"createdAt":"`+lastReplyAt+`","author":{"login":"custuser","__typename":"User"}}]},`)
 )
 
 func TestParseProjectRef(t *testing.T) {
@@ -279,11 +287,17 @@ func TestProjectFetchMarksTeamReplies(t *testing.T) {
 	if got := items[0].Meta["last_comment_team"]; got != "true" {
 		t.Errorf("last_comment_team = %q, want true", got)
 	}
+	if got := items[0].Meta["last_comment_at"]; got != lastReplyAt {
+		t.Errorf("last_comment_at = %q, want %q", got, lastReplyAt)
+	}
 	if got := items[1].Meta["last_comment_by"]; got != "custuser" {
 		t.Errorf("last_comment_by = %q, want custuser", got)
 	}
 	if got := items[1].Meta["last_comment_team"]; got != "false" {
 		t.Errorf("last_comment_team = %q, want false", got)
+	}
+	if got := items[1].Meta["last_comment_at"]; got != lastReplyAt {
+		t.Errorf("last_comment_at = %q, want %q", got, lastReplyAt)
 	}
 	if !strings.Contains(be.searches[0], "project:acme/17") {
 		t.Errorf("search = %q", be.searches[0])
@@ -305,14 +319,20 @@ func TestProjectFetchWithoutTeamOmitsTeamMeta(t *testing.T) {
 	if _, ok := it.Meta["last_comment_team"]; ok {
 		t.Error("last_comment_team must be absent when no team is configured")
 	}
+	if got := it.Meta["last_comment_at"]; got != lastReplyAt {
+		t.Errorf("last_comment_at = %q, want %q (independent of team:)", got, lastReplyAt)
+	}
 	if be.teamCalls != 0 {
 		t.Errorf("team calls = %d, want 0", be.teamCalls)
 	}
 }
 
 func TestProjectSearchQueryRequestsComments(t *testing.T) {
-	if !strings.Contains(projectSearchQuery, "comments(last:5){nodes{author{login __typename}}}") {
-		t.Error("project search query must request the last comments")
+	if !strings.Contains(projectSearchQuery, "comments(last:5){nodes{createdAt author{login __typename}}}") {
+		t.Error("project search query must request the last comments with their timestamps")
+	}
+	if !strings.Contains(projectSearchQuery, "createdAt updatedAt") {
+		t.Error("project search query must request createdAt for the no-comment fallback")
 	}
 }
 

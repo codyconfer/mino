@@ -1,7 +1,9 @@
 # A board column narrowed to the items where the ball is in their court.
 # `team:` resolves an org team's members (needs read:org, cached for 24h), so
-# every item gets meta.last_comment_by (the last human commenter, bots skipped)
-# and meta.last_comment_team. Rows render a reply chip: green `·us`, amber `·them`.
+# every item gets meta.last_comment_by (the last human commenter, bots skipped),
+# meta.last_comment_at and meta.last_comment_team. Rows render a reply chip ending
+# in the comment's age: green with `·team` when a teammate replied last, amber
+# when the reply came from outside.
 name: board-waiting-on-them
 title: Board · Waiting on them
 signal: github

@@ -90,6 +90,7 @@ type projectItem struct {
 	kind            string
 	draft           bool
 	lastCommentBy   string
+	lastCommentAt   time.Time
 	lastCommentTeam bool
 }
 
@@ -165,6 +166,7 @@ type searchNode struct {
 	Title      string `json:"title"`
 	URL        string `json:"url"`
 	Body       string `json:"body"`
+	CreatedAt  string `json:"createdAt"`
 	UpdatedAt  string `json:"updatedAt"`
 	State      string `json:"state"`
 	IsDraft    bool   `json:"isDraft"`
@@ -176,7 +178,8 @@ type searchNode struct {
 	} `json:"author"`
 	Comments struct {
 		Nodes []struct {
-			Author *struct {
+			CreatedAt string `json:"createdAt"`
+			Author    *struct {
 				Login    string `json:"login"`
 				TypeName string `json:"__typename"`
 			} `json:"author"`
@@ -235,13 +238,10 @@ func (n searchNode) toProjectItem(spec ProjectSpec, roster *Roster) (projectItem
 	for _, l := range n.Labels.Nodes {
 		it.labels = append(it.labels, l.Name)
 	}
-	it.lastCommentBy = lastResponder(n)
+	it.lastCommentBy, it.lastCommentAt = lastResponder(n)
 	it.lastCommentTeam = roster.Has(it.lastCommentBy)
 
-	var ts time.Time
-	if n.UpdatedAt != "" {
-		ts, _ = time.Parse(time.RFC3339, n.UpdatedAt)
-	}
+	ts := parseTime(n.UpdatedAt)
 	meta := map[string]string{}
 	if it.status != "" {
 		meta[strings.ToLower(spec.Field)] = it.status
@@ -263,6 +263,9 @@ func (n searchNode) toProjectItem(spec ProjectSpec, roster *Roster) (projectItem
 	}
 	if it.lastCommentBy != "" {
 		meta["last_comment_by"] = it.lastCommentBy
+		if !it.lastCommentAt.IsZero() {
+			meta["last_comment_at"] = it.lastCommentAt.Format(time.RFC3339)
+		}
 		if roster.Configured() {
 			meta["last_comment_team"] = strconv.FormatBool(it.lastCommentTeam)
 		}
@@ -375,8 +378,8 @@ func (p *projectSignal) page(ctx context.Context, search, cursor string) (*searc
 	return resp.Data.Search, nil
 }
 
-var projectItemFields = `title url body updatedAt state repository{nameWithOwner} author{login} ` +
-	`comments(last:` + strconv.Itoa(commentWindow) + `){nodes{author{login __typename}}} ` +
+var projectItemFields = `title url body createdAt updatedAt state repository{nameWithOwner} author{login} ` +
+	`comments(last:` + strconv.Itoa(commentWindow) + `){nodes{createdAt author{login __typename}}} ` +
 	`assignees(first:20){nodes{login}} labels(first:30){nodes{name}} ` +
 	`projectItems(first:20){nodes{project{number owner{... on Organization{login} ... on User{login}}} ` +
 	`status: fieldValueByName(name:$field){... on ProjectV2ItemFieldSingleSelectValue{name}}}}`

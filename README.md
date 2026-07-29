@@ -787,12 +787,18 @@ but who spoke last. Every project item carries `meta.last_comment_by` — the
 author of the last **human** comment, skipping bots, falling back to the issue
 author when there are no comments. Only the last few comments are inspected, so a
 thread whose recent history is all bots reports the author.
+`meta.last_comment_at` carries when that comment landed (RFC3339, the item's open
+time for the author fallback).
+
+Rows render a reply chip next to the author, ending in how long ago that comment
+landed: `↩ @cust22 ·3d ago`. Because the chip already dates the thread, it
+replaces the row's usual `updatedAt` time rather than sitting beside it.
 
 Set `team: owner/team-slug` and each item also gets `meta.last_comment_team`
-(`true` when the last commenter is on that team). Rows then render a reply chip
-next to the author — green `↩ @alice ·us` when the ball is in our court, amber
-`↩ @cust22 ·them` when it is in theirs — and a filter rule can keep only one
-side:
+(`true` when the last commenter is on that team). The chip then reads green
+`↩ @alice ·team ·3d ago` when a teammate replied last and amber
+`↩ @cust22 ·3d ago` when the reply came from outside, and a filter rule can keep
+only one side:
 
 ```yaml
 name: escalations-waiting
@@ -810,6 +816,7 @@ Team membership costs one extra GraphQL call, cached for 24h in
 `.data/serve.duckdb`, and needs the **`read:org`** scope (part of the default
 scope set). Without `team:`, `meta.last_comment_team` is absent and the chip
 renders dim — so a missing key always means "not configured", never "external".
+`meta.last_comment_at` is unaffected by `team:` and present either way.
 
 The write restriction is Munin policy enforced in `cmd/tasks.go:resolveWriteTarget`
 before the API call — the OAuth token itself grants broader write access, so the
