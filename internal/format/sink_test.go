@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -75,6 +76,9 @@ func TestDeliverOutPathMode(t *testing.T) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("Stat: %v", err)
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not modelled on Windows")
 	}
 	if fi.Mode().Perm() != 0o600 {
 		t.Errorf("mode = %v, want 0600", fi.Mode().Perm())
