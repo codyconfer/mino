@@ -30,11 +30,12 @@ const (
 // Store caches signal results in a DuckDB kv table. Every method is safe on a nil
 // receiver and every failure degrades to a miss, so callers never have to guard.
 type Store struct {
-	home   string
-	ttl    time.Duration
-	perSig map[string]time.Duration
-	mode   Mode
-	fp     string
+	home      string
+	ttl       time.Duration
+	detailTTL time.Duration
+	perSig    map[string]time.Duration
+	mode      Mode
+	fp        string
 
 	mu     sync.Mutex
 	kv     *kv.Store
@@ -62,7 +63,26 @@ func New(home string, cfg config.CacheConfig, fingerprint string, mode Mode) *St
 			ttl = d
 		}
 	}
-	return &Store{home: home, ttl: ttl, perSig: per, mode: mode, fp: fingerprint}
+	return &Store{home: home, ttl: ttl, detailTTL: parseDetailTTL(cfg.DetailTTL), perSig: per, mode: mode, fp: fingerprint}
+}
+
+func parseDetailTTL(raw string) time.Duration {
+	if raw == "" {
+		raw = config.DefaultDetailTTL
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		log.Debugf("cache: invalid detail ttl %q; detail caching disabled", raw)
+		return 0
+	}
+	return d
+}
+
+func (s *Store) DetailTTL() time.Duration {
+	if s == nil {
+		return 0
+	}
+	return s.detailTTL
 }
 
 func (s *Store) open(ctx context.Context) *kv.Store {
@@ -101,6 +121,10 @@ func (s *Store) Close() error {
 	s.kv, s.opened = nil, false
 	return err
 }
+
+func (s *Store) Reads() bool { return s != nil && s.mode == ModeUse }
+
+func (s *Store) Writes() bool { return s != nil && s.mode != ModeOff }
 
 // TTL reports how long results for a signal stay fresh. Zero means don't cache.
 // An explicit cache.signals entry always wins, so "0" force-disables one signal and

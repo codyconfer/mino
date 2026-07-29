@@ -83,6 +83,19 @@ func SectionItems(f layout.Frame, root string, sections []signals.Section) []lis
 	return items
 }
 
+func ItemRows(f layout.Frame, items []signals.Item) []list.Item {
+	th := theme.Cur()
+	rows := make([]list.Item, 0, len(items))
+	for _, it := range items {
+		rows = append(rows, list.Item{
+			Block:      strings.Join(itemLines(f, th, it), "\n"),
+			Key:        it.URL,
+			Selectable: it.URL != "",
+		})
+	}
+	return rows
+}
+
 func Success(msg string) string { return theme.Success(msg) }
 
 func Bullet(msg string) string { return theme.Bullet(msg) }
@@ -122,7 +135,7 @@ func lastCommentChip(th *theme.Theme, it signals.Item) string {
 }
 
 func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
-	icon := theme.SeverityStyle(glyph.Classify(it.Kind)).Render(glyph.Lead(glyph.ForKind(it.Kind)))
+	icon := theme.SeverityStyle(glyph.ClassifyItem(it)).Render(glyph.Lead(glyph.ForItem(it)))
 	head := icon + th.Val.Render(signals.Clean(it.Title))
 	if it.Subtitle != "" {
 		head += "  " + th.Dim.Render(signals.Clean(it.Subtitle))

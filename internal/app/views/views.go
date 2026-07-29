@@ -14,6 +14,7 @@ import (
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
+	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/render/glyph"
 	"github.com/codyconfer/munin/internal/signals"
 )
@@ -28,6 +29,7 @@ type Deps struct {
 	FetchHomeFlight    func(name string) []signals.Section
 	FetchAdhoc         func(q config.Query) []signals.Section
 	FetchFlightQueries func(label string, queries []string) []signals.Section
+	FetchDetail        func(signal string, it signals.Item) (*signals.ItemDetail, error)
 
 	Verify func(kind string) []verify.Finding
 
@@ -129,12 +131,12 @@ func (k *Kit) Home() vkdeck.View {
 	name := k.homeFlightName()
 	var shell *vkdeck.HomeShell
 	if name == "" {
-		shell = deck.NewHome("home", k.menuCtx(), k.mainMenuItems(), "", nil)
+		shell = deck.NewHome("home", k.menuCtx(), k.mainMenuItems(), "", nil, nil)
 	} else {
 		ctx := append(k.menuCtx(), [2]string{"home", name})
 		shell = deck.NewHome("home", ctx, k.mainMenuItems(), name, func() []signals.Section {
 			return k.d.FetchHomeFlight(name)
-		})
+		}, k.openDetail)
 	}
 	return vkdeck.WithExtraHints(vkdeck.WithLiveContext(shell, k.menuCtx), k.hotkeyHints())
 }
@@ -158,7 +160,11 @@ func (k *Kit) FlightResults(name string) vkdeck.View {
 	ctx := append(k.menuCtx(), [2]string{"flight", name})
 	return deck.NewResults("flight: "+name, name, ctx, func() []signals.Section {
 		return k.d.FetchFlightAudited(name)
-	})
+	}, k.openDetail)
+}
+
+func (k *Kit) openDetail(a *vkdeck.Model, ref render.ItemRef) tea.Cmd {
+	return a.Push(k.Detail(ref))
 }
 
 func (k *Kit) History() vkdeck.View {
@@ -210,7 +216,7 @@ func (k *Kit) historyResults(r audit.AuditRow) vkdeck.View {
 			return []signals.Section{{Signal: r.Name, Title: r.Name, Err: err}}
 		}
 		return secs
-	})
+	}, k.openDetail)
 }
 
 func entryStatus(r audit.AuditRow) string {

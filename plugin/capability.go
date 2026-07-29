@@ -26,6 +26,7 @@ const (
 	// CapCacheable marks a signal whose Fetch results are worth caching between runs.
 	// Signals reading local state should omit it so writes show up immediately.
 	CapCacheable Capability = "cacheable"
+	CapDetail    Capability = "detail"
 )
 
 type Query interface {
@@ -48,6 +49,11 @@ type Scheduled interface {
 	Name() string
 	Next(ctx context.Context, now time.Time) (due time.Time, ready bool, err error)
 	Fetch(ctx context.Context) ([]Section, error)
+}
+
+type Detailer interface {
+	Name() string
+	Detail(ctx context.Context, item Item) (ItemDetail, error)
 }
 
 type Descriptor struct {

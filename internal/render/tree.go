@@ -44,10 +44,14 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 }
 
 func staleChip(th *theme.Theme, s signals.Section) string {
-	if s.Meta["cache"] != "stale" {
+	return staleCue(th, s.Meta)
+}
+
+func staleCue(th *theme.Theme, meta map[string]string) string {
+	if meta["cache"] != "stale" {
 		return ""
 	}
-	if age := signals.Clean(s.Meta["age"]); age != "" {
+	if age := signals.Clean(meta["age"]); age != "" {
 		return th.Dim.Render("  (stale " + age + ")")
 	}
 	return th.Dim.Render("  (stale)")

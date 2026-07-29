@@ -295,6 +295,74 @@ func TestEnabledCacheCreatesFile(t *testing.T) {
 	}
 }
 
+func TestDetailTTL(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"explicit", "90s", 90 * time.Second},
+		{"empty falls back to the default", "", 5 * time.Minute},
+		{"zero disables", "0", 0},
+		{"invalid disables", "nonsense", 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := New(t.TempDir(), config.CacheConfig{DetailTTL: c.raw}, "fp", ModeUse)
+			defer s.Close()
+			if got := s.DetailTTL(); got != c.want {
+				t.Errorf("DetailTTL(%q) = %v, want %v", c.raw, got, c.want)
+			}
+		})
+	}
+	var nilStore *Store
+	if got := nilStore.DetailTTL(); got != 0 {
+		t.Errorf("nil DetailTTL = %v, want 0", got)
+	}
+}
+
+func TestDetailTTLIsIndependentOfSignalTTL(t *testing.T) {
+	s := New(t.TempDir(), config.CacheConfig{TTL: "0", DetailTTL: "5m"}, "fp", ModeUse)
+	defer s.Close()
+	if s.TTL(cacheableSignal) != 0 {
+		t.Errorf("signal ttl = %v, want caching off", s.TTL(cacheableSignal))
+	}
+	if s.DetailTTL() != 5*time.Minute {
+		t.Errorf("detail ttl = %v, want it unaffected by the signal ttl", s.DetailTTL())
+	}
+}
+
+func TestDetailTTLDoesNotAffectTheFingerprint(t *testing.T) {
+	cfg := config.Defaults()
+	base := Fingerprint(cfg)
+	cfg.Cache.DetailTTL = "99m"
+	if got := Fingerprint(cfg); got != base {
+		t.Errorf("detail ttl changed the fingerprint: %q vs %q", got, base)
+	}
+}
+
+func TestReadsAndWritesFollowMode(t *testing.T) {
+	cases := []struct {
+		mode         Mode
+		reads, wries bool
+	}{
+		{ModeUse, true, true},
+		{ModeRefresh, false, true},
+		{ModeOff, false, false},
+	}
+	for _, c := range cases {
+		s := New(t.TempDir(), config.CacheConfig{TTL: "1h"}, "fp", c.mode)
+		if s.Reads() != c.reads || s.Writes() != c.wries {
+			t.Errorf("mode %v: reads=%v writes=%v, want %v/%v", c.mode, s.Reads(), s.Writes(), c.reads, c.wries)
+		}
+		s.Close()
+	}
+	var nilStore *Store
+	if nilStore.Reads() || nilStore.Writes() {
+		t.Error("a nil store should neither read nor write")
+	}
+}
+
 func TestStatsAndClear(t *testing.T) {
 	s := newStore(t, "1h", ModeUse)
 	fetch(t, s.Wrap(&fake{title: "a"}, cacheableSignal, "", map[string]string{"q": "1"}))

@@ -65,16 +65,19 @@ type projectSignal struct {
 	backend Backend
 	max     int
 	cache   RosterCache
+	detail  Cache
+	policy  CachePolicy
 }
 
-func NewProject(spec ProjectSpec, backend Backend, max int, cache RosterCache) signals.Signal {
+func NewProject(spec ProjectSpec, backend Backend, max int, cache RosterCache, opts ...Option) signals.Signal {
 	if spec.Field == "" {
 		spec.Field = statusFieldName
 	}
 	if max <= 0 {
 		max = defaultPerPage
 	}
-	return &projectSignal{spec: spec, backend: backend, max: max, cache: cache}
+	o := applyOptions(opts)
+	return &projectSignal{spec: spec, backend: backend, max: max, cache: cache, detail: o.detail, policy: o.policy}
 }
 
 func (p *projectSignal) Name() string { return "github" }
@@ -329,6 +332,10 @@ type graphQLResponse struct {
 			} `json:"team"`
 		} `json:"organization"`
 	} `json:"data"`
+	graphQLErrors
+}
+
+type graphQLErrors struct {
 	Errors []struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
@@ -337,21 +344,27 @@ type graphQLResponse struct {
 
 func (r graphQLResponse) err() error { return r.errHint(projectScopeHint) }
 
-func (r graphQLResponse) errHint(scopeHint string) error {
-	if len(r.Errors) == 0 {
+func (g graphQLErrors) errHint(scopeHint string) error {
+	if len(g.Errors) == 0 {
 		return nil
 	}
-	msgs := make([]string, 0, len(r.Errors))
-	scopes := false
-	for _, e := range r.Errors {
+	msgs := make([]string, 0, len(g.Errors))
+	scopes, missing := false, false
+	for _, e := range g.Errors {
 		msgs = append(msgs, e.Message)
-		if e.Type == "INSUFFICIENT_SCOPES" {
+		switch e.Type {
+		case "INSUFFICIENT_SCOPES":
 			scopes = true
+		case "NOT_FOUND":
+			missing = true
 		}
 	}
 	joined := strings.Join(msgs, "; ")
-	if scopes {
+	switch {
+	case scopes:
 		return errs.Newf(errs.KindAuth, "github: graphql: %s", joined).WithHint("%s", scopeHint)
+	case missing:
+		return errs.Newf(errs.KindUsage, "github: %s", joined)
 	}
 	return errs.Newf(errs.KindSignal, "github: graphql: %s", joined)
 }

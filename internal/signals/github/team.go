@@ -17,10 +17,12 @@ const (
 	teamMemberPages = 20
 )
 
-type RosterCache interface {
+type Cache interface {
 	Get(ctx context.Context, namespace, key string) (string, bool)
 	Put(ctx context.Context, namespace, key, value string, expiry time.Time)
 }
+
+type RosterCache = Cache
 
 type Roster struct {
 	slug    string

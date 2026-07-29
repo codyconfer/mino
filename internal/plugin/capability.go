@@ -23,13 +23,19 @@ const (
 	CapStream    = pub.CapStream
 	CapScheduled = pub.CapScheduled
 	CapCacheable = pub.CapCacheable
+	CapDetail    = pub.CapDetail
 )
 
 type Query = pub.Query
 type Stream = pub.Stream
 type Action = pub.Action
 type Scheduled = pub.Scheduled
+type Detailer = pub.Detailer
 type Descriptor = pub.Descriptor
+
+type Chip = pub.Chip
+type DetailSection = pub.DetailSection
+type ItemDetail = pub.ItemDetail
 
 func KnownKinds() []Kind { return pub.KnownKinds() }
 

@@ -72,9 +72,11 @@ type Signal struct {
 	queries []query
 	backend Backend
 	max     int
+	detail  Cache
+	policy  CachePolicy
 }
 
-func New(queries []string, backend Backend, max int) signals.Signal {
+func New(queries []string, backend Backend, max int, opts ...Option) signals.Signal {
 	qs := make([]query, 0, len(queries))
 	if len(queries) == 0 {
 		qs = []query{
@@ -89,7 +91,8 @@ func New(queries []string, backend Backend, max int) signals.Signal {
 	if max <= 0 {
 		max = defaultPerPage
 	}
-	return &Signal{queries: qs, backend: backend, max: max}
+	o := applyOptions(opts)
+	return &Signal{queries: qs, backend: backend, max: max, detail: o.detail, policy: o.policy}
 }
 
 func (s *Signal) Name() string { return "github" }

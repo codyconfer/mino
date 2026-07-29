@@ -108,6 +108,33 @@ func Plugins() *keys.Map {
 	)
 }
 
+func Detail() *keys.Map {
+	sc := keys.Cur()
+	return keys.NewMap(
+		sc.Binding(keys.Up),
+		sc.Binding(keys.Down),
+		sc.Binding(keys.PageUp),
+		sc.Binding(keys.PageDown),
+		sc.Binding(keys.Open),
+		sc.Binding(keys.Cancel),
+		sc.Binding(keys.Quit),
+	)
+}
+
+func ItemList() *keys.Map {
+	sc := keys.Cur()
+	return keys.NewMap(
+		sc.Binding(keys.Up),
+		sc.Binding(keys.Down),
+		sc.Binding(keys.PageUp),
+		sc.Binding(keys.PageDown),
+		sc.Binding(keys.Confirm),
+		sc.Binding(keys.Open),
+		sc.Binding(keys.Cancel),
+		sc.Binding(keys.Quit),
+	)
+}
+
 func ConfirmMap() *keys.Map {
 	sc := keys.Cur()
 	return keys.NewMap(

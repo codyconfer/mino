@@ -11,16 +11,7 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-const defaultSignalTimeout = 30 * time.Second
-
-func sourceTimeout() time.Duration {
-	if shared.Cfg != nil && shared.Cfg.Timeout != "" {
-		if d, err := time.ParseDuration(shared.Cfg.Timeout); err == nil && d > 0 {
-			return d
-		}
-	}
-	return defaultSignalTimeout
-}
+func sourceTimeout() time.Duration { return shared.SourceTimeout() }
 
 type query = flight.Query
 

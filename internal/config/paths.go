@@ -19,6 +19,13 @@ const (
 	CacheDB  = "cache.duckdb"
 )
 
+const (
+	ServeSocket  = "serve.sock"
+	SocketPrefix = "munin"
+)
+
+func ServeSocketPath(home string) string { return filepath.Join(home, ServeSocket) }
+
 func DataDir(home string) string { return filepath.Join(home, DirData) }
 
 func DataPath(home, name string) string {

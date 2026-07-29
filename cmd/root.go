@@ -109,6 +109,7 @@ func newRootCmd() *cobra.Command {
 		newFilterCmd(),
 		newRoleCmd(),
 		newHistoryCmd(),
+		newShowCmd(),
 		newCacheCmd(),
 		newConfigCmd(),
 		newBackupCmd(),
@@ -135,8 +136,9 @@ func newRootCmd() *cobra.Command {
 		newDriveCmd(),
 		newTasksCmd(),
 		newSlackCmd(),
+		newServeCmd(),
 	)
-	root.AddCommand(daemonCommands()...)
+	root.AddCommand(registered()...)
 	return root
 }
 

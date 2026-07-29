@@ -19,11 +19,23 @@ type GlobalSettings struct {
 	LogLevel         string   `yaml:"log_level"`
 	LogColor         string   `yaml:"log_color"`
 	LogDir           string   `yaml:"log_dir"`
+	DetailCacheTTL   string   `yaml:"detail_cache_ttl,omitempty"`
 	Onboarded        bool     `yaml:"onboarded"`
 	OnboardedDomain  string   `yaml:"onboarded_domain"`
 	InstalledPlugins []string `yaml:"installed_plugins,omitempty"`
 	DisabledPlugins  []string `yaml:"disabled_plugins,omitempty"`
 	HiddenStatusBar  []string `yaml:"hidden_status_bar,omitempty"`
+}
+
+const DefaultDetailTTL = "5m"
+
+func ResolveDetailTTL(local, global string) string {
+	for _, v := range []string{local, global, DefaultDetailTTL} {
+		if v != "" {
+			return v
+		}
+	}
+	return DefaultDetailTTL
 }
 
 func LogDir(home string) string {

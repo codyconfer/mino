@@ -14,6 +14,7 @@ import (
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/munin/internal/signals/build"
 )
 
 func newDeckCmd() *cobra.Command {
@@ -23,7 +24,10 @@ func newDeckCmd() *cobra.Command {
 		Short:             "Open the cyberpunk TUI (main menu, or a flight directly)",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeFlightNames,
-		Annotations:       map[string]string{annoGateMode: modeDeck},
+		Annotations: map[string]string{
+			annoGateMode:      modeDeck,
+			AnnoLaunchLoading: "true",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			defer stopLaunchLoading()
 			if !term.IsTerminal(os.Stdout.Fd()) {
@@ -61,9 +65,20 @@ func buildViews() *views.Kit {
 		FetchHomeFlight:    fetchHomeFlightSections,
 		FetchAdhoc:         fetchAdhocSections,
 		FetchFlightQueries: fetchFlightQueriesSections,
+		FetchDetail:        fetchItemDetail,
 		Verify:             verifyFindings,
 		ExportDirectives:   exportDirectivesToFiles,
 	})
+}
+
+func fetchItemDetail(signal string, it signals.Item) (*signals.ItemDetail, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), sourceTimeout())
+	defer cancel()
+	d, err := build.Detail(ctx, signal, it, shared.Cfg, shared.Tokens, shared.Cache)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
 }
 
 func fetchAdhocSections(q config.Query) []signals.Section {
@@ -122,5 +137,5 @@ func exportDirectivesToFiles() ([]string, error) {
 }
 
 func statusProvider() deck.StatusFunc {
-	return statusstrip.Provider(shared, daemonStatusChip())
+	return statusstrip.Provider(shared)
 }

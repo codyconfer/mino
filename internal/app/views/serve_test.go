@@ -1,5 +1,3 @@
-//go:build !nodaemon
-
 package views
 
 import (

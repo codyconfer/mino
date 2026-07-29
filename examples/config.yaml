@@ -15,6 +15,11 @@ timeout: 30s                # per-signal fetch timeout (override with --timeout)
 # the section "(stale <age>)" rather than showing an error.
 cache:
   ttl: 60s
+  # How long one item's fetched details (body, checks, reviews, comments) stay
+  # fresh, for `munin show` and the deck's details view. Separate from `ttl`
+  # because details are fetched per item, not per signal. "0" disables.
+  # Falls back to `detail_cache_ttl` in settings.yaml, then 5m.
+  detail_ttl: 5m
   # Per-signal overrides beat the global ttl. An explicit value also turns on
   # caching for a signal that does not advertise the `cacheable` capability;
   # "0" turns it off. Signals reading local state (ntr) are never cached.

@@ -1,4 +1,4 @@
-.PHONY: build dev install command run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
+.PHONY: build build-experimental dev install command run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
 BIN     ?= $(DIST)/munin
@@ -11,16 +11,18 @@ INSTALL_DIR ?= $(shell d="$$(go env GOBIN)"; [ -n "$$d" ] || d="$$(go env GOPATH
 #   RACE  — set to build with the race detector, e.g. `make run RACE=1`
 #   TAGS  — extra build tags, e.g. `make build TAGS=demo`
 #
-# TAGS=nodaemon compiles munin WITHOUT serve/daemon mode: the realtime watcher,
-# its event socket, the OS service wiring, and the `serve`/`daemon` commands are
-# all left out, and service-only plugin contributions (NTR reminders) stay
-# hidden because nothing can attach. `deck` and every cli directive still work.
-# Honored by build/dev/install/test/package, e.g. `make package TAGS=nodaemon`.
+# TAGS=daemon enables the EXPERIMENTAL OS-service daemon, which is OFF by
+# default. The daemon lives in its own package (github.com/codyconfer/munin/daemon)
+# and is linked only by experimental_daemon.go, a single blank import behind the
+# tag. With it: the `daemon` command tree, the daemon status chip, the
+# daemon.tray setting, kardianos/service and the systray dependency. Without it:
+# none of the above, and no dependency on either library. serve/deck/cli are
+# identical either way — `make daemon` sets the tag for you.
 ARGS ?=
 RACE ?=
 TAGS ?=
-GOFLAGS_TAGS := $(if $(TAGS),-tags "$(TAGS)",)
-GOFLAGS_DEV := $(if $(RACE),-race,) $(GOFLAGS_TAGS)
+GOFLAGS_TAGS = $(if $(TAGS),-tags "$(TAGS)",)
+GOFLAGS_DEV = $(if $(RACE),-race,) $(GOFLAGS_TAGS)
 
 # EMAIL_DOMAIN, when set, compiles a locked-down build that only completes
 # onboarding (and thus unlocks munin) if the git signing key has a GitHub-verified
@@ -77,6 +79,13 @@ matrix:
 build:
 	go build $(GOFLAGS_TAGS) ./...
 
+# Build the experimental configurations so they cannot rot. `build` already
+# compiles the daemon package itself (and `test` tests it); this covers the one
+# thing it does not: the root binary with the daemon linked in.
+build-experimental:
+	go build -tags daemon -o /dev/null .
+	go vet -tags daemon ./...
+
 # Build a dev binary to $(BIN) honoring RACE/TAGS/EMAIL_DOMAIN/ALL_OR_NOTHING_AUTH.
 # Phony so it always rebuilds (go build is incremental) before a mode target runs.
 dev:
@@ -104,7 +113,9 @@ serve: dev
 	@$(BIN) serve $(ARGS)
 
 # daemon mode: install munin as an OS service if needed, then start it (idempotent).
+# EXPERIMENTAL and off by default, so this target adds TAGS=daemon itself.
 #   make daemon ARGS="work"
+daemon: TAGS += daemon
 daemon: dev
 	@$(BIN) daemon $(ARGS)
 
@@ -188,7 +199,7 @@ govulncheck:
 	$(GO_TOOL) govulncheck ./...
 
 # Full gate: build, format check, lint, vulncheck, test.
-check: build fmt-check lint govulncheck test
+check: build build-experimental fmt-check lint govulncheck test
 
 # CI entrypoint: identical to the full gate.
 ci: check

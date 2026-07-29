@@ -19,7 +19,7 @@ func homeItems() []vkdeck.MenuItem {
 }
 
 func TestHomeMenuOnly(t *testing.T) {
-	home := NewHome("home", nil, homeItems(), "", nil)
+	home := NewHome("home", nil, homeItems(), "", nil, nil)
 	app := New(home)
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
@@ -49,7 +49,7 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 		Items:  []signals.Item{{Title: "Fix onboarding attestation"}},
 	}}
 	home := NewHome("home", nil, homeItems(), "morning",
-		func() []signals.Section { return sections })
+		func() []signals.Section { return sections }, nil)
 
 	app := New(home)
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
@@ -96,7 +96,7 @@ func TestHomeMenuNavigationRunsItem(t *testing.T) {
 		{Label: "First"},
 		{Label: "Second", Do: func(*vkdeck.Model) tea.Cmd { ran = true; return nil }},
 	}
-	home := NewHome("home", nil, items, "", nil)
+	home := NewHome("home", nil, items, "", nil, nil)
 	app := New(home)
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 

@@ -101,8 +101,12 @@ func (k *Kit) setvEditConfigView() vkdeck.View {
 		{Key: "cache.ttl", Label: "cache.ttl", Kind: forms.FieldText, Text: c.Cache.TTL},
 		{Key: "backup.destination", Label: "backup.destination", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"local", "gdrive"}, c.Backup.Destination)},
 		{Key: "backup.keep", Label: "backup.keep", Kind: forms.FieldText, Text: strconv.Itoa(c.Backup.Keep)},
+		{Key: "daemon.interval", Label: "daemon.interval", Kind: forms.FieldText, Text: c.Daemon.Interval},
+		{Key: "daemon.bell", Label: "daemon.bell", Kind: forms.FieldToggle, On: c.Daemon.Bell},
+		{Key: "daemon.desktop", Label: "daemon.desktop", Kind: forms.FieldToggle, On: c.Daemon.Desktop},
+		{Key: "daemon.theme", Label: "daemon.theme", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"dark", "light"}, c.Daemon.Theme)},
 	}
-	fields = append(fields, setvDaemonFields(c)...)
+	fields = append(fields, sectionFields(c)...)
 	return vkdeck.NewFormView(vkdeck.FormSpec{
 		Title:       "edit config",
 		Fields:      fields,
@@ -122,8 +126,12 @@ func (k *Kit) setvSaveConfig(a *vkdeck.Model, vals map[string]any) tea.Cmd {
 		"audit.enabled":      forms.Bool(vals, "audit.enabled"),
 		"backup.destination": forms.Str(vals, "backup.destination"),
 		"backup.keep":        keep,
+		"daemon.interval":    forms.Str(vals, "daemon.interval"),
+		"daemon.bell":        forms.Bool(vals, "daemon.bell"),
+		"daemon.desktop":     forms.Bool(vals, "daemon.desktop"),
+		"daemon.theme":       forms.Str(vals, "daemon.theme"),
 	}
-	setvDaemonValues(vals, set)
+	sectionValues(vals, set)
 	path, err := config.SetValues(k.setvHome(), set)
 	if err != nil {
 		return a.Push(k.setvRed("edit config", err.Error()))
@@ -186,7 +194,7 @@ var statusBarBuiltinEntries = []statusBarEntry{
 func (k *Kit) setvStatusBarEntries() []statusBarEntry {
 	entries := make([]statusBarEntry, 0, len(statusBarBuiltinEntries)+8)
 	entries = append(entries, statusBarBuiltinEntries...)
-	entries = append(entries, setvStatusBarDaemonEntries()...)
+	entries = append(entries, sectionStatusBarEntries()...)
 	home, role := "", ""
 	if k.d.App != nil && k.d.App.Cfg != nil {
 		home, role = k.d.App.Cfg.Home, k.d.App.Cfg.Role

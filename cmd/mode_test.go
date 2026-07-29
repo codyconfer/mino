@@ -51,11 +51,22 @@ func TestCommandTree(t *testing.T) {
 	}
 }
 
+func TestServeIsCoreAndDaemonIsOptional(t *testing.T) {
+	root := Root()
+	if findCmd(root, "serve") == nil {
+		t.Error("serve is core and must always be registered")
+	}
+	if findCmd(root, "daemon") != nil {
+		t.Error("daemon must come from the optional daemon package, not cmd")
+	}
+}
+
 func TestGateMode(t *testing.T) {
 	root := Root()
 	want := map[string]string{
-		"deck": modeDeck,
-		"fly":  modeCLI,
+		"deck":  modeDeck,
+		"fly":   modeCLI,
+		"serve": modeServe,
 	}
 	for name, exp := range want {
 		c := findCmd(root, name)

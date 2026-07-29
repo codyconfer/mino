@@ -20,7 +20,7 @@ func TestProviderIncludesRoleStatusChips(t *testing.T) {
 	})
 
 	a := &app.App{Cfg: &config.Config{}}
-	info := Provider(a, nil)(context.Background())
+	info := Provider(a)(context.Background())
 	found := false
 	for _, s := range info.Services {
 		if s.ID == "role-status-0" && s.Name == "github" && s.Detail == "role-chip" {
@@ -50,7 +50,7 @@ func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
 	})
 
 	a := &app.App{Cfg: &config.Config{}}
-	info := Provider(a, nil)(context.Background())
+	info := Provider(a)(context.Background())
 
 	if info.GitHubUser != "" {
 		t.Fatalf("disabled github still set identity %q", info.GitHubUser)
@@ -79,26 +79,28 @@ func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
 	}
 }
 
-func TestProviderOmitsUninstalledDaemonChip(t *testing.T) {
+func TestProviderOmitsChipThatReportsAbsent(t *testing.T) {
 	testenv.Isolate(t)
+	t.Cleanup(resetChips)
+	RegisterChip(func() (deck.ServiceStatus, bool) { return deck.ServiceStatus{}, false })
 
 	a := &app.App{Cfg: &config.Config{}}
-	daemon := func() (deck.ServiceStatus, bool) { return deck.ServiceStatus{}, false }
-	info := Provider(a, daemon)(context.Background())
+	info := Provider(a)(context.Background())
 
 	if hasName(serviceNames(info.Services), "daemon") {
-		t.Fatalf("uninstalled daemon still in status chips: %+v", info.Services)
+		t.Fatalf("absent chip still in status chips: %+v", info.Services)
 	}
 }
 
-func TestProviderIncludesInstalledDaemonChip(t *testing.T) {
+func TestProviderIncludesRegisteredChip(t *testing.T) {
 	testenv.Isolate(t)
+	t.Cleanup(resetChips)
+	RegisterChip(func() (deck.ServiceStatus, bool) {
+		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Level: deck.StatusWarn}, true
+	})
 
 	a := &app.App{Cfg: &config.Config{}}
-	daemon := func() (deck.ServiceStatus, bool) {
-		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Level: deck.StatusWarn}, true
-	}
-	info := Provider(a, daemon)(context.Background())
+	info := Provider(a)(context.Background())
 
 	found := false
 	for _, s := range info.Services {
@@ -108,7 +110,20 @@ func TestProviderIncludesInstalledDaemonChip(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("installed daemon chip missing: %+v", info.Services)
+		t.Fatalf("registered chip missing: %+v", info.Services)
+	}
+}
+
+func TestProviderWithNoChipsRegistered(t *testing.T) {
+	testenv.Isolate(t)
+	t.Cleanup(resetChips)
+	resetChips()
+
+	a := &app.App{Cfg: &config.Config{}}
+	info := Provider(a)(context.Background())
+
+	if hasName(serviceNames(info.Services), "daemon") {
+		t.Fatalf("daemon chip present with nothing registered: %+v", info.Services)
 	}
 }
 

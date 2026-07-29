@@ -13,9 +13,15 @@ import (
 	gh "github.com/codyconfer/munin/internal/signals/github"
 )
 
-type DaemonStatus func() (deck.ServiceStatus, bool)
+type ChipFunc func() (deck.ServiceStatus, bool)
 
-func Provider(a *app.App, daemon DaemonStatus) deck.StatusFunc {
+var chips []ChipFunc
+
+func RegisterChip(fn ChipFunc) { chips = append(chips, fn) }
+
+func resetChips() { chips = nil }
+
+func Provider(a *app.App) deck.StatusFunc {
 	return func(ctx context.Context) deck.StatusInfo {
 		apiURL, _ := gh.NormalizeAPIURL(a.Cfg.GitHub.APIURL)
 		var info deck.StatusInfo
@@ -58,9 +64,9 @@ func Provider(a *app.App, daemon DaemonStatus) deck.StatusFunc {
 				Level: googleLevel,
 			})
 		}
-		if daemon != nil {
-			if chip, ok := daemon(); ok {
-				info.Services = append(info.Services, chip)
+		for _, chip := range chips {
+			if svc, ok := chip(); ok {
+				info.Services = append(info.Services, svc)
 			}
 		}
 		home, roleName := a.Cfg.Home, a.Cfg.Role

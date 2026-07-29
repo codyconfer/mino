@@ -219,6 +219,11 @@ func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Sto
 	if err != nil {
 		return nil, err
 	}
+	var opts []gh.Option
+	if results != nil {
+		opts = append(opts, gh.WithDetailCache(results,
+			gh.CachePolicy{Read: results.Reads(), Write: results.Writes(), TTL: results.DetailTTL()}))
+	}
 	if ref := params["project"]; ref != "" {
 		owner, number, err := gh.ParseProjectRef(ref)
 		if err != nil {
@@ -236,13 +241,13 @@ func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Sto
 		if spec.Team != "" && results != nil {
 			roster = results
 		}
-		return gh.NewProject(spec, backend, cfg.GitHub.Max, roster), nil
+		return gh.NewProject(spec, backend, cfg.GitHub.Max, roster, opts...), nil
 	}
 	queries := cfg.GitHub.Queries
 	if q := params["query"]; q != "" {
 		queries = []string{q}
 	}
-	return gh.New(queries, backend, cfg.GitHub.Max), nil
+	return gh.New(queries, backend, cfg.GitHub.Max, opts...), nil
 }
 
 func githubBackend(cfg *config.Config, tokens *token.Store) (gh.Backend, error) {

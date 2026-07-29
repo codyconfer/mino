@@ -6,6 +6,22 @@ import (
 	"github.com/codyconfer/viewkit/glyph"
 )
 
+func ClassifyItem(it Item) glyph.Severity {
+	isPR := strings.EqualFold(it.Kind, "pr")
+	switch strings.ToLower(it.Meta["state"]) {
+	case "merged":
+		return glyph.SeverityPositive
+	case "closed":
+		if isPR {
+			return glyph.SeverityNegative
+		}
+		return glyph.SeverityPositive
+	case "open":
+		return glyph.SeverityNeutral
+	}
+	return ClassifyKind(it.Kind)
+}
+
 func ClassifyKind(kind string) glyph.Severity {
 	switch strings.ToLower(kind) {
 	case "mention", "review-requested", "review_requested", "assigned", "alert", "incident", "warn", "warning":

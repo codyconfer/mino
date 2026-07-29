@@ -98,6 +98,7 @@ func Load(opts Options) (*App, error) {
 		// An explicit flag beats the config file outright, per-signal entries included —
 		// otherwise `--cache-ttl 0` would still cache anything listed under cache.signals.
 		cfg.Cache.TTL, cfg.Cache.Signals = opts.CacheTTL, nil
+		cfg.Cache.DetailTTL = opts.CacheTTL
 	}
 	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr}
 	a.openCache(cacheMode(opts))
@@ -224,6 +225,17 @@ func (a *App) RefreshDirectives(policy config.ReconcilePolicy) error {
 	return nil
 }
 
+const DefaultSignalTimeout = 30 * time.Second
+
+func (a *App) SourceTimeout() time.Duration {
+	if a != nil && a.Cfg != nil && a.Cfg.Timeout != "" {
+		if d, err := time.ParseDuration(a.Cfg.Timeout); err == nil && d > 0 {
+			return d
+		}
+	}
+	return DefaultSignalTimeout
+}
+
 func cacheMode(opts Options) cache.Mode {
 	switch {
 	case opts.NoCache:
@@ -236,7 +248,9 @@ func cacheMode(opts Options) cache.Mode {
 }
 
 func (a *App) openCache(mode cache.Mode) {
-	a.Cache = cache.New(a.Cfg.Home, a.Cfg.Cache, cache.Fingerprint(a.Cfg), mode)
+	cc := a.Cfg.Cache
+	cc.DetailTTL = config.ResolveDetailTTL(cc.DetailTTL, config.LoadGlobalSettings().DetailCacheTTL)
+	a.Cache = cache.New(a.Cfg.Home, cc, cache.Fingerprint(a.Cfg), mode)
 }
 
 func (a *App) openTokens() {

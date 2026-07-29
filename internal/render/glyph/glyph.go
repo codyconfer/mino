@@ -89,3 +89,9 @@ const (
 func Classify(kind string) Kind { return signals.ClassifyKind(kind) }
 
 func ForKind(kind string) string { return vk.GlyphFor(signals.ClassifyKind(kind)) }
+
+func ClassifyItem(it signals.Item) Kind { return signals.ClassifyItem(it) }
+
+func ForItem(it signals.Item) string { return vk.GlyphFor(signals.ClassifyItem(it)) }
+
+func For(sev Kind) string { return vk.GlyphFor(sev) }

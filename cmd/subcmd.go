@@ -5,6 +5,7 @@ import (
 
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/munin/internal/plugin"
 )
 
 type filterFlags struct {
@@ -57,7 +58,22 @@ func sourceCmd(name, short string) *cobra.Command {
 	}
 	ff.bind(query)
 	parent.AddCommand(query)
+	if plugin.HasCapability(name, plugin.CapDetail) {
+		parent.AddCommand(sourceShowCmd(name))
+	}
 	return parent
+}
+
+func sourceShowCmd(name string) *cobra.Command {
+	return &cobra.Command{
+		Use:               "show <url>",
+		Short:             "Show details for one " + name + " item",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: cobra.NoFileCompletions,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runShow(cmd, args[0], name)
+		},
+	}
 }
 
 func runSignal(cmd *cobra.Command, name string, params map[string]string, ff *filterFlags) error {

@@ -8,28 +8,35 @@ import (
 
 func TestWantsLaunchLoading(t *testing.T) {
 	root := &cobra.Command{Use: "munin"}
-	deck := &cobra.Command{Use: "deck"}
-	tui := &cobra.Command{Use: "tui"}
-	daemon := &cobra.Command{Use: "daemon"}
-	status := &cobra.Command{Use: "status"}
+	marked := &cobra.Command{Use: "deck", Annotations: map[string]string{AnnoLaunchLoading: "true"}}
+	sub := &cobra.Command{Use: "status"}
 	fly := &cobra.Command{Use: "fly"}
-	root.AddCommand(deck, tui, daemon, fly)
-	daemon.AddCommand(status)
+	root.AddCommand(marked, fly)
+	marked.AddCommand(sub)
 
 	cases := []struct {
 		cmd  *cobra.Command
 		want bool
 	}{
-		{deck, true},
-		{tui, true},
-		{daemon, true},
-		{status, false},
+		{marked, true},
+		{sub, false},
 		{fly, false},
 		{root, false},
+		{nil, false},
 	}
 	for _, tc := range cases {
 		if got := wantsLaunchLoading(tc.cmd); got != tc.want {
-			t.Errorf("wantsLaunchLoading(%q) = %v, want %v", tc.cmd.Name(), got, tc.want)
+			t.Errorf("wantsLaunchLoading(%v) = %v, want %v", tc.cmd, got, tc.want)
 		}
+	}
+}
+
+func TestDeckShowsLaunchLoading(t *testing.T) {
+	deck := findCmd(Root(), "deck")
+	if deck == nil {
+		t.Fatal("no deck command")
+	}
+	if !wantsLaunchLoading(deck) {
+		t.Error("deck should show the launch spinner")
 	}
 }

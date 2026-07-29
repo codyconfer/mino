@@ -21,8 +21,9 @@ type Config struct {
 }
 
 type CacheConfig struct {
-	TTL     string            `koanf:"ttl"`
-	Signals map[string]string `koanf:"signals"`
+	TTL       string            `koanf:"ttl"`
+	DetailTTL string            `koanf:"detail_ttl"`
+	Signals   map[string]string `koanf:"signals"`
 }
 
 type DaemonConfig struct {

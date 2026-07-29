@@ -14,7 +14,7 @@ func RegisterBuiltins() {
 	}
 	for _, s := range []sig{
 		{"munin.demo", "demo", []Capability{CapQuery, CapStream}},
-		{"munin.github", "github", []Capability{CapQuery, CapStream, CapCacheable}},
+		{"munin.github", "github", []Capability{CapQuery, CapStream, CapCacheable, CapDetail}},
 		{"munin.calendar", "calendar", []Capability{CapQuery, CapStream, CapCacheable}},
 		{"munin.gmail", "gmail", []Capability{CapQuery, CapCacheable}},
 		{"munin.docs", "docs", []Capability{CapQuery, CapCacheable}},

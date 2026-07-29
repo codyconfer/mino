@@ -1,16 +1,11 @@
 package plugin
 
 import (
-	"path/filepath"
-
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 
 	"github.com/codyconfer/munin/internal/config"
 	pub "github.com/codyconfer/munin/plugin"
 )
-
-const serveSocketName = "serve.sock"
-const servePipePrefix = "munin"
 
 func init() {
 	pub.SetServiceAttachedFunc(ServiceAttached)
@@ -24,7 +19,7 @@ func ServiceAttachedAt(home string) bool {
 	if home == "" {
 		return false
 	}
-	return sysdaemon.Attached(servePipePrefix, filepath.Join(home, serveSocketName))
+	return sysdaemon.Attached(config.SocketPrefix, config.ServeSocketPath(home))
 }
 
 func ServiceAttached() bool {

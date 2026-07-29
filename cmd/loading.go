@@ -18,14 +18,7 @@ func wantsLaunchLoading(cmd *cobra.Command) bool {
 	if cmd == nil {
 		return false
 	}
-	switch cmd.Name() {
-	case "deck", "tui":
-		return true
-	case "daemon":
-		p := cmd.Parent()
-		return p != nil && p.Parent() == nil
-	}
-	return false
+	return cmd.Annotations[AnnoLaunchLoading] == "true"
 }
 
 func startLaunchLoading() {

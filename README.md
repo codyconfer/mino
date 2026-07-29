@@ -53,7 +53,7 @@ arguments via `ARGS="…"`), and a fixed stdin/stdout/stderr contract:
 |---|---|---|---|---|---|
 | **cli** | `munin <directive>` (`fly`, `query`, `github query`, …) | `make command ARGS="fly work"` | Run a directive and print the result | [viewkit](https://github.com/codyconfer/viewkit) panels (color on a TTY, plain when piped, JSON with `-o json`) | log dir |
 | **serve** | `munin serve [flight]` | `make serve ARGS="work"` | Foreground realtime watcher in the current shell (Ctrl-C exits); **no OS service / tray** | live notification stream | shell **and** log dir |
-| **daemon** | `munin daemon [flight]` | `make daemon ARGS="work"` | Install the OS service if missing, then start it (idempotent); optional system tray via `daemon.tray` | — | OS logging (journald / launchd / Windows service) |
+| **daemon** *(experimental, `-tags daemon`)* | `munin daemon [flight]` | `make daemon ARGS="work"` | Install the OS service if missing, then start it (idempotent); optional system tray via `daemon.tray` | — | OS logging (journald / launchd / Windows service) |
 | **deck** | `munin deck [flight]` | `make run` | Full-screen TUI only; attaches to a running daemon, else starts a **silent** background `serve` that dies with the deck session | TUI | log dir |
 
 `make run` is deck only — it does not leave a serve process behind. `munin deck` is
@@ -189,7 +189,10 @@ signals — a foreground watcher and a managed OS service:
   `--bell`, `--desktop` (OS desktop notifications), `--theme`. It does **not**
   install an OS service or own the system tray — its lifecycle is the shell it
   runs in, and it logs to that shell and the log dir.
-- **`munin daemon [flight]`** runs Munin as a background **OS service** (systemd
+- **`munin daemon [flight]`** — **experimental and off by default**; present only
+  in builds made with `-tags daemon` (see
+  [the daemon build tag](#the-os-service-daemon-is-experimental-tagsdaemon)).
+  Runs Munin as a background **OS service** (systemd
   user unit on Linux, launchd agent on macOS, Windows service), which logs through
   the OS logging facility. Set `daemon.tray: true` for a system-tray icon on that
   service. Bare `munin daemon` is idempotent: it installs the service if it isn't
@@ -651,10 +654,18 @@ filtering, so one fetch serves several differently-filtered queries.
 ```yaml
 cache:
   ttl: 60s              # "0" disables; MUNIN_CACHE_TTL overrides
+  detail_ttl: 5m        # per-item details (see `munin show`); "0" disables
   signals:
     github: 5m          # per-signal override; MUNIN_CACHE_SIGNALS_GITHUB
     calendar: 30s
 ```
+
+Item details — the body, checks, reviews and comments behind `munin show` and the
+deck's details view — are cached separately under `cache.detail_ttl`, because they
+are fetched per item rather than per signal. The value resolves local-first:
+`cache.detail_ttl` in this home's config, else `detail_cache_ttl` in the global
+`settings.yaml`, else `5m`. An explicit `--cache-ttl` overrides both, so
+`--cache-ttl 0` disables detail caching along with everything else.
 
 ```sh
 munin fly work --refresh      # fetch live, then re-warm the cache
@@ -892,44 +903,57 @@ Run a mode straight from source — each target builds then runs, forwarding `AR
 ```sh
 make command ARGS="fly work -o json"   # cli
 make serve   ARGS="work"               # foreground watcher (current shell)
-make daemon  ARGS="work"               # install + start the OS service
+make daemon  ARGS="work"               # install + start the OS service (experimental; sets TAGS=daemon)
 make run                               # deck TUI only (silent background serve if needed; dies with deck)
 make run ARGS=demo                     # deck on the live-GitHub demo flight
 ```
 
 Build vars (make variables, not `ARGS`): `RACE=1` (race detector), `TAGS=…` (build
-tags, see [`nodaemon`](#daemon-free-builds-nodaemon)), `EMAIL_DOMAIN=…` (adds a
-domain authorization requirement), and `ALL_OR_NOTHING_AUTH=1` (compile ordinary
-cli directives to block rather than warn when unauthorized). `make package`
-cross-compiles release binaries.
+tags), `EMAIL_DOMAIN=…` (adds a domain authorization requirement), and
+`ALL_OR_NOTHING_AUTH=1` (compile ordinary cli directives to block rather than warn
+when unauthorized). `make package` cross-compiles release binaries.
 
-#### Daemon-free builds (`nodaemon`)
+#### The OS-service daemon is experimental (`TAGS=daemon`)
 
-The `nodaemon` build tag compiles munin without serve/daemon mode:
+The OS-service daemon is **off by default**. It is an experimental feature in its
+own package, enabled with a build tag:
 
 ```sh
-make package TAGS=nodaemon    # release binaries with no daemon mode
-go build -tags nodaemon .     # or straight from the toolchain
+make daemon ARGS="work"       # sets TAGS=daemon for you
+make build TAGS=daemon        # or opt in explicitly
+go build -tags daemon .       # or straight from the toolchain
 ```
 
-What the tag removes: the realtime watcher and its local event socket, the OS
-service wiring (systemd/launchd/Windows) and system tray, scheduled delivery,
-the attach notification inbox, and the `serve` and `daemon` commands (including
-`daemon install/start/stop/status/attach`). `internal/app/daemon` is excluded
-wholesale, so none of it is compiled or linked.
+Default builds have no `daemon` command at all — `munin daemon` reports `unknown
+command`. The whole feature lives in `github.com/codyconfer/munin/daemon` and is
+linked by exactly one file, `experimental_daemon.go`, a blank import behind the
+tag. That package's `init()` registers the `daemon` command tree with `cmd`, the
+daemon status chip with `statusstrip`, and the `daemon.tray` setting plus the
+`daemon` status-bar entry with `views`; nothing in core refers back to it.
 
-What still works: every cli directive, `deck`, and the rest of the CLI. `deck`
-no longer starts a background provider and drops the daemon status chip.
-Service-only plugin contributions — anything registered with
-`plugin.WithServiceOnly()`, such as the NTR reminders view and the
-`remind.add` / `remind.done` actions — stay hidden, because `plugin.ServiceAttached`
-always reports detached. Note reminder *storage* is unaffected: `munin notes
-remind …` and `munin notes catch-up` still work, you just don't get pushed
-notifications.
+What the tag adds: `munin daemon` and its
+`install/uninstall/start/stop/restart/status/attach` subcommands, the system
+tray, the daemon status chip in `deck`, the `daemon.tray` setting, and the
+`kardianos/service` + systray dependencies. Verify the default build carries
+none of it:
 
-Both configurations are first-class; build and test either with
-`go build [-tags nodaemon] ./...` and `go test [-tags nodaemon] ./...`. The
-default build is unchanged.
+```sh
+go list -deps .              | grep -E 'kardianos|systray'   # empty
+go list -deps -tags daemon . | grep -E 'kardianos|systray'   # both present
+```
+
+What works either way — the tag changes nothing here: every cli directive,
+`deck`, and `munin serve` (the foreground realtime watcher) with its event
+socket, desktop notifications, scheduled delivery, the attach notification
+inbox, and `deck`'s silent background serve provider. Service-only plugin
+contributions also stay available: `plugin.ServiceAttached` keys off the serve
+socket rather than the installed service, so NTR reminders show up whenever
+something is watching.
+
+Both configurations are checked. `go build ./...` and `go test ./...` compile and
+test the daemon package itself in the default build; `make build-experimental`
+(part of `make check`) additionally builds and vets the root binary with
+`-tags daemon`.
 
 Signal integrations live in `internal/signals/<name>/`, each with offline table
 tests driven by recorded fixtures, so the suite needs no network. When no live

@@ -146,6 +146,49 @@ func TestEnvOverride(t *testing.T) {
 	}
 }
 
+func TestResolveDetailTTL(t *testing.T) {
+	cases := []struct {
+		name          string
+		local, global string
+		want          string
+	}{
+		{"local wins", "90s", "10m", "90s"},
+		{"global when no local", "", "10m", "10m"},
+		{"default when neither", "", "", DefaultDetailTTL},
+		{"explicit zero is honoured", "0", "10m", "0"},
+		{"global zero is honoured", "", "0", "0"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := ResolveDetailTTL(c.local, c.global); got != c.want {
+				t.Errorf("ResolveDetailTTL(%q, %q) = %q, want %q", c.local, c.global, got, c.want)
+			}
+		})
+	}
+}
+
+func TestDefaultsLeaveDetailTTLUnsetSoTheGlobalSettingIsReachable(t *testing.T) {
+	if got := Defaults().Cache.DetailTTL; got != "" {
+		t.Fatalf("Defaults().Cache.DetailTTL = %q, want empty: a default here is always non-empty, so it would win in ResolveDetailTTL and detail_cache_ttl in settings.yaml could never take effect", got)
+	}
+	if got := ResolveDetailTTL(Defaults().Cache.DetailTTL, "10m"); got != "10m" {
+		t.Errorf("with no local value the global should win, got %q", got)
+	}
+	if got := ResolveDetailTTL(Defaults().Cache.DetailTTL, ""); got != DefaultDetailTTL {
+		t.Errorf("with neither set the built-in default should apply, got %q", got)
+	}
+}
+
+func TestGlobalSettingsRoundTripsDetailCacheTTL(t *testing.T) {
+	testenv.Isolate(t)
+	if err := SaveGlobalSettings(GlobalSettings{DetailCacheTTL: "10m"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadGlobalSettings().DetailCacheTTL; got != "10m" {
+		t.Errorf("DetailCacheTTL = %q, want 10m", got)
+	}
+}
+
 func TestLoadGlobalSettings(t *testing.T) {
 	env := testenv.Isolate(t)
 
