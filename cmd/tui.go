@@ -3,11 +3,16 @@ package cmd
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/viewkit/clipboard"
 	muninterm "github.com/codyconfer/viewkit/term"
+
+	sconfig "github.com/codyconfer/sisyphus/config"
 
 	"github.com/codyconfer/munin/internal/app/pane"
 	"github.com/codyconfer/munin/internal/app/statusstrip"
@@ -117,7 +122,49 @@ func buildViewsWithPanes(panes *pane.Manager) *views.Kit {
 		FetchDetail:        fetchItemDetail,
 		Verify:             verifyFindings,
 		ExportDirectives:   exportDirectivesToFiles,
+		FormatFlight:       formatFlightReport,
+		FormatSections:     formatSectionsReport,
+		CopyText:           clipboard.Copy,
+		SaveReport:         saveReportFile,
+		PreviewRole:        shared.PreviewRole,
 	})
+}
+
+func formatFlightReport(formatter, name string) (string, error) {
+	fd, err := lookupFormatter(formatter)
+	if err != nil {
+		return "", err
+	}
+	fl, ok := shared.Directives.Flights[name]
+	if !ok {
+		return "", errs.Newf(errs.KindUsage, "no flight named %q", name)
+	}
+	if !access().FlightVisible(name) {
+		return "", notInRoleError("flight", name)
+	}
+	queries := flightQueries(name, fl.Queries)
+	fid := shared.Audit.StartFlight(name, shared.Cfg.Role)
+	groups := fetchGroups(context.Background(), queries, fid)
+	shared.Audit.FinishFlight(fid)
+	return renderReport(fd, name, "flight", groups)
+}
+
+func formatSectionsReport(formatter, label string, sections []signals.Section) (string, error) {
+	fd, err := lookupFormatter(formatter)
+	if err != nil {
+		return "", err
+	}
+	return renderReport(fd, label, "flight", []flightGroup{{Query: label, Title: label, Sections: sections}})
+}
+
+func saveReportFile(formatter, text string) (string, error) {
+	dir := filepath.Join(shared.Cfg.Home, config.DirReports)
+	name := formatter + "-" + time.Now().Format("20060102-150405") + ".md"
+	path, err := sconfig.WriteItem(dir, name, []byte(text))
+	if err != nil {
+		return "", errs.Wrapf(errs.KindConfig, err, "writing report to %s", dir)
+	}
+	return path, nil
 }
 
 func fetchItemDetail(signal string, it signals.Item) (*signals.ItemDetail, error) {
@@ -174,6 +221,8 @@ func verifyFindings(kind string) []verify.Finding {
 		return verify.Flights(shared.Directives)
 	case "roles":
 		return verify.Roles(shared.Directives)
+	case "formatters":
+		return verify.Formatters(shared.Directives)
 	}
 	return nil
 }

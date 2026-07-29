@@ -368,6 +368,17 @@ func (a *App) VisibleFlights() []string {
 	return out
 }
 
+func (a *App) VisibleFormatters() []string {
+	ac := a.Access()
+	var out []string
+	for _, n := range a.Directives.FormatterNames() {
+		if ac.FormatterVisible(n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 func (a *App) NotInRoleError(kind, name string) error {
 	return errs.Newf(errs.KindUsage, "%s %q is not available in role %q", kind, name, a.Cfg.Role)
 }

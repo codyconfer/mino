@@ -1,10 +1,11 @@
 package config
 
 type Access struct {
-	Role    string
-	all     bool
-	flights map[string]bool
-	queries map[string]bool
+	Role       string
+	all        bool
+	flights    map[string]bool
+	queries    map[string]bool
+	formatters map[string]bool
 }
 
 func NewAccess(role string, roles map[string]RoleDef) Access {
@@ -16,14 +17,16 @@ func NewAccess(role string, roles map[string]RoleDef) Access {
 		return Access{Role: role}
 	}
 	return Access{
-		Role:    role,
-		flights: toSet(rd.Flights),
-		queries: toSet(rd.Queries),
+		Role:       role,
+		flights:    toSet(rd.Flights),
+		queries:    toSet(rd.Queries),
+		formatters: toSet(rd.Formatters),
 	}
 }
 
-func (a Access) FlightVisible(name string) bool { return a.all || a.flights[name] }
-func (a Access) QueryVisible(name string) bool  { return a.all || a.queries[name] }
+func (a Access) FlightVisible(name string) bool    { return a.all || a.flights[name] }
+func (a Access) QueryVisible(name string) bool     { return a.all || a.queries[name] }
+func (a Access) FormatterVisible(name string) bool { return a.all || a.formatters[name] }
 
 func toSet(xs []string) map[string]bool {
 	if len(xs) == 0 {

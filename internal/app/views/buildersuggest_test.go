@@ -168,9 +168,9 @@ func TestFlightEditorSuggestsSavedQueries(t *testing.T) {
 
 func TestRoleFormSuggestsFlightsAndQueries(t *testing.T) {
 	kit := testKit(t)
-	fields := kit.directiveFormFields(directiveRole, "triage")
+	fields := roleFor(t, kit, "triage").editorFields(nil)
 
-	want := map[string]string{"flights": "default", "queries": "q1"}
+	want := map[string]string{"home": "default", "flights": "default", "queries": "q1"}
 	for _, f := range fields {
 		w, ok := want[f.Key]
 		if !ok {

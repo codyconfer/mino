@@ -28,6 +28,11 @@ func (q Query) Display() string {
 	return q.Label
 }
 
+type Group struct {
+	Query, Title string
+	Sections     []signals.Section
+}
+
 func Emit(w io.Writer, format, root string, sections []signals.Section) error {
 	r, err := render.New(render.Format(format), root)
 	if err != nil {
@@ -58,20 +63,35 @@ func FetchQuery(ctx context.Context, au *audit.Store, role string, timeout time.
 	return sections
 }
 
-func FetchQueries(ctx context.Context, au *audit.Store, role string, timeout time.Duration, queries []Query, parentID int64) []signals.Section {
-	results := make([][]signals.Section, len(queries))
+func FetchGroups(ctx context.Context, au *audit.Store, role string, timeout time.Duration, queries []Query, parentID int64) []Group {
+	results := make([]Group, len(queries))
 	g, ctx := errgroup.WithContext(ctx)
 	for i, q := range queries {
 		g.Go(func() error {
-			results[i] = FetchQuery(ctx, au, role, timeout, q, parentID)
+			label := q.Label
+			if label == "" {
+				label = q.Src.Name()
+			}
+			results[i] = Group{
+				Query:    label,
+				Title:    q.Display(),
+				Sections: FetchQuery(ctx, au, role, timeout, q, parentID),
+			}
 			return nil
 		})
 	}
 	_ = g.Wait()
+	return results
+}
 
+func Flatten(groups []Group) []signals.Section {
 	var all []signals.Section
-	for _, r := range results {
-		all = append(all, r...)
+	for _, g := range groups {
+		all = append(all, g.Sections...)
 	}
 	return all
+}
+
+func FetchQueries(ctx context.Context, au *audit.Store, role string, timeout time.Duration, queries []Query, parentID int64) []signals.Section {
+	return Flatten(FetchGroups(ctx, au, role, timeout, queries, parentID))
 }

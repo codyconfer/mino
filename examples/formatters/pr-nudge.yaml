@@ -1,0 +1,21 @@
+# A canned response, ready to paste into a PR comment or Slack thread. This is
+# what `--copy` is for — render straight to the clipboard, then paste:
+#   munin query review-requested --formatter pr-nudge --copy
+#   munin fly triage --formatter pr-nudge --out nudge.md
+name: pr-nudge
+type: formatter
+title: PR Nudge
+# `truncate` is rune-safe, so long titles stay one line. `indent 2` shifts a
+# whole block right, which is how you nest a sub-list under each item.
+template: |
+  Morning — a few reviews are still open on my side. No rush on any single one,
+  but a pass over these would unblock the queue:
+
+  {{ range .Items }}- {{ truncate 80 .Title }}
+  {{ indent 2 (printf "- %s" .URL) }}
+  {{ indent 2 (printf "- %s · %s" (.Meta.author | default "unassigned") (rel .Timestamp | default "just opened")) }}
+  {{ end }}{{ if not .Items }}Nothing outstanding — ignore me.
+  {{ end }}
+  Thanks!
+
+  — munin · {{ .Name }} · {{ now | date "2006-01-02 15:04" }}

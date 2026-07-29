@@ -1,13 +1,14 @@
 # Munin directive examples (Lane D)
 
-Copy `queries/` and `flights/` into `~/.munin/`, and the loose role `*.yaml`
-next to `config.yaml`. A filename becomes the directive name when `name:` is
-omitted — but only for single-document files.
+Copy `queries/`, `flights/`, and `formatters/` into `~/.munin/`, and the loose
+role `*.yaml` next to `config.yaml`. A filename becomes the directive name when
+`name:` is omitted — but only for single-document files.
 
 | Path | Purpose |
 |---|---|
 | `queries/` | Saved signal fetches (`signal:` + optional `params` / `filters`) **and** filters (`rules:` / `aliases:` / `keywords:`). A document can be both; add `type: query` or `type: filter` to be explicit. |
 | `flights/` | Ordered lists of query names for `munin fly` / `munin serve` |
+| `formatters/` | Go `text/template` reports (`template:`) that replace stdout for a run |
 | `*.yaml` (top level) | Roles: visibility scopes + optional `contexts:` / `hooks:` / `status:` (ADR-9) |
 
 Queries and filters share the `queries/` collection, so they can sit in separate
@@ -15,11 +16,40 @@ files or share one — see `queries/no-bots.yaml` (a filter on its own) and
 `queries/templated-prs.yaml` (a filter and its query in one `---`-separated
 file).
 
-`type:` is the kind discriminator across all four kinds — `query`, `filter`,
-`flight`, `role` — so the table above describes defaults, not limits. A document
-carrying an explicit `type:` is read as that kind in whichever directory it
-sits: see `queries/self-contained-flight.yaml`, a flight declared alongside the
-query it composes. Omit `type:` and the directory decides.
+`type:` is the kind discriminator across all five kinds — `query`, `filter`,
+`flight`, `role`, `formatter` — so the table above describes defaults, not
+limits. A document carrying an explicit `type:` is read as that kind in
+whichever directory it sits: see `queries/self-contained-flight.yaml`, a flight
+declared alongside the query it composes. `type:` is **required**: a document
+with directive-shaped fields but no `type:` is a hard error naming the file, and
+a document with neither is skipped so unrelated YAML can share the directory.
+
+## Formatters
+
+A `type: formatter` document holds one `template:` — a Go `text/template` that
+turns a run's results into text and **replaces** the usual panels/JSON on
+stdout. Attach one with `formatter: <name>` on a query or flight, or ad-hoc with
+`--formatter <name>`; add `--copy` for the clipboard or `--out <path>` for a
+file. Roles scope them with `formatters: [names]`, so a role listing none sees
+none — see `daily.yaml` and `triage.yaml`.
+
+| Formatter | Shows off |
+|---|---|
+| `formatters/standup.yaml` | `range .Queries` headings, `now \| date`, `.Meta.author`, markdown links |
+| `formatters/triage-summary.yaml` | the flat `.Items` view: `byMeta` buckets, `sortByTime \| limit 5`, `rel`, `.Errors` |
+| `formatters/pr-nudge.yaml` | a canned response for `--copy`: `truncate`, `indent`, a timestamped footer |
+
+```sh
+munin formatter                          # list the formatters the role can see
+munin formatter show standup             # print the YAML
+munin formatter render standup morning   # run flight `morning`, render the report
+munin fly triage --formatter triage-summary --copy
+munin fly triage -o json | munin formatter render triage-summary --stdin
+```
+
+Missing map keys render empty rather than erroring (`missingkey=zero`), because
+`.Meta` is sparse per signal. `munin serve` ignores formatters — a stream never
+has all the results.
 
 ## Role `contexts:`, `hooks:`, and `status:`
 

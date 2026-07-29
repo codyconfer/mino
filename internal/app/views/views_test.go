@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/forms"
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/audit"
@@ -159,7 +160,7 @@ func TestMainMenuFlySubmenu(t *testing.T) {
 	for _, it := range kit.flyMenuItems() {
 		flyLabels = append(flyLabels, it.Label)
 	}
-	for _, want := range []string{"Flights", "Directives"} {
+	for _, want := range []string{"Flights", "Roles"} {
 		found := false
 		for _, l := range flyLabels {
 			if l == want {
@@ -193,7 +194,7 @@ func TestMainMenuFlySubmenu(t *testing.T) {
 	}
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
-	for _, want := range []string{"Flights", "Directives"} {
+	for _, want := range []string{"Flights", "Roles"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("fly submenu view missing %q: %q", want, got)
 		}
@@ -216,7 +217,7 @@ func TestFlySubmenuIncludesHistoryWhenPresent(t *testing.T) {
 	for _, it := range kit.flyMenuItems() {
 		flyLabels = append(flyLabels, it.Label)
 	}
-	want := []string{"Flights", "History", "Queries", "Directives"}
+	want := []string{"Flights", "History", "Queries", "Formatters", "Reports", "Roles"}
 	if len(flyLabels) != len(want) {
 		t.Fatalf("fly submenu = %v, want %v", flyLabels, want)
 	}
@@ -226,7 +227,7 @@ func TestFlySubmenuIncludesHistoryWhenPresent(t *testing.T) {
 		}
 	}
 	for _, it := range kit.mainMenuItems() {
-		if it.Label == "History" || it.Label == "Directives" {
+		if it.Label == "History" || it.Label == "Roles" {
 			t.Fatalf("main menu still exposes %q", it.Label)
 		}
 	}
@@ -326,11 +327,15 @@ func TestViewsSmoke(t *testing.T) {
 		"main":       kit.MainMenu(),
 		"fly":        kit.Fly(),
 		"tooling":    kit.Tooling(),
-		"directives": kit.directivesMenu(),
 		"queries":    kit.Queries(),
 		"flights":    kit.Flights(),
 		"flightnew":  kit.FlightBuilder(),
 		"builder":    kit.QueryBuilder(),
+		"roles":      kit.Roles(),
+		"rolenew":    kit.RoleBuilder(),
+		"formatters": kit.FormatterDirectives(),
+		"fmtnew":     kit.FormatterBuilder(),
+		"reports":    kit.Formatters(),
 		"settings":   kit.Settings(),
 		"audit":      kit.AuditQuery(),
 		"ntr":        kit.NTR(),
@@ -353,6 +358,150 @@ func TestViewsSmoke(t *testing.T) {
 			app = step(app, tea.KeyMsg{Type: tea.KeyEsc})
 			_ = app.View()
 		}()
+	}
+}
+
+func TestFlyMenuOffersRolesAndFormatters(t *testing.T) {
+	kit := testKit(t)
+	app := deck.New(kit.Fly())
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	got := app.View()
+	for _, want := range []string{"Roles", "Formatters", "Reports"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("fly menu missing %q: %q", want, got)
+		}
+	}
+	if strings.Contains(got, "Directives") {
+		t.Errorf("fly menu still offers the Directives wrapper: %q", got)
+	}
+}
+
+func TestFormatterDirectivesListsNewFirstAndScopesToRole(t *testing.T) {
+	kit := testKit(t)
+	kit.d.App.Directives.Formatters = map[string]config.FormatterDef{
+		"brief":   {Name: "brief", Title: "Brief", Template: "a"},
+		"verbose": {Name: "verbose", Template: "b"},
+	}
+	kit.d.App.Directives.Roles = map[string]config.RoleDef{
+		"triage": {Name: "triage", Flights: []string{"default"}, Formatters: []string{"brief"}},
+	}
+
+	kit.d.App.Cfg.Role = ""
+	app := deck.New(kit.FormatterDirectives())
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	body := app.View()
+	newAt, briefAt := strings.Index(body, "New"), strings.Index(body, "brief")
+	if newAt < 0 || briefAt < 0 {
+		t.Fatalf("formatter list missing entries: %q", body)
+	}
+	if newAt > briefAt {
+		t.Errorf("New should come before saved formatters:\n%s", body)
+	}
+	if !strings.Contains(body, "verbose") {
+		t.Errorf("unscoped list should show every formatter: %q", body)
+	}
+
+	kit.d.App.Cfg.Role = "triage"
+	scoped := deck.New(kit.FormatterDirectives())
+	scoped = step(scoped, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if body := scoped.View(); strings.Contains(body, "verbose") {
+		t.Errorf("role triage should hide verbose: %q", body)
+	}
+}
+
+func TestFormatterEditorFields(t *testing.T) {
+	kit := testKit(t)
+	kit.d.App.Directives.Formatters = map[string]config.FormatterDef{
+		"brief": {Name: "brief", Title: "Brief", Template: "line one\nline two"},
+	}
+
+	v, ok := kit.FormatterEditor("brief").(*formatterView)
+	if !ok {
+		t.Fatal("formatter view has the wrong type")
+	}
+	fields := v.editorFields(map[string]any{
+		"name":     "brief",
+		"title":    "Brief",
+		"template": "line one\nline two",
+	})
+	if len(fields) != 3 {
+		t.Fatalf("formatter fields = %d, want 3: %+v", len(fields), fields)
+	}
+	byKey := map[string]forms.Field{}
+	for _, f := range fields {
+		byKey[f.Key] = f
+	}
+	tmpl, ok := byKey["template"]
+	if !ok {
+		t.Fatalf("formatter form missing template field: %+v", fields)
+	}
+	if tmpl.Kind != forms.FieldMultiline {
+		t.Errorf("template field kind = %v, want FieldMultiline", tmpl.Kind)
+	}
+	if tmpl.Text != "line one\nline two" {
+		t.Errorf("template field text = %q, want the stored template", tmpl.Text)
+	}
+	if tmpl.Suggest != nil {
+		t.Error("template field has a Suggester; template syntax must not be completed")
+	}
+	if byKey["name"].Text != "brief" || byKey["title"].Text != "Brief" {
+		t.Errorf("formatter name/title = %q/%q, want brief/Brief", byKey["name"].Text, byKey["title"].Text)
+	}
+}
+
+func TestFormatterEditorRejectsEmptyTemplate(t *testing.T) {
+	kit := testKit(t)
+	v, ok := kit.FormatterBuilder().(*formatterView)
+	if !ok {
+		t.Fatal("formatter view has the wrong type")
+	}
+	v.set(t, "name", "brief")
+	v.set(t, "template", "")
+
+	if _, err := v.editorValue(); err == nil {
+		t.Fatal("a formatter with no template should fail")
+	}
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	directives, err := config.LoadDirectivesFromFiles(kit.d.App.Cfg.Home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(directives.Formatters) != 0 {
+		t.Fatalf("empty template wrote a formatter: %+v", directives.Formatters)
+	}
+}
+
+func TestFormatterEditorSaveWritesTemplate(t *testing.T) {
+	kit := testKit(t)
+	v, ok := kit.FormatterBuilder().(*formatterView)
+	if !ok {
+		t.Fatal("formatter view has the wrong type")
+	}
+	v.set(t, "template", "line one\nline two")
+	v.set(t, "title", "Brief")
+	v.set(t, "name", "brief")
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	directives, err := config.LoadDirectivesFromFiles(kit.d.App.Cfg.Home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fd, ok := directives.Formatters["brief"]
+	if !ok {
+		t.Fatalf("formatter not written: %+v (status %q)", directives.Formatters, v.Status())
+	}
+	if fd.Title != "Brief" {
+		t.Errorf("formatter title = %q, want Brief", fd.Title)
+	}
+	if fd.Template != "line one\nline two" {
+		t.Errorf("formatter template = %q, want both lines", fd.Template)
 	}
 }
 

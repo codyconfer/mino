@@ -18,7 +18,8 @@ import (
 const defaultFlight = "default"
 
 func newFlyCmd() *cobra.Command {
-	return &cobra.Command{
+	var ff formatterFlags
+	c := &cobra.Command{
 		Use:   "fly [flight]",
 		Short: "Send munin flying — run a named flight (a configured set of queries)",
 		Long: "Flights live one-per-file under flights/ as named lists of saved query\n" +
@@ -33,30 +34,39 @@ func newFlyCmd() *cobra.Command {
 			if len(args) == 1 {
 				name = args[0]
 			}
-
-			flight, ok := shared.Directives.Flights[name]
-			if !ok {
-				if len(args) == 0 {
-					return listFlights(cmd)
-				}
-				return errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix()).WithHint("run `munin fly` with no argument to list available flights")
+			if _, ok := shared.Directives.Flights[name]; !ok && len(args) == 0 {
+				return listFlights(cmd)
 			}
-			if !access().FlightVisible(name) {
-				return notInRoleError("flight", name)
+			o, err := ff.resolve(shared.Directives.Flights[name].Formatter)
+			if err != nil {
+				return err
 			}
-			if len(flight.Queries) == 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "flight %q has no queries\n", name)
-				return nil
-			}
-
-			queries := flightQueries(name, flight.Queries)
-
-			flightID := shared.Audit.StartFlight(name, shared.Cfg.Role)
-			defer shared.Audit.FinishFlight(flightID)
-
-			return runQueries(cmd.Context(), cmd.OutOrStdout(), name, queries, flightID)
+			return runFlightNamed(cmd, name, o)
 		},
 	}
+	ff.bind(c)
+	return c
+}
+
+func runFlightNamed(cmd *cobra.Command, name string, o runOpts) error {
+	fl, ok := shared.Directives.Flights[name]
+	if !ok {
+		return errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix()).WithHint("run `munin fly` with no argument to list available flights")
+	}
+	if !access().FlightVisible(name) {
+		return notInRoleError("flight", name)
+	}
+	if len(fl.Queries) == 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "flight %q has no queries\n", name)
+		return nil
+	}
+
+	queries := flightQueries(name, fl.Queries)
+
+	flightID := shared.Audit.StartFlight(name, shared.Cfg.Role)
+	defer shared.Audit.FinishFlight(flightID)
+
+	return runQueriesWith(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), name, queries, flightID, o)
 }
 
 func flightQueries(flight string, names []string) []query {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -14,13 +15,13 @@ import (
 	"github.com/codyconfer/munin/internal/signals/build"
 )
 
-var listKinds = []string{"queries", "filters", "flights", "roles"}
+var listKinds = []string{"queries", "filters", "flights", "formatters", "roles"}
 
 func newListCmd() *cobra.Command {
 	var all bool
 	c := &cobra.Command{
-		Use:   "list [queries|filters|flights|roles]",
-		Short: "List saved queries, filters, flights, and roles",
+		Use:   "list [queries|filters|flights|formatters|roles]",
+		Short: "List saved queries, filters, flights, formatters, and roles",
 		Long: "List what the active role can see. Queries and filters share the\n" +
 			"queries/ collection: a document with a signal is a query, a document with\n" +
 			"rules/aliases/keywords is a filter, and a document with both shows up in\n" +
@@ -39,6 +40,8 @@ func newListCmd() *cobra.Command {
 				fmt.Fprintln(out)
 				listFlightsSection(out, all)
 				fmt.Fprintln(out)
+				listFormattersSection(out, all)
+				fmt.Fprintln(out)
 				listRolesSection(out)
 				return nil
 			}
@@ -49,6 +52,8 @@ func newListCmd() *cobra.Command {
 				listFiltersSection(out, all)
 			case "flights":
 				listFlightsSection(out, all)
+			case "formatters":
+				listFormattersSection(out, all)
 			case "roles":
 				listRolesSection(out)
 			default:
@@ -167,6 +172,24 @@ func listFlightsSection(w io.Writer, all bool) {
 	}
 }
 
+func listFormattersSection(w io.Writer, all bool) {
+	names := scopedNames(all, shared.Directives.FormatterNames(), access().FormatterVisible)
+	listHeading(w, "formatters"+listScopeNote(all))
+	if len(names) == 0 {
+		listEmpty(w, "none (add a YAML file with a `template:` under ~/.munin/formatters)")
+		return
+	}
+	for _, n := range names {
+		fd := shared.Directives.Formatters[n]
+		lines := len(strings.Split(strings.TrimRight(fd.Template, "\n"), "\n"))
+		detail := fmt.Sprintf("%d line(s)", lines)
+		if fd.Title != "" {
+			detail += "  " + theme.Cur().Dim.Render(fd.Title)
+		}
+		listLine(w, n, detail)
+	}
+}
+
 func listRolesSection(w io.Writer) {
 	names := shared.Directives.RoleNames()
 	listHeading(w, "roles")
@@ -178,6 +201,9 @@ func listRolesSection(w io.Writer) {
 		rd := shared.Directives.Roles[n]
 		detail := fmt.Sprintf("%d flight(s) %d quer%s", len(rd.Flights), len(rd.Queries),
 			plural(len(rd.Queries), "y", "ies"))
+		if len(rd.Formatters) > 0 {
+			detail += fmt.Sprintf(" %d formatter(s)", len(rd.Formatters))
+		}
 		if n == shared.Cfg.Role {
 			detail += " " + theme.Cur().Can.Render("(active)")
 		}

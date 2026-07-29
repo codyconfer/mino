@@ -34,6 +34,13 @@ func FlightNames(a *app.App) []string {
 	return a.VisibleFlights()
 }
 
+func FormatterNames(a *app.App) []string {
+	if a == nil {
+		return nil
+	}
+	return a.VisibleFormatters()
+}
+
 func RoleNames(a *app.App) []string {
 	if a == nil || a.Directives == nil {
 		return nil
@@ -114,6 +121,10 @@ func Filters(a *app.App) forms.Suggester {
 
 func Flights(a *app.App) forms.Suggester {
 	return forms.From(func() []string { return FlightNames(a) })
+}
+
+func Formatters(a *app.App) forms.Suggester {
+	return forms.From(func() []string { return FormatterNames(a) })
 }
 
 func Roles(a *app.App) forms.Suggester {

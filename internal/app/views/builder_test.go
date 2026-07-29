@@ -280,19 +280,34 @@ func TestQueriesMenuListsSavedDocsAndNewEntry(t *testing.T) {
 	}
 }
 
-func TestDirectivesMenuOnlyOffersRoles(t *testing.T) {
+func TestRolesMenuPutsNewFirstAndOpensTheEditor(t *testing.T) {
 	kit := testKit(t)
-	app := deck.New(kit.directivesMenu())
+	app := deck.New(kit.Roles())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
-	if strings.Contains(body, "Queries") {
-		t.Fatalf("directives menu still offers Queries: %q", body)
+	newAt, roleAt := strings.Index(body, "New"), strings.Index(body, "triage")
+	if newAt < 0 || roleAt < 0 {
+		t.Fatalf("roles menu missing entries: %q", body)
 	}
-	if strings.Contains(body, "Flights") {
-		t.Fatalf("directives menu still offers Flights: %q", body)
+	if newAt > roleAt {
+		t.Errorf("New should come before saved roles:\n%s", body)
 	}
-	if !strings.Contains(body, "Roles") {
-		t.Fatalf("directives menu missing Roles: %q", body)
+
+	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyDown})
+	for _, c := range flattenCmds(cmd) {
+		if c != nil {
+			app = step(app, c())
+		}
+	}
+	app, cmd = update(app, tea.KeyMsg{Type: tea.KeyEnter})
+	for _, c := range flattenCmds(cmd) {
+		if c != nil {
+			app = step(app, c())
+		}
+	}
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	if got := app.View(); !strings.Contains(got, "edit triage") {
+		t.Fatalf("selecting a role did not open its editor: %q", got)
 	}
 }
 

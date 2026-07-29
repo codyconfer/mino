@@ -8,7 +8,8 @@ and throughout — an SRE shift. It pulls **GitHub** PRs and review requests,
 one consistently formatted view. Query a single signal ad-hoc, save reusable
 **queries** and **filters** and recall them by name, or send Munin on a named
 **flight** that fetches a whole set concurrently. Everything runs against your
-existing credentials and prints as terminal panels or JSON.
+existing credentials and prints as terminal panels or JSON — or through a
+**formatter**, a template that turns a run into a report you can paste.
 
 ## Getting started
 
@@ -102,7 +103,7 @@ query name for `munin query my-prs`, the signal for `munin github query`.
 ## How it works
 
 ```
-signals (fetch) ──▶ filters (regex include/exclude) ──▶ renderer (terminal | json)
+signals (fetch) ──▶ filters (regex include/exclude) ──▶ renderer (terminal | json | formatter)
 ```
 
 Each signal normalizes its data into a common item shape, filters narrow the
@@ -115,12 +116,12 @@ rest. Every run is recorded to a local audit trail (see
 ## Queries and filters
 
 Every directive document declares its kind with a required `type:` — one of
-`query`, `filter`, `flight`, `role` — and may live in any file at any depth
-under `~/.munin/`. A `type: query` document is a signal, its parameters, and the
+`query`, `filter`, `flight`, `role`, `formatter` — and may live in any file at
+any depth under `~/.munin/`. A `type: query` document is a signal, its parameters, and the
 filters to apply. A `type: filter` document is an ordered set of regex
 include/exclude rules targeting a field, plus any aliases it exposes; a query
-may also carry its own rules inline. `munin install` still creates `queries/`
-and `flights/`, and saved documents still land there by default, but that is now
+may also carry its own rules inline. `munin install` still creates `queries/`,
+`flights/`, and `formatters/`, and saved documents still land there by default, but that is now
 a convention — the directory a file sits in no longer decides what it is.
 
 Documents may sit one-per-file or share a file (`---`-separated YAML documents,
@@ -323,8 +324,8 @@ params:
 ```
 
 `type:` is **required** — it is the only thing that decides which kind a
-document is, so nothing is inferred from the file's path. The four values are
-`query`, `filter`, `flight`, and `role`, and any of them is valid in any file, so
+document is, so nothing is inferred from the file's path. The five values are
+`query`, `filter`, `flight`, `role`, and `formatter`, and any of them is valid in any file, so
 a flight can sit in `queries/` next to the queries it composes and a filter can
 sit in `flights/`:
 
@@ -350,7 +351,11 @@ error naming the file and the document's position in it.
 `signal:` and keeps that document's `rules:` private to it; `type: filter`
 forbids a signal and requires rules, aliases, or keywords; `type: flight`
 requires `queries:` and forbids both a signal and filter content; `type: role`
-forbids both too. Names collide only within a kind, so a query and a flight may
+forbids both too; `type: formatter` requires a `template:` and forbids a signal,
+filter content, `queries:`, and `flights:`. Two fields are kind-exclusive the
+other way round: `template:` may appear only on a formatter, and `formatters:`
+only on a role — the singular `formatter:` is the field that attaches one to a
+query or flight. Names collide only within a kind, so a query and a flight may
 share a name (as `demo` does) but two flights may not, wherever they are defined.
 
 Discovery skips dot-directories (`.data/`, `.plugins/`, `.archive/`), `logs/`,
@@ -367,6 +372,7 @@ munin query slack-standup       # run it
 munin query show slack-standup  # inspect the definition
 munin list queries              # queries the active role can see
 munin list filters              # filters the active role can see
+munin list formatters           # formatters the active role can see
 munin list --all                # everything, ignoring the active role
 munin filter list               # saved filters plus plugin filter engines
 ```
@@ -479,6 +485,112 @@ Each entry in `queries:` refers to a query document by `name`, not by filename o
 directory. A query that fails to build (missing auth, missing channel, …) shows up
 as an inline error section rather than aborting the flight.
 
+## Formatters
+
+A **formatter** is a `type: formatter` document holding one Go
+[`text/template`](https://pkg.go.dev/text/template) that turns a run's results
+into a text report — a standup post, a triage digest, a canned PR or Slack reply.
+The rendered text **replaces** the git-tree panels (or the JSON) on stdout, so it
+pipes cleanly. New formatters land in `~/.munin/formatters/`, one per file, but
+like every directive one may live anywhere under `~/.munin/`:
+
+```yaml
+# ~/.munin/formatters/standup.yaml
+name: standup
+type: formatter
+title: Daily Standup         # optional display label
+template: |
+  ## Standup {{ now | date "2006-01-02" }}
+  {{ range .Sections }}
+  ### {{ .Title }} ({{ len .Items }})
+  {{ range .Items }}- [{{ .Title }}]({{ .URL }}) {{ .Meta.author }}
+  {{ end }}{{ end }}
+```
+
+Attach one with a `formatter: <name>` field on a query or flight, or choose one
+per run with `--formatter`:
+
+```sh
+munin fly triage --formatter triage-summary        # ad-hoc
+munin fly morning --formatter standup --copy       # render to the clipboard
+munin query my-open-prs --formatter pr-nudge --out nudge.md
+munin github query -F pr-nudge                     # ad-hoc single-signal query
+munin formatter                                    # list what the role can see
+munin formatter show standup                       # print the definition
+munin formatter render standup morning             # run flight `morning`, render it
+munin fly morning -o json | munin formatter render standup --stdin
+```
+
+`--formatter` beats the directive's own `formatter:` field. Without `--copy` or
+`--out <path>` the report goes to stdout; `--copy` puts it on the clipboard and
+`--out` writes it to a file. `render --stdin` reads a `-o json` section array
+instead of running anything, so a captured result can be re-rendered.
+
+Within a flight, per-query `formatter:` fields are **ignored** — the flight's
+formatter sees the whole result set, so exactly one template renders a run.
+`munin serve` and the streaming path ignore formatters entirely: a stream never
+has "all the results".
+
+### The template data model
+
+The template is executed against one report value:
+
+| Field | Is |
+|---|---|
+| `.Formatter` | the formatter's name |
+| `.Name` | the flight or query the run was rooted at |
+| `.Kind` | `"flight"` or `"query"` |
+| `.Role` | the active role, empty when none |
+| `.Now` | the run timestamp |
+| `.Count` | total item count |
+| `.Errors` | `[]string`, one entry per section that failed |
+| `.Sections` | flat list of sections; each has `.Query .Signal .Title .Items .Meta .Err .Count` |
+| `.Queries` | the same data grouped per source query; each has `.Query .Title .Sections .Items .Count` |
+| `.Items` | every item, fully flattened; each has `.Kind .Title .Subtitle .Body .URL .Timestamp .Meta .Query .Signal` |
+
+So `range .Queries` gives one block per saved query, `range .Sections` one per
+signal section, and `.Items` the whole run as one list to bucket or sort.
+
+A **missing map key renders empty rather than erroring** (`missingkey=zero`),
+because `.Meta` is sparse and per-signal — a GitHub item has no `channel`, a
+calendar event has no `author`. This is a deliberate difference from query-param
+templates, which *do* fail on a missing key. A typo'd struct field
+(`.Titel`) still fails the render.
+
+### Template functions
+
+Every function takes the piped value **last**, so `{{ now | date "2006-01-02" }}`
+reads in the order it runs:
+
+| Function | Signature |
+|---|---|
+| `now` | `() time.Time` |
+| `date` | `(layout string, t time.Time) string` |
+| `rel` | `(t time.Time) string` — `3h ago` |
+| `meta` | `(key string, m map[string]string) string` |
+| `default` | `(fallback, v string) string` |
+| `trim` / `upper` / `lower` / `title` | `(string) string` |
+| `join` | `(sep string, xs []string) string` |
+| `indent` | `(n int, s string) string` |
+| `truncate` | `(n int, s string) string` — rune-safe |
+| `count` | `(any) int` |
+| `limit` | `(n int, items) []Item` |
+| `byMeta` | `(key string, items) []Bucket` — `Bucket{Key, Items}`, sorted by `Key` |
+| `withMeta` | `(key, val string, items) []Item` |
+| `sortByTime` | `(items) []Item` — newest first |
+
+```
+{{ range .Items | sortByTime | limit 5 }}- {{ .Title | truncate 70 }} · {{ rel .Timestamp }}
+{{ end }}
+{{ range byMeta "repo" .Items }}{{ .Key | default "(none)" }} — {{ len .Items }}
+{{ end }}
+```
+
+Templates are parsed when directives load, so a template that will not compile is
+reported by name up front rather than failing mid-render. Roles scope which
+formatters are visible with `formatters:`. Copy-paste starters live in
+[`examples/formatters/`](examples/formatters/).
+
 ## Create a role config
 
 A role is a `type: role` document. `munin install` writes them loose at the top of
@@ -496,6 +608,7 @@ name: triage
 type: role
 flights: [triage]            # bare `munin fly` runs the first of these
 queries: [incidents, loki-errors, my-open-prs, no-bots]
+formatters: [triage-summary] # a role listing no formatters sees none
 # Optional enter/exit shell hooks (bash on Unix, PowerShell on Windows).
 hooks:
   enter:
@@ -507,8 +620,11 @@ hooks:
 ```
 
 One `queries:` list covers both queries and filters, since a filter is just
-another directive document. While a role is active, only the flights and
-queries it names appear in lists and the TUI; with no active role, everything is listed. Asking for a
+another directive document. `formatters:` is a separate list, and it is opt-in:
+a role that names no formatters sees **none**, so add every formatter the role
+should be able to run. While a role is active, only the flights,
+queries, and formatters it names appear in lists, completion, and the TUI; with
+no active role, everything is listed. Asking for a
 query or flight the active role doesn't name reports why. Validate references and
 enums with `munin verify`. On a role switch, munin runs the previous role’s exit
 hooks, then the new role’s enter hooks (see `examples/README.md`).
@@ -523,6 +639,7 @@ Config lives under `~/.munin/`:
   *.yaml               # directives: roles (what `munin install` writes here)
   queries/*.yaml       # directives: queries and filters (one or many per file)
   flights/*.yaml       # directives: flights (one per file)
+  formatters/*.yaml    # directives: formatters — templated reports (one per file)
   team/gh/prs.yaml     # directives may nest arbitrarily; `type:` decides the kind
   icons/*.png          # optional per-state tray/notification icon overrides
   logs/munin.log       # rotating command/serve/deck log sink (cleanable/nukable)
@@ -536,9 +653,9 @@ Config lives under `~/.munin/`:
 `config.yaml` (or `config.yml` / `config.json`) at the root is the one file with a
 required name and place. Everything else is discovered by walking the home dir:
 any `.yaml`/`.yml`/`.json` file at any depth is read as directives, keyed by its
-path relative to the home dir. `queries/` and `flights/` are created by `munin
-install` and are where new documents are saved, so they stay the convention, but
-they carry no meaning of their own. Skipped while walking: dot-directories
+path relative to the home dir. `queries/`, `flights/`, and `formatters/` are
+created by `munin install` and are where new documents are saved, so they stay
+the convention, but they carry no meaning of their own. Skipped while walking: dot-directories
 (`.data/`, `.plugins/`, `.archive/`), `logs/`, and the root config file — a nested
 `team/config.yaml` is just another directive file.
 
@@ -787,20 +904,22 @@ DB.
 
 | Command | Description |
 |---|---|
-| `munin fly [flight]` | **cli**: run a named flight (defaults to the role's flight / `default`). |
-| `munin query [name]` | **cli**: run a saved query by name; no name lists saved queries. |
+| `munin fly [flight]` | **cli**: run a named flight (defaults to the role's flight / `default`); `--formatter`/`--copy`/`--out` render it through a formatter. |
+| `munin query [name]` | **cli**: run a saved query by name; no name lists saved queries. Takes the same `--formatter`/`--copy`/`--out`. |
 | `munin serve [flight]` | **serve**: foreground realtime watcher in the current shell; `--desktop`/`--interval`/`--bell`/`--theme`. |
 | `munin daemon [flight]` | **daemon**: install (if needed) then start the OS service; idempotent. |
 | `munin daemon install/uninstall/start/stop/restart/status/attach` | Manage the OS service (systemd user unit / launchd agent / Windows service). |
 | `munin deck [flight]` | **deck**: open the interactive TUI (daemon if running, else silent session-owned serve that dies with deck). Alias: `tui`. |
 | `munin query show <name>` | Show a saved query's definition. |
+| `munin formatter [name]` | List the formatters the active role can see; with a name, show its definition. |
+| `munin formatter show <name>` / `render <name> [flight]` | Print a formatter's YAML / run a flight and render it (`--stdin` renders a `-o json` section array instead). |
 | `munin <signal> query` | Ad-hoc one-off query against a single signal. |
 | `munin notes …` / `notes ui` | Notes/Tasks/Reminders CLI and TUI (`ntr` is an alias). |
 | `munin version` | Print brand glyph + `MUNIN` + build version (git describe / tag). |
 | `munin history` / `history show <id>` | List past runs / recall a run's results. |
 | `munin config` / `config history` | Show the active (DB-backed) config / prior versions. |
 | `munin backup` / `restore <file>` | Write / restore an encrypted backup of the DuckDB databases. |
-| `munin verify [target]` | Validate config/roles/flights/queries/onboarding (colorized, masks secrets). |
+| `munin verify [target]` | Validate config/roles/flights/queries/formatters/onboarding (colorized, masks secrets). |
 | `munin onboard [--status\|--reset]` | One-time setup gate: GitHub auth + a GitHub-verified GPG signing key. |
 | `munin install` | Create the config directory and initialize it with defaults. |
 | `munin plugins list` | List compile-time registered plugins and enablement state. |
@@ -811,7 +930,7 @@ DB.
 | `munin nuke [--yes]` | Delete the config directory and DuckDB (run `munin install` to recreate defaults). |
 | `munin role` | Show the active role and defined roles. |
 | `munin login <service>` | OAuth login for github/google/slack. |
-| `munin list [queries\|filters\|flights\|roles]` | List what the active role can see (`--all` to ignore the role). |
+| `munin list [queries\|filters\|flights\|roles\|formatters]` | List what the active role can see (`--all` to ignore the role). |
 | `munin filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
 | `munin query build --signal <name>` | Compose and run an ad-hoc query; `--save <name>` keeps it, `--dry-run` just prints it. |
 | `munin export <directive>` | Materialize DuckDB → files (`config`, `directives`, `all`); directives land at their stored relative paths. |
@@ -826,6 +945,10 @@ DB.
 - `--role <name>` — activate a role, scoping visible flights and queries.
 - `--timeout <dur>` — per-signal fetch timeout (e.g. `45s`, `2m`).
 - `--reconcile prompt|apply|session|ignore` — answer the staged-config panel up front.
+- `--formatter, -F <name>` — render the results through a formatter instead of the
+  normal output; beats a `formatter:` field on the query or flight.
+- `--copy` — put the formatted report on the clipboard (needs a formatter).
+- `--out <path>` — write the formatted report to a file (needs a formatter).
 - `--filter <name>` — apply a saved filter set (repeatable).
 - `--include <regex>` / `--exclude <regex>` — ad-hoc filters (repeatable).
 - `--verbose, -v` — raise the log level to debug (logs go to the log dir; see [Logs](#configuration)).

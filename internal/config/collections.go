@@ -63,7 +63,7 @@ func DirectiveFiles(home string) ([]string, error) {
 }
 
 func skipDir(name string) bool {
-	return strings.HasPrefix(name, ".") || name == DirLogs
+	return strings.HasPrefix(name, ".") || name == DirLogs || name == DirReports
 }
 
 func reservedRoot(rel string) bool {
@@ -170,6 +170,8 @@ func DefaultDirectivePath(kind DirectiveType, name string) string {
 	switch kind {
 	case TypeFlight:
 		return path.Join(DirFlights, name+".yaml")
+	case TypeFormatter:
+		return path.Join(DirFormatters, name+".yaml")
 	case TypeRole:
 		return name + ".yaml"
 	}
@@ -210,6 +212,9 @@ func stampType(doc any, kind DirectiveType) any {
 		d.Type = kind
 		return d
 	case RoleDef:
+		d.Type = kind
+		return d
+	case FormatterDef:
 		d.Type = kind
 		return d
 	}

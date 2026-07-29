@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -36,6 +37,13 @@ type Deps struct {
 	Verify func(kind string) []verify.Finding
 
 	ExportDirectives func() ([]string, error)
+
+	FormatFlight   func(formatter, flight string) (string, error)
+	FormatSections func(formatter, label string, sections []signals.Section) (string, error)
+	CopyText       func(text string) error
+	SaveReport     func(formatter, text string) (string, error)
+
+	PreviewRole func(rd config.RoleDef, hold time.Duration, body func() app.RolePreviewStep) []app.RolePreviewStep
 }
 
 type Kit struct {
@@ -88,8 +96,14 @@ func (k *Kit) flyMenuItems() []vkdeck.MenuItem {
 		vkdeck.MenuItem{Label: "Queries", Desc: "build, run, save, and manage queries and filters", Icon: glyph.Builder(), Hue: 3, Do: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Queries())
 		}},
-		vkdeck.MenuItem{Label: "Directives", Desc: "roles", Icon: glyph.Directives(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.directivesMenu())
+		vkdeck.MenuItem{Label: "Formatters", Desc: "build, render, save, and manage formatters", Icon: glyph.Directives(), Hue: 2, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.FormatterDirectives())
+		}},
+		vkdeck.MenuItem{Label: "Reports", Desc: "run a formatter over a flight and copy or save the report", Icon: glyph.Directives(), Hue: 5, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.Formatters())
+		}},
+		vkdeck.MenuItem{Label: "Roles", Desc: "build, dry-run, save, and manage roles", Icon: glyph.Role(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.Roles())
 		}},
 	)
 	return items

@@ -13,14 +13,19 @@ import (
 
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/munin/internal/format"
 )
 
 const (
-	DirQueries = "queries"
-	DirFlights = "flights"
-	DirLogs    = "logs"
-	DirPlugins = ".plugins"
-	KindRoles  = "roles"
+	DirQueries    = "queries"
+	DirFlights    = "flights"
+	DirFormatters = "formatters"
+	DirReports    = "reports"
+	DirLogs       = "logs"
+	DirPlugins    = ".plugins"
+
+	KindRoles      = "roles"
+	KindFormatters = "formatters"
 )
 
 func PluginsDir(home string) string { return filepath.Join(home, DirPlugins) }
@@ -28,35 +33,37 @@ func PluginsDir(home string) string { return filepath.Join(home, DirPlugins) }
 type DirectiveType string
 
 const (
-	TypeAuto   DirectiveType = ""
-	TypeQuery  DirectiveType = "query"
-	TypeFilter DirectiveType = "filter"
-	TypeFlight DirectiveType = "flight"
-	TypeRole   DirectiveType = "role"
+	TypeAuto      DirectiveType = ""
+	TypeQuery     DirectiveType = "query"
+	TypeFilter    DirectiveType = "filter"
+	TypeFlight    DirectiveType = "flight"
+	TypeRole      DirectiveType = "role"
+	TypeFormatter DirectiveType = "formatter"
 )
 
 func DirectiveTypes() []DirectiveType {
-	return []DirectiveType{TypeQuery, TypeFilter, TypeFlight, TypeRole}
+	return []DirectiveType{TypeQuery, TypeFilter, TypeFlight, TypeRole, TypeFormatter}
 }
 
 func typeLabel(k DirectiveType) string {
 	switch k {
-	case TypeQuery, TypeFilter, TypeFlight, TypeRole:
+	case TypeQuery, TypeFilter, TypeFlight, TypeRole, TypeFormatter:
 		return string(k)
 	}
 	return "directive"
 }
 
 type Query struct {
-	Name     string            `yaml:"name,omitempty" json:"name,omitempty"`
-	Type     DirectiveType     `yaml:"type,omitempty" json:"type,omitempty"`
-	Title    string            `yaml:"title,omitempty" json:"title,omitempty"`
-	Signal   string            `yaml:"signal,omitempty" json:"signal,omitempty"`
-	Params   map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
-	Filters  []QueryFilter     `yaml:"filters,omitempty" json:"filters,omitempty"`
-	Rules    []filter.Rule     `yaml:"rules,omitempty" json:"rules,omitempty"`
-	Aliases  map[string]string `yaml:"aliases,omitempty" json:"aliases,omitempty"`
-	Keywords map[string]string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
+	Name      string            `yaml:"name,omitempty" json:"name,omitempty"`
+	Type      DirectiveType     `yaml:"type,omitempty" json:"type,omitempty"`
+	Title     string            `yaml:"title,omitempty" json:"title,omitempty"`
+	Signal    string            `yaml:"signal,omitempty" json:"signal,omitempty"`
+	Params    map[string]string `yaml:"params,omitempty" json:"params,omitempty"`
+	Filters   []QueryFilter     `yaml:"filters,omitempty" json:"filters,omitempty"`
+	Rules     []filter.Rule     `yaml:"rules,omitempty" json:"rules,omitempty"`
+	Aliases   map[string]string `yaml:"aliases,omitempty" json:"aliases,omitempty"`
+	Keywords  map[string]string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
+	Formatter string            `yaml:"formatter,omitempty" json:"formatter,omitempty"`
 }
 
 func (q Query) Display() string {
@@ -138,21 +145,24 @@ func (qf QueryFilter) MarshalJSON() ([]byte, error) {
 }
 
 type directiveDoc struct {
-	Name     string            `yaml:"name" json:"name"`
-	Type     DirectiveType     `yaml:"type" json:"type"`
-	Title    string            `yaml:"title" json:"title"`
-	Signal   string            `yaml:"signal" json:"signal"`
-	Params   map[string]string `yaml:"params" json:"params"`
-	Filters  []QueryFilter     `yaml:"filters" json:"filters"`
-	Rules    []filter.Rule     `yaml:"rules" json:"rules"`
-	Aliases  map[string]string `yaml:"aliases" json:"aliases"`
-	Keywords map[string]string `yaml:"keywords" json:"keywords"`
-	Queries  []string          `yaml:"queries" json:"queries"`
-	Flights  []string          `yaml:"flights" json:"flights"`
-	Home     string            `yaml:"home" json:"home"`
-	Contexts map[string]string `yaml:"contexts" json:"contexts"`
-	Hooks    RoleHooks         `yaml:"hooks" json:"hooks"`
-	Status   []RoleStatusBlock `yaml:"status" json:"status"`
+	Name       string            `yaml:"name" json:"name"`
+	Type       DirectiveType     `yaml:"type" json:"type"`
+	Title      string            `yaml:"title" json:"title"`
+	Signal     string            `yaml:"signal" json:"signal"`
+	Params     map[string]string `yaml:"params" json:"params"`
+	Filters    []QueryFilter     `yaml:"filters" json:"filters"`
+	Rules      []filter.Rule     `yaml:"rules" json:"rules"`
+	Aliases    map[string]string `yaml:"aliases" json:"aliases"`
+	Keywords   map[string]string `yaml:"keywords" json:"keywords"`
+	Queries    []string          `yaml:"queries" json:"queries"`
+	Flights    []string          `yaml:"flights" json:"flights"`
+	Home       string            `yaml:"home" json:"home"`
+	Contexts   map[string]string `yaml:"contexts" json:"contexts"`
+	Hooks      RoleHooks         `yaml:"hooks" json:"hooks"`
+	Status     []RoleStatusBlock `yaml:"status" json:"status"`
+	Template   string            `yaml:"template" json:"template"`
+	Formatter  string            `yaml:"formatter" json:"formatter"`
+	Formatters []string          `yaml:"formatters" json:"formatters"`
 }
 
 func (d directiveDoc) hasFilterContent() bool {
@@ -161,43 +171,59 @@ func (d directiveDoc) hasFilterContent() bool {
 
 func (d directiveDoc) hasDirectiveFields() bool {
 	return d.Title != "" || d.Signal != "" || d.Home != "" ||
+		d.Template != "" || d.Formatter != "" ||
 		len(d.Params) > 0 || len(d.Filters) > 0 || len(d.Queries) > 0 ||
 		len(d.Flights) > 0 || len(d.Contexts) > 0 || len(d.Status) > 0 ||
+		len(d.Formatters) > 0 ||
 		d.Hooks != (RoleHooks{}) || d.hasFilterContent()
 }
 
 func (d directiveDoc) query() Query {
 	return Query{
-		Name:     d.Name,
-		Type:     d.Type,
-		Title:    d.Title,
-		Signal:   d.Signal,
-		Params:   d.Params,
-		Filters:  d.Filters,
-		Rules:    d.Rules,
-		Aliases:  d.Aliases,
-		Keywords: d.Keywords,
+		Name:      d.Name,
+		Type:      d.Type,
+		Title:     d.Title,
+		Signal:    d.Signal,
+		Params:    d.Params,
+		Filters:   d.Filters,
+		Rules:     d.Rules,
+		Aliases:   d.Aliases,
+		Keywords:  d.Keywords,
+		Formatter: d.Formatter,
 	}
 }
 
 func (d directiveDoc) flight() Flight {
-	return Flight{Name: d.Name, Type: d.Type, Queries: d.Queries}
+	return Flight{Name: d.Name, Type: d.Type, Queries: d.Queries, Formatter: d.Formatter}
 }
 
 func (d directiveDoc) role() RoleDef {
 	return RoleDef{
-		Name:     d.Name,
-		Type:     d.Type,
-		Home:     d.Home,
-		Flights:  d.Flights,
-		Queries:  d.Queries,
-		Contexts: d.Contexts,
-		Hooks:    d.Hooks,
-		Status:   d.Status,
+		Name:       d.Name,
+		Type:       d.Type,
+		Home:       d.Home,
+		Flights:    d.Flights,
+		Queries:    d.Queries,
+		Formatters: d.Formatters,
+		Contexts:   d.Contexts,
+		Hooks:      d.Hooks,
+		Status:     d.Status,
 	}
 }
 
+func (d directiveDoc) formatter() FormatterDef {
+	return FormatterDef{Name: d.Name, Type: d.Type, Title: d.Title, Template: d.Template}
+}
+
 func (d directiveDoc) validate(k DirectiveType) error {
+	if k != TypeFormatter && d.Template != "" {
+		return errs.Newf(errs.KindConfig, "%q is declared `type: %s` but carries a `template:`", d.Name, k).
+			WithHint("templates belong to `type: formatter` documents")
+	}
+	if k != TypeRole && len(d.Formatters) > 0 {
+		return errs.Newf(errs.KindConfig, "%q is declared `type: %s` but lists `formatters:`", d.Name, k).
+			WithHint("only roles scope formatters; use a single `formatter:` to attach one")
+	}
 	switch k {
 	case TypeQuery:
 		if d.Signal == "" {
@@ -234,6 +260,27 @@ func (d directiveDoc) validate(k DirectiveType) error {
 			return errs.Newf(errs.KindConfig, "%q is declared `type: role` but carries rules, aliases, or keywords", d.Name).
 				WithHint("move filter content to a `type: filter` document")
 		}
+		if d.Formatter != "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: role` but names a single `formatter:`", d.Name).
+				WithHint("roles scope formatters with `formatters: [name, ...]`")
+		}
+	case TypeFormatter:
+		if d.Template == "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: formatter` but has no template", d.Name).
+				WithHint("add a `template:` block")
+		}
+		if d.Signal != "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: formatter` but names signal %q", d.Name, d.Signal).
+				WithHint("formatters shape results; give the signal its own `type: query` document")
+		}
+		if d.hasFilterContent() {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: formatter` but carries rules, aliases, or keywords", d.Name).
+				WithHint("move filter content to a `type: filter` document")
+		}
+		if len(d.Queries) > 0 || len(d.Flights) > 0 {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: formatter` but lists queries or flights", d.Name).
+				WithHint("attach a formatter from the other side with `formatter: %s`", d.Name)
+		}
 	default:
 		return errs.Newf(errs.KindConfig, "%q has unknown type %q: want one of %v", d.Name, d.Type, DirectiveTypes())
 	}
@@ -246,9 +293,10 @@ type sourceKey struct {
 }
 
 type Directives struct {
-	Queries map[string]Query
-	Flights map[string]Flight
-	Roles   map[string]RoleDef
+	Queries    map[string]Query
+	Flights    map[string]Flight
+	Roles      map[string]RoleDef
+	Formatters map[string]FormatterDef
 
 	sources map[sourceKey]string
 	docs    map[string]int
@@ -256,11 +304,12 @@ type Directives struct {
 
 func newDirectives() *Directives {
 	return &Directives{
-		Queries: map[string]Query{},
-		Flights: map[string]Flight{},
-		Roles:   map[string]RoleDef{},
-		sources: map[sourceKey]string{},
-		docs:    map[string]int{},
+		Queries:    map[string]Query{},
+		Flights:    map[string]Flight{},
+		Roles:      map[string]RoleDef{},
+		Formatters: map[string]FormatterDef{},
+		sources:    map[sourceKey]string{},
+		docs:       map[string]int{},
 	}
 }
 
@@ -368,6 +417,15 @@ func (s *Directives) add(k DirectiveType, doc directiveDoc, file string) error {
 			return dup()
 		}
 		s.Roles[doc.Name] = doc.role()
+	case TypeFormatter:
+		if _, exists := s.Formatters[doc.Name]; exists {
+			return dup()
+		}
+		fd := doc.formatter()
+		if _, err := format.Parse(fd.Name, fd.Template); err != nil {
+			return err
+		}
+		s.Formatters[doc.Name] = fd
 	}
 	return nil
 }
@@ -438,9 +496,10 @@ func (s *Directives) ExpandParams(q Query) (map[string]string, error) {
 	return filter.ExpandParams(q.Params, resolved)
 }
 
-func (s *Directives) QueryNames() []string  { return sortedKeys(s.Queries) }
-func (s *Directives) FlightNames() []string { return sortedKeys(s.Flights) }
-func (s *Directives) RoleNames() []string   { return sortedKeys(s.Roles) }
+func (s *Directives) QueryNames() []string     { return sortedKeys(s.Queries) }
+func (s *Directives) FlightNames() []string    { return sortedKeys(s.Flights) }
+func (s *Directives) RoleNames() []string      { return sortedKeys(s.Roles) }
+func (s *Directives) FormatterNames() []string { return sortedKeys(s.Formatters) }
 
 func (s *Directives) RunnableNames() []string {
 	return s.filterNames(func(q Query) bool { return q.Runnable() })

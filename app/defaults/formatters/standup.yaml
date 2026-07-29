@@ -1,0 +1,13 @@
+# A formatter replaces the usual panels on stdout with rendered text.
+# Run it with: munin fly --formatter standup   (or `munin formatter render standup`)
+name: standup
+type: formatter
+title: Daily Standup
+template: |
+  ## Standup {{ now | date "2006-01-02" }}
+  {{ range .Queries }}
+  ### {{ .Title | default .Query }} ({{ .Count }})
+  {{ range .Items }}- [{{ .Title }}]({{ .URL }}){{ with .Meta.author }} — @{{ . }}{{ end }}
+  {{ end }}{{ else }}
+  Nothing on the board today.
+  {{ end }}

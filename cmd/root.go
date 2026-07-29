@@ -115,6 +115,7 @@ func newRootCmd() *cobra.Command {
 		newListCmd(),
 		newQueryCmd(),
 		newFilterCmd(),
+		newFormatterCmd(),
 		newRoleCmd(),
 		newHistoryCmd(),
 		newShowCmd(),

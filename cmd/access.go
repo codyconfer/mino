@@ -10,4 +10,6 @@ func visibleFilterNames() []string { return shared.VisibleFilters() }
 
 func visibleFlightNames() []string { return shared.VisibleFlights() }
 
+func visibleFormatterNames() []string { return shared.VisibleFormatters() }
+
 func notInRoleError(kind, name string) error { return shared.NotInRoleError(kind, name) }

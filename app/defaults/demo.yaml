@@ -4,3 +4,5 @@ name: demo
 type: role
 flights: [demo]
 queries: [demo, demo-reviews, no-bots]
+# A role sees only the formatters it lists.
+formatters: [standup]

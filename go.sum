@@ -40,8 +40,8 @@ github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJ
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
 github.com/codyconfer/sisyphus v0.1.7 h1:qYN47Qj8QTcPt54QDJOaYrR7wqnQoA/XJATOGYrE2N8=
 github.com/codyconfer/sisyphus v0.1.7/go.mod h1:JNxDOEftViY+39/29DJ/ZCV9qgGRpGVZpg41NP3ZRkQ=
-github.com/codyconfer/viewkit v0.1.9 h1:M5rxmOq6kpsD/aQLYE1vpfUV0UVaxOxCvCCq8zt0xIA=
-github.com/codyconfer/viewkit v0.1.9/go.mod h1:auEtcf281rqlk6uk86eLaPbmTVJBNQvCvRHTsKBzK/k=
+github.com/codyconfer/viewkit v0.1.10 h1:ObP584n6QWk30+4Ra7vfWk61F+ayEX48t6mk7QhJolQ=
+github.com/codyconfer/viewkit v0.1.10/go.mod h1:auEtcf281rqlk6uk86eLaPbmTVJBNQvCvRHTsKBzK/k=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/danieljoos/wincred v1.2.3 h1:v7dZC2x32Ut3nEfRH+vhoZGvN72+dQ/snVXo/vMFLdQ=
 github.com/danieljoos/wincred v1.2.3/go.mod h1:6qqX0WNrS4RzPZ1tnroDzq9kY3fu1KwE7MRLQK4X0bs=

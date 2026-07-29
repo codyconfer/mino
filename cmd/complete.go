@@ -59,6 +59,10 @@ func completeFilterNames(cmd *cobra.Command, args []string, toComplete string) (
 	return completeNames(visibleFilterNames)(cmd, args, toComplete)
 }
 
+func completeFormatterNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeNames(visibleFormatterNames)(cmd, args, toComplete)
+}
+
 func completeSignalNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return completeFlagValues(suggest.Signals)(cmd, args, toComplete)
 }

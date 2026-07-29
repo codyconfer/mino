@@ -51,6 +51,7 @@ func buildQueryFrom(label string, q config.Query) (query, error) {
 }
 
 func newQueryCmd() *cobra.Command {
+	var ff formatterFlags
 	c := &cobra.Command{
 		Use:   "query [name]",
 		Short: "Run a saved query by name (or list/show to inspect)",
@@ -69,13 +70,19 @@ func newQueryCmd() *cobra.Command {
 			if _, ok := shared.Directives.Queries[name]; ok && !access().QueryVisible(name) {
 				return notInRoleError("query", name)
 			}
+			o, err := ff.resolve(shared.Directives.Queries[name].Formatter)
+			if err != nil {
+				return err
+			}
+			o.kind = "query"
 			j, err := buildQuery(name)
 			if err != nil {
 				return err
 			}
-			return runQueries(cmd.Context(), cmd.OutOrStdout(), name, []query{j}, 0)
+			return runQueriesWith(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), name, []query{j}, 0, o)
 		},
 	}
+	ff.bind(c)
 	c.AddCommand(newQueryListCmd(), newQueryShowCmd(), newQueryBuildCmd())
 	return c
 }

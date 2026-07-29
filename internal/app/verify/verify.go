@@ -20,6 +20,7 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/munin/internal/format"
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/render/glyph"
@@ -47,6 +48,7 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *confi
 		{"roles", "Roles", func() []Finding { return Roles(directives) }},
 		{"flights", "Flights", func() []Finding { return Flights(directives) }},
 		{"queries", "Queries", func() []Finding { return Queries(directives) }},
+		{"formatters", "Formatters", func() []Finding { return Formatters(directives) }},
 		{"plugins", "Plugins", func() []Finding { return Plugins() }},
 		{"onboarding", "Onboarding", func() []Finding { return Onboarding(ctx, tokens, cfg.GitHub.APIURL) }},
 	}
@@ -150,30 +152,70 @@ func Config(cfg *config.Config, directives *config.Directives) []Finding {
 func Roles(directives *config.Directives) []Finding {
 	var out []Finding
 	for _, name := range directives.RoleNames() {
-		rd := directives.Roles[name]
-		var missing []string
-		if rd.Home != "" {
-			if _, ok := directives.Flights[rd.Home]; !ok {
-				missing = append(missing, "home flight "+rd.Home)
-			}
+		out = append(out, Role(directives, name, directives.Roles[name]))
+	}
+	return out
+}
+
+func Role(directives *config.Directives, name string, rd config.RoleDef) Finding {
+	var missing []string
+	if rd.Home != "" {
+		if _, ok := directives.Flights[rd.Home]; !ok {
+			missing = append(missing, "home flight "+rd.Home)
 		}
-		for _, f := range rd.Flights {
-			if _, ok := directives.Flights[f]; !ok {
-				missing = append(missing, "flight "+f)
-			}
+	}
+	for _, f := range rd.Flights {
+		if _, ok := directives.Flights[f]; !ok {
+			missing = append(missing, "flight "+f)
 		}
-		for _, q := range rd.Queries {
-			if _, ok := directives.Queries[q]; !ok {
-				missing = append(missing, "query "+q)
-			}
+	}
+	for _, q := range rd.Queries {
+		if _, ok := directives.Queries[q]; !ok {
+			missing = append(missing, "query "+q)
 		}
-		if len(missing) > 0 {
-			out = append(out, Finding{Name: name, OK: false,
-				Msg:     "references undefined: " + strings.Join(missing, ", "),
-				Snippet: toYAML(rd)})
+	}
+	for _, fm := range rd.Formatters {
+		if _, ok := directives.Formatters[fm]; !ok {
+			missing = append(missing, "formatter "+fm)
+		}
+	}
+	if len(missing) > 0 {
+		return Finding{Name: name, OK: false,
+			Msg:     "references undefined: " + strings.Join(missing, ", "),
+			Snippet: toYAML(rd)}
+	}
+	if unscoped := unscopedFormatters(directives, rd); len(unscoped) > 0 {
+		return Finding{Name: name, OK: false, Warn: true,
+			Msg:     "formatters not in role scope: " + strings.Join(unscoped, ", "),
+			Snippet: toYAML(rd)}
+	}
+	return Finding{Name: name, OK: true}
+}
+
+func unscopedFormatters(directives *config.Directives, rd config.RoleDef) []string {
+	scoped := make(map[string]bool, len(rd.Formatters))
+	for _, fm := range rd.Formatters {
+		scoped[fm] = true
+	}
+	var out []string
+	seen := map[string]bool{}
+	flights := rd.Flights
+	if rd.Home != "" {
+		flights = append(append([]string{}, rd.Flights...), rd.Home)
+	}
+	for _, name := range flights {
+		if seen[name] {
 			continue
 		}
-		out = append(out, Finding{Name: name, OK: true})
+		seen[name] = true
+		if fm := directives.Flights[name].Formatter; fm != "" && !scoped[fm] {
+			out = append(out, fmt.Sprintf("flight %s uses %q", name, fm))
+		}
+	}
+	for _, name := range rd.Queries {
+		if fm := directives.Queries[name].Formatter; fm != "" && !scoped[fm] {
+			out = append(out, fmt.Sprintf("query %s uses %q", name, fm))
+		}
 	}
 	return out
 }
@@ -210,6 +252,12 @@ func Flight(directives *config.Directives, name string, fl config.Flight) Findin
 		case len(notRunnable) > 0:
 			f.OK, f.Msg, f.Snippet = false,
 				"filter-only, nothing to run: "+strings.Join(notRunnable, ", "), snippet()
+		}
+	}
+	if f.OK && fl.Formatter != "" {
+		if _, ok := directives.Formatters[fl.Formatter]; !ok {
+			f.OK, f.Warn, f.Msg, f.Snippet = false, false,
+				fmt.Sprintf("unknown formatter %q", fl.Formatter), snippet()
 		}
 	}
 	return f
@@ -356,6 +404,41 @@ func Query(directives *config.Directives, name string, q config.Query) Finding {
 			f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
 		} else if _, err := filter.CompileAll(resolved); err != nil {
 			f.OK, f.Msg, f.Snippet = false, err.Error(), snippet()
+		}
+	}
+	if f.OK && q.Formatter != "" {
+		if _, ok := directives.Formatters[q.Formatter]; !ok {
+			f.OK, f.Warn, f.Msg, f.Snippet = false, false,
+				fmt.Sprintf("unknown formatter %q", q.Formatter), snippet()
+		}
+	}
+	return f
+}
+
+func Formatters(directives *config.Directives) []Finding {
+	var out []Finding
+	for _, name := range directives.FormatterNames() {
+		out = append(out, Formatter(name, directives.Formatters[name]))
+	}
+	return out
+}
+
+func Formatter(name string, fd config.FormatterDef) Finding {
+	f := Finding{Name: name, OK: true}
+	snippet := func() string { return toYAML(fd) }
+
+	_, parseErr := format.Parse(name, fd.Template)
+	switch {
+	case fd.Template == "":
+		f.OK, f.Msg, f.Snippet = false, "formatter has no template", snippet()
+	case parseErr != nil:
+		f.OK, f.Msg, f.Snippet = false, parseErr.Error(), snippet()
+	case !strings.Contains(fd.Template, "{{"):
+		f.OK, f.Warn, f.Msg, f.Snippet = false, true, "template interpolates nothing", snippet()
+	default:
+		if _, err := format.Render(name, fd.Template, format.Report{}); err != nil {
+			f.OK, f.Warn, f.Msg, f.Snippet = false, true,
+				"fails on an empty result set: "+err.Error(), snippet()
 		}
 	}
 	return f

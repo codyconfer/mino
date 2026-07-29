@@ -98,14 +98,15 @@ type SlackConfig struct {
 }
 
 type RoleDef struct {
-	Name     string            `yaml:"name,omitempty" json:"name,omitempty"`
-	Type     DirectiveType     `yaml:"type,omitempty" json:"type,omitempty"`
-	Home     string            `yaml:"home" json:"home"`
-	Flights  []string          `yaml:"flights" json:"flights"`
-	Queries  []string          `yaml:"queries" json:"queries"`
-	Contexts map[string]string `yaml:"contexts,omitempty" json:"contexts,omitempty"`
-	Hooks    RoleHooks         `yaml:"hooks,omitempty" json:"hooks,omitempty"`
-	Status   []RoleStatusBlock `yaml:"status,omitempty" json:"status,omitempty"`
+	Name       string            `yaml:"name,omitempty" json:"name,omitempty"`
+	Type       DirectiveType     `yaml:"type,omitempty" json:"type,omitempty"`
+	Home       string            `yaml:"home" json:"home"`
+	Flights    []string          `yaml:"flights" json:"flights"`
+	Queries    []string          `yaml:"queries" json:"queries"`
+	Formatters []string          `yaml:"formatters,omitempty" json:"formatters,omitempty"`
+	Contexts   map[string]string `yaml:"contexts,omitempty" json:"contexts,omitempty"`
+	Hooks      RoleHooks         `yaml:"hooks,omitempty" json:"hooks,omitempty"`
+	Status     []RoleStatusBlock `yaml:"status,omitempty" json:"status,omitempty"`
 }
 
 type RoleHooks struct {
@@ -129,7 +130,22 @@ func (b RoleStatusBlock) Hooks() RoleShellHooks {
 }
 
 type Flight struct {
-	Name    string        `yaml:"name,omitempty" json:"name,omitempty"`
-	Type    DirectiveType `yaml:"type,omitempty" json:"type,omitempty"`
-	Queries []string      `yaml:"queries" json:"queries"`
+	Name      string        `yaml:"name,omitempty" json:"name,omitempty"`
+	Type      DirectiveType `yaml:"type,omitempty" json:"type,omitempty"`
+	Queries   []string      `yaml:"queries" json:"queries"`
+	Formatter string        `yaml:"formatter,omitempty" json:"formatter,omitempty"`
+}
+
+type FormatterDef struct {
+	Name     string        `yaml:"name,omitempty" json:"name,omitempty"`
+	Type     DirectiveType `yaml:"type,omitempty" json:"type,omitempty"`
+	Title    string        `yaml:"title,omitempty" json:"title,omitempty"`
+	Template string        `yaml:"template,omitempty" json:"template,omitempty"`
+}
+
+func (f FormatterDef) Display() string {
+	if f.Title != "" {
+		return f.Title
+	}
+	return f.Name
 }
