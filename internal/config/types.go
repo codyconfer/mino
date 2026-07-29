@@ -17,6 +17,12 @@ type Config struct {
 	Tasks    TasksConfig       `koanf:"tasks"`
 	Slack    SlackConfig       `koanf:"slack"`
 	Daemon   DaemonConfig      `koanf:"daemon"`
+	Cache    CacheConfig       `koanf:"cache"`
+}
+
+type CacheConfig struct {
+	TTL     string            `koanf:"ttl"`
+	Signals map[string]string `koanf:"signals"`
 }
 
 type DaemonConfig struct {

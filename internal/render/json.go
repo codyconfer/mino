@@ -11,10 +11,11 @@ import (
 type JSONRenderer struct{}
 
 type wireSection struct {
-	Signal string         `json:"signal"`
-	Title  string         `json:"title"`
-	Items  []signals.Item `json:"items"`
-	Error  string         `json:"error,omitempty"`
+	Signal string            `json:"signal"`
+	Title  string            `json:"title"`
+	Items  []signals.Item    `json:"items"`
+	Meta   map[string]string `json:"meta,omitempty"`
+	Error  string            `json:"error,omitempty"`
 }
 
 func (r *JSONRenderer) Render(w io.Writer, sections []signals.Section) error {
@@ -28,6 +29,7 @@ func (r *JSONRenderer) Render(w io.Writer, sections []signals.Section) error {
 			Signal: s.Signal,
 			Title:  s.Title,
 			Items:  items,
+			Meta:   s.Meta,
 			Error:  s.ErrString(),
 		})
 	}

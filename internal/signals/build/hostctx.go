@@ -6,6 +6,7 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/signals/active"
+	"github.com/codyconfer/munin/internal/signals/cache"
 	"github.com/codyconfer/munin/internal/token"
 )
 
@@ -14,6 +15,7 @@ type hostBuildCtx struct {
 	cfg    *config.Config
 	tokens *token.Store
 	state  *active.State
+	cache  *cache.Store
 }
 
 func (c hostBuildCtx) Params() map[string]string {

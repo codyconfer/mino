@@ -17,6 +17,9 @@ var (
 	flagConfigFile string
 	flagRole       string
 	flagTimeout    string
+	flagCacheTTL   string
+	flagNoCache    bool
+	flagRefresh    bool
 	flagReconcile  string
 	flagVerbose    bool
 )
@@ -62,6 +65,9 @@ func newRootCmd() *cobra.Command {
 				Output:      flagOutput,
 				Role:        flagRole,
 				Timeout:     flagTimeout,
+				CacheTTL:    flagCacheTTL,
+				NoCache:     flagNoCache,
+				Refresh:     flagRefresh,
 				Reconcile:   policy,
 				Verbose:     flagVerbose,
 				Interactive: term.IsTerminal(os.Stdin.Fd()),
@@ -90,6 +96,9 @@ func newRootCmd() *cobra.Command {
 	pf.StringVar(&flagConfigFile, "config", "", "use this config file for this session only (not persisted)")
 	pf.StringVar(&flagRole, "role", "", "active role: scope visible flights/queries/filters")
 	pf.StringVar(&flagTimeout, "timeout", "", "per-signal fetch timeout (e.g. 30s, 2m)")
+	pf.StringVar(&flagCacheTTL, "cache-ttl", "", "how long cached signal results stay fresh (e.g. 60s, 5m; 0 disables)")
+	pf.BoolVar(&flagNoCache, "no-cache", false, "bypass cached signal results and store nothing")
+	pf.BoolVar(&flagRefresh, "refresh", false, "ignore cached signal results but store the fresh ones")
 	pf.StringVar(&flagReconcile, "reconcile", "", "staged config changes: prompt, apply, session, or ignore")
 	pf.BoolVarP(&flagVerbose, "verbose", "v", false, "verbose logging to stderr")
 
@@ -100,6 +109,7 @@ func newRootCmd() *cobra.Command {
 		newFilterCmd(),
 		newRoleCmd(),
 		newHistoryCmd(),
+		newCacheCmd(),
 		newConfigCmd(),
 		newBackupCmd(),
 		newRestoreCmd(),

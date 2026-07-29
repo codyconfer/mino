@@ -17,10 +17,11 @@ type Item struct {
 }
 
 type Section struct {
-	Signal string `json:"signal"`
-	Title  string `json:"title"`
-	Items  []Item `json:"items"`
-	Err    error  `json:"-"`
+	Signal string            `json:"signal"`
+	Title  string            `json:"title"`
+	Items  []Item            `json:"items"`
+	Meta   map[string]string `json:"meta,omitempty"`
+	Err    error             `json:"-"`
 }
 
 func (s Section) ErrString() string {
@@ -31,10 +32,11 @@ func (s Section) ErrString() string {
 }
 
 type wireSection struct {
-	Signal string `json:"signal"`
-	Title  string `json:"title"`
-	Items  []Item `json:"items"`
-	Err    string `json:"err,omitempty"`
+	Signal string            `json:"signal"`
+	Title  string            `json:"title"`
+	Items  []Item            `json:"items"`
+	Meta   map[string]string `json:"meta,omitempty"`
+	Err    string            `json:"err,omitempty"`
 }
 
 func (s Section) MarshalJSON() ([]byte, error) {
@@ -42,6 +44,7 @@ func (s Section) MarshalJSON() ([]byte, error) {
 		Signal: s.Signal,
 		Title:  s.Title,
 		Items:  s.Items,
+		Meta:   s.Meta,
 		Err:    s.ErrString(),
 	})
 }
@@ -54,6 +57,7 @@ func (s *Section) UnmarshalJSON(b []byte) error {
 	s.Signal = w.Signal
 	s.Title = w.Title
 	s.Items = w.Items
+	s.Meta = w.Meta
 	if w.Err != "" {
 		s.Err = errors.New(w.Err)
 	} else {

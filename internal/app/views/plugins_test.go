@@ -82,7 +82,7 @@ func TestPluginsListsInternalAsBuiltIn(t *testing.T) {
 	if !found {
 		t.Fatalf("missing internal %s in rows: %+v", id, page.rows)
 	}
-	body := pluginsAnsi.ReplaceAllString(page.Body(100, 40), "")
+	body := pluginsAnsi.ReplaceAllString(page.Body(120, 40), "")
 	if !strings.Contains(body, id) || !strings.Contains(body, "built-in") {
 		t.Fatalf("body missing built-in internal plugin:\n%s", body)
 	}
@@ -489,7 +489,7 @@ func TestPluginsListSpacesOnlyTheCursorRow(t *testing.T) {
 		t.Skipf("need at least 3 plugin rows, have %d", len(page.rows))
 	}
 
-	lines := strings.Split(page.Body(100, 40), "\n")
+	lines := strings.Split(page.Body(120, 40), "\n")
 	at := func(id string) int {
 		for i, ln := range lines {
 			if strings.Contains(ln, id) {

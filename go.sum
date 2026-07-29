@@ -38,8 +38,8 @@ github.com/clipperhouse/displaywidth v0.11.0 h1:lBc6kY44VFw+TDx4I8opi/EtL9m20WSE
 github.com/clipperhouse/displaywidth v0.11.0/go.mod h1:bkrFNkf81G8HyVqmKGxsPufD3JhNl3dSqnGhOoSD/o0=
 github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJv2v7Vk=
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
-github.com/codyconfer/sisyphus v0.1.5 h1:g/ZhZSeAkveg9oHTD9rkv4XNSTTiaz5fGMvK+8hODnY=
-github.com/codyconfer/sisyphus v0.1.5/go.mod h1:JNxDOEftViY+39/29DJ/ZCV9qgGRpGVZpg41NP3ZRkQ=
+github.com/codyconfer/sisyphus v0.1.6 h1:uUaPWOd5MsJQl3EYcYHAWys0odnunBMXIGcZnusNnQg=
+github.com/codyconfer/sisyphus v0.1.6/go.mod h1:JNxDOEftViY+39/29DJ/ZCV9qgGRpGVZpg41NP3ZRkQ=
 github.com/codyconfer/viewkit v0.1.7 h1:qTQc01LFamkqmTevhX/uYnoYRp+MJHI+tJEYGSEv2tM=
 github.com/codyconfer/viewkit v0.1.7/go.mod h1:auEtcf281rqlk6uk86eLaPbmTVJBNQvCvRHTsKBzK/k=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=

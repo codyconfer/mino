@@ -12,6 +12,7 @@ import (
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/active"
+	"github.com/codyconfer/munin/internal/signals/cache"
 	"github.com/codyconfer/munin/internal/signals/demo"
 	"github.com/codyconfer/munin/internal/signals/gcal"
 	"github.com/codyconfer/munin/internal/signals/gdocs"
@@ -50,7 +51,7 @@ func ResolveWriteTarget(what, setting, configured, requested string) (string, er
 	return "", errs.Newf(errs.KindUsage, "%s %q is read-only; only %q is writable (%s)", what, requested, configured, setting)
 }
 
-func Signal(name string, params map[string]string, cfg *config.Config, tokens *token.Store) (signals.Signal, error) {
+func Signal(name string, params map[string]string, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.Signal, error) {
 	if !plugin.HasBuilder(name) {
 		return nil, errs.Newf(errs.KindConfig, "unknown signal %q", name)
 	}
@@ -58,7 +59,11 @@ func Signal(name string, params map[string]string, cfg *config.Config, tokens *t
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `munin plugins enable` for the backing plugin")
 	}
-	return plugin.BuildQuery(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens})
+	q, err := plugin.BuildQuery(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, cache: results})
+	if err != nil {
+		return nil, err
+	}
+	return results.Wrap(q, name, cfg.Role, params), nil
 }
 
 func ActiveSignal(name string, params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {
@@ -119,7 +124,7 @@ func registerStockBuilders() {
 			if !ok {
 				return nil, errs.New(errs.KindInternal, "github builder requires host build context")
 			}
-			return buildGithub(h.params, h.cfg, h.tokens)
+			return buildGithub(h.params, h.cfg, h.tokens, h.cache)
 		},
 		func(bc plugin.BuildContext) (plugin.Stream, error) {
 			h, ok := asHost(bc)
@@ -209,7 +214,7 @@ func registerStockBuilders() {
 	)
 }
 
-func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Store) (signals.Signal, error) {
+func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.Signal, error) {
 	backend, err := githubBackend(cfg, tokens)
 	if err != nil {
 		return nil, err
@@ -227,11 +232,11 @@ func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Sto
 			Field:  params["field"],
 			Team:   params["team"],
 		}
-		var cache gh.RosterCache
-		if spec.Team != "" {
-			cache = rosterCache{home: cfg.Home}
+		var roster gh.RosterCache
+		if spec.Team != "" && results != nil {
+			roster = results
 		}
-		return gh.NewProject(spec, backend, cfg.GitHub.Max, cache), nil
+		return gh.NewProject(spec, backend, cfg.GitHub.Max, roster), nil
 	}
 	queries := cfg.GitHub.Queries
 	if q := params["query"]; q != "" {

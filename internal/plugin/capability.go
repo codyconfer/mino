@@ -22,6 +22,7 @@ const (
 	CapAction    = pub.CapAction
 	CapStream    = pub.CapStream
 	CapScheduled = pub.CapScheduled
+	CapCacheable = pub.CapCacheable
 )
 
 type Query = pub.Query

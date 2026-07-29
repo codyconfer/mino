@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -84,6 +86,21 @@ func Config(cfg *config.Config, directives *config.Directives) []Finding {
 	if cfg.Timeout != "" {
 		_, err := time.ParseDuration(cfg.Timeout)
 		check("timeout", err == nil, fmt.Sprintf("timeout=%q is not a valid duration", cfg.Timeout), "timeout: "+cfg.Timeout)
+	}
+
+	if cfg.Cache.TTL != "" {
+		_, err := time.ParseDuration(cfg.Cache.TTL)
+		check("cache.ttl", err == nil, fmt.Sprintf("cache.ttl=%q is not a valid duration", cfg.Cache.TTL), "cache:\n  ttl: "+cfg.Cache.TTL)
+	}
+	for _, name := range slices.Sorted(maps.Keys(cfg.Cache.Signals)) {
+		ttl := cfg.Cache.Signals[name]
+		if ttl == "" {
+			continue
+		}
+		_, err := time.ParseDuration(ttl)
+		check("cache.signals."+name, err == nil,
+			fmt.Sprintf("cache.signals.%s=%q is not a valid duration", name, ttl),
+			"cache:\n  signals:\n    "+name+": "+ttl)
 	}
 
 	check("backup.keep", cfg.Backup.Keep >= 0,

@@ -37,10 +37,20 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 		title = fmt.Sprintf("%s  (%s)", signals.Clean(title), sectionCount(s))
 		icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
 
-		rows = append(rows, tree.Branch(c, last, []string{icon + th.Title.Render(title)}, ""))
+		rows = append(rows, tree.Branch(c, last, []string{icon + th.Title.Render(title) + staleChip(th, s)}, ""))
 		rows = append(rows, sectionLeaves(f, th, c, spad, s)...)
 	}
 	return rows
+}
+
+func staleChip(th *theme.Theme, s signals.Section) string {
+	if s.Meta["cache"] != "stale" {
+		return ""
+	}
+	if age := signals.Clean(s.Meta["age"]); age != "" {
+		return th.Dim.Render("  (stale " + age + ")")
+	}
+	return th.Dim.Render("  (stale)")
 }
 
 func sectionCount(s signals.Section) string {

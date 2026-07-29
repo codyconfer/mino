@@ -16,6 +16,7 @@ import (
 	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/munin/internal/signals/cache"
 	"github.com/codyconfer/munin/internal/token"
 )
 
@@ -24,6 +25,7 @@ type App struct {
 	Directives *config.Directives
 	Audit      *audit.Store
 	Tokens     *token.Store
+	Cache      *cache.Store
 	Mgr        *sisyphus.Manager
 
 	ghAuth       ghAuthCache
@@ -60,6 +62,9 @@ type Options struct {
 	Output      string
 	Role        string
 	Timeout     string
+	CacheTTL    string
+	NoCache     bool
+	Refresh     bool
 	Reconcile   config.ReconcilePolicy
 	Verbose     bool
 	Interactive bool
@@ -85,7 +90,17 @@ func Load(opts Options) (*App, error) {
 	if opts.Timeout != "" {
 		cfg.Timeout = opts.Timeout
 	}
+	if opts.CacheTTL != "" {
+		if _, err := time.ParseDuration(opts.CacheTTL); err != nil {
+			return nil, errs.Newf(errs.KindUsage, "--cache-ttl %q is not a valid duration", opts.CacheTTL).
+				WithHint("use a Go duration like 60s, 5m, or 0 to disable")
+		}
+		// An explicit flag beats the config file outright, per-signal entries included —
+		// otherwise `--cache-ttl 0` would still cache anything listed under cache.signals.
+		cfg.Cache.TTL, cfg.Cache.Signals = opts.CacheTTL, nil
+	}
 	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr}
+	a.openCache(cacheMode(opts))
 	a.openTokens()
 	a.openAudit()
 	a.syncRoleLifecycle()
@@ -209,6 +224,21 @@ func (a *App) RefreshDirectives(policy config.ReconcilePolicy) error {
 	return nil
 }
 
+func cacheMode(opts Options) cache.Mode {
+	switch {
+	case opts.NoCache:
+		return cache.ModeOff
+	case opts.Refresh:
+		return cache.ModeRefresh
+	default:
+		return cache.ModeUse
+	}
+}
+
+func (a *App) openCache(mode cache.Mode) {
+	a.Cache = cache.New(a.Cfg.Home, a.Cfg.Cache, cache.Fingerprint(a.Cfg), mode)
+}
+
 func (a *App) openTokens() {
 	ts, err := token.Open(context.Background(), config.DataPath(a.Cfg.Home, config.TokensDB))
 	if err != nil {
@@ -245,6 +275,7 @@ func (a *App) Shutdown() {
 	if a.Tokens != nil {
 		_ = a.Tokens.Close()
 	}
+	_ = a.Cache.Close()
 	if a.Mgr != nil {
 		_ = a.Mgr.Close()
 	}
@@ -259,6 +290,7 @@ func (a *App) CloseDBs() {
 		_ = a.Tokens.Close()
 		a.Tokens = nil
 	}
+	_ = a.Cache.Close()
 	if a.Mgr != nil {
 		_ = a.Mgr.Close()
 		a.Mgr = nil

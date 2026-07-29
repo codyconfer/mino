@@ -98,6 +98,7 @@ func (k *Kit) setvEditConfigView() vkdeck.View {
 		{Key: "output", Label: "output", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"terminal", "json"}, c.Output)},
 		{Key: "audit.enabled", Label: "audit.enabled", Kind: forms.FieldToggle, On: c.Audit.Enabled},
 		{Key: "timeout", Label: "timeout", Kind: forms.FieldText, Text: c.Timeout},
+		{Key: "cache.ttl", Label: "cache.ttl", Kind: forms.FieldText, Text: c.Cache.TTL},
 		{Key: "backup.destination", Label: "backup.destination", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"local", "gdrive"}, c.Backup.Destination)},
 		{Key: "backup.keep", Label: "backup.keep", Kind: forms.FieldText, Text: strconv.Itoa(c.Backup.Keep)},
 	}
@@ -117,6 +118,7 @@ func (k *Kit) setvSaveConfig(a *vkdeck.Model, vals map[string]any) tea.Cmd {
 	set := map[string]any{
 		"output":             forms.Str(vals, "output"),
 		"timeout":            forms.Str(vals, "timeout"),
+		"cache.ttl":          forms.Str(vals, "cache.ttl"),
 		"audit.enabled":      forms.Bool(vals, "audit.enabled"),
 		"backup.destination": forms.Str(vals, "backup.destination"),
 		"backup.keep":        keep,

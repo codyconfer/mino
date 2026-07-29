@@ -14,13 +14,13 @@ func RegisterBuiltins() {
 	}
 	for _, s := range []sig{
 		{"munin.demo", "demo", []Capability{CapQuery, CapStream}},
-		{"munin.github", "github", []Capability{CapQuery, CapStream}},
-		{"munin.calendar", "calendar", []Capability{CapQuery, CapStream}},
-		{"munin.gmail", "gmail", []Capability{CapQuery}},
-		{"munin.docs", "docs", []Capability{CapQuery}},
-		{"munin.drive", "drive", []Capability{CapQuery, CapAction}},
-		{"munin.tasks", "tasks", []Capability{CapQuery, CapStream, CapAction}},
-		{"munin.slack", "slack", []Capability{CapQuery, CapStream}},
+		{"munin.github", "github", []Capability{CapQuery, CapStream, CapCacheable}},
+		{"munin.calendar", "calendar", []Capability{CapQuery, CapStream, CapCacheable}},
+		{"munin.gmail", "gmail", []Capability{CapQuery, CapCacheable}},
+		{"munin.docs", "docs", []Capability{CapQuery, CapCacheable}},
+		{"munin.drive", "drive", []Capability{CapQuery, CapAction, CapCacheable}},
+		{"munin.tasks", "tasks", []Capability{CapQuery, CapStream, CapAction, CapCacheable}},
+		{"munin.slack", "slack", []Capability{CapQuery, CapStream, CapCacheable}},
 	} {
 		if _, ok := Lookup(s.id); ok {
 			continue

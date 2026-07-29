@@ -23,6 +23,9 @@ const (
 	CapAction    Capability = "action"
 	CapStream    Capability = "stream"
 	CapScheduled Capability = "scheduled"
+	// CapCacheable marks a signal whose Fetch results are worth caching between runs.
+	// Signals reading local state should omit it so writes show up immediately.
+	CapCacheable Capability = "cacheable"
 )
 
 type Query interface {

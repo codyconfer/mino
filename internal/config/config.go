@@ -99,6 +99,7 @@ func Defaults() *Config {
 		Tasks:    TasksConfig{Max: 100},
 		Slack:    SlackConfig{TokenEnv: "SLACK_TOKEN", AppTokenEnv: "SLACK_APP_TOKEN", BotTokenEnv: "SLACK_BOT_TOKEN", Limit: 50},
 		Daemon:   DaemonConfig{Interval: "60s", Bell: true, Theme: "dark"},
+		Cache:    CacheConfig{TTL: "60s"},
 	}
 }
 

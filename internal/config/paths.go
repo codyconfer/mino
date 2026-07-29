@@ -16,6 +16,7 @@ const (
 	AuditDB  = "audit.duckdb"
 	TokensDB = "tokens.duckdb"
 	ServeDB  = "serve.duckdb"
+	CacheDB  = "cache.duckdb"
 )
 
 func DataDir(home string) string { return filepath.Join(home, DirData) }

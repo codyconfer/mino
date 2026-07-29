@@ -6,6 +6,22 @@ timeout: 30s                # per-signal fetch timeout (override with --timeout)
 # The UI theme is a GLOBAL setting, not here — put `theme: monokai` in
 # ~/.config/munin/settings.yaml (or set $MUNIN_THEME). See `munin verify config`.
 
+# Signal result cache. Fetched sections are stored in <home>/.data/cache.duckdb
+# and reused until they age past the TTL, so re-running a flight does not re-hit
+# the GitHub, Google, and Slack APIs. Set ttl to "0" to disable entirely.
+# Bypass per-run with --no-cache (read nothing, write nothing) or --refresh
+# (fetch live, then re-warm). Inspect with `munin cache stats`.
+# If a fetch fails and a cached copy is under 24h old, munin serves it and marks
+# the section "(stale <age>)" rather than showing an error.
+cache:
+  ttl: 60s
+  # Per-signal overrides beat the global ttl. An explicit value also turns on
+  # caching for a signal that does not advertise the `cacheable` capability;
+  # "0" turns it off. Signals reading local state (ntr) are never cached.
+  # signals:
+  #   github: 5m            # slow API, cache harder
+  #   calendar: 30s         # time-sensitive
+
 # Audit trail: every flight/query run and each applied config is recorded to an
 # embedded DuckDB database (default <home>/audit.duckdb) with timestamps, for
 # recall and workflow metrics — not caching. Recall with `munin history`.
