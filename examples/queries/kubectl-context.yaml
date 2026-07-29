@@ -1,3 +1,4 @@
 name: kubectl-context
+type: query
 signal: kubectl
 params: {}

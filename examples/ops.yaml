@@ -1,4 +1,5 @@
 name: ops
+type: role
 # Home flight for plugin/context smoke + reminders.
 home: plugins
 flights: [plugins, ntr, triage]

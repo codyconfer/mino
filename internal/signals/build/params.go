@@ -6,11 +6,26 @@ type ParamSpec struct {
 	Key     string
 	Desc    string
 	Example string
+	Values  []string
+	Delim   string
 }
+
+var githubSearchTerms = []string{
+	"is:open", "is:closed", "is:pr", "is:issue", "is:draft",
+	"author:@me", "assignee:@me", "review-requested:@me", "involves:@me",
+	"archived:false", "sort:updated-desc",
+}
+
+var gmailSearchTerms = []string{
+	"is:unread", "is:starred", "is:important", "in:inbox",
+	"has:attachment", "newer_than:2d", "newer_than:7d", "category:primary",
+}
+
+var countValues = []string{"10", "20", "50", "100"}
 
 var queryParams = map[string][]ParamSpec{
 	"github": {
-		{Key: "query", Desc: "GitHub search expression", Example: "is:open is:pr author:@me"},
+		{Key: "query", Desc: "GitHub search expression", Example: "is:open is:pr author:@me", Values: githubSearchTerms, Delim: " "},
 		{Key: "project", Desc: "project board reference", Example: "owner/12"},
 		{Key: "filter", Desc: "project board filter (needs project)", Example: "status:In Progress"},
 		{Key: "title", Desc: "project board section title (needs project)", Example: "Sprint board"},
@@ -18,21 +33,30 @@ var queryParams = map[string][]ParamSpec{
 		{Key: "team", Desc: "org team whose members count as ours (needs project)", Example: "acme/platform"},
 	},
 	"gmail": {
-		{Key: "query", Desc: "Gmail search expression", Example: "is:unread in:inbox newer_than:2d"},
-		{Key: "max", Desc: "maximum messages to return", Example: "10"},
+		{Key: "query", Desc: "Gmail search expression", Example: "is:unread in:inbox newer_than:2d", Values: gmailSearchTerms, Delim: " "},
+		{Key: "max", Desc: "maximum messages to return", Example: "10", Values: countValues},
 	},
 	"calendar": {
-		{Key: "calendar_id", Desc: "calendar to read", Example: "primary"},
-		{Key: "window", Desc: "how far ahead to look", Example: "12h"},
-		{Key: "max", Desc: "maximum events to return", Example: "20"},
+		{Key: "calendar_id", Desc: "calendar to read", Example: "primary", Values: []string{"primary"}},
+		{Key: "window", Desc: "how far ahead to look", Example: "12h", Values: []string{"4h", "8h", "12h", "24h", "72h", "168h"}},
+		{Key: "max", Desc: "maximum events to return", Example: "20", Values: countValues},
 	},
 	"docs": {
-		{Key: "recent", Desc: "how many recent documents to list", Example: "10"},
+		{Key: "recent", Desc: "how many recent documents to list", Example: "10", Values: countValues},
 	},
 	"slack": {
 		{Key: "channel", Desc: "channel to read (required)", Example: "eng-standup"},
-		{Key: "limit", Desc: "maximum messages to return", Example: "50"},
+		{Key: "limit", Desc: "maximum messages to return", Example: "50", Values: countValues},
 	},
+}
+
+func ParamKeys(signal string) []string {
+	specs := QueryParams(signal)
+	out := make([]string, 0, len(specs))
+	for _, p := range specs {
+		out = append(out, p.Key)
+	}
+	return out
 }
 
 func QueryParams(signal string) []ParamSpec {

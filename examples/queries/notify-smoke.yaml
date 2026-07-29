@@ -1,4 +1,5 @@
 # Tiny synthetic notify smoke — streams demo events; not the product demo.
 # Pair with flight `notify-smoke` (`munin serve notify-smoke`).
 name: notify-smoke
+type: query
 signal: demo

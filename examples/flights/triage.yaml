@@ -1,2 +1,3 @@
 name: triage
+type: flight
 queries: [incidents, loki-errors, datasource-a-health, my-open-prs, gcx-status]

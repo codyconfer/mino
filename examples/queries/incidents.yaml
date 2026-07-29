@@ -1,4 +1,5 @@
 name: incidents
+type: query
 signal: github
 params:
   query: "is:open label:incident"

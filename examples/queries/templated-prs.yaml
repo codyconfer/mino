@@ -1,11 +1,13 @@
-# One file, two documents, separated by `---`. Queries and filters share a
-# collection now, so a filter can sit next to the query that uses it.
+# One file, two documents, separated by `---`. Every document declares its own
+# `type:`, so a filter can sit next to the query that uses it.
 # Query params are expanded with Go templates / braced aliases from filters.
 name: repos-alias
+type: filter
 aliases:
   REPOS_ALIAS: "repo:example/one repo:example/two"
 ---
 name: templated-prs
+type: query
 signal: github
 params:
   query: "is:open is:pr {REPOS_ALIAS} created:(3 days ago)"

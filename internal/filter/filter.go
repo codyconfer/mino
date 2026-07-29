@@ -113,6 +113,10 @@ func ApplyAll(filters []Compiled, items []signals.Item) []signals.Item {
 	return items
 }
 
+func FieldNames() []string {
+	return []string{"title", "subtitle", "body"}
+}
+
 func fieldValue(it signals.Item, field string) string {
 	switch field {
 	case "title":

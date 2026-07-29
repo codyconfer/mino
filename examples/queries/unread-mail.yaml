@@ -1,4 +1,5 @@
 name: unread-mail
+type: query
 signal: gmail
 params:
   query: "is:unread in:inbox newer_than:2d"

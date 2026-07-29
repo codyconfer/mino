@@ -3,8 +3,11 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -23,172 +26,233 @@ var reservedHomeFiles = map[string]bool{
 	"config.json": true,
 }
 
-func CollectionDir(home, name string) string {
-	if name == KindRoles {
-		return home
+func DirectiveFiles(home string) ([]string, error) {
+	var out []string
+	err := filepath.WalkDir(home, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		rel, relErr := filepath.Rel(home, p)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+		if rel == "." {
+			return nil
+		}
+		if d.IsDir() {
+			if skipDir(d.Name()) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if strings.HasPrefix(d.Name(), ".") || !hasCollectionExt(d.Name()) || reservedRoot(rel) {
+			return nil
+		}
+		out = append(out, rel)
+		return nil
+	})
+	if err != nil {
+		return nil, errs.Wrapf(errs.KindConfig, err, "reading %s", home)
 	}
-	return filepath.Join(home, name)
+	sort.Strings(out)
+	return out, nil
 }
 
-func SerializeCollection(home, name string) ([]byte, bool, error) {
-	if name == KindRoles {
-		return serializeRoles(home)
-	}
-	return sconfig.SerializeDir(filepath.Join(home, name))
+func skipDir(name string) bool {
+	return strings.HasPrefix(name, ".") || name == DirLogs
 }
 
-func WriteCollection(home, name string, blob []byte) ([]string, error) {
-	if name == KindRoles {
-		if err := checkRoleBlob(blob); err != nil {
+func reservedRoot(rel string) bool {
+	return !strings.Contains(rel, "/") && reservedHomeFiles[rel]
+}
+
+func SerializeDirectives(home string) ([]byte, bool, error) {
+	rels, err := DirectiveFiles(home)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(rels) == 0 {
+		return nil, false, nil
+	}
+	c := make(map[string]string, len(rels))
+	for _, rel := range rels {
+		p := filepath.Join(home, filepath.FromSlash(rel))
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return nil, false, errs.Wrapf(errs.KindConfig, err, "reading %s", p)
+		}
+		c[rel] = string(data)
+	}
+	blob, err := json.Marshal(c)
+	if err != nil {
+		return nil, false, errs.Wrap(errs.KindConfig, err, "encoding directives")
+	}
+	return blob, true, nil
+}
+
+func WriteDirectives(home string, blob []byte) ([]string, error) {
+	files, err := decodeCollection(blob)
+	if err != nil {
+		return nil, err
+	}
+	rels := sortedKeys(files)
+	for _, rel := range rels {
+		if err := checkDirectiveRel(rel); err != nil {
 			return nil, err
 		}
 	}
-	return sconfig.WriteCollection(CollectionDir(home, name), blob)
-}
-
-func WriteCollectionItem(home, name, item string, doc any) (string, error) {
-	data, err := yaml.Marshal(doc)
-	if err != nil {
-		return "", errs.Wrapf(errs.KindConfig, err, "encoding %s %q", name, item)
+	written := make([]string, 0, len(rels))
+	for _, rel := range rels {
+		target, err := directivePath(home, rel)
+		if err != nil {
+			return nil, err
+		}
+		if err := sconfig.EnsureDir(filepath.Dir(target)); err != nil {
+			return nil, errs.Wrapf(errs.KindConfig, err, "creating parent of %s", rel)
+		}
+		if err := os.WriteFile(target, []byte(files[rel]), 0o600); err != nil {
+			return nil, errs.Wrapf(errs.KindConfig, err, "writing %s", target)
+		}
+		written = append(written, rel)
 	}
-	return sconfig.WriteItem(CollectionDir(home, name), item+".yaml", data)
+	return written, nil
 }
 
-func SaveCollectionItem(mgr *sisyphus.Manager, home, name, item string, doc any) (path string, stored bool, err error) {
-	path, err = WriteCollectionItem(home, name, item, doc)
+func checkDirectiveRel(rel string) error {
+	clean := path.Clean(strings.ReplaceAll(rel, `\`, "/"))
+	if reservedRoot(clean) {
+		return errs.Newf(errs.KindConfig, "directive file %q collides with the config file", rel)
+	}
+	if !hasCollectionExt(clean) {
+		return errs.Newf(errs.KindConfig, "directive file %q must end in .yaml, .yml, or .json", rel)
+	}
+	segs := strings.Split(clean, "/")
+	for _, seg := range segs[:len(segs)-1] {
+		if skipDir(seg) {
+			return errs.Newf(errs.KindConfig, "directive file %q lives in reserved directory %q", rel, seg)
+		}
+	}
+	if strings.HasPrefix(segs[len(segs)-1], ".") {
+		return errs.Newf(errs.KindConfig, "directive file %q is hidden", rel)
+	}
+	return nil
+}
+
+func directivePath(home, rel string) (string, error) {
+	target, err := sconfig.JoinUnder(home, filepath.FromSlash(rel))
+	if err != nil {
+		return "", errs.Wrapf(errs.KindConfig, err, "resolving %s", rel)
+	}
+	return target, nil
+}
+
+func ClearDirectives(home string) ([]string, error) {
+	rels, err := DirectiveFiles(home)
+	if err != nil {
+		return nil, err
+	}
+	var removed []string
+	for _, rel := range rels {
+		p := filepath.Join(home, filepath.FromSlash(rel))
+		if err := os.Remove(p); err != nil {
+			return removed, errs.Wrapf(errs.KindConfig, err, "removing %s", p)
+		}
+		removed = append(removed, p)
+	}
+	return removed, nil
+}
+
+func DefaultDirectivePath(kind DirectiveType, name string) string {
+	switch kind {
+	case TypeFlight:
+		return path.Join(DirFlights, name+".yaml")
+	case TypeRole:
+		return name + ".yaml"
+	}
+	return path.Join(DirQueries, name+".yaml")
+}
+
+func SaveDirective(mgr *sisyphus.Manager, home, rel string, kind DirectiveType, name string, doc any) (string, bool, error) {
+	if strings.TrimSpace(rel) == "" {
+		rel = DefaultDirectivePath(kind, name)
+	}
+	if err := checkDirectiveRel(rel); err != nil {
+		return "", false, err
+	}
+	data, err := yaml.Marshal(stampType(doc, kind))
+	if err != nil {
+		return "", false, errs.Wrapf(errs.KindConfig, err, "encoding %s %q", typeLabel(kind), name)
+	}
+	target, err := directivePath(home, rel)
 	if err != nil {
 		return "", false, err
 	}
-	stored, err = SyncCollection(mgr, home, name)
-	return path, stored, err
+	if err := sconfig.EnsureDir(filepath.Dir(target)); err != nil {
+		return "", false, errs.Wrapf(errs.KindConfig, err, "creating parent of %s", rel)
+	}
+	if err := os.WriteFile(target, data, 0o600); err != nil {
+		return "", false, errs.Wrapf(errs.KindConfig, err, "writing %s", target)
+	}
+	stored, err := SyncDirectives(mgr, home)
+	return target, stored, err
 }
 
-func SyncCollection(mgr *sisyphus.Manager, home, name string) (stored bool, err error) {
+func stampType(doc any, kind DirectiveType) any {
+	switch d := doc.(type) {
+	case Query:
+		d.Type = kind
+		return d
+	case Flight:
+		d.Type = kind
+		return d
+	case RoleDef:
+		d.Type = kind
+		return d
+	}
+	return doc
+}
+
+func RemoveDirective(home, rel string) ([]string, error) {
+	if strings.TrimSpace(rel) == "" {
+		return nil, nil
+	}
+	if err := checkDirectiveRel(rel); err != nil {
+		return nil, err
+	}
+	target, err := directivePath(home, rel)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Remove(target); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, errs.Wrapf(errs.KindConfig, err, "removing %s", target)
+	}
+	return []string{target}, nil
+}
+
+func SyncDirectives(mgr *sisyphus.Manager, home string) (bool, error) {
 	if mgr == nil {
 		return false, nil
 	}
-	blob, has, err := SerializeCollection(home, name)
+	blob, has, err := SerializeDirectives(home)
 	if err != nil {
 		return false, err
 	}
 	if !has {
 		blob = []byte("{}")
 	}
-	if err := mgr.Import(context.Background(), name, blob, "collection"); err != nil {
-		return false, errs.Wrapf(errs.KindStore, err, "importing %s into the store", name)
+	if err := mgr.Import(context.Background(), DirectivesDirective, blob, "collection"); err != nil {
+		return false, errs.Wrap(errs.KindStore, err, "importing directives into the store")
 	}
 	return true, nil
 }
 
-func ClearCollection(home, name string) ([]string, error) {
-	if name == KindRoles {
-		return removeRoleFiles(home)
-	}
-	return sconfig.ClearDir(filepath.Join(home, name), nil)
-}
-
-func RemoveCollectionItem(home, name, item string) ([]string, error) {
-	if name == KindRoles && reservedRoleName(item) {
-		return nil, errs.Newf(errs.KindConfig, "%q is a reserved name at the top of %s", item, home)
-	}
-	return sconfig.RemoveFiles(CollectionDir(home, name), item, collectionExts)
-}
-
-func RoleFiles(home string) []string {
-	names, err := roleFileNames(home)
-	if err != nil {
-		return nil
-	}
-	return names
-}
-
-func roleFileNames(home string) ([]string, error) {
-	entries, err := os.ReadDir(home)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, errs.Wrapf(errs.KindConfig, err, "reading %s", home)
-	}
-	var out []string
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || strings.HasPrefix(name, ".") || reservedHomeFiles[name] || !hasCollectionExt(name) {
-			continue
-		}
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out, nil
-}
-
-func serializeRoles(home string) ([]byte, bool, error) {
-	names, err := roleFileNames(home)
-	if err != nil {
-		return nil, false, err
-	}
-	if len(names) == 0 {
-		return nil, false, nil
-	}
-	c := make(map[string]string, len(names))
-	for _, n := range names {
-		data, err := os.ReadFile(filepath.Join(home, n))
-		if err != nil {
-			return nil, false, errs.Wrapf(errs.KindConfig, err, "reading %s", filepath.Join(home, n))
-		}
-		c[n] = string(data)
-	}
-	blob, err := json.Marshal(c)
-	if err != nil {
-		return nil, false, errs.Wrap(errs.KindConfig, err, "encoding roles")
-	}
-	return blob, true, nil
-}
-
-func removeRoleFiles(home string) ([]string, error) {
-	names, err := roleFileNames(home)
-	if err != nil {
-		return nil, err
-	}
-	var removed []string
-	for _, n := range names {
-		path := filepath.Join(home, n)
-		if err := os.Remove(path); err != nil {
-			return removed, errs.Wrapf(errs.KindConfig, err, "removing %s", path)
-		}
-		removed = append(removed, path)
-	}
-	return removed, nil
-}
-
-func checkRoleBlob(blob []byte) error {
-	var files map[string]string
-	if err := json.Unmarshal(blob, &files); err != nil {
-		return errs.Wrap(errs.KindConfig, err, "decoding roles")
-	}
-	for name := range files {
-		if reservedHomeFiles[name] {
-			return errs.Newf(errs.KindConfig, "role file %q collides with the config file", name)
-		}
-	}
-	return nil
-}
-
-func reservedRoleName(item string) bool {
-	for _, ext := range collectionExts {
-		if reservedHomeFiles[item+ext] {
-			return true
-		}
-	}
-	return false
-}
-
 func hasCollectionExt(name string) bool {
-	ext := strings.ToLower(filepath.Ext(name))
-	for _, e := range collectionExts {
-		if ext == e {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(collectionExts, strings.ToLower(filepath.Ext(name)))
 }

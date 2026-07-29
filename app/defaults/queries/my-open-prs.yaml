@@ -1,4 +1,5 @@
 name: my-open-prs
+type: query
 signal: github
 params:
   query: "is:open is:pr author:@me"

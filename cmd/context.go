@@ -46,9 +46,10 @@ func newContextListCmd() *cobra.Command {
 
 func newContextSwitchCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "switch <tool> <name>",
-		Short: "Switch a tool context",
-		Args:  cobra.ExactArgs(2),
+		Use:               "switch <tool> <name>",
+		Short:             "Switch a tool context",
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeContextSwitch,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
 			if err := plugin.SwitchContext(cmd.Context(), args[0], args[1]); err != nil {

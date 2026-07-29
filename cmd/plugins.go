@@ -72,10 +72,11 @@ func newPluginsListCmd() *cobra.Command {
 
 func newPluginsEnableCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "enable <plugin-id>",
-		Short: "Enable a registered plugin",
-		Long:  "Removes plugin-id from disabled_plugins. Does not write example directives; use install for that.",
-		Args:  cobra.ExactArgs(1),
+		Use:               "enable <plugin-id>",
+		Short:             "Enable a registered plugin",
+		Long:              "Removes plugin-id from disabled_plugins. Does not write example directives; use install for that.",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeInstalledPlugins,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
 			if err := plugin.SetEnabled(args[0], true); err != nil {
@@ -89,10 +90,11 @@ func newPluginsEnableCmd() *cobra.Command {
 
 func newPluginsDisableCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "disable <plugin-id>",
-		Short: "Disable a registered plugin",
-		Long:  "Adds plugin-id to disabled_plugins. Does not remove example directives; use uninstall for that.",
-		Args:  cobra.ExactArgs(1),
+		Use:               "disable <plugin-id>",
+		Short:             "Disable a registered plugin",
+		Long:              "Adds plugin-id to disabled_plugins. Does not remove example directives; use uninstall for that.",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeInstalledPlugins,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
 			if err := plugin.SetEnabled(args[0], false); err != nil {
@@ -118,7 +120,8 @@ plugin binaries. Unknown ids (not linked into this binary) are rejected.
 Seeds match examples/ for stock plugins; overlays register extras with
 github.com/codyconfer/munin/plugin.RegisterSeeds. Existing files are left
 unchanged unless --force.`,
-		Args: cobra.ExactArgs(1),
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completePluginIDs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
 			home, err := config.Home(flagHome)
@@ -161,7 +164,8 @@ removing seed files (still removes from the managed/installed set).
 
 Disable alone keeps the plugin installed/listed; uninstall is what drops it.
 Compile-linked plugin code remains in the binary.`,
-		Args: cobra.ExactArgs(1),
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeInstalledPlugins,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
 			home, err := config.Home(flagHome)

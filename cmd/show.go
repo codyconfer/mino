@@ -30,6 +30,7 @@ func newShowCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&signalName, "signal", "", "signal that owns the item (default "+defaultDetailSignal+")")
+	bindFlagCompletion(c, "signal", completeDetailSignals)
 	return c
 }
 

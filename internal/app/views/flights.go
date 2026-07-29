@@ -10,6 +10,7 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
+	"github.com/codyconfer/munin/internal/app/suggest"
 	"github.com/codyconfer/munin/internal/app/verify"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
@@ -47,41 +48,7 @@ func flightSummary(fl config.Flight) string {
 }
 
 func (kit *Kit) deleteFlight(name string) string {
-	home := kit.d.App.Cfg.Home
-	removed, err := config.RemoveCollectionItem(home, config.DirFlights, name)
-	if err != nil {
-		return err.Error()
-	}
-	if len(removed) == 0 {
-		return "no file found for " + name + " in " + config.CollectionDir(home, config.DirFlights) + ".\n\n" +
-			"It may exist only in DuckDB; use `munin export flights` to write files first."
-	}
-	summary := "removed:\n  " + strings.Join(removed, "\n  ")
-	stored, err := config.SyncCollection(kit.d.App.Mgr, home, config.DirFlights)
-	switch {
-	case err != nil:
-		return summary + "\n\nthe store still holds it: " + err.Error()
-	case !stored:
-		return summary + "\n\nthe config store is unavailable, so this takes effect after\n" +
-			"reconcile: run `munin import flights` or restart munin."
-	}
-	if err := kit.d.App.RefreshDirectives(config.ReconcileIgnore); err != nil {
-		return summary + "\nremoved from DuckDB.\n\nreload failed: " + err.Error()
-	}
-	return summary + "\nremoved from DuckDB; the change is live in this session."
-}
-
-func (kit *Kit) writeFlight(fl config.Flight) (string, error) {
-	path, stored, err := config.SaveCollectionItem(kit.d.App.Mgr, kit.d.App.Cfg.Home, config.DirFlights, fl.Name, fl)
-	if err != nil {
-		return "", err
-	}
-	if !stored {
-		return "wrote " + path + "\n\n" +
-			"the config store is unavailable, so this file takes effect after\n" +
-			"reconcile: run `munin import flights` or restart munin.", nil
-	}
-	return "wrote " + path + "\nimported the flights collection into DuckDB.", nil
+	return kit.deleteDirective(config.TypeFlight, name)
 }
 
 type flightView struct {
@@ -130,8 +97,15 @@ func (v *flightView) editorSavedName() string { return v.orig }
 
 func (v *flightView) editorFields(prev map[string]any) []forms.Field {
 	return []forms.Field{
-		{Key: "queries", Label: "queries (comma-sep, in order)", Kind: forms.FieldText, Text: forms.Str(prev, "queries")},
-		{Key: "name", Label: "name (required to save)", Kind: forms.FieldText, Text: forms.Str(prev, "name")},
+		{
+			Key:     "queries",
+			Label:   "queries (comma-sep, in order)",
+			Kind:    forms.FieldText,
+			Text:    forms.Raw(prev, "queries"),
+			Suggest: suggest.Queries(v.kit.d.App),
+			Delim:   ",",
+		},
+		{Key: "name", Label: "name (required to save)", Kind: forms.FieldText, Text: forms.Raw(prev, "name")},
 	}
 }
 
@@ -215,16 +189,13 @@ func (v *flightView) editorPersist(val any) (string, error) {
 			return "", errs.Newf(errs.KindUsage, "a flight named %s already exists", fl.Name)
 		}
 	}
-	summary, err := v.kit.writeFlight(fl)
+	rel := v.kit.d.App.Directives.Source(config.TypeFlight, v.orig)
+	summary, _, err := v.kit.saveDirective(config.TypeFlight, rel, fl.Name, fl)
 	if err != nil {
 		return "", err
 	}
 	if fl.Name != v.orig && v.orig != "" {
-		home := v.kit.d.App.Cfg.Home
-		if removed, err := config.RemoveCollectionItem(home, config.DirFlights, v.orig); err == nil && len(removed) > 0 {
-			_, storeErr := config.SyncCollection(v.kit.d.App.Mgr, home, config.DirFlights)
-			summary += editorRenameNote(v.editorKind(), v.orig, removed, storeErr)
-		}
+		summary += editorRenameNote(v.orig, rel)
 	}
 	v.orig = fl.Name
 	v.base = fl

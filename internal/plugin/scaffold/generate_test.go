@@ -50,6 +50,12 @@ func TestGenerateWritesPublicSDKPackage(t *testing.T) {
 	if !strings.Contains(string(qb), "filters: [example-clean]") {
 		t.Fatalf("query yaml = %s", qb)
 	}
+	if !strings.Contains(string(qb), "type: query") {
+		t.Fatalf("scaffolded query must declare its type: %s", qb)
+	}
+	if !strings.Contains(string(qb), "anywhere under the munin home") {
+		t.Fatalf("scaffolded query comment still points at a fixed directory: %s", qb)
+	}
 
 	if _, err := Generate(GenerateOptions{ID: "team.example", Dir: out}); err == nil {
 		t.Fatal("expected error without --force")

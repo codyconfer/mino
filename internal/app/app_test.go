@@ -60,18 +60,21 @@ func TestReloadDirectivesPicksUpNewFiles(t *testing.T) {
 			Roles:   map[string]config.RoleDef{},
 		},
 	}
-	qdir := filepath.Join(home, config.DirQueries)
-	fdir := filepath.Join(home, config.DirFlights)
+	qdir := filepath.Join(home, config.DirQueries, "gh")
+	tdir := filepath.Join(home, "team")
 	if err := os.MkdirAll(qdir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(fdir, 0o700); err != nil {
+	if err := os.MkdirAll(tdir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(qdir, "ntr-list.yaml"), []byte("name: ntr-list\nsignal: ntr\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(qdir, "ntr-list.yaml"), []byte("name: ntr-list\ntype: query\nsignal: ntr\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(fdir, "ntr.yaml"), []byte("name: ntr\nqueries: [ntr-list]\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(tdir, "ntr.yaml"), []byte("name: ntr\ntype: flight\nqueries: [ntr-list]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "oncall.yaml"), []byte("name: oncall\ntype: role\nflights: [ntr]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := a.ReloadDirectives(); err != nil {
@@ -82,5 +85,11 @@ func TestReloadDirectivesPicksUpNewFiles(t *testing.T) {
 	}
 	if _, ok := a.Directives.Flights["ntr"]; !ok {
 		t.Fatalf("flights missing ntr: %v", a.Directives.FlightNames())
+	}
+	if _, ok := a.Directives.Roles["oncall"]; !ok {
+		t.Fatalf("roles missing oncall: %v", a.Directives.RoleNames())
+	}
+	if got := a.Directives.Source(config.TypeFlight, "ntr"); got != "team/ntr.yaml" {
+		t.Fatalf("Source(flight, ntr) = %q, want team/ntr.yaml", got)
 	}
 }

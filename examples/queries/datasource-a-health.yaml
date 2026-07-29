@@ -1,4 +1,5 @@
 name: datasource-a-health
+type: query
 signal: github
 params:
   query: "is:open label:datasource-a"

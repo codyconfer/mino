@@ -22,18 +22,21 @@ import (
 
 const (
 	defaultConfigYAML = `# munin configuration — see the README for all options.
-# Flights live in flights/; roles are the loose *.yaml files next to this one.
+# This is the only file that must be named config.yaml and sit at the root.
+# Directive files carry a ` + "`type:`" + ` and may live anywhere below here.
 output: terminal
 
 audit:
   enabled: true
 `
 	sampleQueryYAML = `name: my-open-prs
+type: query
 signal: github
 params:
   query: "is:open is:pr author:@me"
 `
 	sampleDemoQueryYAML = `name: demo
+type: query
 signal: github
 params:
   query: "is:open is:pr author:@me"
@@ -42,29 +45,36 @@ rules:
     exclude: "(?i)bot$"
 `
 	sampleDemoReviewsQueryYAML = `name: demo-reviews
+type: query
 signal: github
 filters: [no-bots]
 params:
   query: "is:open is:pr review-requested:@me"
 `
 	sampleNotifySmokeQueryYAML = `name: notify-smoke
+type: query
 signal: demo
 `
 	sampleFilterYAML = `name: no-bots
+type: filter
 rules:
   - field: meta.author
     exclude: "(?i)bot$"
 `
 	sampleFlightYAML = `name: default
+type: flight
 queries: [my-open-prs]
 `
 	sampleDemoFlightYAML = `name: demo
+type: flight
 queries: [demo, demo-reviews]
 `
 	sampleNotifySmokeFlightYAML = `name: notify-smoke
+type: flight
 queries: [notify-smoke]
 `
 	sampleDemoRoleYAML = `name: demo
+type: role
 flights: [demo]
 queries: [demo, demo-reviews, no-bots]
 `
@@ -168,10 +178,8 @@ func seedStores(home string, created *[]string) error {
 		if raw, format, err := sconfig.ReadFile(home); err == nil && len(raw) > 0 {
 			_ = mgr.DB().Import(context.Background(), "config", raw, format)
 		}
-		for _, name := range config.CollectionDirectives() {
-			if blob, has, err := config.SerializeCollection(home, name); err == nil && has {
-				_ = mgr.DB().Import(context.Background(), name, blob, "collection")
-			}
+		if blob, has, err := config.SerializeDirectives(home); err == nil && has {
+			_ = mgr.DB().Import(context.Background(), config.DirectivesDirective, blob, "collection")
 		}
 		_ = mgr.Close()
 		*created = append(*created, config.DataPath(home, config.ConfigDB))
@@ -204,7 +212,11 @@ func Clean(w io.Writer, home string) error {
 		"config.yaml", "config.yml", "config.json",
 		config.DirQueries, config.DirFlights, config.DirLogs,
 	}
-	entries = append(entries, config.RoleFiles(home)...)
+	rels, err := config.DirectiveFiles(home)
+	if err != nil {
+		return err
+	}
+	entries = append(entries, rels...)
 	dest, moved, err := lifecycle.Clean(home, entries)
 	if err != nil {
 		return err

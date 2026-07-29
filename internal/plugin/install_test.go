@@ -3,8 +3,10 @@ package plugin
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/testenv"
 )
 
@@ -20,7 +22,7 @@ func TestInstallEnablesAndWritesSeeds(t *testing.T) {
 		})
 	}
 	RegisterSeeds(id, []FileSeed{
-		{RelPath: "queries/test-install.yaml", Content: []byte("name: test-install\nsignal: testinstall\n")},
+		{RelPath: "queries/test-install.yaml", Content: []byte("name: test-install\ntype: query\nsignal: testinstall\n")},
 	})
 	t.Cleanup(func() { RegisterSeeds(id, nil) })
 
@@ -42,7 +44,7 @@ func TestInstallEnablesAndWritesSeeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != "name: test-install\nsignal: testinstall\n" {
+	if string(got) != "name: test-install\ntype: query\nsignal: testinstall\n" {
 		t.Fatalf("content = %q", got)
 	}
 
@@ -102,7 +104,7 @@ func TestUninstallDisablesAndRemovesMatchingSeeds(t *testing.T) {
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testuninstall", Capabilities: []Capability{CapQuery}})
 	}
-	content := []byte("name: u\nsignal: testuninstall\n")
+	content := []byte("name: u\ntype: query\nsignal: testuninstall\n")
 	RegisterSeeds(id, []FileSeed{{RelPath: "queries/u.yaml", Content: content}})
 	t.Cleanup(func() { RegisterSeeds(id, nil) })
 
@@ -306,6 +308,32 @@ func TestStockSeedsMatchExamples(t *testing.T) {
 					id, seed.RelPath, want, seed.Content)
 			}
 		}
+	}
+}
+
+func TestStockSeedsDeclareATypeAndLoad(t *testing.T) {
+	home := t.TempDir()
+	var seen int
+	for _, id := range SeedPluginIDs() {
+		for _, seed := range SeedsFor(id) {
+			if !strings.Contains(string(seed.Content), "type:") {
+				t.Errorf("%s: seed %s declares no type:\n%s", id, seed.RelPath, seed.Content)
+			}
+			dest := filepath.Join(home, filepath.FromSlash(seed.RelPath))
+			if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(dest, seed.Content, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			seen++
+		}
+	}
+	if seen == 0 {
+		t.Skip("no stock seeds registered")
+	}
+	if _, err := config.LoadDirectivesFromFiles(home); err != nil {
+		t.Fatalf("stock seeds do not load as directives: %v", err)
 	}
 }
 

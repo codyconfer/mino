@@ -148,6 +148,7 @@ func ConfirmMap() *keys.Map {
 func Form(extra ...keys.Binding) *keys.Map {
 	sc := keys.Cur()
 	bs := sc.EditorBindings(
+		keys.Complete, keys.CompleteNext, keys.CompletePrev,
 		keys.Up, keys.Down, keys.Left, keys.Right,
 		keys.Confirm, keys.Cancel, keys.Erase, keys.PageUp, keys.PageDown,
 	)

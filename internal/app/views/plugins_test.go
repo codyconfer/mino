@@ -379,7 +379,7 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 		})
 	}
 	plugin.RegisterSeeds(id, []plugin.FileSeed{
-		{RelPath: "queries/test-views-install.yaml", Content: []byte("name: test-views-install\nsignal: testviewsinstall\n")},
+		{RelPath: "queries/test-views-install.yaml", Content: []byte("name: test-views-install\ntype: query\nsignal: testviewsinstall\n")},
 	})
 	t.Cleanup(func() { plugin.RegisterSeeds(id, nil) })
 

@@ -10,6 +10,7 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
+	"github.com/codyconfer/munin/internal/app/qform"
 	"github.com/codyconfer/munin/internal/app/verify"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	builderParamPrefix = "param."
+	builderParamPrefix = qform.ParamPrefix
 	builderNoSignal    = "(none — filter only)"
 )
 
@@ -69,41 +70,7 @@ func querySummary(q config.Query) string {
 }
 
 func (kit *Kit) deleteQuery(name string) string {
-	home := kit.d.App.Cfg.Home
-	removed, err := config.RemoveCollectionItem(home, config.DirQueries, name)
-	if err != nil {
-		return err.Error()
-	}
-	if len(removed) == 0 {
-		return "no file found for " + name + " in " + config.CollectionDir(home, config.DirQueries) + ".\n\n" +
-			"It may exist only in DuckDB; use `munin export queries` to write files first."
-	}
-	summary := "removed:\n  " + strings.Join(removed, "\n  ")
-	stored, err := config.SyncCollection(kit.d.App.Mgr, home, config.DirQueries)
-	switch {
-	case err != nil:
-		return summary + "\n\nthe store still holds it: " + err.Error()
-	case !stored:
-		return summary + "\n\nthe config store is unavailable, so this takes effect after\n" +
-			"reconcile: run `munin import queries` or restart munin."
-	}
-	if err := kit.d.App.RefreshDirectives(config.ReconcileIgnore); err != nil {
-		return summary + "\nremoved from DuckDB.\n\nreload failed: " + err.Error()
-	}
-	return summary + "\nremoved from DuckDB; the change is live in this session."
-}
-
-func (kit *Kit) directiveWriteQuery(q config.Query) (string, error) {
-	path, stored, err := config.SaveCollectionItem(kit.d.App.Mgr, kit.d.App.Cfg.Home, config.DirQueries, q.Name, q)
-	if err != nil {
-		return "", err
-	}
-	if !stored {
-		return "wrote " + path + "\n\n" +
-			"the config store is unavailable, so this file takes effect after\n" +
-			"reconcile: run `munin import queries` or restart munin.", nil
-	}
-	return "wrote " + path + "\nimported the queries collection into DuckDB.", nil
+	return kit.deleteDirective(config.TypeQuery, name)
 }
 
 type builderView struct {
@@ -207,14 +174,6 @@ func builderFilterRefs(refs []config.QueryFilter) []string {
 }
 
 func (v *builderView) fields(prev map[string]any) []forms.Field {
-	str := func(key string) string {
-		s, _ := prev[key].(string)
-		return s
-	}
-	text := func(key, label string) forms.Field {
-		return forms.Field{Key: key, Label: label, Kind: forms.FieldText, Text: str(key)}
-	}
-
 	out := []forms.Field{{
 		Key:      "type",
 		Label:    "type",
@@ -223,6 +182,7 @@ func (v *builderView) fields(prev map[string]any) []forms.Field {
 		Selected: v.typeIdx,
 	}}
 	if !v.isFilter() {
+		sig := v.signal()
 		out = append(out, forms.Field{
 			Key:      "signal",
 			Label:    builderSignalLabel(v.docType()),
@@ -230,20 +190,13 @@ func (v *builderView) fields(prev map[string]any) []forms.Field {
 			Options:  v.signals,
 			Selected: v.sigIdx,
 		})
-		for _, p := range build.QueryParams(v.signal()) {
-			out = append(out, text(builderParamPrefix+p.Key, builderParamLabel(p)))
-		}
-		out = append(out,
-			text("extra", "extra params (k=v, comma-sep)"),
-			text("filters", "filters (comma-sep saved filters)"),
-		)
+		out = append(out, qform.Params(sig, prev)...)
+		out = append(out, qform.Extra(sig, prev), qform.Filters(v.kit.d.App, prev))
 	}
+	out = append(out, qform.Rules(builderRuleLabel(v.isFilter()), prev)...)
 	return append(out,
-		text("field", builderRuleLabel(v.isFilter())),
-		text("include", "rule include regex"),
-		text("exclude", "rule exclude regex"),
-		text("name", "name (required to save)"),
-		text("title", "display title (optional)"),
+		forms.Field{Key: "name", Label: "name (required to save)", Kind: forms.FieldText, Text: forms.Str(prev, "name")},
+		forms.Field{Key: "title", Label: "display title (optional)", Kind: forms.FieldText, Text: forms.Str(prev, "title")},
 	)
 }
 
@@ -259,13 +212,6 @@ func builderRuleLabel(isFilter bool) string {
 		return "rule field (blank = whole item)"
 	}
 	return "inline rule field (blank = whole item)"
-}
-
-func builderParamLabel(p build.ParamSpec) string {
-	if p.Example != "" {
-		return p.Key + " (e.g. " + p.Example + ")"
-	}
-	return p.Key
 }
 
 func (v *builderView) editorKind() string { return "query" }
@@ -368,16 +314,14 @@ func (v *builderView) editorPersist(val any) (string, error) {
 			return "", errs.Newf(errs.KindUsage, "a query named %s already exists", q.Name)
 		}
 	}
-	summary, err := v.kit.directiveWriteQuery(q)
+	kind := q.Kind()
+	rel := v.kit.d.App.Directives.Source(kind, v.orig)
+	summary, _, err := v.kit.saveDirective(kind, rel, q.Name, q)
 	if err != nil {
 		return "", err
 	}
 	if q.Name != v.orig && v.orig != "" {
-		home := v.kit.d.App.Cfg.Home
-		if removed, err := config.RemoveCollectionItem(home, config.DirQueries, v.orig); err == nil && len(removed) > 0 {
-			_, storeErr := config.SyncCollection(v.kit.d.App.Mgr, home, config.DirQueries)
-			summary += editorRenameNote(v.editorKind(), v.orig, removed, storeErr)
-		}
+		summary += editorRenameNote(v.orig, rel)
 	}
 	v.orig = q.Name
 	v.base = q

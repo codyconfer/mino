@@ -151,12 +151,14 @@ func registerStockSeeds() {
 
 const (
 	seedNTRListYAML = `name: ntr-list
+type: query
 signal: ntr
 params: {}
 `
 	seedNTRFlightYAML = `# Scheduled reminders fire when this flight is served (` + "`munin serve ntr`" + `).
 # NTR ReminderJob shares the daemon/serve notify sink (tray on daemon; desktop/terminal on serve).
 name: ntr
+type: flight
 queries: [ntr-list]
 `
 )

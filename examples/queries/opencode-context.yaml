@@ -1,3 +1,4 @@
 name: opencode-context
+type: query
 signal: opencode
 params: {}

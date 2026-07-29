@@ -1,8 +1,6 @@
 package views
 
 import (
-	"strings"
-
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/list"
@@ -130,10 +128,9 @@ func (a *editorAdapter) Persist() (string, error) {
 	return a.doc.editorPersist(val)
 }
 
-func editorRenameNote(kind, from string, removed []string, storeErr error) string {
-	note := "\nrenamed from " + from + "; removed " + strings.Join(removed, ", ")
-	if storeErr != nil {
-		note += "\nthe store still holds " + from + ": " + storeErr.Error()
+func editorRenameNote(from, rel string) string {
+	if rel == "" {
+		return "\nrenamed from " + from + "."
 	}
-	return note
+	return "\nrenamed from " + from + " in " + rel + "."
 }

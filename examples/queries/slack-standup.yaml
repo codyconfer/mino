@@ -1,6 +1,7 @@
 # A saved, named query. Copy to ~/.munin/queries/slack-standup.yaml and run it
 # with: munin query slack-standup
 name: slack-standup
+type: query
 signal: slack
 params:
   channel: eng-standup       # channel name (or ID); '#' optional

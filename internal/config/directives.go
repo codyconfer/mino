@@ -39,16 +39,6 @@ func DirectiveTypes() []DirectiveType {
 	return []DirectiveType{TypeQuery, TypeFilter, TypeFlight, TypeRole}
 }
 
-func collectionType(collection string) DirectiveType {
-	switch collection {
-	case DirFlights:
-		return TypeFlight
-	case KindRoles:
-		return TypeRole
-	}
-	return TypeAuto
-}
-
 func typeLabel(k DirectiveType) string {
 	switch k {
 	case TypeQuery, TypeFilter, TypeFlight, TypeRole:
@@ -165,20 +155,15 @@ type directiveDoc struct {
 	Status   []RoleStatusBlock `yaml:"status" json:"status"`
 }
 
-func (d directiveDoc) kind(def DirectiveType) DirectiveType {
-	switch {
-	case d.Type != TypeAuto:
-		return d.Type
-	case def != TypeAuto:
-		return def
-	case d.Signal != "":
-		return TypeQuery
-	}
-	return TypeFilter
-}
-
 func (d directiveDoc) hasFilterContent() bool {
 	return len(d.Rules) > 0 || len(d.Aliases) > 0 || len(d.Keywords) > 0
+}
+
+func (d directiveDoc) hasDirectiveFields() bool {
+	return d.Title != "" || d.Signal != "" || d.Home != "" ||
+		len(d.Params) > 0 || len(d.Filters) > 0 || len(d.Queries) > 0 ||
+		len(d.Flights) > 0 || len(d.Contexts) > 0 || len(d.Status) > 0 ||
+		d.Hooks != (RoleHooks{}) || d.hasFilterContent()
 }
 
 func (d directiveDoc) query() Query {
@@ -228,9 +213,6 @@ func (d directiveDoc) validate(k DirectiveType) error {
 			return errs.Newf(errs.KindConfig, "%q is declared `type: filter` but has no rules, aliases, or keywords", d.Name)
 		}
 	case TypeFlight:
-		if d.Type == TypeAuto {
-			return nil
-		}
 		if d.Signal != "" {
 			return errs.Newf(errs.KindConfig, "%q is declared `type: flight` but names signal %q", d.Name, d.Signal).
 				WithHint("flights compose queries; give the signal its own `type: query` document")
@@ -244,9 +226,6 @@ func (d directiveDoc) validate(k DirectiveType) error {
 				WithHint("add `queries: [name, ...]`")
 		}
 	case TypeRole:
-		if d.Type == TypeAuto {
-			return nil
-		}
 		if d.Signal != "" {
 			return errs.Newf(errs.KindConfig, "%q is declared `type: role` but names signal %q", d.Name, d.Signal).
 				WithHint("roles compose flights and queries; give the signal its own `type: query` document")
@@ -261,10 +240,18 @@ func (d directiveDoc) validate(k DirectiveType) error {
 	return nil
 }
 
+type sourceKey struct {
+	kind DirectiveType
+	name string
+}
+
 type Directives struct {
 	Queries map[string]Query
 	Flights map[string]Flight
 	Roles   map[string]RoleDef
+
+	sources map[sourceKey]string
+	docs    map[string]int
 }
 
 func newDirectives() *Directives {
@@ -272,56 +259,68 @@ func newDirectives() *Directives {
 		Queries: map[string]Query{},
 		Flights: map[string]Flight{},
 		Roles:   map[string]RoleDef{},
+		sources: map[sourceKey]string{},
+		docs:    map[string]int{},
 	}
 }
 
-func NewDirectives(queries, flights, roles []byte) (*Directives, error) {
-	d := newDirectives()
-	sources := []struct {
-		blob       []byte
-		collection string
-	}{
-		{queries, DirQueries},
-		{flights, DirFlights},
-		{roles, KindRoles},
+func (s *Directives) Source(k DirectiveType, name string) string {
+	if s == nil {
+		return ""
 	}
-	for _, src := range sources {
-		if err := d.absorb(src.blob, src.collection); err != nil {
-			return nil, err
+	if k == TypeQuery || k == TypeFilter {
+		if rel, ok := s.sources[sourceKey{TypeQuery, name}]; ok {
+			return rel
 		}
+		return s.sources[sourceKey{TypeFilter, name}]
+	}
+	return s.sources[sourceKey{k, name}]
+}
+
+func (s *Directives) DocCount(rel string) int {
+	if s == nil {
+		return 0
+	}
+	return s.docs[rel]
+}
+
+func NewDirectives(blob []byte) (*Directives, error) {
+	d := newDirectives()
+	if err := d.absorb(blob); err != nil {
+		return nil, err
 	}
 	return d, nil
 }
 
+func ParseDirectives(blob []byte) (*Directives, error) { return NewDirectives(blob) }
+
 func LoadDirectivesFromFiles(home string) (*Directives, error) {
-	q, _, err := SerializeCollection(home, DirQueries)
+	blob, _, err := SerializeDirectives(home)
 	if err != nil {
 		return nil, err
 	}
-	fl, _, err := SerializeCollection(home, DirFlights)
-	if err != nil {
-		return nil, err
-	}
-	r, _, err := SerializeCollection(home, KindRoles)
-	if err != nil {
-		return nil, err
-	}
-	return NewDirectives(q, fl, r)
+	return NewDirectives(blob)
 }
 
-func (s *Directives) absorb(blob []byte, collection string) error {
+func (s *Directives) absorb(blob []byte) error {
 	c, err := decodeCollection(blob)
 	if err != nil {
 		return err
 	}
-	def := collectionType(collection)
 	for _, fn := range sortedKeys(c) {
 		docs, err := decodeDocs[directiveDoc](fn, []byte(c[fn]))
 		if err != nil {
 			return err
 		}
 		for i, doc := range docs {
-			k := doc.kind(def)
+			if doc.Type == TypeAuto {
+				if !doc.hasDirectiveFields() {
+					continue
+				}
+				return errs.Newf(errs.KindConfig, "document %d in %s declares no `type:`", i+1, fn).
+					WithHint("add a `type:` line: one of %v", DirectiveTypes())
+			}
+			k := doc.Type
 			if doc.Name == "" {
 				if len(docs) > 1 {
 					return errs.Newf(errs.KindConfig, "%s %d in %s has no name", typeLabel(k), i+1, fn).
@@ -335,6 +334,8 @@ func (s *Directives) absorb(blob []byte, collection string) error {
 			if err := s.add(k, doc, fn); err != nil {
 				return err
 			}
+			s.sources[sourceKey{k, doc.Name}] = fn
+			s.docs[fn]++
 		}
 	}
 	return nil
@@ -369,38 +370,6 @@ func (s *Directives) add(k DirectiveType, doc directiveDoc, file string) error {
 		s.Roles[doc.Name] = doc.role()
 	}
 	return nil
-}
-
-func parseOne(blob []byte, collection string) (*Directives, error) {
-	d := newDirectives()
-	if err := d.absorb(blob, collection); err != nil {
-		return nil, err
-	}
-	return d, nil
-}
-
-func ParseQueries(blob []byte) (map[string]Query, error) {
-	d, err := parseOne(blob, DirQueries)
-	if err != nil {
-		return nil, err
-	}
-	return d.Queries, nil
-}
-
-func ParseFlights(blob []byte) (map[string]Flight, error) {
-	d, err := parseOne(blob, DirFlights)
-	if err != nil {
-		return nil, err
-	}
-	return d.Flights, nil
-}
-
-func ParseRoles(blob []byte) (map[string]RoleDef, error) {
-	d, err := parseOne(blob, KindRoles)
-	if err != nil {
-		return nil, err
-	}
-	return d.Roles, nil
 }
 
 var ExternalFilter func(name string) (filter.Filter, bool)

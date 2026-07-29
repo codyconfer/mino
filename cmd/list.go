@@ -61,13 +61,6 @@ func newListCmd() *cobra.Command {
 	return c
 }
 
-func completeListKinds(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-	if len(args) != 0 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	return listKinds, cobra.ShellCompDirectiveNoFileComp
-}
-
 func scopedNames(all bool, names []string, visible func(string) bool) []string {
 	if all {
 		return names

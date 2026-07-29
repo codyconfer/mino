@@ -14,12 +14,19 @@ import (
 
 const annoSkipOnboarding = "munin_skip_onboarding"
 
+func isCompletion(cmd *cobra.Command) bool {
+	switch cmd.Name() {
+	case "completion", "__complete", "__completeNoDesc":
+		return true
+	}
+	return false
+}
+
 func skipsOnboarding(cmd *cobra.Command) bool {
 	if !cmd.Runnable() {
 		return true
 	}
-	switch cmd.Name() {
-	case "help", "completion", "__complete", "__completeNoDesc":
+	if isCompletion(cmd) || cmd.Name() == "help" {
 		return true
 	}
 	for c := cmd; c != nil; c = c.Parent() {

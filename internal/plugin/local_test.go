@@ -27,7 +27,7 @@ func TestDiscoverLocalSeedPackAndIncompatible(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(pack, "plugin.yaml"), []byte("id: local.demo\ndescription: demo seeds\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(pack, "queries", "demo.yaml"), []byte("name: demo\nsignal: github\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(pack, "queries", "demo.yaml"), []byte("name: demo\ntype: query\nsignal: github\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	bare := filepath.Join(home, ".plugins", "go-only")
@@ -69,7 +69,7 @@ func TestInstallCandidateEntrySeedPack(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(pack, "queries"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte("name: from-pack\nsignal: github\n")
+	body := []byte("name: from-pack\ntype: query\nsignal: github\n")
 	if err := os.WriteFile(filepath.Join(pack, "queries", "from-pack.yaml"), body, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestListInstallCandidatesMergesLocalRegistry(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(pack, "plugin.yaml"), []byte("id: "+id+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(pack, "queries", "merge-extra.yaml"), []byte("name: merge-extra\nsignal: testlocalmerge\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(pack, "queries", "merge-extra.yaml"), []byte("name: merge-extra\ntype: query\nsignal: testlocalmerge\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

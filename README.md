@@ -114,13 +114,14 @@ rest. Every run is recorded to a local audit trail (see
 
 ## Queries and filters
 
-Queries and filters share one collection, `~/.munin/queries/`. A document with a
-`signal:` is a **query** — a signal, its parameters, and the filters to apply. A
-document with `rules:`, `aliases:`, or `keywords:` is a **filter** — an ordered
-set of regex include/exclude rules targeting a field, plus any aliases it
-exposes. A document can be both: a query may carry its own rules inline. Add
-`type: query` or `type: filter` to state the intent explicitly and have munin
-enforce it.
+Every directive document declares its kind with a required `type:` — one of
+`query`, `filter`, `flight`, `role` — and may live in any file at any depth
+under `~/.munin/`. A `type: query` document is a signal, its parameters, and the
+filters to apply. A `type: filter` document is an ordered set of regex
+include/exclude rules targeting a field, plus any aliases it exposes; a query
+may also carry its own rules inline. `munin install` still creates `queries/`
+and `flights/`, and saved documents still land there by default, but that is now
+a convention — the directory a file sits in no longer decides what it is.
 
 Documents may sit one-per-file or share a file (`---`-separated YAML documents,
 a top-level YAML list, or a JSON array), so a filter can live right next to the
@@ -253,7 +254,9 @@ under `daemon:` in config and are overridden by flags.
 
 ## Create a query and filter config
 
-Queries and filters both live in `~/.munin/queries/`.
+A directive file is any `.yaml`/`.yml`/`.json` file under `~/.munin/`, at any
+depth: `queries/no-bots.yaml`, `queries/gh/prs.yaml`, and `team/oncall.yaml` all
+load. Every document in it needs a `type:`.
 
 A **filter set** (`~/.munin/queries/no-bots.yaml`) is an ordered list of regex
 rules and no signal. An item is kept only if it satisfies every `include` rule
@@ -263,6 +266,7 @@ nothing to run, so it is only ever referenced by name:
 
 ```yaml
 name: no-bots
+type: filter
 rules:
   - field: meta.author
     exclude: "(?i)bot$"
@@ -275,6 +279,7 @@ and the filters to apply — a saved filter set by name, or an inline rule:
 
 ```yaml
 name: slack-standup
+type: query
 title: Standup chatter        # optional display name for flight panels
 signal: slack
 params:
@@ -289,6 +294,7 @@ A query can also carry `rules:` of its own, which apply only to its own results:
 
 ```yaml
 name: slack-standup
+type: query
 signal: slack
 params:
   channel: eng-standup
@@ -316,15 +322,11 @@ params:
   channel: eng-standup
 ```
 
-`type:` is optional — munin infers `query` from a `signal:` and `filter` from
-`rules:`/`aliases:`/`keywords:`. Setting it makes the intent explicit and
-enforced: `type: query` requires a signal and keeps that document's `rules:`
-private to it, `type: filter` forbids a signal and requires filter content.
-
-`type:` also decides *which kind* a document is, not just which variety of
-query. The four values are `query`, `filter`, `flight`, and `role`, and any of
-them is valid in any collection — a flight can sit in `queries/` next to the
-queries it composes, and a filter can sit in `flights/`:
+`type:` is **required** — it is the only thing that decides which kind a
+document is, so nothing is inferred from the file's path. The four values are
+`query`, `filter`, `flight`, and `role`, and any of them is valid in any file, so
+a flight can sit in `queries/` next to the queries it composes and a filter can
+sit in `flights/`:
 
 ```yaml
 # ~/.munin/queries/triage.yaml
@@ -339,16 +341,21 @@ params:
   query: "org:acme is:issue label:incident"
 ```
 
-The directory only supplies the *default* when `type:` is omitted: documents in
-`queries/` default to the query/filter inference above, documents in `flights/`
-default to `flight`, and the loose `*.yaml` files beside `config.yaml` default to
-`role`. Roles and flights are structurally similar — both list `queries:` — so
-crossing collections requires the explicit `type:` line.
+A document with no `type:` and no directive fields is skipped, so unrelated YAML
+can share the config dir. A document that *looks* like a directive — a `signal:`,
+`rules:`, `queries:`, `flights:`, `hooks:`, … — but declares no `type:` is a hard
+error naming the file and the document's position in it.
 
-An explicit `type:` is enforced: `type: flight` requires `queries:` and forbids
-`signal:` and filter content; `type: role` forbids both too. Names collide only
-within a kind, so a query and a flight may share a name (as `demo` does) but two
-flights may not, wherever they are defined.
+`type:` is enforced against the document's shape: `type: query` requires a
+`signal:` and keeps that document's `rules:` private to it; `type: filter`
+forbids a signal and requires rules, aliases, or keywords; `type: flight`
+requires `queries:` and forbids both a signal and filter content; `type: role`
+forbids both too. Names collide only within a kind, so a query and a flight may
+share a name (as `demo` does) but two flights may not, wherever they are defined.
+
+Discovery skips dot-directories (`.data/`, `.plugins/`, `.archive/`), `logs/`,
+and the root `config.yaml`/`config.yml`/`config.json` — that name is reserved
+only at the root, so a nested `team/config.yaml` is an ordinary directive file.
 
 `name` stays the invocable identifier (`munin query slack-standup`) and the audit
 key; `title` is only what you read. When set, `munin fly` heads that query's
@@ -368,9 +375,9 @@ Every file may be YAML (`.yaml`/`.yml`) or JSON (`.json`) — the two mix freely
 
 ## Build and manage queries and flights without writing YAML
 
-**Fly → Queries** and **Fly → Flights** are the whole surface for the `queries/`
-and `flights/` collections: **New** first, then every saved document with a
-one-line summary. There are no sub-screens — picking any entry opens one builder
+**Fly → Queries** and **Fly → Flights** are the whole surface for your saved
+query and flight documents, wherever they live: **New** first, then every saved
+document with a one-line summary. There are no sub-screens — picking any entry opens one builder
 view, on a blank document or on that one, and everything happens there by
 keybinding:
 
@@ -406,12 +413,11 @@ ordered comma-separated list of query names, checked against your saved queries
 before it will run or save. Roles keep their own screens under
 **Fly → Directives**.
 
-In the query builder `type:` is the first field — `(infer)`, `query`, or
-`filter` — and the rest of the form follows it: `type: filter` drops `signal`,
-its params, `extra params`, and `filters` entirely, because a filter document
-cannot have them. `type: query` keeps them and requires a signal. `(infer)` shows
-everything and lets the shape decide, the same way a hand-written file does: a
-`signal:` makes it a query, rules alone make it a filter.
+In the query builder `type:` is the first field — `query` or `filter` — and the
+rest of the form follows it: `type: filter` drops `signal`, its params, `extra
+params`, and `filters` entirely, because a filter document cannot have them.
+`type: query` keeps them and requires a signal. Saving always writes the `type:`
+line, since a document without one does not load.
 
 Within a query, picking a signal with `←/→` swaps the param fields to match, so
 you get `query` and `project` for `github` but `channel` and `limit` for `slack`.
@@ -451,31 +457,34 @@ Params are per-signal; `munin query build --help` lists the ones munin knows.
 Anything else you pass through `--param` (or the builder's `extra params` field)
 reaches the signal untouched, which is how plugin-defined params work.
 
-Saving writes the YAML file **and** imports the `queries` collection into DuckDB,
-so a saved query is immediately runnable by name — no `munin import` or restart.
-Because the store versions a whole collection at a time, that import also commits
-any other staged edits sitting in `~/.munin/queries/`.
+Saving writes the YAML file **and** imports the `directives` row into DuckDB, so a
+saved query is immediately runnable by name — no `munin apply` or restart. Because
+the store versions every directive file as one row, that import also commits any
+other staged edits sitting anywhere under `~/.munin/`.
 
 ## Create a flight config
 
-Flights live one-per-file in `~/.munin/flights/` — a named, ordered list of saved
-query names:
+A flight is a `type: flight` document — a named, ordered list of saved query
+names. New flights land in `~/.munin/flights/`, one per file, but any file under
+`~/.munin/` will do:
 
 ```yaml
 # ~/.munin/flights/triage.yaml
 name: triage                 # run by `munin fly triage`
+type: flight
 queries: [incidents, my-open-prs]
 ```
 
-Each entry in `queries:` refers to a file in `~/.munin/queries/`. A query that
-fails to build (missing auth, missing channel, …) shows up as an inline error
-section rather than aborting the flight.
+Each entry in `queries:` refers to a query document by `name`, not by filename or
+directory. A query that fails to build (missing auth, missing channel, …) shows up
+as an inline error section rather than aborting the flight.
 
 ## Create a role config
 
-Roles live one-per-file at the top of `~/.munin/` — every `*.yaml`/`*.yml`/`*.json`
-next to `config.yaml` is a role. The active role is set in `config.yaml` (or
-`--role` / `$MUNIN_ROLE`):
+A role is a `type: role` document. `munin install` writes them loose at the top of
+`~/.munin/`, one per file, but — like every directive — a role may live anywhere
+under the home dir. The active role is set in `config.yaml` (or `--role` /
+`$MUNIN_ROLE`):
 
 ```yaml
 # config.yaml — the active role
@@ -484,6 +493,7 @@ role: triage
 ```yaml
 # ~/.munin/triage.yaml — a role definition
 name: triage
+type: role
 flights: [triage]            # bare `munin fly` runs the first of these
 queries: [incidents, loki-errors, my-open-prs, no-bots]
 # Optional enter/exit shell hooks (bash on Unix, PowerShell on Windows).
@@ -496,8 +506,8 @@ hooks:
       echo leaving triage
 ```
 
-One `queries:` list covers both queries and filters, since a filter is just a
-document in the same collection. While a role is active, only the flights and
+One `queries:` list covers both queries and filters, since a filter is just
+another directive document. While a role is active, only the flights and
 queries it names appear in lists and the TUI; with no active role, everything is listed. Asking for a
 query or flight the active role doesn't name reports why. Validate references and
 enums with `munin verify`. On a role switch, munin runs the previous role’s exit
@@ -509,21 +519,32 @@ Config lives under `~/.munin/`:
 
 ```
 ~/.munin/
-  config.yaml          # global settings + per-signal defaults
-  *.yaml               # role definitions (one per file, alongside config.yaml)
-  queries/*.yaml       # named queries and filters (one or many per file)
-  flights/*.yaml       # named flights (one per file)
+  config.yaml          # global settings + per-signal defaults — the only mandated name/location
+  *.yaml               # directives: roles (what `munin install` writes here)
+  queries/*.yaml       # directives: queries and filters (one or many per file)
+  flights/*.yaml       # directives: flights (one per file)
+  team/gh/prs.yaml     # directives may nest arbitrarily; `type:` decides the kind
   icons/*.png          # optional per-state tray/notification icon overrides
   logs/munin.log       # rotating command/serve/deck log sink (cleanable/nukable)
-  .data/config.duckdb  # versioned store: source of truth for config + the three directive kinds
+  .data/config.duckdb  # versioned store: source of truth for config + directives
   .data/audit.duckdb   # run history (see Audit trail)
   .data/tokens.duckdb  # cached OAuth credentials
   .data/serve.duckdb   # realtime cursors/watermarks for serve/daemon
   .data/cache.duckdb   # cached signal results + team rosters (see Result cache)
 ```
 
+`config.yaml` (or `config.yml` / `config.json`) at the root is the one file with a
+required name and place. Everything else is discovered by walking the home dir:
+any `.yaml`/`.yml`/`.json` file at any depth is read as directives, keyed by its
+path relative to the home dir. `queries/` and `flights/` are created by `munin
+install` and are where new documents are saved, so they stay the convention, but
+they carry no meaning of their own. Skipped while walking: dot-directories
+(`.data/`, `.plugins/`, `.archive/`), `logs/`, and the root config file — a nested
+`team/config.yaml` is just another directive file.
+
 Every DuckDB file lives under `.data/` so the config dir itself stays readable
-(and diffable) — the only loose files are `config.yaml` and the roles.
+(and diffable) — the loose files are `config.yaml` and whatever directives you put
+beside it.
 
 **Config directory resolution** (highest wins): `--home`/`--dir` → `$MUNIN_HOME` →
 `home:` in `~/.config/munin/settings.yaml` → `~/.munin`. Bootstrap a fresh
@@ -537,13 +558,14 @@ the shell and the file, and **daemon** logs through the OS logging facility (not
 file). The log dir resolves as `$MUNIN_LOG_DIR` → `log_dir:` in `settings.yaml` →
 `<home>/logs`; `munin clean` archives it and `munin nuke` removes it.
 
-**DuckDB is the source of truth.** `.data/config.duckdb` is the store holding the live
-state for the config *and* the three directive kinds. On startup Munin
-hash-compares each directive's files against DuckDB:
+**DuckDB is the source of truth.** `.data/config.duckdb` is the store holding the
+live state, in two rows: `config` (the root config file) and `directives` (every
+directive file, as a map of home-relative path → content, so nesting round-trips
+exactly). On startup Munin hash-compares each row against what is on disk:
 
 - **match** → load DuckDB (no change).
 - **differ** → the files are treated as **staged changes**. On a terminal you get a
-  panel naming the directive, what is staged, what is stored, and which files
+  panel naming the row, what is staged, what is stored, and which files
   changed, with five choices:
 
 | Key | Choice | Effect |
@@ -552,7 +574,7 @@ hash-compares each directive's files against DuckDB:
 | `s` | use this session | run with them, leave the store as-is (default on Enter) |
 | `i` | ignore staged | run with the stored version instead |
 | `d` | discard changes | delete the staged files (asks `y/N` first), keep stored |
-| `p` | preview | print the staged content, then re-ask |
+| `e` | open in editor | open the config folder with `$EDITOR`, then re-ask |
 
 Non-interactively it uses the staged files and warns — unless `prefer_duckdb: true`
 in the global settings, which always prefers DuckDB. `--reconcile
@@ -562,7 +584,11 @@ scripts, hooks, and cron.
 Nothing is auto-imported; imports happen only when you choose them, and every
 import archives the prior version. **`munin apply [directive]`** (alias `munin
 import`) is the non-interactive way to write staged files into the store — it never
-prompts and defaults to `all`. Inspect current/prior config with `munin config` /
+prompts, takes `config`, `directives`, or `all`, and defaults to `all`. **`munin
+export <directive>`** goes the other way, restoring each directive file at the
+home-relative path it was imported from and creating parent directories as needed.
+The old `queries`/`flights`/`roles` arguments still work on both, as deprecated
+aliases for `directives`. Inspect current/prior config with `munin config` /
 `munin config history`. `--config <file>` uses a config file for **this session
 only** (never persisted) — the non-interactive form of "use this session". Any file
 value can be overridden per-run by a `MUNIN_*` env var (e.g. `MUNIN_OUTPUT=json`) or
@@ -781,15 +807,15 @@ DB.
 | `munin plugins enable/disable <id>` | Runtime activation only (`disabled_plugins` in settings). |
 | `munin plugins install/uninstall <id>` | Enable/disable plus provision or remove example directive seeds (not dynamic `.so` loading). |
 | `munin plugins scaffold <id>` | Generate an overlay-friendly plugin package (public `munin/plugin` SDK). |
-| `munin clean` | Archive config/query/flight files into `.archive/<timestamp>/`. |
+| `munin clean` | Archive the config file, `logs/`, and every directive file into `.archive/<timestamp>/`. |
 | `munin nuke [--yes]` | Delete the config directory and DuckDB (run `munin install` to recreate defaults). |
 | `munin role` | Show the active role and defined roles. |
 | `munin login <service>` | OAuth login for github/google/slack. |
 | `munin list [queries\|filters\|flights\|roles]` | List what the active role can see (`--all` to ignore the role). |
 | `munin filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
 | `munin query build --signal <name>` | Compose and run an ad-hoc query; `--save <name>` keeps it, `--dry-run` just prints it. |
-| `munin export <directive>` | Materialize DuckDB → files. |
-| `munin apply [directive]` | Write staged files → DuckDB. Never prompts; defaults to `all`. Alias: `munin import`. |
+| `munin export <directive>` | Materialize DuckDB → files (`config`, `directives`, `all`); directives land at their stored relative paths. |
+| `munin apply [directive]` | Write staged files → DuckDB (`config`, `directives`, `all`). Never prompts; defaults to `all`. Alias: `munin import`. |
 | `munin settings` | Open just the settings screens of the deck. |
 
 ### Common flags
@@ -825,6 +851,7 @@ column is a project field value and `status:` is not a search qualifier:
 
 ```yaml
 name: board-in-progress
+type: query
 signal: github
 params:
   project: acme/17              # owner/number, or a project URL
@@ -876,6 +903,7 @@ only one side:
 
 ```yaml
 name: escalations-waiting
+type: query
 signal: github
 params:
   project: acme/17

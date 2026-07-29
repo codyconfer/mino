@@ -1,3 +1,4 @@
 name: ntr-list
+type: query
 signal: ntr
 params: {}

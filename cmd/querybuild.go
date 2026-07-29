@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"sort"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/codyconfer/munin/internal/app/suggest"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
@@ -15,15 +16,16 @@ import (
 )
 
 type queryBuildFlags struct {
-	signal  string
-	params  []string
-	filters []string
-	field   string
-	include string
-	exclude string
-	title   string
-	save    string
-	dryRun  bool
+	signal      string
+	params      []string
+	filters     []string
+	field       string
+	include     string
+	exclude     string
+	title       string
+	save        string
+	dryRun      bool
+	interactive bool
 }
 
 func newQueryBuildCmd() *cobra.Command {
@@ -35,10 +37,22 @@ func newQueryBuildCmd() *cobra.Command {
 			"written unless you pass --save, which stores the query under\n" +
 			"~/.munin/queries so it can be run by name and used in flights.\n\n" +
 			"Use --dry-run to print the query definition without running it.\n\n" +
-			"For the same thing interactively, open the deck and pick `Build a query`.\n\n" +
+			"Pass -i to fill the same fields in a prompt, with suggestions for signals,\n" +
+			"params and saved filters. For the full builder, open the deck and pick\n" +
+			"`Build a query`.\n\n" +
 			knownParamHelp(),
-		Args: cobra.NoArgs,
+		Args:              cobra.NoArgs,
+		ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if f.interactive {
+				if err := f.prompt(); err != nil {
+					return err
+				}
+			}
+			if f.signal == "" {
+				return errs.New(errs.KindUsage, "--signal is required").
+					WithHint("pass -i to pick one interactively, or one of: %s", strings.Join(build.QueryableSignals(), ", "))
+			}
 			q, err := f.query()
 			if err != nil {
 				return err
@@ -77,13 +91,12 @@ func newQueryBuildCmd() *cobra.Command {
 	c.Flags().StringVar(&f.title, "title", "", "display title for the results panel")
 	c.Flags().StringVar(&f.save, "save", "", "save the query under this name")
 	c.Flags().BoolVar(&f.dryRun, "dry-run", false, "print the query definition instead of running it")
-	_ = c.MarkFlagRequired("signal")
-	if err := c.RegisterFlagCompletionFunc("signal", completeSignalNames); err != nil {
-		panic(err)
-	}
-	if err := c.RegisterFlagCompletionFunc("filter", completeFilterNames); err != nil {
-		panic(err)
-	}
+	c.Flags().BoolVarP(&f.interactive, "interactive", "i", false, "fill the query in a prompt, with suggestions, instead of flags")
+	bindFlagCompletion(c, "signal", completeSignalNames)
+	bindFlagCompletion(c, "filter", completeFlagValues(func() []string { return suggest.FilterNames(shared) }))
+	bindFlagCompletion(c, "field", completeFlagValues(suggest.RuleFields))
+	bindFlagCompletion(c, "param", completeParamAssignments)
+	bindFlagCompletion(c, "save", cobra.NoFileCompletions)
 	return c
 }
 
@@ -144,25 +157,28 @@ func printQueryDoc(cmd *cobra.Command, q config.Query) error {
 }
 
 func checkSaveName(name string) error {
-	if _, exists := shared.Directives.Queries[name]; exists {
-		return errs.Newf(errs.KindUsage, "a query named %q already exists", name).
-			WithHint("pick another --save name, or edit ~/.munin/queries/%s.yaml", name)
+	if _, exists := shared.Directives.Queries[name]; !exists {
+		return nil
 	}
-	return nil
+	err := errs.Newf(errs.KindUsage, "a query named %q already exists", name)
+	if rel := shared.Directives.Source(config.TypeQuery, name); rel != "" {
+		return err.WithHint("pick another --save name, or edit %s", filepath.Join(shared.Cfg.Home, rel))
+	}
+	return err.WithHint("pick another --save name")
 }
 
 func saveBuiltQuery(cmd *cobra.Command, q config.Query) error {
-	path, stored, err := config.SaveCollectionItem(shared.Mgr, shared.Cfg.Home, config.DirQueries, q.Name, q)
+	path, stored, err := config.SaveDirective(shared.Mgr, shared.Cfg.Home, "", q.Kind(), q.Name, q)
 	if err != nil {
 		return err
 	}
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "\nsaved %s\n", path)
 	if !stored {
-		fmt.Fprintln(out, "the config store is unavailable; run `munin import queries` to store it.")
+		fmt.Fprintln(out, "the config store is unavailable; run `munin import directives` to store it.")
 		return nil
 	}
-	fmt.Fprintln(out, "imported the queries collection into DuckDB.")
+	fmt.Fprintln(out, "imported the directives collection into DuckDB.")
 	return nil
 }
 
@@ -178,14 +194,4 @@ func knownParamHelp() string {
 	}
 	b.WriteString("\nSignals not listed take no params, or accept params defined by their plugin.")
 	return b.String()
-}
-
-func completeSignalNames(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	return build.QueryableSignals(), cobra.ShellCompDirectiveNoFileComp
-}
-
-func completeFilterNames(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-	names := shared.Directives.FilterNames()
-	sort.Strings(names)
-	return names, cobra.ShellCompDirectiveNoFileComp
 }

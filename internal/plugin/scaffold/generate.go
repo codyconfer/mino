@@ -251,8 +251,9 @@ func TestRegister(t *testing.T) {
 }
 
 func renderQueryYAML(signal string) string {
-	return fmt.Sprintf(`# Example query seed — copy into munin home queries/ or RegisterSeeds.
+	return fmt.Sprintf(`# Example query seed — copy anywhere under the munin home, or RegisterSeeds.
 name: %s-ping
+type: query
 signal: %s
 params: {}
 filters: [%s-clean]

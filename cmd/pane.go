@@ -28,9 +28,10 @@ func newPaneCmd() *cobra.Command {
 
 func newPaneInboxCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "inbox [flight]",
-		Short: "Attach to the owning munin's live event stream",
-		Args:  cobra.MaximumNArgs(1),
+		Use:               "inbox [flight]",
+		Short:             "Attach to the owning munin's live event stream",
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeFlightNames,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requirePaneTTY(); err != nil {
 				return err

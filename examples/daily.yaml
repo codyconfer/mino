@@ -1,4 +1,5 @@
 name: daily
+type: role
 # `home` is the flight the TUI home screen loads on open (leave unset for menu only).
 home: morning
 # A bare `munin --role daily fly` runs the first flight listed here.

@@ -70,12 +70,17 @@ type Options struct {
 	Verbose     bool
 	Interactive bool
 	Thin        bool
+	Completion  bool
 	In          io.Reader
 	Out         io.Writer
 }
 
 func Load(opts Options) (*App, error) {
 	log.SetVerbose(opts.Verbose)
+	if opts.Completion {
+		opts.Reconcile = config.ReconcileIgnore
+		opts.Interactive = false
+	}
 	if home, err := config.Home(opts.Home); err == nil {
 		_ = os.Chmod(home, 0o700)
 	}
@@ -103,7 +108,7 @@ func Load(opts Options) (*App, error) {
 		cfg.Cache.DetailTTL = opts.CacheTTL
 	}
 	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr, thin: opts.Thin}
-	if opts.Thin {
+	if opts.Thin || opts.Completion {
 		return a, nil
 	}
 	a.openCache(cacheMode(opts))

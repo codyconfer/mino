@@ -1,18 +1,22 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/codyconfer/sisyphus/lifecycle"
+
+	"github.com/codyconfer/munin/internal/config"
 )
 
 func TestMergeFileSeedsOverlayWins(t *testing.T) {
 	overlay := fstest.MapFS{
 		"config.yaml":              &fstest.MapFile{Data: []byte("output: json\n")},
-		"queries/extra.yaml":       &fstest.MapFile{Data: []byte("name: extra\nsignal: demo\n")},
-		"queries/my-open-prs.yaml": &fstest.MapFile{Data: []byte("name: my-open-prs\nsignal: github\n")},
+		"queries/extra.yaml":       &fstest.MapFile{Data: []byte("name: extra\ntype: query\nsignal: demo\n")},
+		"queries/my-open-prs.yaml": &fstest.MapFile{Data: []byte("name: my-open-prs\ntype: query\nsignal: github\n")},
 	}
 	SetDefaultsFS(overlay)
 	t.Cleanup(func() { SetDefaultsFS(nil) })
@@ -30,7 +34,7 @@ func TestMergeFileSeedsOverlayWins(t *testing.T) {
 			sawExtra = true
 		case "queries/my-open-prs.yaml":
 			sawPRs = true
-			if string(f.Content) != "name: my-open-prs\nsignal: github\n" {
+			if string(f.Content) != "name: my-open-prs\ntype: query\nsignal: github\n" {
 				t.Fatalf("prs overlay = %q", f.Content)
 			}
 		}
@@ -89,6 +93,43 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 	if strings.Contains(got["flights/default.yaml"], "demo") ||
 		strings.Contains(got["flights/default.yaml"], "notify-smoke") {
 		t.Fatalf("default flight must not reference demo/notify-smoke: %q", got["flights/default.yaml"])
+	}
+}
+
+func TestStockSeedsLoadAsTypedDirectives(t *testing.T) {
+	SetDefaultsFS(nil)
+	home := t.TempDir()
+	spec := installSpec(home, true)
+	for _, f := range spec.Files {
+		if f.RelPath == "config.yaml" {
+			continue
+		}
+		dest := filepath.Join(home, filepath.FromSlash(f.RelPath))
+		if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dest, f.Content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(f.Content), "type:") {
+			t.Errorf("stock seed %s declares no type:\n%s", f.RelPath, f.Content)
+		}
+	}
+
+	dirs, err := config.LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatalf("stock seeds do not load: %v", err)
+	}
+	if len(dirs.Queries) == 0 || len(dirs.Flights) == 0 || len(dirs.Roles) == 0 {
+		t.Fatalf("stock seeds should populate every kind: q=%d fl=%d r=%d",
+			len(dirs.Queries), len(dirs.Flights), len(dirs.Roles))
+	}
+	for _, name := range dirs.FlightNames() {
+		for _, q := range dirs.Flights[name].Queries {
+			if _, ok := dirs.Queries[q]; !ok {
+				t.Errorf("flight %q references unknown query %q", name, q)
+			}
+		}
 	}
 }
 

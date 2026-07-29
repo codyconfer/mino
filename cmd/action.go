@@ -22,9 +22,10 @@ func newActionCmd() *cobra.Command {
 
 func newActionListCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list [signal]",
-		Short: "List registered actions (optionally for one signal)",
-		Args:  cobra.MaximumNArgs(1),
+		Use:               "list [signal]",
+		Short:             "List registered actions (optionally for one signal)",
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeCacheSignals,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
 			out := cmd.OutOrStdout()
@@ -64,9 +65,10 @@ func newActionListCmd() *cobra.Command {
 func newActionRunCmd() *cobra.Command {
 	var params []string
 	cmd := &cobra.Command{
-		Use:   "run <signal> <name>",
-		Short: "Run a registered action",
-		Args:  cobra.ExactArgs(2),
+		Use:               "run <signal> <name>",
+		Short:             "Run a registered action",
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeActionRun,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
 			p := map[string]string{"home": shared.Cfg.Home, "role": shared.Cfg.Role}

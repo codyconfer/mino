@@ -1,4 +1,5 @@
 name: recent-docs
+type: query
 signal: docs
 params:
   recent: "5"

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"time"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
@@ -14,23 +15,32 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-const ConfigDirective = "config"
+const (
+	ConfigDirective     = "config"
+	DirectivesDirective = "directives"
+)
 
-func CollectionDirectives() []string {
+func LegacyDirectiveRows() []string {
 	return []string{DirQueries, DirFlights, KindRoles}
 }
 
 func ValidDirectives() []string {
-	return append([]string{ConfigDirective}, append(CollectionDirectives(), "all")...)
+	return []string{ConfigDirective, DirectivesDirective, "all"}
+}
+
+func ResolveDirectiveArg(name string) (string, error) {
+	if slices.Contains(ValidDirectives(), name) {
+		return name, nil
+	}
+	if slices.Contains(LegacyDirectiveRows(), name) {
+		return DirectivesDirective, nil
+	}
+	return "", errs.Newf(errs.KindUsage, "unknown directive %q: want one of %v", name, ValidDirectives())
 }
 
 func ValidateDirectiveArg(name string) error {
-	for _, s := range ValidDirectives() {
-		if s == name {
-			return nil
-		}
-	}
-	return errs.Newf(errs.KindUsage, "unknown directive %q: want one of %v", name, ValidDirectives())
+	_, err := ResolveDirectiveArg(name)
+	return err
 }
 
 func PrintCurrentConfig(w io.Writer, db *configdb.Store) error {
@@ -71,7 +81,8 @@ func shortHash(h string) string {
 }
 
 func Export(w io.Writer, db *configdb.Store, home, directive string, includeSecrets bool) error {
-	if err := ValidateDirectiveArg(directive); err != nil {
+	directive, err := ResolveDirectiveArg(directive)
+	if err != nil {
 		return err
 	}
 	switch directive {
@@ -79,17 +90,12 @@ func Export(w io.Writer, db *configdb.Store, home, directive string, includeSecr
 		if err := exportConfig(w, db, home, false, includeSecrets); err != nil {
 			return err
 		}
-		for _, name := range CollectionDirectives() {
-			if err := exportCollection(w, db, home, name, false); err != nil {
-				return err
-			}
-		}
+		return exportDirectives(w, db, home, false)
 	case ConfigDirective:
 		return exportConfig(w, db, home, true, includeSecrets)
 	default:
-		return exportCollection(w, db, home, directive, true)
+		return exportDirectives(w, db, home, true)
 	}
-	return nil
 }
 
 func exportConfig(w io.Writer, db *configdb.Store, out string, single, includeSecrets bool) error {
@@ -119,25 +125,24 @@ func exportConfig(w io.Writer, db *configdb.Store, out string, single, includeSe
 	return nil
 }
 
-func exportCollection(w io.Writer, db *configdb.Store, out, name string, single bool) error {
-	v, ok, err := db.Current(context.Background(), name)
+func exportDirectives(w io.Writer, db *configdb.Store, out string, single bool) error {
+	v, ok, err := db.Current(context.Background(), DirectivesDirective)
 	if err != nil {
-		return errs.Wrapf(errs.KindStore, err, "reading %s from store", name)
+		return errs.Wrap(errs.KindStore, err, "reading directives from store")
 	}
 	if !ok {
 		if single {
-			return errs.Newf(errs.KindStore, "no current version for %s in the store", name).
-				WithHint("run `munin import %s` first", name)
+			return errs.New(errs.KindStore, "no current version for directives in the store").
+				WithHint("run `munin import directives` first")
 		}
-		fmt.Fprintf(w, "notice: no %s version in store, skipping\n", name)
+		fmt.Fprintln(w, "notice: no directives version in store, skipping")
 		return nil
 	}
-	dir := CollectionDir(out, name)
-	names, err := WriteCollection(out, name, []byte(v.Content))
+	names, err := WriteDirectives(out, []byte(v.Content))
 	if err != nil {
-		return errs.Wrapf(errs.KindInternal, err, "writing %s", name)
+		return errs.Wrap(errs.KindInternal, err, "writing directives")
 	}
-	fmt.Fprintf(w, "wrote %d file(s) to %s: %v\n", len(names), dir, names)
+	fmt.Fprintf(w, "wrote %d file(s) under %s: %v\n", len(names), out, names)
 	return nil
 }
 
@@ -152,28 +157,26 @@ func ExportAllToFiles(db *configdb.Store, home string) ([]string, error) {
 		}
 		written = append(written, path)
 	}
-	for _, name := range CollectionDirectives() {
-		cur, ok, err := db.Current(context.Background(), name)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		dir := CollectionDir(home, name)
-		names, err := WriteCollection(home, name, []byte(cur.Content))
-		if err != nil {
-			return nil, err
-		}
-		for _, fn := range names {
-			written = append(written, filepath.Join(dir, fn))
-		}
+	cur, ok, err := db.Current(context.Background(), DirectivesDirective)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return written, nil
+	}
+	names, err := WriteDirectives(home, []byte(cur.Content))
+	if err != nil {
+		return nil, err
+	}
+	for _, rel := range names {
+		written = append(written, filepath.Join(home, filepath.FromSlash(rel)))
 	}
 	return written, nil
 }
 
 func Import(w io.Writer, db *configdb.Store, home, directive string) error {
-	if err := ValidateDirectiveArg(directive); err != nil {
+	directive, err := ResolveDirectiveArg(directive)
+	if err != nil {
 		return err
 	}
 	switch directive {
@@ -181,17 +184,12 @@ func Import(w io.Writer, db *configdb.Store, home, directive string) error {
 		if err := importConfig(w, db, home, false); err != nil {
 			return err
 		}
-		for _, name := range CollectionDirectives() {
-			if err := importCollection(w, db, home, name, false); err != nil {
-				return err
-			}
-		}
+		return importDirectives(w, db, home, false)
 	case ConfigDirective:
 		return importConfig(w, db, home, true)
 	default:
-		return importCollection(w, db, home, directive, true)
+		return importDirectives(w, db, home, true)
 	}
-	return nil
 }
 
 func importConfig(w io.Writer, db *configdb.Store, home string, required bool) error {
@@ -214,21 +212,21 @@ func importConfig(w io.Writer, db *configdb.Store, home string, required bool) e
 	return nil
 }
 
-func importCollection(w io.Writer, db *configdb.Store, home, name string, required bool) error {
-	blob, has, err := SerializeCollection(home, name)
+func importDirectives(w io.Writer, db *configdb.Store, home string, required bool) error {
+	blob, has, err := SerializeDirectives(home)
 	if err != nil {
-		return errs.Wrapf(errs.KindConfig, err, "reading %s files", name)
+		return errs.Wrap(errs.KindConfig, err, "reading directive files")
 	}
 	if !has {
 		if required {
-			return errs.Newf(errs.KindConfig, "no %s files found in %s", name, CollectionDir(home, name))
+			return errs.Newf(errs.KindConfig, "no directive files found under %s", home)
 		}
-		fmt.Fprintf(w, "notice: no %s files, skipping\n", name)
+		fmt.Fprintln(w, "notice: no directive files, skipping")
 		return nil
 	}
-	if err := db.Import(context.Background(), name, blob, "collection"); err != nil {
-		return errs.Wrapf(errs.KindStore, err, "importing %s", name)
+	if err := db.Import(context.Background(), DirectivesDirective, blob, "collection"); err != nil {
+		return errs.Wrap(errs.KindStore, err, "importing directives")
 	}
-	fmt.Fprintf(w, "imported %s (%d bytes)\n", name, len(blob))
+	fmt.Fprintf(w, "imported directives (%d bytes)\n", len(blob))
 	return nil
 }

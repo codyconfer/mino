@@ -1,4 +1,5 @@
 name: board-column
+type: query
 title: Board · In Progress
 signal: github
 params:

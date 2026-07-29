@@ -108,10 +108,3 @@ func availableFlightSuffix() string {
 	}
 	return " (available: " + strings.Join(names, ", ") + ")"
 }
-
-func completeFlightNames(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-	if len(args) != 0 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	return visibleFlightNames(), cobra.ShellCompDirectiveNoFileComp
-}

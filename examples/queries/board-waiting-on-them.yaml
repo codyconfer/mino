@@ -5,6 +5,7 @@
 # in the comment's age: green with `·team` when a teammate replied last, amber
 # when the reply came from outside.
 name: board-waiting-on-them
+type: query
 title: Board · Waiting on them
 signal: github
 params:

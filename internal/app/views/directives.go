@@ -1,12 +1,12 @@
 package views
 
 import (
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/codyconfer/viewkit/forms"
-	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
@@ -14,7 +14,9 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
+	"github.com/codyconfer/munin/internal/app/suggest"
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/render/glyph"
 )
@@ -39,11 +41,11 @@ func directiveSingular(k directiveKind) string {
 	return "item"
 }
 
-func directiveKey(k directiveKind) string {
+func directiveType(k directiveKind) config.DirectiveType {
 	if k == directiveRole {
-		return config.KindRoles
+		return config.TypeRole
 	}
-	return ""
+	return config.TypeAuto
 }
 
 func (kit *Kit) directiveNames(k directiveKind) []string {
@@ -186,109 +188,137 @@ func (kit *Kit) directiveDeleteConfirm(k directiveKind, name string) vkdeck.View
 	)
 }
 
-func (kit *Kit) directiveDeleteFile(k directiveKind, name string) string {
-	key := directiveKey(k)
-	home := kit.d.App.Cfg.Home
-	removed, err := config.RemoveCollectionItem(home, key, name)
+func directiveNoFileNote(name string) string {
+	return "no file on disk for " + name + ".\n\n" +
+		"It may exist only in DuckDB (the source of truth); use\n" +
+		"`munin export directives` to write files first."
+}
+
+func (kit *Kit) directiveMultiDocNote(rel string) string {
+	n := kit.d.App.Directives.DocCount(rel)
+	if n <= 1 {
+		return ""
+	}
+	return rel + " holds " + strconv.Itoa(n) + " directives; edit it by hand to keep the others intact."
+}
+
+func (kit *Kit) saveDirective(kind config.DirectiveType, rel, name string, doc any) (string, bool, error) {
+	if note := kit.directiveMultiDocNote(rel); note != "" {
+		return "", false, errs.New(errs.KindUsage, note)
+	}
+	path, stored, err := config.SaveDirective(kit.d.App.Mgr, kit.d.App.Cfg.Home, rel, kind, name, doc)
 	if err != nil {
-		return err.Error()
+		return "", false, err
+	}
+	if !stored {
+		return "wrote " + path + "\n\n" +
+			"the config store is unavailable, so this file takes effect after\n" +
+			"reconcile: run `munin import directives` or restart munin.", false, nil
+	}
+	return "wrote " + path + "\nimported the directives collection into DuckDB.", true, nil
+}
+
+func (kit *Kit) removeDirective(kind config.DirectiveType, name string) ([]string, string) {
+	rel := kit.d.App.Directives.Source(kind, name)
+	if rel == "" {
+		return nil, directiveNoFileNote(name)
+	}
+	if note := kit.directiveMultiDocNote(rel); note != "" {
+		return nil, "did not remove " + name + ": " + note
+	}
+	removed, err := config.RemoveDirective(kit.d.App.Cfg.Home, rel)
+	if err != nil {
+		return nil, err.Error()
 	}
 	if len(removed) == 0 {
-		return "no file found for " + name + " in " + config.CollectionDir(home, key) + ".\n\n" +
-			"It may exist only in DuckDB (the source of truth); use\n" +
-			"`munin export " + key + "` to write files first."
+		return nil, directiveNoFileNote(name)
+	}
+	return removed, ""
+}
+
+func (kit *Kit) deleteDirective(kind config.DirectiveType, name string) string {
+	removed, note := kit.removeDirective(kind, name)
+	if note != "" {
+		return note
+	}
+	summary := "removed:\n  " + strings.Join(removed, "\n  ")
+	stored, err := config.SyncDirectives(kit.d.App.Mgr, kit.d.App.Cfg.Home)
+	switch {
+	case err != nil:
+		return summary + "\n\nthe store still holds it: " + err.Error()
+	case !stored:
+		return summary + "\n\nthe config store is unavailable, so this takes effect after\n" +
+			"reconcile: run `munin import directives` or restart munin."
+	}
+	if err := kit.d.App.RefreshDirectives(config.ReconcileIgnore); err != nil {
+		return summary + "\nremoved from DuckDB.\n\nreload failed: " + err.Error()
+	}
+	return summary + "\nremoved from DuckDB; the change is live in this session."
+}
+
+func (kit *Kit) directiveDeleteFile(k directiveKind, name string) string {
+	removed, note := kit.removeDirective(directiveType(k), name)
+	if note != "" {
+		return note
 	}
 	return "removed:\n  " + strings.Join(removed, "\n  ") + "\n\n" +
 		"DuckDB remains the source of truth; this takes effect after\n" +
-		"reconcile: run `munin import " + key + "` or restart munin."
-}
-
-type directiveFormView struct {
-	kit  *Kit
-	kind directiveKind
-	orig string
-	form *forms.Form
-	ctx  [][2]string
+		"reconcile: run `munin import directives` or restart munin."
 }
 
 func (kit *Kit) newDirectiveForm(k directiveKind, orig string) vkdeck.View {
-	return &directiveFormView{
-		kit:  kit,
-		kind: k,
-		orig: orig,
-		form: forms.NewForm(kit.directiveFormFields(k, orig)...),
-		ctx:  kit.directiveItemCtx(k, orig),
+	ctx := kit.directiveItemCtx(k, orig)
+	title := "new " + directiveSingular(k)
+	if orig != "" {
+		title = "edit " + directiveSingular(k)
 	}
+	return vkdeck.NewFormView(vkdeck.FormSpec{
+		Fields:  kit.directiveFormFields(k, orig),
+		Keys:    vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
+		Title:   title,
+		Context: ctx,
+		OnSubmit: func(a *vkdeck.Model, vals map[string]any) tea.Cmd {
+			return kit.submitDirectiveForm(a, k, ctx, vals)
+		},
+	})
 }
 
 func (kit *Kit) directiveFormFields(k directiveKind, name string) []forms.Field {
 	st := kit.d.App.Directives
-	text := func(key, label, val string) forms.Field {
-		return forms.Field{Key: key, Label: label, Kind: forms.FieldText, Text: val}
-	}
 	switch k {
 	case directiveRole:
 		rd := st.Roles[name]
 		return []forms.Field{
-			text("name", "name", rd.Name),
-			text("flights", "flights (comma-sep)", strings.Join(rd.Flights, ", ")),
-			text("queries", "queries (comma-sep)", strings.Join(rd.Queries, ", ")),
+			{Key: "name", Label: "name", Kind: forms.FieldText, Text: rd.Name},
+			{
+				Key:     "flights",
+				Label:   "flights (comma-sep)",
+				Kind:    forms.FieldText,
+				Text:    strings.Join(rd.Flights, ", "),
+				Suggest: suggest.Flights(kit.d.App),
+				Delim:   ",",
+			},
+			{
+				Key:     "queries",
+				Label:   "queries (comma-sep)",
+				Kind:    forms.FieldText,
+				Text:    strings.Join(rd.Queries, ", "),
+				Suggest: suggest.Queries(kit.d.App),
+				Delim:   ",",
+			},
 		}
 	}
 	return nil
 }
 
-func (v *directiveFormView) Title() string {
-	if v.orig == "" {
-		return "new " + directiveSingular(v.kind)
-	}
-	return "edit " + directiveSingular(v.kind)
-}
-
-func (v *directiveFormView) Init() tea.Cmd        { return nil }
-func (v *directiveFormView) Context() [][2]string { return v.ctx }
-func (v *directiveFormView) Hints() [][2]string {
-	return [][2]string{{"↑/↓", "field"}, {"←/→", "adjust"}, {"ctrl+s", "save"}, {"esc", "cancel"}}
-}
-
-func (v *directiveFormView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return nil
-	}
-	act, ok := keymap.Form().Action(key.String())
-	if !ok {
-		if key.String() == " " {
-			v.form.Insert(" ")
-		} else if key.Type == tea.KeyRunes {
-			v.form.Insert(string(key.Runes))
-		}
-		return nil
-	}
-	switch act {
-	case keys.Cancel:
-		return a.Pop()
-	case keymap.Save:
-		return v.submit(a)
-	default:
-		v.form.Handle(act)
-	}
-	return nil
-}
-
-func (v *directiveFormView) Body(width, _ int) string {
-	return v.form.Render(layout.NewFrame(width), v.Title())
-}
-
-func (v *directiveFormView) submit(a *vkdeck.Model) tea.Cmd {
-	vals := v.form.Values()
+func (kit *Kit) submitDirectiveForm(a *vkdeck.Model, k directiveKind, ctx [][2]string, vals map[string]any) tea.Cmd {
 	name := forms.Str(vals, "name")
 	if name == "" {
-		return a.Push(vkdeck.NewMessage("save failed", "name is required", v.ctx))
+		return a.Push(vkdeck.NewMessage("save failed", "name is required", ctx))
 	}
 
 	var item any
-	switch v.kind {
+	switch k {
 	case directiveRole:
 		item = config.RoleDef{
 			Name:    name,
@@ -297,25 +327,22 @@ func (v *directiveFormView) submit(a *vkdeck.Model) tea.Cmd {
 		}
 	}
 
-	summary, err := v.kit.directiveWriteFile(v.kind, name, item)
+	summary, err := kit.directiveWriteFile(k, name, item)
 	if err != nil {
-		return a.Push(vkdeck.NewMessage("save failed", err.Error(), v.ctx))
+		return a.Push(vkdeck.NewMessage("save failed", err.Error(), ctx))
 	}
-	return a.Push(vkdeck.NewMessage("saved", summary, v.ctx))
+	return a.Push(vkdeck.NewMessage("saved", summary, ctx))
 }
 
 func (kit *Kit) directiveWriteFile(k directiveKind, name string, item any) (string, error) {
-	key := directiveKey(k)
-	path, stored, err := config.SaveCollectionItem(kit.d.App.Mgr, kit.d.App.Cfg.Home, key, name, item)
+	kind := directiveType(k)
+	summary, stored, err := kit.saveDirective(kind, kit.d.App.Directives.Source(kind, name), name, item)
 	if err != nil {
 		return "", err
 	}
 	if !stored {
-		return "wrote " + path + "\n\n" +
-			"the config store is unavailable, so this file takes effect after\n" +
-			"reconcile: run `munin import " + key + "` or restart munin.", nil
+		return summary, nil
 	}
-	summary := "wrote " + path + "\nimported the " + key + " collection into DuckDB."
 	if err := kit.d.App.RefreshDirectives(config.ReconcileIgnore); err != nil {
 		return summary + "\n\nreload failed, so it is not live yet: " + err.Error(), nil
 	}

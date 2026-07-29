@@ -139,10 +139,3 @@ func querySummary(q config.Query) string {
 	}
 	return "signal=" + q.Signal
 }
-
-func completeQueryNames(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-	if len(args) != 0 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	return visibleQueryNames(), cobra.ShellCompDirectiveNoFileComp
-}

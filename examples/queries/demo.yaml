@@ -3,6 +3,7 @@
 # Synthetic notify toasts live in flight `notify-smoke` (`signal: demo`).
 # Carries its own rules, so the query and its filter share one document.
 name: demo
+type: query
 signal: github
 params:
   query: "is:open is:pr author:@me"

@@ -3,10 +3,9 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
-
-	sconfig "github.com/codyconfer/sisyphus/config"
 )
 
 func seedDirectives(t *testing.T) string {
@@ -17,6 +16,7 @@ func seedDirectives(t *testing.T) string {
 
 	write(t, filepath.Join(home, DirQueries, "no-bots.yaml"), `
 name: no-bots
+type: filter
 rules:
   - field: meta.author
     exclude: "(?i)bot$"
@@ -24,6 +24,7 @@ rules:
 
 	write(t, filepath.Join(home, DirQueries, "standup.yaml"), `
 name: standup
+type: query
 signal: slack
 params:
   channel: eng-standup
@@ -33,10 +34,12 @@ filters:
 `)
 	write(t, filepath.Join(home, DirFlights, "morning.yaml"), `
 name: morning
+type: flight
 queries: [standup, my-prs]
 `)
 	write(t, filepath.Join(home, "triage.yaml"), `
 name: triage
+type: role
 home: morning
 flights: [morning]
 queries: [standup, no-bots]
@@ -127,79 +130,57 @@ func TestLoadStoreFromFiles(t *testing.T) {
 	}
 }
 
-func TestSerializeDirRoundTrip(t *testing.T) {
+func TestSerializeDirectivesRoundTrip(t *testing.T) {
 	home := seedDirectives(t)
 
-	qBlob, has, err := sconfig.SerializeDir(filepath.Join(home, DirQueries))
+	blob, has, err := SerializeDirectives(home)
 	if err != nil || !has {
-		t.Fatalf("SerializeDir queries: has=%v err=%v", has, err)
+		t.Fatalf("SerializeDirectives: has=%v err=%v", has, err)
 	}
-	queries, err := ParseQueries(qBlob)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if q, ok := queries["standup"]; !ok || q.Signal != "slack" ||
-		q.Filters[0].Ref != "no-bots" || q.Filters[1].Inline == nil {
-		t.Errorf("ParseQueries round-trip wrong: %#v", queries)
-	}
-	if f, ok := queries["no-bots"]; !ok || len(f.Rules) != 1 || f.Rules[0].Field != "meta.author" {
-		t.Errorf("filter document round-trip wrong: %#v", queries)
-	}
-
-	flBlob, _, err := sconfig.SerializeDir(filepath.Join(home, DirFlights))
-	if err != nil {
-		t.Fatal(err)
-	}
-	flights, err := ParseFlights(flBlob)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fl, ok := flights["morning"]; !ok || len(fl.Queries) != 2 {
-		t.Errorf("ParseFlights round-trip wrong: %#v", flights)
-	}
-
-	rBlob, _, err := SerializeCollection(home, KindRoles)
-	if err != nil {
-		t.Fatal(err)
-	}
-	roles, err := ParseRoles(rBlob)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rd, ok := roles["triage"]; !ok || len(rd.Flights) != 1 || rd.Flights[0] != "morning" || rd.Home != "morning" {
-		t.Errorf("ParseRoles round-trip wrong: %#v", roles)
-	} else if rd.Contexts["kubectl"] != "prod" || rd.Contexts["gcx"] != "myorg.example.net" {
-		t.Errorf("ParseRoles contexts = %#v", rd.Contexts)
-	} else if !strings.Contains(rd.Hooks.Enter.Bash, "entering triage") ||
-		!strings.Contains(rd.Hooks.Exit.PowerShell, "leaving triage") {
-		t.Errorf("ParseRoles hooks = %#v", rd.Hooks)
-	} else if len(rd.Status) != 1 || rd.Status[0].Glyph != "github" {
-		t.Errorf("ParseRoles status = %#v", rd.Status)
-	}
-
-	s, err := NewDirectives(qBlob, flBlob, rBlob)
+	s, err := ParseDirectives(blob)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(s.Queries) != 2 || len(s.Flights) != 1 || len(s.Roles) != 1 {
-		t.Errorf("NewDirectives map sizes wrong: %+v", s)
+		t.Fatalf("map sizes q=%d fl=%d r=%d, want 2/1/1", len(s.Queries), len(s.Flights), len(s.Roles))
+	}
+	if q, ok := s.Queries["standup"]; !ok || q.Signal != "slack" ||
+		q.Filters[0].Ref != "no-bots" || q.Filters[1].Inline == nil {
+		t.Errorf("query round-trip wrong: %#v", s.Queries)
+	}
+	if f, ok := s.Queries["no-bots"]; !ok || len(f.Rules) != 1 || f.Rules[0].Field != "meta.author" {
+		t.Errorf("filter round-trip wrong: %#v", s.Queries)
+	}
+	if fl, ok := s.Flights["morning"]; !ok || len(fl.Queries) != 2 {
+		t.Errorf("flight round-trip wrong: %#v", s.Flights)
+	}
+
+	rd, ok := s.Roles["triage"]
+	if !ok || len(rd.Flights) != 1 || rd.Flights[0] != "morning" || rd.Home != "morning" {
+		t.Fatalf("role round-trip wrong: %#v", s.Roles)
+	}
+	if rd.Contexts["kubectl"] != "prod" || rd.Contexts["gcx"] != "myorg.example.net" {
+		t.Errorf("role contexts = %#v", rd.Contexts)
+	}
+	if !strings.Contains(rd.Hooks.Enter.Bash, "entering triage") ||
+		!strings.Contains(rd.Hooks.Exit.PowerShell, "leaving triage") {
+		t.Errorf("role hooks = %#v", rd.Hooks)
+	}
+	if len(rd.Status) != 1 || rd.Status[0].Glyph != "github" {
+		t.Errorf("role status = %#v", rd.Status)
 	}
 }
 
 func TestParseNameFromFilename(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
-	write(t, filepath.Join(home, DirQueries, "quiet.yaml"), "rules:\n  - exclude: noise\n")
-	blob, _, err := sconfig.SerializeDir(filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "quiet.yaml"), "type: filter\nrules:\n  - exclude: noise\n")
+	s, err := LoadDirectivesFromFiles(home)
 	if err != nil {
 		t.Fatal(err)
 	}
-	queries, err := ParseQueries(blob)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := queries["quiet"]; !ok {
-		t.Errorf("name should default to filename base: %v", queries)
+	if _, ok := s.Queries["quiet"]; !ok {
+		t.Errorf("name should default to filename base: %v", s.QueryNames())
 	}
 }
 
@@ -208,11 +189,13 @@ func TestParseMultiDocYAMLFile(t *testing.T) {
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "standup.yaml"), `
 name: no-bots
+type: filter
 rules:
   - field: meta.author
     exclude: "(?i)bot$"
 ---
 name: standup
+type: query
 signal: slack
 filters: [no-bots]
 params:
@@ -245,9 +228,11 @@ func TestParseYAMLSequenceFile(t *testing.T) {
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "set.yaml"), `
 - name: no-bots
+  type: filter
   rules:
     - exclude: "(?i)bot$"
 - name: standup
+  type: query
   signal: slack
 `)
 	s, err := LoadDirectivesFromFiles(home)
@@ -263,8 +248,8 @@ func TestParseJSONArrayFile(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "set.json"), `[
-	  { "name": "no-bots", "rules": [ { "exclude": "(?i)bot$" } ] },
-	  { "name": "standup", "signal": "slack", "filters": ["no-bots"] }
+	  { "name": "no-bots", "type": "filter", "rules": [ { "exclude": "(?i)bot$" } ] },
+	  { "name": "standup", "type": "query", "signal": "slack", "filters": ["no-bots"] }
 	]`)
 	s, err := LoadDirectivesFromFiles(home)
 	if err != nil {
@@ -281,7 +266,7 @@ func TestParseJSONArrayFile(t *testing.T) {
 func TestParseMultiDocRequiresNames(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
-	write(t, filepath.Join(home, DirQueries, "set.yaml"), "signal: slack\n---\nname: other\nsignal: github\n")
+	write(t, filepath.Join(home, DirQueries, "set.yaml"), "type: query\nsignal: slack\n---\nname: other\ntype: query\nsignal: github\n")
 	_, err := LoadDirectivesFromFiles(home)
 	if err == nil {
 		t.Fatal("expected an error for an unnamed document in a multi-document file")
@@ -306,10 +291,12 @@ func TestLoadStoreFromFilesJSON(t *testing.T) {
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "no-bots.json"), `{
 	  "name": "no-bots",
+	  "type": "filter",
 	  "rules": [ { "field": "meta.author", "exclude": "(?i)bot$" } ]
 	}`)
 	write(t, filepath.Join(home, DirQueries, "standup.json"), `{
 	  "name": "standup",
+	  "type": "query",
 	  "signal": "slack",
 	  "params": { "channel": "eng-standup" },
 	  "filters": [ "no-bots", { "exclude": "^:tada:" } ]
@@ -336,8 +323,8 @@ func TestLoadStoreFromFilesJSON(t *testing.T) {
 func TestParseDuplicateNameErrors(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
-	write(t, filepath.Join(home, DirQueries, "a.yaml"), "name: dup\nrules: []\n")
-	write(t, filepath.Join(home, DirQueries, "b.yaml"), "name: dup\nrules: []\n")
+	write(t, filepath.Join(home, DirQueries, "a.yaml"), "name: dup\ntype: filter\nrules:\n  - exclude: x\n")
+	write(t, filepath.Join(home, DirQueries, "b.yaml"), "name: dup\ntype: filter\nrules:\n  - exclude: y\n")
 	if _, err := LoadDirectivesFromFiles(home); err == nil {
 		t.Fatal("expected duplicate-name error")
 	}
@@ -346,7 +333,7 @@ func TestParseDuplicateNameErrors(t *testing.T) {
 func TestParseBadRegexFailsFast(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
-	write(t, filepath.Join(home, DirQueries, "bad.yaml"), "name: bad\nrules:\n  - exclude: \"(\"\n")
+	write(t, filepath.Join(home, DirQueries, "bad.yaml"), "name: bad\ntype: filter\nrules:\n  - exclude: \"(\"\n")
 	if _, err := LoadDirectivesFromFiles(home); err == nil {
 		t.Fatal("expected bad-regex error at load time")
 	}
@@ -378,6 +365,7 @@ func TestResolveIncludesOwnRules(t *testing.T) {
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "prs.yaml"), `
 name: prs
+type: query
 signal: github
 rules:
   - field: meta.author
@@ -405,8 +393,8 @@ filters:
 func TestFilterRejectsSignalOnlyQuery(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
-	write(t, filepath.Join(home, DirQueries, "prs.yaml"), "name: prs\nsignal: github\n")
-	write(t, filepath.Join(home, DirQueries, "other.yaml"), "name: other\nsignal: github\nfilters: [prs]\n")
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"), "name: prs\ntype: query\nsignal: github\n")
+	write(t, filepath.Join(home, DirQueries, "other.yaml"), "name: other\ntype: query\nsignal: github\nfilters: [prs]\n")
 	s, err := LoadDirectivesFromFiles(home)
 	if err != nil {
 		t.Fatal(err)
@@ -465,6 +453,7 @@ rules:
   - exclude: "(?i)bot$"
 ---
 name: other
+type: query
 signal: github
 filters: [prs]
 `)
@@ -562,23 +551,98 @@ rules:
 	}
 }
 
-func TestCollectionStillDefaultsTheType(t *testing.T) {
+func TestDirectoryNoLongerImpliesTheType(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirFlights))
-	write(t, filepath.Join(home, DirFlights, "morning.yaml"), "name: morning\nqueries: [a, b]\n")
-	write(t, filepath.Join(home, "oncall.yaml"), "name: oncall\nqueries: [a]\n")
+	write(t, filepath.Join(home, DirFlights, "morning.yaml"), "name: morning\ntype: query\nsignal: github\n")
+	write(t, filepath.Join(home, "oncall.yaml"), "name: oncall\ntype: flight\nqueries: [morning]\n")
 	s, err := LoadDirectivesFromFiles(home)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := s.Flights["morning"]; !ok {
-		t.Errorf("untyped doc in %s should stay a flight: %#v", DirFlights, s.Flights)
+	if _, ok := s.Queries["morning"]; !ok {
+		t.Errorf("`type: query` in %s should stay a query: %#v", DirFlights, s.Flights)
 	}
-	if _, ok := s.Roles["oncall"]; !ok {
-		t.Errorf("untyped doc at the config root should stay a role: %#v", s.Roles)
+	if _, ok := s.Flights["oncall"]; !ok {
+		t.Errorf("`type: flight` at the home root should stay a flight: %#v", s.Roles)
 	}
-	if s.Flights["morning"].Type != TypeAuto {
-		t.Errorf("inferred flight should keep an empty Type, got %q", s.Flights["morning"].Type)
+	if len(s.Roles) != 0 {
+		t.Errorf("nothing declared a role: %#v", s.Roles)
+	}
+}
+
+func TestTypelessDirectiveDocumentErrorsNamingTheFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, "team", "gh"))
+	write(t, filepath.Join(home, "team", "gh", "prs.yaml"), "name: prs\nsignal: github\n")
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("expected an error for a document with directive fields but no type")
+	}
+	if !strings.Contains(err.Error(), "team/gh/prs.yaml") {
+		t.Errorf("error should name the offending file, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "type") {
+		t.Errorf("error should mention the missing type, got %v", err)
+	}
+}
+
+func TestTypelessUnrelatedDocumentIsIgnored(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, "team"))
+	write(t, filepath.Join(home, "team", "notes.yaml"), "just: notes\n")
+	write(t, filepath.Join(home, "team", "prs.yaml"), "name: prs\ntype: query\nsignal: github\n")
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatalf("an unrelated document should not error: %v", err)
+	}
+	if len(s.Queries) != 1 || len(s.Flights) != 0 || len(s.Roles) != 0 {
+		t.Fatalf("unrelated document leaked into directives: %+v", s)
+	}
+	if got := s.DocCount("team/notes.yaml"); got != 0 {
+		t.Errorf("DocCount(team/notes.yaml) = %d, want 0", got)
+	}
+}
+
+func TestSourceAndDocCountTrackTheOriginFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, "team", "gh"))
+	write(t, filepath.Join(home, "team", "gh", "prs.yaml"), `
+name: no-bots
+type: filter
+rules:
+  - exclude: "(?i)bot$"
+---
+name: prs
+type: query
+signal: github
+filters: [no-bots]
+`)
+	write(t, filepath.Join(home, "oncall.yaml"), "name: oncall\ntype: role\nqueries: [prs]\n")
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Source(TypeQuery, "prs"); got != "team/gh/prs.yaml" {
+		t.Errorf("Source(query, prs) = %q, want team/gh/prs.yaml", got)
+	}
+	if got := s.Source(TypeFilter, "no-bots"); got != "team/gh/prs.yaml" {
+		t.Errorf("Source(filter, no-bots) = %q, want team/gh/prs.yaml", got)
+	}
+	if got := s.Source(TypeRole, "oncall"); got != "oncall.yaml" {
+		t.Errorf("Source(role, oncall) = %q, want oncall.yaml", got)
+	}
+	if got := s.Source(TypeFlight, "prs"); got != "" {
+		t.Errorf("Source(flight, prs) = %q, want empty", got)
+	}
+	if got := s.DocCount("team/gh/prs.yaml"); got != 2 {
+		t.Errorf("DocCount(team/gh/prs.yaml) = %d, want 2", got)
+	}
+	if got := s.DocCount("oncall.yaml"); got != 1 {
+		t.Errorf("DocCount(oncall.yaml) = %d, want 1", got)
+	}
+	if got := s.DocCount("nope.yaml"); got != 0 {
+		t.Errorf("DocCount(nope.yaml) = %d, want 0", got)
 	}
 }
 
@@ -586,8 +650,8 @@ func TestNamesCollideOnlyWithinAKind(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
 	mkdir(t, filepath.Join(home, DirFlights))
-	write(t, filepath.Join(home, DirQueries, "demo.yaml"), "name: demo\nsignal: github\n")
-	write(t, filepath.Join(home, DirFlights, "demo.yaml"), "name: demo\nqueries: [demo]\n")
+	write(t, filepath.Join(home, DirQueries, "demo.yaml"), "name: demo\ntype: query\nsignal: github\n")
+	write(t, filepath.Join(home, DirFlights, "demo.yaml"), "name: demo\ntype: flight\nqueries: [demo]\n")
 	s, err := LoadDirectivesFromFiles(home)
 	if err != nil {
 		t.Fatalf("a query and a flight may share a name: %v", err)
@@ -601,11 +665,38 @@ func TestNamesCollideOnlyWithinAKind(t *testing.T) {
 
 	clash := t.TempDir()
 	mkdir(t, filepath.Join(clash, DirQueries))
-	mkdir(t, filepath.Join(clash, DirFlights))
+	mkdir(t, filepath.Join(clash, "team"))
 	write(t, filepath.Join(clash, DirQueries, "a.yaml"), "name: dup\ntype: flight\nqueries: [x]\n")
-	write(t, filepath.Join(clash, DirFlights, "b.yaml"), "name: dup\nqueries: [y]\n")
+	write(t, filepath.Join(clash, "team", "b.yaml"), "name: dup\ntype: flight\nqueries: [y]\n")
 	if _, err := LoadDirectivesFromFiles(clash); err == nil {
-		t.Fatal("two flights with the same name should collide across collections")
+		t.Fatal("two flights with the same name should collide across directories")
+	}
+}
+
+func TestValidAndResolveDirectiveArgs(t *testing.T) {
+	if got := ValidDirectives(); !reflect.DeepEqual(got, []string{ConfigDirective, DirectivesDirective, "all"}) {
+		t.Fatalf("ValidDirectives = %v", got)
+	}
+	for _, name := range []string{ConfigDirective, DirectivesDirective, "all"} {
+		got, err := ResolveDirectiveArg(name)
+		if err != nil || got != name {
+			t.Errorf("ResolveDirectiveArg(%q) = %q, %v", name, got, err)
+		}
+	}
+	for _, legacy := range []string{DirQueries, DirFlights, KindRoles} {
+		got, err := ResolveDirectiveArg(legacy)
+		if err != nil {
+			t.Errorf("ResolveDirectiveArg(%q): %v", legacy, err)
+			continue
+		}
+		if got != DirectivesDirective {
+			t.Errorf("ResolveDirectiveArg(%q) = %q, want %q", legacy, got, DirectivesDirective)
+		}
+	}
+	for _, bad := range []string{"filters", "bogus", ""} {
+		if _, err := ResolveDirectiveArg(bad); err == nil {
+			t.Errorf("want error for %q", bad)
+		}
 	}
 }
 
@@ -626,11 +717,13 @@ func TestExpandParamsFromFilterAliases(t *testing.T) {
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "repos.yaml"), `
 name: repos
+type: filter
 aliases:
   REPOS_ALIAS: "repo:org/a repo:org/b"
 `)
 	write(t, filepath.Join(home, DirQueries, "prs.yaml"), `
 name: prs
+type: query
 signal: github
 params:
   query: "is:open is:pr {REPOS_ALIAS} created:(3 days ago)"
@@ -661,6 +754,7 @@ func TestExpandParamsFromOwnAliases(t *testing.T) {
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "prs.yaml"), `
 name: prs
+type: query
 signal: github
 aliases:
   REPOS_ALIAS: "repo:org/a"
@@ -685,26 +779,25 @@ func TestQueryTitleParsesAndFallsBackToName(t *testing.T) {
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "my-open-prs.yaml"), `
 name: my-open-prs
+type: query
 title: Open pull requests
 signal: github
 `)
 	write(t, filepath.Join(home, DirQueries, "standup.yaml"), `
 name: standup
+type: query
 signal: slack
 `)
 
-	blob, _, err := sconfig.SerializeDir(filepath.Join(home, DirQueries))
+	s, err := LoadDirectivesFromFiles(home)
 	if err != nil {
 		t.Fatal(err)
 	}
-	queries, err := ParseQueries(blob)
-	if err != nil {
-		t.Fatal(err)
-	}
+	queries := s.Queries
 
 	titled, ok := queries["my-open-prs"]
 	if !ok {
-		t.Fatalf("my-open-prs missing from %v", queries)
+		t.Fatalf("my-open-prs missing from %v", s.QueryNames())
 	}
 	if titled.Title != "Open pull requests" {
 		t.Errorf("Title = %q, want %q", titled.Title, "Open pull requests")

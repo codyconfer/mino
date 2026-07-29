@@ -67,9 +67,10 @@ Plugin engines appear in list with kind=engine.`,
 			},
 		},
 		&cobra.Command{
-			Use:   "show <name>",
-			Short: "Show a saved filter's rules (or note a plugin engine)",
-			Args:  cobra.ExactArgs(1),
+			Use:               "show <name>",
+			Short:             "Show a saved filter's rules (or note a plugin engine)",
+			Args:              cobra.ExactArgs(1),
+			ValidArgsFunction: completeFilterNames,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				_ = build.KnownSignals()
 				name := args[0]

@@ -109,17 +109,11 @@ func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePo
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	var q, fl, roles []byte
-	if q, err = applyCollectionStage(context.Background(), mgr, resolver, byName[DirQueries]); err != nil {
+	blob, err := applyCollectionStage(context.Background(), mgr, resolver, byName[DirectivesDirective])
+	if err != nil {
 		return nil, nil, nil, err
 	}
-	if fl, err = applyCollectionStage(context.Background(), mgr, resolver, byName[DirFlights]); err != nil {
-		return nil, nil, nil, err
-	}
-	if roles, err = applyCollectionStage(context.Background(), mgr, resolver, byName[KindRoles]); err != nil {
-		return nil, nil, nil, err
-	}
-	directives, err := NewDirectives(q, fl, roles)
+	directives, err := NewDirectives(blob)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -165,18 +159,11 @@ func loadDirectives(mgr *sisyphus.Manager, res *Resolver, home string) (*Directi
 	if mgr == nil {
 		return LoadDirectivesFromFiles(home)
 	}
-	var q, fl, r []byte
-	var err error
-	if q, err = reconcileCollection(mgr, res, home, DirQueries); err != nil {
+	blob, err := reconcileDirectives(mgr, res, home)
+	if err != nil {
 		return nil, err
 	}
-	if fl, err = reconcileCollection(mgr, res, home, DirFlights); err != nil {
-		return nil, err
-	}
-	if r, err = reconcileCollection(mgr, res, home, KindRoles); err != nil {
-		return nil, err
-	}
-	return NewDirectives(q, fl, r)
+	return NewDirectives(blob)
 }
 
 func ReloadDirectives(mgr *sisyphus.Manager, home string, policy ReconcilePolicy) (*Directives, error) {
@@ -198,24 +185,21 @@ func collectStaged(ctx context.Context, mgr *sisyphus.Manager, home, homeOverrid
 	if err != nil {
 		return nil, err
 	}
-	out := make([]stagedDirective, 0, 1+len(CollectionDirectives()))
+	out := make([]stagedDirective, 0, 2)
 	cfgStage, err := stageOne(ctx, mgr, ConfigDirective, raw, format, len(raw) > 0)
 	if err != nil {
 		return nil, err
 	}
 	out = append(out, cfgStage)
-	for _, name := range CollectionDirectives() {
-		blob, has, err := SerializeCollection(home, name)
-		if err != nil {
-			return nil, err
-		}
-		st, err := stageOne(ctx, mgr, name, blob, "collection", has)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, st)
+	blob, has, err := SerializeDirectives(home)
+	if err != nil {
+		return nil, err
 	}
-	return out, nil
+	st, err := stageOne(ctx, mgr, DirectivesDirective, blob, "collection", has)
+	if err != nil {
+		return nil, err
+	}
+	return append(out, st), nil
 }
 
 func stageOne(ctx context.Context, mgr *sisyphus.Manager, name string, content []byte, format string, hasFile bool) (stagedDirective, error) {
@@ -262,12 +246,12 @@ func applyCollectionStage(ctx context.Context, mgr *sisyphus.Manager, res sisyph
 	return eff, err
 }
 
-func reconcileCollection(mgr *sisyphus.Manager, res sisyphus.Resolver, home, name string) ([]byte, error) {
-	blob, has, err := SerializeCollection(home, name)
+func reconcileDirectives(mgr *sisyphus.Manager, res sisyphus.Resolver, home string) ([]byte, error) {
+	blob, has, err := SerializeDirectives(home)
 	if err != nil {
 		return nil, err
 	}
-	eff, _, err := mgr.Reconcile(context.Background(), name, blob, "collection", has, res)
+	eff, _, err := mgr.Reconcile(context.Background(), DirectivesDirective, blob, "collection", has, res)
 	return eff, err
 }
 
@@ -479,6 +463,6 @@ func deleteDirectiveFiles(home, name string) error {
 		_, err := sconfig.RemoveFiles(home, ConfigDirective, nil)
 		return err
 	}
-	_, err := ClearCollection(home, name)
+	_, err := ClearDirectives(home)
 	return err
 }

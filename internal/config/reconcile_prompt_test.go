@@ -11,17 +11,17 @@ import (
 	"github.com/codyconfer/sisyphus/configdb"
 )
 
-func stagedQueries(t *testing.T) sisyphus.Reconciliation {
+func stagedDirectives(t *testing.T) sisyphus.Reconciliation {
 	t.Helper()
 	return sisyphus.Reconciliation{
-		Name:        DirQueries,
+		Name:        DirectivesDirective,
 		FileFormat:  "collection",
-		FileContent: collectionBlob(t, map[string]string{"a.yaml": "name: a\n"}),
+		FileContent: collectionBlob(t, map[string]string{"queries/a.yaml": "name: a\n"}),
 		HasDB:       true,
 		DB: configdb.Version{
 			Hash:    "0123456789abcdef",
 			Format:  "collection",
-			Content: string(collectionBlob(t, map[string]string{"a.yaml": "name: b\n"})),
+			Content: string(collectionBlob(t, map[string]string{"queries/a.yaml": "name: b\n"})),
 		},
 	}
 }
@@ -55,7 +55,7 @@ func TestReconcilePromptChoices(t *testing.T) {
 			}
 			var out bytes.Buffer
 			r := &Resolver{home: home, interactive: true, in: strings.NewReader(tt.input), out: &out}
-			got, err := r.Resolve(stagedQueries(t))
+			got, err := r.Resolve(stagedDirectives(t))
 			if err != nil {
 				t.Fatalf("Resolve: %v", err)
 			}
@@ -74,7 +74,7 @@ func TestReconcilePromptChoices(t *testing.T) {
 
 func TestReconcilePromptDiscardRequiresConfirmation(t *testing.T) {
 	home := t.TempDir()
-	dir := filepath.Join(home, DirQueries)
+	dir := filepath.Join(home, DirQueries, "gh")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestReconcilePromptDiscardRequiresConfirmation(t *testing.T) {
 
 	var out bytes.Buffer
 	r := &Resolver{home: home, interactive: true, in: strings.NewReader("dns"), out: &out}
-	got, err := r.Resolve(stagedQueries(t))
+	got, err := r.Resolve(stagedDirectives(t))
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestReconcilePromptDiscardRequiresConfirmation(t *testing.T) {
 
 	out.Reset()
 	r = &Resolver{home: home, interactive: true, in: strings.NewReader("dy"), out: &out}
-	got, err = r.Resolve(stagedQueries(t))
+	got, err = r.Resolve(stagedDirectives(t))
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
@@ -112,18 +112,14 @@ func TestReconcilePromptDiscardRequiresConfirmation(t *testing.T) {
 
 func TestReconcilePromptAllListsEveryDirectiveOnce(t *testing.T) {
 	recs := []sisyphus.Reconciliation{
-		stagedQueries(t),
 		{
-			Name:        DirFlights,
-			FileFormat:  "collection",
-			FileContent: collectionBlob(t, map[string]string{"f.yaml": "name: f\n"}),
+			Name:        ConfigDirective,
+			FileFormat:  "yaml",
+			FileContent: []byte("output: json\n"),
 			HasDB:       true,
-			DB: configdb.Version{
-				Hash:    "fedcba9876543210",
-				Format:  "collection",
-				Content: string(collectionBlob(t, map[string]string{"f.yaml": "name: g\n"})),
-			},
+			DB:          configdb.Version{Hash: "fedcba9876543210", Format: "yaml", Content: "output: text\n"},
 		},
+		stagedDirectives(t),
 	}
 	var out bytes.Buffer
 	r := &Resolver{interactive: true, in: strings.NewReader("a"), out: &out}
@@ -138,7 +134,7 @@ func TestReconcilePromptAllListsEveryDirectiveOnce(t *testing.T) {
 	if strings.Count(text, "new config changes staged") != 1 {
 		t.Fatalf("want exactly one staged panel, got:\n%s", text)
 	}
-	for _, want := range []string{"queries", "flights", "press"} {
+	for _, want := range []string{ConfigDirective, DirectivesDirective, "queries/a", "press"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("batch prompt missing %q:\n%s", want, text)
 		}
@@ -157,7 +153,7 @@ func TestReconcilePolicySkipsPrompt(t *testing.T) {
 	for _, tt := range tests {
 		var out bytes.Buffer
 		r := &Resolver{policy: tt.policy, interactive: true, in: strings.NewReader(""), out: &out}
-		got, err := r.Resolve(stagedQueries(t))
+		got, err := r.Resolve(stagedDirectives(t))
 		if err != nil {
 			t.Fatalf("Resolve: %v", err)
 		}

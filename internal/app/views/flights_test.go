@@ -152,10 +152,11 @@ func TestFlightEditorSaveWritesFlightFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	flights, err := config.ParseFlights(blob)
+	parsed, err := config.ParseDirectives(blob)
 	if err != nil {
 		t.Fatalf("saved flight does not parse: %v", err)
 	}
+	flights := parsed.Flights
 	if fl := flights["built-flight"]; len(fl.Queries) != 1 || fl.Queries[0] != "q1" {
 		t.Errorf("parsed flight = %#v", fl)
 	}
@@ -187,10 +188,10 @@ func TestFlightEditorSaveRejectsCollisionAndMissingName(t *testing.T) {
 func TestFlightEditorValidateAndDelete(t *testing.T) {
 	kit := testKit(t)
 	fl := config.Flight{Name: "doomed", Queries: []string{"q1"}}
-	if _, err := config.WriteCollectionItem(kit.d.App.Cfg.Home, config.DirFlights, fl.Name, fl); err != nil {
+	if _, _, err := config.SaveDirective(nil, kit.d.App.Cfg.Home, "", config.TypeFlight, fl.Name, fl); err != nil {
 		t.Fatal(err)
 	}
-	kit.d.App.Directives.Flights["doomed"] = fl
+	loadKitDirectives(t, kit)
 	path := filepath.Join(kit.d.App.Cfg.Home, config.DirFlights, "doomed.yaml")
 
 	v := flightFor(t, kit, "doomed")

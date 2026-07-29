@@ -4,6 +4,7 @@
 # Rules are applied in order; an item is kept only if it satisfies every
 # inclusive (include) rule and matches no exclusive (exclude) rule.
 name: no-bots
+type: filter
 rules:
   # Exclusive: drop messages whose author looks like a bot.
   - field: meta.author

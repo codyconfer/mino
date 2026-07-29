@@ -66,6 +66,7 @@ func (p *provider) Current(context.Context) (string, bool, error) {
 }
 
 const ExampleDirective = `name: scaffold-ping
+type: query
 signal: scaffold
 params: {}
 `

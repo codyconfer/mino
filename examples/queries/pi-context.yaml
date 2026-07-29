@@ -1,3 +1,4 @@
 name: pi-context
+type: query
 signal: pi
 params: {}

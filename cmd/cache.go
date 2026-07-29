@@ -9,7 +9,6 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals/build"
 	"github.com/codyconfer/munin/internal/signals/cache"
 )
 
@@ -82,11 +81,4 @@ func cacheClear(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "cleared %d %s from %s\n", n, plural(int(n), "entry", "entries"), label)
 	return nil
-}
-
-func completeCacheSignals(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-	if len(args) != 0 {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	return build.QueryableSignals(), cobra.ShellCompDirectiveNoFileComp
 }

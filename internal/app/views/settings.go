@@ -17,6 +17,7 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
+	"github.com/codyconfer/munin/internal/app/suggest"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/plugin"
@@ -97,11 +98,11 @@ func (k *Kit) setvEditConfigView() vkdeck.View {
 	fields := []forms.Field{
 		{Key: "output", Label: "output", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"terminal", "json"}, c.Output)},
 		{Key: "audit.enabled", Label: "audit.enabled", Kind: forms.FieldToggle, On: c.Audit.Enabled},
-		{Key: "timeout", Label: "timeout", Kind: forms.FieldText, Text: c.Timeout},
-		{Key: "cache.ttl", Label: "cache.ttl", Kind: forms.FieldText, Text: c.Cache.TTL},
+		{Key: "timeout", Label: "timeout", Kind: forms.FieldText, Text: c.Timeout, Suggest: suggest.DurationValues()},
+		{Key: "cache.ttl", Label: "cache.ttl", Kind: forms.FieldText, Text: c.Cache.TTL, Suggest: suggest.DurationValues()},
 		{Key: "backup.destination", Label: "backup.destination", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"local", "gdrive"}, c.Backup.Destination)},
 		{Key: "backup.keep", Label: "backup.keep", Kind: forms.FieldText, Text: strconv.Itoa(c.Backup.Keep)},
-		{Key: "daemon.interval", Label: "daemon.interval", Kind: forms.FieldText, Text: c.Daemon.Interval},
+		{Key: "daemon.interval", Label: "daemon.interval", Kind: forms.FieldText, Text: c.Daemon.Interval, Suggest: suggest.DurationValues()},
 		{Key: "daemon.bell", Label: "daemon.bell", Kind: forms.FieldToggle, On: c.Daemon.Bell},
 		{Key: "daemon.desktop", Label: "daemon.desktop", Kind: forms.FieldToggle, On: c.Daemon.Desktop},
 		{Key: "daemon.theme", Label: "daemon.theme", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"dark", "light"}, c.Daemon.Theme)},

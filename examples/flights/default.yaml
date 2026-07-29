@@ -1,2 +1,3 @@
 name: default
+type: flight
 queries: [my-open-prs, today, unread-mail, recent-docs, slack-standup]

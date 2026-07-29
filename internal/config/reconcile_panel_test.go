@@ -55,25 +55,25 @@ func TestReconcileChoiceFor(t *testing.T) {
 
 func TestChangedSummary(t *testing.T) {
 	rec := sisyphus.Reconciliation{
-		Name:       DirQueries,
+		Name:       DirectivesDirective,
 		FileFormat: "collection",
 		FileContent: collectionBlob(t, map[string]string{
-			"kept.yaml":   "same",
-			"edited.yaml": "new body",
-			"added.yaml":  "brand new",
+			"kept.yaml":           "same",
+			"queries/edited.yaml": "new body",
+			"team/gh/added.yaml":  "brand new",
 		}),
 		HasDB: true,
 		DB: configdb.Version{
 			Format: "collection",
 			Content: string(collectionBlob(t, map[string]string{
-				"kept.yaml":    "same",
-				"edited.yaml":  "old body",
-				"removed.yaml": "gone",
+				"kept.yaml":           "same",
+				"queries/edited.yaml": "old body",
+				"team/removed.yaml":   "gone",
 			})),
 		},
 	}
 	got := changedSummary(rec, 200)
-	for _, want := range []string{"+added", "edited", "-removed"} {
+	for _, want := range []string{"+team/gh/added", "queries/edited", "-team/removed"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("changedSummary = %q, missing %q", got, want)
 		}
@@ -83,13 +83,13 @@ func TestChangedSummary(t *testing.T) {
 	}
 	th := theme.Cur()
 	warn := lipgloss.NewStyle().Foreground(th.NotifWarning.GetForeground())
-	if !strings.Contains(got, th.Can.Render("+added")) {
+	if !strings.Contains(got, th.Can.Render("+team/gh/added")) {
 		t.Errorf("added file should be green (Can):\n%s", got)
 	}
-	if !strings.Contains(got, warn.Render("edited")) {
+	if !strings.Contains(got, warn.Render("queries/edited")) {
 		t.Errorf("changed file should be yellow (Warning):\n%s", got)
 	}
-	if !strings.Contains(got, th.Cant.Render("-removed")) {
+	if !strings.Contains(got, th.Cant.Render("-team/removed")) {
 		t.Errorf("deleted file should be red (Cant):\n%s", got)
 	}
 }
@@ -100,7 +100,7 @@ func TestChangedSummaryTruncates(t *testing.T) {
 		staged[n+".yaml"] = "x"
 	}
 	rec := sisyphus.Reconciliation{
-		Name:        DirQueries,
+		Name:        DirectivesDirective,
 		FileFormat:  "collection",
 		FileContent: collectionBlob(t, staged),
 		HasDB:       true,
@@ -114,14 +114,14 @@ func TestChangedSummaryTruncates(t *testing.T) {
 
 func TestRenderReconcilePanelMentionsEveryChoice(t *testing.T) {
 	rec := sisyphus.Reconciliation{
-		Name:        DirQueries,
+		Name:        DirectivesDirective,
 		FileFormat:  "collection",
-		FileContent: collectionBlob(t, map[string]string{"a.yaml": "one"}),
+		FileContent: collectionBlob(t, map[string]string{"queries/a.yaml": "one"}),
 		HasDB:       true,
 		DB: configdb.Version{
 			Hash:    "abcdef0123456789",
 			Format:  "collection",
-			Content: string(collectionBlob(t, map[string]string{"a.yaml": "two"})),
+			Content: string(collectionBlob(t, map[string]string{"queries/a.yaml": "two"})),
 			At:      time.Date(2026, 7, 24, 13, 52, 0, 0, time.UTC),
 		},
 	}
@@ -150,32 +150,26 @@ func TestRenderReconcileBatchPanelListsAllDirectives(t *testing.T) {
 			DB:          configdb.Version{Hash: "aaaaaaaaaaaaaaaa", Format: "yaml", Content: "output: text\n"},
 		},
 		{
-			Name:        DirQueries,
+			Name:        DirectivesDirective,
 			FileFormat:  "collection",
-			FileContent: collectionBlob(t, map[string]string{"a.yaml": "one"}),
+			FileContent: collectionBlob(t, map[string]string{"queries/a.yaml": "one", "team/b.yaml": "x"}),
 			HasDB:       true,
 			DB: configdb.Version{
 				Hash:    "bbbbbbbbbbbbbbbb",
 				Format:  "collection",
-				Content: string(collectionBlob(t, map[string]string{"a.yaml": "two"})),
-			},
-		},
-		{
-			Name:        DirFlights,
-			FileFormat:  "collection",
-			FileContent: collectionBlob(t, map[string]string{"b.yaml": "x"}),
-			HasDB:       true,
-			DB: configdb.Version{
-				Hash:    "cccccccccccccccc",
-				Format:  "collection",
-				Content: string(collectionBlob(t, map[string]string{"b.yaml": "y"})),
+				Content: string(collectionBlob(t, map[string]string{"queries/a.yaml": "two", "team/b.yaml": "y"})),
 			},
 		},
 	}
 	out := renderReconcileBatchPanel(os.Stderr, recs)
-	for _, want := range []string{"config, queries, flights", "config", "queries", "flights", "write all staged files"} {
+	for _, want := range []string{"config, directives", "queries/a", "team/b", "write all staged files"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("batch panel missing %q:\n%s", want, out)
+		}
+	}
+	for _, gone := range []string{DirQueries + ",", DirFlights + ",", KindRoles + ","} {
+		if strings.Contains(out, gone) {
+			t.Errorf("batch panel still lists a per-collection row %q:\n%s", gone, out)
 		}
 	}
 }

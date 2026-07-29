@@ -1,4 +1,5 @@
 name: triage
+type: role
 # The TUI home screen loads this flight on open.
 home: triage
 # While the triage role is active, only these show up in lists and the TUI.

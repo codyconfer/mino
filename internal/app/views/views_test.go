@@ -45,6 +45,35 @@ func testKit(t *testing.T) *Kit {
 	})
 }
 
+func loadKitDirectives(t *testing.T, kit *Kit) {
+	t.Helper()
+	home := kit.d.App.Cfg.Home
+	cur := kit.d.App.Directives
+	for name, q := range cur.Queries {
+		if cur.Source(q.Kind(), name) != "" {
+			continue
+		}
+		if _, _, err := config.SaveDirective(nil, home, "", q.Kind(), name, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, fl := range cur.Flights {
+		if _, _, err := config.SaveDirective(nil, home, "", config.TypeFlight, name, fl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, rd := range cur.Roles {
+		if _, _, err := config.SaveDirective(nil, home, "", config.TypeRole, name, rd); err != nil {
+			t.Fatal(err)
+		}
+	}
+	directives, err := config.LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kit.d.App.Directives = directives
+}
+
 func TestMenuCtxOmitsDeckAndConditionalRole(t *testing.T) {
 	kit := testKit(t)
 

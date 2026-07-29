@@ -231,10 +231,11 @@ func TestBuilderSaveWritesQueryFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queries, err := config.ParseQueries(blob)
+	parsed, err := config.ParseDirectives(blob)
 	if err != nil {
 		t.Fatalf("saved query does not parse: %v", err)
 	}
+	queries := parsed.Queries
 	if q := queries["built-prs"]; !q.Runnable() {
 		t.Errorf("saved query is not runnable: %#v", q)
 	}
@@ -457,13 +458,14 @@ func TestBuilderSaveRejectsNameCollision(t *testing.T) {
 func TestQueryDeleteRemovesTheFile(t *testing.T) {
 	kit := testKit(t)
 	q := config.Query{Name: "doomed", Signal: "github"}
-	if _, err := config.WriteCollectionItem(kit.d.App.Cfg.Home, config.DirQueries, q.Name, q); err != nil {
+	if _, _, err := config.SaveDirective(nil, kit.d.App.Cfg.Home, "", config.TypeQuery, q.Name, q); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(kit.d.App.Cfg.Home, config.DirQueries, "doomed.yaml")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
 	}
+	loadKitDirectives(t, kit)
 
 	summary := kit.deleteQuery("doomed")
 	if !strings.Contains(summary, "removed") {
@@ -604,10 +606,10 @@ func TestBuilderValidateCatchesProblemsInUnsavedEdits(t *testing.T) {
 func TestBuilderDeleteAsksThenRemoves(t *testing.T) {
 	kit := testKit(t)
 	q := config.Query{Name: "doomed", Signal: "github"}
-	if _, err := config.WriteCollectionItem(kit.d.App.Cfg.Home, config.DirQueries, q.Name, q); err != nil {
+	if _, _, err := config.SaveDirective(nil, kit.d.App.Cfg.Home, "", config.TypeQuery, q.Name, q); err != nil {
 		t.Fatal(err)
 	}
-	kit.d.App.Directives.Queries["doomed"] = q
+	loadKitDirectives(t, kit)
 	path := filepath.Join(kit.d.App.Cfg.Home, config.DirQueries, "doomed.yaml")
 
 	v, _ := kit.QueryEditor("doomed").(*builderView)
@@ -801,7 +803,7 @@ func TestBuilderSavedFilterMatchesWhatTheFormShows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := config.ParseQueries(blob); err != nil {
+	if _, err := config.ParseDirectives(blob); err != nil {
 		t.Fatalf("saved filter does not pass config validation: %v\n%s", err, body)
 	}
 }

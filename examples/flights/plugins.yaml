@@ -1,5 +1,6 @@
 # Smoke flight for external stub plugins + gcx (offline). Enable plugins as needed.
 name: plugins
+type: flight
 queries:
   - gcx-status
   - kubectl-context

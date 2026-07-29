@@ -22,6 +22,7 @@ func newBackupCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&out, "out", ".", "output directory for a local backup")
+	bindFlagCompletion(c, "out", completeDirs)
 	return c
 }
 

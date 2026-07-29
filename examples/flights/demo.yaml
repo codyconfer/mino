@@ -2,4 +2,5 @@
 # Pair with `munin fly demo` / `munin serve demo` / `make run ARGS=demo` (not the default flight).
 # Synthetic toast spam: flight `notify-smoke`.
 name: demo
+type: flight
 queries: [demo, demo-reviews]

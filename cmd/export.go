@@ -31,12 +31,15 @@ func newExportCmd() *cobra.Command {
 		Use:   "export <directive>",
 		Short: "Write a directive's current version from the DuckDB store to files",
 		Long: "Materializes the current version of a directive held in the DuckDB store back\n" +
-			"onto disk. <directive> is one of: config, queries, flights, roles, all.\n" +
-			"config is written as config.yaml/config.json; each collection is written as\n" +
-			"individual files under <out>/<directive>/. Defaults to the munin home directory.\n" +
+			"onto disk. <directive> is one of: config, directives, all.\n" +
+			"config is written as config.yaml/config.json at the root; directives are\n" +
+			"restored at the home-relative paths they were imported from, nesting included,\n" +
+			"creating parent directories as needed. Defaults to the munin home directory.\n" +
+			"queries, flights, and roles are deprecated aliases for directives.\n" +
 			"Secret values in config are masked unless --include-secrets is set.",
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annoReconcile: "ignore"},
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeDirectives,
+		Annotations:       map[string]string{annoReconcile: "ignore"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateDirectiveArg(args[0]); err != nil {
 				return err
@@ -53,6 +56,7 @@ func newExportCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&out, "out", "", "output directory (default: munin home)")
+	bindFlagCompletion(c, "out", completeDirs)
 	c.Flags().BoolVar(&includeSecrets, "include-secrets", false, "write secret values in cleartext (default: masked; cleartext is not safe to share)")
 	return c
 }
@@ -62,12 +66,16 @@ func newImportCmd() *cobra.Command {
 		Use:     "apply [directive]",
 		Aliases: []string{"import"},
 		Short:   "Apply staged config changes: write on-disk files into the DuckDB store",
-		Long: "Reads directive files from the munin home directory and writes them into the\n" +
-			"DuckDB store as a new current version (archiving any prior version). Never\n" +
+		Long: "Reads the root config file and every directive file found anywhere under the\n" +
+			"munin home directory, and writes them into the DuckDB store as a new current\n" +
+			"version (archiving any prior version). Directives are stored keyed by their\n" +
+			"home-relative path, so a later export round-trips the same layout. Never\n" +
 			"prompts, so it is safe in scripts and hooks.\n" +
-			"[directive] is one of: config, queries, flights, roles, all (default all).",
-		Args:        cobra.MaximumNArgs(1),
-		Annotations: map[string]string{annoReconcile: "session"},
+			"[directive] is one of: config, directives, all (default all); queries, flights,\n" +
+			"and roles are deprecated aliases for directives.",
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeDirectives,
+		Annotations:       map[string]string{annoReconcile: "session"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			directive := "all"
 			if len(args) == 1 {

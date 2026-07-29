@@ -60,6 +60,7 @@ func newRootCmd() *cobra.Command {
 				startLaunchLoading()
 			}
 			thin := thinMode(cmd)
+			completing := isCompletion(cmd)
 			a, err := app.Load(app.Options{
 				Home:        flagHome,
 				ConfigFile:  flagConfigFile,
@@ -72,6 +73,7 @@ func newRootCmd() *cobra.Command {
 				Reconcile:   policy,
 				Verbose:     flagVerbose,
 				Thin:        thin,
+				Completion:  completing,
 				Interactive: term.IsTerminal(os.Stdin.Fd()),
 				In:          os.Stdin,
 				Out:         os.Stderr,
@@ -81,6 +83,9 @@ func newRootCmd() *cobra.Command {
 				return err
 			}
 			shared = a
+			if completing {
+				return nil
+			}
 			routeLogs(gateMode(cmd), thin)
 			if err := gate(cmd); err != nil {
 				stopLaunchLoading()
@@ -103,6 +108,7 @@ func newRootCmd() *cobra.Command {
 	pf.BoolVar(&flagRefresh, "refresh", false, "ignore cached signal results but store the fresh ones")
 	pf.StringVar(&flagReconcile, "reconcile", "", "staged config changes: prompt, apply, session, or ignore")
 	pf.BoolVarP(&flagVerbose, "verbose", "v", false, "verbose logging to stderr")
+	bindRootCompletions(root)
 
 	root.AddCommand(
 		newFlyCmd(),

@@ -10,6 +10,7 @@ import (
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 
 	"github.com/codyconfer/munin/internal/app/serve"
+	"github.com/codyconfer/munin/internal/app/suggest"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/render/icons"
@@ -75,6 +76,7 @@ func newServeCmd() *cobra.Command {
 	c.Flags().BoolVar(&bell, "bell", true, "ring the terminal bell on each notification")
 	c.Flags().BoolVar(&desktop, "desktop", false, "send OS desktop notifications (uses per-state icons from <home>/icons/)")
 	c.Flags().StringVar(&theme, "theme", "dark", "icon theme for desktop notifications: dark or light")
+	bindFlagCompletion(c, "theme", completeFlagValues(suggest.Themes))
 	return c
 }
 
