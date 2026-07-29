@@ -28,6 +28,7 @@ type App struct {
 	Cache      *cache.Store
 	Mgr        *sisyphus.Manager
 
+	thin         bool
 	ghAuth       ghAuthCache
 	roleDebounce roleDebounce
 }
@@ -68,6 +69,7 @@ type Options struct {
 	Reconcile   config.ReconcilePolicy
 	Verbose     bool
 	Interactive bool
+	Thin        bool
 	In          io.Reader
 	Out         io.Writer
 }
@@ -77,7 +79,7 @@ func Load(opts Options) (*App, error) {
 	if home, err := config.Home(opts.Home); err == nil {
 		_ = os.Chmod(home, 0o700)
 	}
-	cfg, directives, mgr, err := config.LoadConfigAndDirectives(opts.Home, opts.ConfigFile, opts.Reconcile, opts.Interactive, opts.In, opts.Out)
+	cfg, directives, mgr, err := loadConfig(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -100,13 +102,26 @@ func Load(opts Options) (*App, error) {
 		cfg.Cache.TTL, cfg.Cache.Signals = opts.CacheTTL, nil
 		cfg.Cache.DetailTTL = opts.CacheTTL
 	}
-	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr}
+	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr, thin: opts.Thin}
+	if opts.Thin {
+		return a, nil
+	}
 	a.openCache(cacheMode(opts))
 	a.openTokens()
 	a.openAudit()
 	a.syncRoleLifecycle()
 	return a, nil
 }
+
+func loadConfig(opts Options) (*config.Config, *config.Directives, *sisyphus.Manager, error) {
+	if opts.Thin {
+		cfg, directives, err := config.LoadConfigAndDirectivesFromFiles(opts.Home, opts.ConfigFile)
+		return cfg, directives, nil, err
+	}
+	return config.LoadConfigAndDirectives(opts.Home, opts.ConfigFile, opts.Reconcile, opts.Interactive, opts.In, opts.Out)
+}
+
+func (a *App) Thin() bool { return a != nil && a.thin }
 
 func (a *App) ActivateRole(name string) error {
 	if a == nil || a.Cfg == nil {
@@ -122,7 +137,7 @@ func (a *App) ActivateRole(name string) error {
 }
 
 func (a *App) syncRoleLifecycle() {
-	if a == nil || a.Cfg == nil {
+	if a == nil || a.Cfg == nil || a.thin {
 		return
 	}
 	home := a.Cfg.Home

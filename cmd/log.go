@@ -8,7 +8,7 @@ import (
 	"github.com/codyconfer/munin/internal/log"
 )
 
-func routeLogs(mode string) {
+func routeLogs(mode string, fullScreen bool) {
 	if shared == nil || shared.Cfg == nil {
 		return
 	}
@@ -24,7 +24,7 @@ func routeLogs(mode string) {
 		log.Debugf("log file unavailable: %v", err)
 		return
 	}
-	if mode == "command" || mode == "deck" {
+	if mode == "command" || mode == "deck" || fullScreen {
 		log.ClearConsole()
 	}
 }

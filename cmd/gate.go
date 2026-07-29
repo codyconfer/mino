@@ -18,6 +18,8 @@ import (
 
 const annoGateMode = "munin_gate_mode"
 
+const annoThin = "munin_thin"
+
 const (
 	modeCLI    = string(mode.ModeCLI)
 	modeServe  = string(mode.ModeServe)
@@ -32,6 +34,15 @@ func gateMode(cmd *cobra.Command) string {
 		}
 	}
 	return modeCLI
+}
+
+func thinMode(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if v, ok := c.Annotations[annoThin]; ok && v != "" {
+			return v == "true"
+		}
+	}
+	return false
 }
 
 func gate(cmd *cobra.Command) error {
@@ -65,7 +76,7 @@ func gate(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if m == mode.ModeServe && serveSocketTaken() {
+	if m == mode.ModeServe && !thinMode(cmd) && serveSocketTaken() {
 		gateWarn(cmd, "serve: a munin daemon is already listening; this instance will not own the socket")
 	}
 	return nil

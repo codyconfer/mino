@@ -10,6 +10,7 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/munin/internal/app"
+	"github.com/codyconfer/munin/internal/app/pane"
 	"github.com/codyconfer/munin/internal/app/verify"
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
@@ -22,7 +23,8 @@ import (
 type Finding = verify.Finding
 
 type Deps struct {
-	App *app.App
+	App   *app.App
+	Panes *pane.Manager
 
 	FetchQuery         func(name string) []signals.Section
 	FetchFlightAudited func(name string) []signals.Section
@@ -158,9 +160,24 @@ func (k *Kit) homeFlightName() string {
 
 func (k *Kit) FlightResults(name string) vkdeck.View {
 	ctx := append(k.menuCtx(), [2]string{"flight", name})
-	return deck.NewResults("flight: "+name, name, ctx, func() []signals.Section {
-		return k.d.FetchFlightAudited(name)
+	var held sectionHolder
+	lst := deck.NewResults("flight: "+name, name, ctx, func() []signals.Section {
+		sections := k.d.FetchFlightAudited(name)
+		held.set(sections)
+		return sections
 	}, k.openDetail)
+	return WithPaneSnapshot(lst, func() (pane.Snapshot, bool) {
+		sections := held.get()
+		if len(sections) == 0 {
+			return pane.Snapshot{}, false
+		}
+		return pane.Snapshot{
+			Kind:     pane.KindSections,
+			Title:    "flight: " + name,
+			Origin:   "flight:" + name,
+			Sections: sections,
+		}, true
+	})
 }
 
 func (k *Kit) openDetail(a *vkdeck.Model, ref render.ItemRef) tea.Cmd {

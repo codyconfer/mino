@@ -7,6 +7,9 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	muninterm "github.com/codyconfer/viewkit/term"
+
+	"github.com/codyconfer/munin/internal/app/pane"
 	"github.com/codyconfer/munin/internal/app/statusstrip"
 	"github.com/codyconfer/munin/internal/app/verify"
 	"github.com/codyconfer/munin/internal/app/views"
@@ -15,10 +18,12 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/munin/internal/tmux"
 )
 
 func newDeckCmd() *cobra.Command {
-	return &cobra.Command{
+	var useTmux bool
+	c := &cobra.Command{
 		Use:               "deck [flight]",
 		Aliases:           []string{"tui"},
 		Short:             "Open the cyberpunk TUI (main menu, or a flight directly)",
@@ -40,9 +45,19 @@ func newDeckCmd() *cobra.Command {
 					return errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix())
 				}
 			}
+			if useTmux && !tmux.Inside() {
+				stopLaunchLoading()
+				return launchTmuxDeck(args)
+			}
+			panes, err := deckPanes(useTmux, name)
+			if err != nil {
+				return err
+			}
+			defer panes.CloseAll()
+
 			stopServe := ensureServeProvider(cmd.Context(), name)
 			defer stopServe()
-			kit := buildViews()
+			kit := buildViewsWithPanes(panes)
 			stopLaunchLoading()
 			opts := []deck.Option{
 				deck.WithStatus(statusProvider()),
@@ -55,11 +70,45 @@ func newDeckCmd() *cobra.Command {
 			return deck.Run(kit.Home(), opts...)
 		},
 	}
+	c.Flags().BoolVar(&useTmux, "tmux", false, "open the deck inside a tmux session so it can split off auxiliary panes")
+	return c
 }
 
-func buildViews() *views.Kit {
+func launchTmuxDeck(args []string) error {
+	if !tmux.Available() {
+		return errs.New(errs.KindUsage, "--tmux needs tmux on PATH").
+			WithHint("install tmux, or run `munin deck` without --tmux")
+	}
+	self, err := muninterm.Self()
+	if err != nil {
+		return errs.Wrap(errs.KindInternal, err, "locate munin binary")
+	}
+	argv := append([]string{"deck"}, args...)
+	argv = append(argv, "--tmux")
+	if flagHome != "" {
+		argv = append(argv, "--home", flagHome)
+	}
+	return tmux.Launch(self, argv)
+}
+
+func deckPanes(useTmux bool, flight string) (*pane.Manager, error) {
+	if !useTmux {
+		return nil, nil
+	}
+	if !tmux.Available() {
+		return nil, errs.New(errs.KindUsage, "--tmux needs tmux on PATH").
+			WithHint("install tmux, or run `munin deck` without --tmux")
+	}
+	pane.CleanupSnapshots(shared.Cfg.Home)
+	return pane.NewManager(shared.Cfg.Home, flight)
+}
+
+func buildViews() *views.Kit { return buildViewsWithPanes(nil) }
+
+func buildViewsWithPanes(panes *pane.Manager) *views.Kit {
 	return views.New(views.Deps{
 		App:                shared,
+		Panes:              panes,
 		FetchQuery:         fetchQuerySections,
 		FetchFlightAudited: fetchFlightAuditedSections,
 		FetchHomeFlight:    fetchHomeFlightSections,

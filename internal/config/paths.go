@@ -12,6 +12,7 @@ import (
 
 const (
 	DirData  = ".data"
+	DirPanes = "panes"
 	ConfigDB = "config.duckdb"
 	AuditDB  = "audit.duckdb"
 	TokensDB = "tokens.duckdb"
@@ -27,6 +28,8 @@ const (
 func ServeSocketPath(home string) string { return filepath.Join(home, ServeSocket) }
 
 func DataDir(home string) string { return filepath.Join(home, DirData) }
+
+func PanesDir(home string) string { return filepath.Join(DataDir(home), DirPanes) }
 
 func DataPath(home, name string) string {
 	dir := DataDir(home)

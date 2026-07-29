@@ -61,6 +61,52 @@ func TestServeIsCoreAndDaemonIsOptional(t *testing.T) {
 	}
 }
 
+func TestPaneIsHiddenAndThin(t *testing.T) {
+	root := Root()
+	p := findCmd(root, "pane")
+	if p == nil {
+		t.Fatal("missing top-level command \"pane\"")
+	}
+	if !p.Hidden {
+		t.Error("pane is an internal helper and must stay hidden")
+	}
+	for _, sub := range []string{"inbox", "view"} {
+		c := findCmd(p, sub)
+		if c == nil {
+			t.Fatalf("pane missing subcommand %q", sub)
+		}
+		if !thinMode(c) {
+			t.Errorf("pane %s must run thin so it never opens a DuckDB file", sub)
+		}
+		if got := gateMode(c); got != modeServe {
+			t.Errorf("gateMode(pane %s) = %q, want %q (never the CLI guided-auth path)", sub, got, modeServe)
+		}
+	}
+}
+
+func TestThinModeDefaultsOff(t *testing.T) {
+	root := Root()
+	for _, name := range []string{"deck", "fly", "serve"} {
+		c := findCmd(root, name)
+		if c == nil {
+			t.Fatalf("no command %q", name)
+		}
+		if thinMode(c) {
+			t.Errorf("%s must not be thin; it owns the DBs", name)
+		}
+	}
+}
+
+func TestDeckHasTmuxFlag(t *testing.T) {
+	deck := findCmd(Root(), "deck")
+	if deck == nil {
+		t.Fatal("no deck command")
+	}
+	if deck.Flags().Lookup("tmux") == nil {
+		t.Error("deck should expose --tmux")
+	}
+}
+
 func TestGateMode(t *testing.T) {
 	root := Root()
 	want := map[string]string{

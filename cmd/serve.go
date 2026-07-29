@@ -79,7 +79,21 @@ func newServeCmd() *cobra.Command {
 }
 
 func ensureServeProvider(ctx context.Context, flight string) (stop func()) {
-	return serveServer().EnsureLiveProvider(ctx, flight)
+	return serveServer().EnsureLiveProvider(ctx, flight, selfServeArgs()...)
+}
+
+func selfServeArgs() []string {
+	var args []string
+	if flagHome != "" {
+		args = append(args, "--home", flagHome)
+	}
+	if flagConfigFile != "" {
+		args = append(args, "--config", flagConfigFile)
+	}
+	if flagRole != "" {
+		args = append(args, "--role", flagRole)
+	}
+	return args
 }
 
 func serveSocketTaken() bool {

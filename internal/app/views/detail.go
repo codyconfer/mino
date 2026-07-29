@@ -9,6 +9,7 @@ import (
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
+	"github.com/codyconfer/munin/internal/app/pane"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/signals"
@@ -133,6 +134,22 @@ func (v *DetailView) Hints() [][2]string {
 		hints = append(hints, km.HintLabeled(keys.Open, "open"))
 	}
 	return hints
+}
+
+func (v *DetailView) PaneSnapshot() (pane.Snapshot, bool) {
+	if v.detail == nil {
+		return pane.Snapshot{}, false
+	}
+	item := v.ref.Item
+	return pane.Snapshot{
+		Kind:   pane.KindDetail,
+		Title:  render.ItemLabel(v.ref.Item),
+		Origin: v.ref.Signal,
+		Signal: v.ref.Signal,
+		Item:   &item,
+		Meta:   v.ref.Meta,
+		Detail: v.detail,
+	}, true
 }
 
 func (v *DetailView) Context() [][2]string {

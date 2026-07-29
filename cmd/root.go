@@ -59,6 +59,7 @@ func newRootCmd() *cobra.Command {
 			if wantsLaunchLoading(cmd) {
 				startLaunchLoading()
 			}
+			thin := thinMode(cmd)
 			a, err := app.Load(app.Options{
 				Home:        flagHome,
 				ConfigFile:  flagConfigFile,
@@ -70,6 +71,7 @@ func newRootCmd() *cobra.Command {
 				Refresh:     flagRefresh,
 				Reconcile:   policy,
 				Verbose:     flagVerbose,
+				Thin:        thin,
 				Interactive: term.IsTerminal(os.Stdin.Fd()),
 				In:          os.Stdin,
 				Out:         os.Stderr,
@@ -79,7 +81,7 @@ func newRootCmd() *cobra.Command {
 				return err
 			}
 			shared = a
-			routeLogs(gateMode(cmd))
+			routeLogs(gateMode(cmd), thin)
 			if err := gate(cmd); err != nil {
 				stopLaunchLoading()
 				return err
@@ -137,6 +139,7 @@ func newRootCmd() *cobra.Command {
 		newTasksCmd(),
 		newSlackCmd(),
 		newServeCmd(),
+		newPaneCmd(),
 	)
 	root.AddCommand(registered()...)
 	return root

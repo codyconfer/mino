@@ -10,6 +10,10 @@ const (
 	TargetRemindNew = "ntr.remind.new"
 	TargetRoleNext  = "role.next"
 	TargetRolePrev  = "role.prev"
+	TargetPaneInbox = "pane.inbox"
+	TargetPanePop   = "pane.pop"
+	TargetPaneShell = "pane.shell"
+	TargetPaneClose = "pane.close"
 	flightPrefix    = "flight:"
 )
 
@@ -19,7 +23,8 @@ func FlightTarget(target string) (name string, ok bool) {
 		return "", false
 	}
 	switch target {
-	case TargetNoteNew, TargetTaskNew, TargetRemindNew, TargetRoleNext, TargetRolePrev:
+	case TargetNoteNew, TargetTaskNew, TargetRemindNew, TargetRoleNext, TargetRolePrev,
+		TargetPaneInbox, TargetPanePop, TargetPaneShell, TargetPaneClose:
 		return "", false
 	}
 	if strings.HasPrefix(target, flightPrefix) {

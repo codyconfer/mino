@@ -85,11 +85,7 @@ func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePo
 	}
 
 	if mgr == nil {
-		cfg, err := Load(homeOverride)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		directives, err := LoadDirectivesFromFiles(home)
+		cfg, directives, err := loadFromFiles(homeOverride, home)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -128,6 +124,41 @@ func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePo
 		return nil, nil, nil, err
 	}
 	return cfg, directives, mgr, nil
+}
+
+func loadFromFiles(homeOverride, home string) (*Config, *Directives, error) {
+	cfg, err := Load(homeOverride)
+	if err != nil {
+		return nil, nil, err
+	}
+	directives, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cfg, directives, nil
+}
+
+func LoadConfigAndDirectivesFromFiles(homeOverride, configFile string) (*Config, *Directives, error) {
+	home, err := Home(homeOverride)
+	if err != nil {
+		return nil, nil, err
+	}
+	if configFile == "" {
+		return loadFromFiles(homeOverride, home)
+	}
+	raw, format, err := sconfig.ReadFileAt(configFile)
+	if err != nil {
+		return nil, nil, err
+	}
+	cfg, err := ParseConfig(home, raw, format)
+	if err != nil {
+		return nil, nil, err
+	}
+	directives, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cfg, directives, nil
 }
 
 func loadDirectives(mgr *sisyphus.Manager, res *Resolver, home string) (*Directives, error) {

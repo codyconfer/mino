@@ -1,0 +1,241 @@
+package pane
+
+import (
+	"os"
+	"path/filepath"
+	"strconv"
+	"sync"
+
+	muninterm "github.com/codyconfer/viewkit/term"
+	"github.com/codyconfer/viewkit/theme"
+
+	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/munin/internal/tmux"
+)
+
+const (
+	inboxPercent  = 40
+	detailPercent = 50
+	shellPercent  = 30
+	splitDivider  = 1
+)
+
+func (m *Manager) layoutFor(percent int) (horizontal bool, size int) {
+	width, height, ok := tmux.PaneSize(m.own)
+	if !ok {
+		return false, percent
+	}
+	if side := width*percent/100 - splitDivider; side >= theme.MinScreenWidth &&
+		width-side-splitDivider >= theme.MinScreenWidth {
+		return true, side
+	}
+	return false, max(height*percent/100, 1)
+}
+
+type tracked struct {
+	id       tmux.PaneID
+	snapshot string
+}
+
+type Manager struct {
+	home   string
+	flight string
+	self   string
+	own    tmux.PaneID
+	env    []string
+
+	mu    sync.Mutex
+	panes []tracked
+	seq   int
+}
+
+func NewManager(home, flight string) (*Manager, error) {
+	if !tmux.Inside() {
+		return nil, errs.New(errs.KindInternal, "pane manager requires a tmux session")
+	}
+	self, err := muninterm.Self()
+	if err != nil {
+		return nil, errs.Wrap(errs.KindInternal, err, "locate munin binary")
+	}
+	return &Manager{
+		home:   home,
+		flight: flight,
+		self:   self,
+		own:    tmux.SelfPane(),
+		env:    []string{OwnerEnv + "=" + strconv.Itoa(os.Getpid())},
+	}, nil
+}
+
+func (m *Manager) OpenInbox() error {
+	argv := []string{m.self, "pane", "inbox"}
+	if m.flight != "" {
+		argv = append(argv, m.flight)
+	}
+	argv = m.withHome(argv)
+	horizontal, size := m.layoutFor(inboxPercent)
+	return m.split(tmux.SplitOpts{
+		Target:     m.own,
+		Horizontal: horizontal,
+		Size:       size,
+		Title:      "munin inbox",
+		Env:        m.env,
+		Argv:       argv,
+	}, "")
+}
+
+func (m *Manager) OpenSnapshot(s Snapshot) error {
+	m.mu.Lock()
+	m.seq++
+	id := strconv.Itoa(os.Getpid()) + "-" + strconv.Itoa(m.seq)
+	m.mu.Unlock()
+
+	path := SnapshotPath(m.home, id)
+	if err := WriteSnapshot(path, s); err != nil {
+		return err
+	}
+	title := s.Title
+	if title == "" {
+		title = "munin pane"
+	}
+	horizontal, size := m.layoutFor(detailPercent)
+	err := m.split(tmux.SplitOpts{
+		Target:     m.own,
+		Horizontal: horizontal,
+		Size:       size,
+		Title:      title,
+		Env:        m.env,
+		Argv:       m.withHome([]string{m.self, "pane", "view", path}),
+	}, path)
+	if err != nil {
+		_ = os.Remove(path)
+	}
+	return err
+}
+
+func (m *Manager) OpenShell() error {
+	sh := os.Getenv("SHELL")
+	if sh == "" {
+		sh = "/bin/sh"
+	}
+	_, height, ok := tmux.PaneSize(m.own)
+	size := shellPercent
+	if ok {
+		size = max(height*shellPercent/100, 1)
+	}
+	return m.split(tmux.SplitOpts{
+		Target:     m.own,
+		Horizontal: false,
+		Size:       size,
+		Title:      "shell",
+		Argv:       []string{sh},
+	}, "")
+}
+
+func (m *Manager) Refresh(id tmux.PaneID, s Snapshot) error {
+	m.mu.Lock()
+	var path string
+	for _, p := range m.panes {
+		if p.id == id {
+			path = p.snapshot
+			break
+		}
+	}
+	m.mu.Unlock()
+	if path == "" {
+		return errs.Newf(errs.KindInternal, "pane %s has no snapshot", id)
+	}
+	return WriteSnapshot(path, s)
+}
+
+func (m *Manager) CloseLast() error {
+	m.prune()
+	m.mu.Lock()
+	if len(m.panes) == 0 {
+		m.mu.Unlock()
+		return nil
+	}
+	last := m.panes[len(m.panes)-1]
+	m.panes = m.panes[:len(m.panes)-1]
+	m.mu.Unlock()
+	return m.discard(last)
+}
+
+func (m *Manager) CloseAll() {
+	m.mu.Lock()
+	panes := m.panes
+	m.panes = nil
+	m.mu.Unlock()
+	for _, p := range panes {
+		if err := m.discard(p); err != nil {
+			log.Debugf("pane: close %s: %v", p.id, err)
+		}
+	}
+}
+
+func (m *Manager) Count() int {
+	m.prune()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.panes)
+}
+
+func (m *Manager) split(o tmux.SplitOpts, snapshot string) error {
+	m.prune()
+	id, err := tmux.Split(o)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.panes = append(m.panes, tracked{id: id, snapshot: snapshot})
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *Manager) discard(p tracked) error {
+	if p.snapshot != "" {
+		_ = os.Remove(p.snapshot)
+	}
+	return tmux.Kill(p.id)
+}
+
+func (m *Manager) prune() {
+	m.mu.Lock()
+	kept := m.panes[:0]
+	var gone []tracked
+	for _, p := range m.panes {
+		if tmux.Exists(p.id) {
+			kept = append(kept, p)
+			continue
+		}
+		gone = append(gone, p)
+	}
+	m.panes = kept
+	m.mu.Unlock()
+	for _, p := range gone {
+		if p.snapshot != "" {
+			_ = os.Remove(p.snapshot)
+		}
+	}
+}
+
+func (m *Manager) withHome(argv []string) []string {
+	if m.home == "" {
+		return argv
+	}
+	return append(argv, "--home", m.home)
+}
+
+func CleanupSnapshots(home string) {
+	dir := config.PanesDir(home)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+}

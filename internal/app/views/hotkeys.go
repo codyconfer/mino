@@ -10,6 +10,7 @@ import (
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/keymap"
+	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/plugin/ntr"
 )
 
@@ -67,6 +68,8 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 		return k.cycleRoleCmd(1)
 	case keymap.TargetRolePrev:
 		return k.cycleRoleCmd(-1)
+	case keymap.TargetPaneInbox, keymap.TargetPanePop, keymap.TargetPaneShell, keymap.TargetPaneClose:
+		return k.paneCmd(m, target)
 	}
 	name, ok := keymap.FlightTarget(target)
 	if !ok || k.d.App == nil || k.d.App.Directives == nil {
@@ -76,6 +79,41 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 		return nil
 	}
 	return m.Push(k.FlightResults(name))
+}
+
+func (k *Kit) paneCmd(m *vkdeck.Model, target string) tea.Cmd {
+	if k.d.Panes == nil {
+		return nil
+	}
+	panes := k.d.Panes
+	switch target {
+	case keymap.TargetPaneInbox:
+		return paneAction(panes.OpenInbox)
+	case keymap.TargetPaneShell:
+		return paneAction(panes.OpenShell)
+	case keymap.TargetPaneClose:
+		return paneAction(panes.CloseLast)
+	case keymap.TargetPanePop:
+		src, ok := m.Top().(PaneSource)
+		if !ok {
+			return nil
+		}
+		snap, ok := src.PaneSnapshot()
+		if !ok {
+			return nil
+		}
+		return paneAction(func() error { return panes.OpenSnapshot(snap) })
+	}
+	return nil
+}
+
+func paneAction(fn func() error) tea.Cmd {
+	return func() tea.Msg {
+		if err := fn(); err != nil {
+			log.Warnf("pane: %v", err)
+		}
+		return nil
+	}
 }
 
 func (k *Kit) cycleRoleCmd(delta int) tea.Cmd {
