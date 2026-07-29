@@ -145,7 +145,7 @@ func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
 	}
 	tail := lastCommentChip(th, it)
 	_, hasAge := lastCommentTime(it)
-	if !it.Timestamp.IsZero() && !(tail != "" && hasAge) {
+	if !it.Timestamp.IsZero() && (tail == "" || !hasAge) {
 		if tail != "" {
 			tail += "  "
 		}
