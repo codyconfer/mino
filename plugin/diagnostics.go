@@ -53,6 +53,12 @@ func noteDiagnostic(d Diagnostic) {
 	diags = append(diags, d)
 }
 
+func ResetDiagnostics() {
+	diagMu.Lock()
+	diags = nil
+	diagMu.Unlock()
+}
+
 func Diagnostics() []Diagnostic {
 	diagMu.RLock()
 	out := make([]Diagnostic, len(diags))

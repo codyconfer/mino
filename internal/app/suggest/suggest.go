@@ -58,6 +58,23 @@ func DetailSignals() []string {
 	return build.DetailSignals()
 }
 
+func ActionSignals() []string {
+	_ = build.KnownSignals()
+	var out []string
+	seen := map[string]bool{}
+	for _, d := range plugin.All() {
+		if d.Kind != plugin.KindSignal || d.Signal == "" || seen[d.Signal] {
+			continue
+		}
+		seen[d.Signal] = true
+		if plugin.HasCapability(d.Signal, plugin.CapAction) {
+			out = append(out, d.Signal)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 func ActionNames(signal string) []string {
 	_ = build.KnownSignals()
 	var out []string

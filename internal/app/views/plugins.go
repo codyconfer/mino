@@ -45,6 +45,8 @@ type pluginRow struct {
 	id      string
 	enabled bool
 	desc    string
+	problem string
+	orphan  bool
 	hue     int
 }
 
@@ -67,6 +69,10 @@ func (k *Kit) Plugins() vkdeck.View {
 
 func (p *pluginsPage) reload() {
 	listed := plugin.ListInstalled()
+	known := make(map[string]bool, len(listed))
+	for _, row := range listed {
+		known[row.ID] = true
+	}
 	p.rows = make([]pluginRow, 0, len(listed))
 	for i, row := range listed {
 		d, _ := plugin.Lookup(row.ID)
@@ -92,12 +98,86 @@ func (p *pluginsPage) reload() {
 			id:      row.ID,
 			enabled: row.Enabled,
 			desc:    desc,
+			problem: diagnosticSummary(plugin.DiagnosticsFor(row.ID)),
 			hue:     i,
 		})
 	}
+	p.rows = append(p.rows, orphanDiagnosticRows(known, len(p.rows))...)
 	if p.cursor >= len(p.rows) {
 		p.cursor = max(len(p.rows)-1, 0)
 	}
+	if len(p.rows) > 0 && p.rows[p.cursor].orphan {
+		p.cursor = p.nextSelectable(p.cursor, 1)
+	}
+}
+
+func diagnosticSummary(diags []plugin.Diagnostic) string {
+	if len(diags) == 0 {
+		return ""
+	}
+	msgs := make([]string, 0, len(diags))
+	for _, d := range diags {
+		msg := d.Message
+		if d.Kind != "" && d.Ref != "" {
+			msg = fmt.Sprintf("%s %q: %s", d.Kind, d.Ref, d.Message)
+		}
+		msgs = append(msgs, msg)
+	}
+	return strings.Join(msgs, "; ")
+}
+
+func orphanDiagnosticRows(known map[string]bool, hue int) []pluginRow {
+	grouped := map[string][]plugin.Diagnostic{}
+	var order []string
+	for _, d := range plugin.Diagnostics() {
+		if known[d.PluginID] {
+			continue
+		}
+		id := d.PluginID
+		if id == "" {
+			id = "<unidentified plugin>"
+		}
+		if _, seen := grouped[id]; !seen {
+			order = append(order, id)
+		}
+		grouped[id] = append(grouped[id], d)
+	}
+	out := make([]pluginRow, 0, len(order))
+	for i, id := range order {
+		out = append(out, pluginRow{
+			id:      id,
+			desc:    "not registered",
+			problem: diagnosticSummary(grouped[id]),
+			orphan:  true,
+			hue:     hue + i,
+		})
+	}
+	return out
+}
+
+func (p *pluginsPage) nextSelectable(from, step int) int {
+	for i := from + step; i >= 0 && i < len(p.rows); i += step {
+		if !p.rows[i].orphan {
+			return i
+		}
+	}
+	for i := from; i >= 0 && i < len(p.rows); i -= step {
+		if !p.rows[i].orphan {
+			return i
+		}
+	}
+	return from
+}
+
+func (p *pluginsPage) selected() (pluginRow, bool) {
+	if len(p.rows) == 0 || p.cursor < 0 || p.cursor >= len(p.rows) {
+		return pluginRow{}, false
+	}
+	row := p.rows[p.cursor]
+	if row.orphan {
+		return pluginRow{}, false
+	}
+	return row, true
 }
 
 func (p *pluginsPage) Title() string        { return "plugins" }
@@ -113,7 +193,7 @@ func (p *pluginsPage) Hints() [][2]string {
 		{"enter/d", "enable/disable"},
 		{"i", "install…"},
 	}
-	if len(p.rows) > 0 && !plugin.IsInternal(p.rows[p.cursor].id) {
+	if row, ok := p.selected(); ok && !plugin.IsInternal(row.id) {
 		hints = append(hints, [2]string{"u", "uninstall"})
 	}
 	return append(hints, [2]string{"esc", "back"})
@@ -153,17 +233,17 @@ func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		switch act {
 		case keys.Up:
 			if p.cursor > 0 {
-				p.cursor--
+				p.cursor = p.nextSelectable(p.cursor, -1)
 			}
 		case keys.Down:
 			if p.cursor < len(p.rows)-1 {
-				p.cursor++
+				p.cursor = p.nextSelectable(p.cursor, 1)
 			}
 		case keys.Confirm:
-			if len(p.rows) == 0 {
+			row, ok := p.selected()
+			if !ok {
 				return nil
 			}
-			row := p.rows[p.cursor]
 			id, on := row.id, !row.enabled
 			return func() tea.Msg {
 				err := plugin.SetEnabled(id, on)
@@ -172,14 +252,11 @@ func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		case keymap.PluginInstall:
 			return a.Push(p.kit.pluginsInstallPicker())
 		case keymap.PluginUninstall:
-			if len(p.rows) == 0 {
+			row, ok := p.selected()
+			if !ok || plugin.IsInternal(row.id) {
 				return nil
 			}
-			id := p.rows[p.cursor].id
-			if plugin.IsInternal(id) {
-				return nil
-			}
-			p.ask(id)
+			p.ask(row.id)
 			return nil
 		case keys.Cancel:
 			return a.Pop()
@@ -289,24 +366,37 @@ func (p *pluginsPage) Body(width, _ int) string {
 		return p.overlay(p.toast.Body(body, width), width)
 	}
 	lines := make([]string, 0, len(p.rows))
+	cursorLine := 0
 	for i, row := range p.rows {
+		if i == p.cursor {
+			cursorLine = len(lines)
+		}
 		cursor := "  "
 		label := th.Val.Render(row.id)
 		if i == p.cursor {
 			cursor = th.Key.Render("▸ ")
 			label = th.Key.Render(row.id)
 		}
-		icon := glyph.Cross()
-		if row.enabled {
-			icon = glyph.Check()
+		var line string
+		switch {
+		case row.orphan:
+			line = "  " + th.Cant.Render(glyph.Warn()+" "+row.id)
+		default:
+			icon := glyph.Cross()
+			if row.enabled {
+				icon = glyph.Check()
+			}
+			line = cursor + theme.Icon(icon, row.hue) + label
 		}
-		line := cursor + theme.Icon(icon, row.hue) + label
 		if row.desc != "" {
 			line = f.Spread(line, th.Dim.Render(row.desc))
 		}
 		lines = append(lines, line)
+		if row.problem != "" {
+			lines = append(lines, "    "+th.Cant.Render(glyph.Warn()+" "+row.problem))
+		}
 	}
-	lines = layout.CursorRows(lines, p.cursor, 0)
+	lines = layout.CursorRows(lines, cursorLine, 0)
 	body := f.TitledBox(strings.ToUpper(p.Title()), lines...)
 	return p.overlay(p.toast.Body(body, width), width)
 }

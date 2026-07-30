@@ -25,7 +25,7 @@ func newActionListCmd() *cobra.Command {
 		Use:               "list [signal]",
 		Short:             "List registered actions (optionally for one signal)",
 		Args:              cobra.MaximumNArgs(1),
-		ValidArgsFunction: completeCacheSignals,
+		ValidArgsFunction: completeActionSignals,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
 			out := cmd.OutOrStdout()

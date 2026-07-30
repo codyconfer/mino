@@ -228,10 +228,10 @@ func searchMeta(resp searchResponse, title string) map[string]string {
 		meta["total"] = strconv.Itoa(resp.TotalCount)
 	}
 	if resp.TotalCount > len(resp.Items) {
-		meta["more"] = strconv.Itoa(resp.TotalCount - len(resp.Items))
+		meta[signals.MetaMore] = strconv.Itoa(resp.TotalCount - len(resp.Items))
 	}
 	if resp.IncompleteResults {
-		meta["truncated"] = "true"
+		meta[signals.MetaTruncated] = "true"
 		meta["truncated_reason"] = "github's search backend timed out; these results are incomplete"
 		log.Debugf("github: search %q returned incomplete results (%d of %d)", title, len(resp.Items), resp.TotalCount)
 	}

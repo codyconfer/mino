@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -16,7 +17,8 @@ const (
 	maxItemText   = 8 << 10
 	maxMetaValue  = 2 << 10
 	maxLabelText  = 1 << 10
-	truncatedKey  = "munin.truncated"
+	truncatedKey  = signals.MetaWireTruncated
+	moreKey       = signals.MetaMore
 )
 
 type WireEvent struct {
@@ -64,7 +66,7 @@ func boundEvent(ev signals.Event, size int) signals.Event {
 	for {
 		out := ev
 		out.Section.Items = items
-		out.Section.Meta = withNote(ev.Section.Meta, frameNote(size, total, dropped, clipped))
+		out.Section.Meta = withNote(ev.Section.Meta, frameNote(size, total, dropped, clipped), dropped)
 		b, err := encodeEvent(out)
 		if err == nil && len(b) <= MaxFrameBytes {
 			return out
@@ -85,7 +87,7 @@ func diagnosticEvent(ev signals.Event, size, total int) signals.Event {
 	out.Section = signals.Section{
 		Signal: clip(ev.Section.Signal, maxLabelText, &clipped),
 		Title:  clip(ev.Section.Title, maxLabelText, &clipped),
-		Meta:   map[string]string{truncatedKey: frameNote(size, total, total, true)},
+		Meta:   withNote(nil, frameNote(size, total, total, true), total),
 	}
 	if ev.Section.Err != nil {
 		out.Section.Err = errors.New(clip(ev.Section.Err.Error(), maxItemText, &clipped))
@@ -102,12 +104,15 @@ func frameNote(size, total, dropped int, clipped bool) string {
 	return note
 }
 
-func withNote(meta map[string]string, note string) map[string]string {
-	out := make(map[string]string, len(meta)+1)
+func withNote(meta map[string]string, note string, dropped int) map[string]string {
+	out := make(map[string]string, len(meta)+2)
 	for k, v := range meta {
 		out[k] = v
 	}
 	out[truncatedKey] = note
+	if dropped > 0 && out[moreKey] == "" {
+		out[moreKey] = strconv.Itoa(dropped)
+	}
 	return out
 }
 

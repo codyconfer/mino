@@ -43,6 +43,8 @@ func CompleteFlights(c *cobra.Command, args []string, toComplete string) ([]stri
 
 func ServeInterval() time.Duration { return configServeInterval() }
 
+func CheckServeInterval(fromFlag bool, d time.Duration) error { return checkServeInterval(fromFlag, d) }
+
 func ServeTheme() string { return configServeTheme() }
 
 func StartLoading() { startLaunchLoading() }

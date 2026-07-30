@@ -8,6 +8,7 @@ import (
 	sconfig "github.com/codyconfer/sisyphus/config"
 
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/log"
 )
 
 const (
@@ -153,11 +154,17 @@ func ConfigFilePath(homeOverride string) (string, error) {
 func ParseConfig(home string, raw []byte, format string) (*Config, error) {
 	cfg := Defaults()
 	cfg.Home = home
-	if err := sconfig.ParseInto(cfg, raw, format, envPrefix); err != nil {
+	if err := sconfig.ParseInto(cfg, raw, format, envPrefix, sconfig.WithEnvSectionWarning(warnEnvSection)); err != nil {
 		return nil, errs.Wrapf(errs.KindConfig, err, "parse config")
 	}
 	cfg.Home = home
 	return cfg, nil
+}
+
+func warnEnvSection(name string, section []string) {
+	path := strings.Join(section, ".")
+	log.Warnf("config: %s is ignored: %s is a config section, not a single value", name, path)
+	log.Warnf("config: set a leaf instead, e.g. %s_<KEY> for a key under %s", name, path)
 }
 
 func Load(homeOverride string) (*Config, error) {

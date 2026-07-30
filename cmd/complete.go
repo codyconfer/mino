@@ -65,8 +65,8 @@ func completeSignalNames(cmd *cobra.Command, args []string, toComplete string) (
 	return completeFlagValues(suggest.Signals)(cmd, args, toComplete)
 }
 
-func completeCacheSignals(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	return completeNames(suggest.Signals)(cmd, args, toComplete)
+func completeActionSignals(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeNames(suggest.ActionSignals)(cmd, args, toComplete)
 }
 
 func completeListKinds(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -96,7 +96,7 @@ func completeDetailSignals(cmd *cobra.Command, args []string, toComplete string)
 func completeActionRun(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	switch len(args) {
 	case 0:
-		return suggest.Signals(), cobra.ShellCompDirectiveNoFileComp
+		return suggest.ActionSignals(), cobra.ShellCompDirectiveNoFileComp
 	case 1:
 		return suggest.ActionNames(args[0]), cobra.ShellCompDirectiveNoFileComp
 	}

@@ -78,8 +78,12 @@ func TestCompleteActionRunIsPositionAware(t *testing.T) {
 	_ = build.KnownSignals()
 
 	first := names(t, completeActionRun)
-	if !slices.Contains(first, "github") {
-		t.Fatalf("first arg should offer signals, got %v", first)
+	if !slices.Contains(first, "tasks") {
+		t.Fatalf("first arg should offer action-capable signals, got %v", first)
+	}
+	if slices.Contains(first, "github") {
+		t.Fatalf("first arg offered github, which registers no actions at all, so `action run github <name>` "+
+			"can only fail with \"has no CapAction\"; got %v", first)
 	}
 	if got := names(t, completeActionRun, "not-a-signal"); len(got) != 0 {
 		t.Fatalf("got %v, want none", got)

@@ -43,8 +43,6 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 	return rows
 }
 
-const wireTruncatedKey = "munin.truncated"
-
 func staleChip(th *theme.Theme, s signals.Section) string {
 	return staleCue(th, s.Meta) + truncationCue(th, s.Meta)
 }
@@ -53,7 +51,7 @@ func truncationCue(th *theme.Theme, meta map[string]string) string {
 	if !isTruncated(meta) {
 		return ""
 	}
-	if more := signals.CleanLine(meta["more"]); more != "" {
+	if more := signals.CleanLine(meta[signals.MetaMore]); more != "" {
 		return th.Cant.Render("  (truncated, +" + more + " more)")
 	}
 	return th.Cant.Render("  (truncated)")
@@ -63,10 +61,10 @@ func isTruncated(meta map[string]string) bool {
 	if len(meta) == 0 {
 		return false
 	}
-	if strings.TrimSpace(meta[wireTruncatedKey]) != "" {
+	if strings.TrimSpace(meta[signals.MetaWireTruncated]) != "" {
 		return true
 	}
-	switch strings.ToLower(strings.TrimSpace(meta["truncated"])) {
+	switch strings.ToLower(strings.TrimSpace(meta[signals.MetaTruncated])) {
 	case "", "false", "0", "no":
 		return false
 	}

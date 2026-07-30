@@ -14,6 +14,7 @@ import (
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/render/icons"
+	"github.com/codyconfer/munin/internal/signals"
 )
 
 func serveServer() *serve.Server {
@@ -42,6 +43,9 @@ func newServeCmd() *cobra.Command {
 			f := cmd.Flags()
 			if !f.Changed("interval") {
 				interval = configServeInterval()
+			}
+			if err := checkServeInterval(f.Changed("interval"), interval); err != nil {
+				return err
 			}
 			if !f.Changed("bell") {
 				bell = shared.Cfg.Daemon.Bell
@@ -107,6 +111,14 @@ func configServeInterval() time.Duration {
 		return d
 	}
 	return 60 * time.Second
+}
+
+func checkServeInterval(fromFlag bool, d time.Duration) error {
+	where := "daemon.interval"
+	if fromFlag {
+		where = "--interval"
+	}
+	return signals.CheckPollInterval(where, d)
 }
 
 func configServeTheme() string {

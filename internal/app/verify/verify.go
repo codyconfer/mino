@@ -398,7 +398,22 @@ func Plugins() []Finding {
 			})
 		}
 	}
+	for _, d := range plugin.Diagnostics() {
+		out = append(out, diagnosticFinding(d))
+	}
 	return out
+}
+
+func diagnosticFinding(d plugin.Diagnostic) Finding {
+	name := d.PluginID
+	if name == "" {
+		name = "<unidentified plugin>"
+	}
+	msg := d.Message
+	if d.Kind != "" && d.Ref != "" {
+		msg = fmt.Sprintf("%s %q: %s", d.Kind, d.Ref, d.Message)
+	}
+	return Finding{Name: name, OK: false, Msg: msg}
 }
 
 func Queries(directives *config.Directives) []Finding {

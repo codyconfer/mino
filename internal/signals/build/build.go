@@ -325,7 +325,10 @@ func buildActiveGithub(params map[string]string, cfg *config.Config, tokens *tok
 	if err != nil {
 		return nil, err
 	}
-	interval := paramDuration(params, "interval", 60*time.Second)
+	interval, err := paramPollInterval(params, "github", 60*time.Second)
+	if err != nil {
+		return nil, err
+	}
 	return gh.NewActive(tok, base, interval, state), nil
 }
 
@@ -338,7 +341,10 @@ func buildCalendar(params map[string]string, cfg *config.Config, tokens *token.S
 
 func buildActiveCalendar(params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {
 	calID := paramStr(params, "calendar_id", cfg.Cal.CalendarID)
-	interval := paramDuration(params, "interval", 60*time.Second)
+	interval, err := paramPollInterval(params, "calendar", 60*time.Second)
+	if err != nil {
+		return nil, err
+	}
 	return gcal.NewActive(calID, GoogleAuth(cfg, tokens), interval, state), nil
 }
 
@@ -362,7 +368,10 @@ func buildTasks(_ map[string]string, cfg *config.Config, tokens *token.Store) (s
 }
 
 func buildActiveTasks(params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {
-	interval := paramDuration(params, "interval", 60*time.Second)
+	interval, err := paramPollInterval(params, "tasks", 60*time.Second)
+	if err != nil {
+		return nil, err
+	}
 	return gtasks.NewActive(GoogleAuth(cfg, tokens), cfg.Tasks.Lists, cfg.Tasks.ShowCompleted, interval, state), nil
 }
 
@@ -427,4 +436,12 @@ func paramDuration(params map[string]string, key string, def time.Duration) time
 		}
 	}
 	return def
+}
+
+func paramPollInterval(params map[string]string, signal string, def time.Duration) (time.Duration, error) {
+	v := params["interval"]
+	if v == "" {
+		return def, nil
+	}
+	return signals.ParsePollInterval(signal+": query param interval", v)
 }

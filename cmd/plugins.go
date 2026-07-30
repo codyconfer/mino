@@ -65,6 +65,9 @@ func newPluginsListCmd() *cobra.Command {
 				fmt.Fprintf(out, "%-18s %-8s kind=%s signal=%s caps=[%s]\n",
 					row.ID, state, d.Kind, d.Signal, strings.Join(caps, ","))
 			}
+			for _, line := range plugin.DiagnosticLines() {
+				fmt.Fprintf(out, "problem: %s\n", line)
+			}
 			return nil
 		},
 	}

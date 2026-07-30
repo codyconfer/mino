@@ -14,6 +14,8 @@ func DiagnosticsFor(pluginID string) []Diagnostic { return pub.DiagnosticsFor(pl
 
 func HasDiagnostics() bool { return pub.HasDiagnostics() }
 
+func ResetDiagnostics() { pub.ResetDiagnostics() }
+
 func NoteDiagnostic(pluginID string, kind Kind, ref, message string) {
 	pub.NoteDiagnostic(pluginID, kind, ref, message)
 }

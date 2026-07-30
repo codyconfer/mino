@@ -107,6 +107,9 @@ func newDaemonRunCmd() *cobra.Command {
 			if !f.Changed("interval") {
 				interval = cmd.ServeInterval()
 			}
+			if err := cmd.CheckServeInterval(f.Changed("interval"), interval); err != nil {
+				return err
+			}
 			if !f.Changed("bell") {
 				bell = cmd.App().Cfg.Daemon.Bell
 			}
