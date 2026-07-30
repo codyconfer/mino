@@ -752,17 +752,18 @@ func TestBuilderTypeIsTheFirstField(t *testing.T) {
 	}
 }
 
-const pinsC93 = "C-93 (KNOWN BUG, PINNED ON PURPOSE): viewkit/deck/editor.go syncFields " +
-	"replaces the whole form with forms.NewForm on every select change, and a new form starts " +
-	"focused on field 0 — which in the query builder is `type`. So picking a signal throws focus " +
-	"off `signal` onto `type`, and the next two → keys, which read as \"cycle signals\", rewrite " +
-	"the document type to `filter`; builder.go fields() then drops `signal` and every param.* " +
-	"field, wrecking the draft in three keystrokes. This test asserts the BUGGY behaviour so the " +
-	"fix cannot land unnoticed, and MUST BE INVERTED when C-93 is fixed (forms.Form.FocusKey lets " +
-	"syncFields restore focus, after which focus stays on `signal` and → keeps walking signals)."
+const guardsC93 = "C-93 (FIXED, GUARDED HERE): viewkit/deck/editor.go syncFields used to replace " +
+	"the whole form with forms.NewForm on every select change, and a new form starts focused on " +
+	"field 0 — which in the query builder is `type`. Picking a signal therefore threw focus off " +
+	"`signal` onto `type`, and the next two → keys, which read as \"cycle signals\", rewrote the " +
+	"document type to `filter`; builder.go fields() then dropped `signal` and every param.* field, " +
+	"wrecking the draft in three keystrokes. syncFields now captures forms.Form.FocusedKey before " +
+	"the rebuild and restores it with forms.Form.FocusKey, so focus stays on `signal` and → keeps " +
+	"walking signals. This test was the pin asserting the buggy behaviour; it is now inverted and " +
+	"guards the fix. If it fails on focus, the focus restore in syncFields regressed."
 
-func TestBuilderFocusResetsOnSignalChange_PinsC93(t *testing.T) {
-	t.Log(pinsC93)
+func TestBuilderKeepsFocusAndDraftWhenCyclingSignals(t *testing.T) {
+	t.Log(guardsC93)
 
 	v := builderFor(t, testKit(t))
 	v.selectSignal(t, "github")
@@ -770,6 +771,8 @@ func TestBuilderFocusResetsOnSignalChange_PinsC93(t *testing.T) {
 
 	app := deck.New(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	typeBefore := v.Value("type")
 
 	v.focus(t, "signal")
 	if got := v.focusedKey(); got != "signal" {
@@ -780,37 +783,59 @@ func TestBuilderFocusResetsOnSignalChange_PinsC93(t *testing.T) {
 	if got := v.signal(); got == "github" {
 		t.Fatalf("→ did not move the signal select off github")
 	}
-	if got := v.focusedKey(); got != "type" {
-		t.Fatalf("pin is stale: focus after picking a signal = %q, want the buggy %q.\n%s", got, "type", pinsC93)
+	if got := v.focusedKey(); got != "signal" {
+		t.Fatalf("focus after picking a signal = %q, want signal to be preserved.\n%s", got, guardsC93)
 	}
 
-	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
-	if got := v.Value("type"); got != builderTypes[1] {
-		t.Fatalf("second → set type = %q, want %q", got, builderTypes[1])
-	}
-	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
-	if got := v.Value("type"); got != builderTypes[2] {
-		t.Fatalf("third → set type = %q, want %q", got, builderTypes[2])
+	for i := 2; i <= 3; i++ {
+		app = step(app, tea.KeyMsg{Type: tea.KeyRight})
+		if got := v.focusedKey(); got != "signal" {
+			t.Fatalf("focus after → number %d = %q, want signal.\n%s", i, got, guardsC93)
+		}
+		if got := v.Value("type"); got != typeBefore {
+			t.Fatalf("→ number %d rewrote type to %q, want it left at %q; the keys must walk signals, not type", i, got, typeBefore)
+		}
 	}
 
-	joined := strings.Join(v.fieldKeys(), " ")
-	if strings.Contains(joined, "signal") {
-		t.Errorf("type: filter should have dropped the signal field: %v", v.fieldKeys())
+	if got := strings.Join(v.fieldKeys(), " "); !strings.Contains(got, "signal") {
+		t.Errorf("the signal field was dropped: %v", v.fieldKeys())
 	}
-	if strings.Contains(joined, builderParamPrefix) {
-		t.Errorf("type: filter should have dropped every param field: %v", v.fieldKeys())
+	if got := v.signal(); got == "" {
+		t.Error("signal is empty; three → keys should have left a signal selected")
 	}
-	if got := v.Value(builderParamPrefix + "query"); got != "" {
-		t.Errorf("param.query = %q, want it gone from the visible document", got)
+	if _, err := v.query(); err != nil {
+		t.Errorf("the draft no longer builds a document: %v", err)
 	}
-	if got := v.signal(); got != "" {
-		t.Errorf("signal = %q, want it dropped with the field", got)
+}
+
+func TestBuilderRestoresParamsWhenSignalCyclesBack(t *testing.T) {
+	t.Log(guardsC93)
+
+	v := builderFor(t, testKit(t))
+	v.selectSignal(t, "github")
+	v.set(t, "param.query", "is:open is:pr")
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	v.focus(t, "signal")
+	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
+	if got := v.signal(); got == "github" {
+		t.Fatalf("→ did not move the signal select off github")
 	}
-	if _, err := v.query(); err == nil {
-		t.Error("the wrecked draft still builds a document; it should now fail as a rule-less filter")
+	if got := v.focusedKey(); got != "signal" {
+		t.Fatalf("focus after → = %q, want signal.\n%s", got, guardsC93)
 	}
-	if body := app.View(); strings.Contains(body, "is:open is:pr") {
-		t.Errorf("the typed param is still on screen after three → keys:\n%s", body)
+
+	app = step(app, tea.KeyMsg{Type: tea.KeyLeft})
+	if got := v.signal(); got != "github" {
+		t.Fatalf("← back = %q, want github", got)
+	}
+	if got := v.Value(builderParamPrefix + "query"); got != "is:open is:pr" {
+		t.Errorf("param.query = %q, want the typed value restored from sticky on the round trip", got)
+	}
+	if body := app.View(); !strings.Contains(body, "is:open is:pr") {
+		t.Errorf("the typed param is not back on screen after cycling back to github:\n%s", body)
 	}
 }
 
