@@ -59,8 +59,9 @@ func seedTarget(home, rel string) (string, error) {
 	if trimmed == "" {
 		return "", errs.Newf(errs.KindConfig, "seed path is empty")
 	}
-	clean := filepath.FromSlash(strings.ReplaceAll(trimmed, `\`, "/"))
-	if filepath.IsAbs(clean) || filepath.VolumeName(clean) != "" {
+	slashed := strings.ReplaceAll(trimmed, `\`, "/")
+	clean := filepath.FromSlash(slashed)
+	if strings.HasPrefix(slashed, "/") || filepath.IsAbs(clean) || filepath.VolumeName(clean) != "" {
 		return "", errs.Newf(errs.KindConfig, "seed path %q must be relative to the munin home", rel)
 	}
 	abs := filepath.Join(home, clean)

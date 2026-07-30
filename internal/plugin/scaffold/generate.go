@@ -141,7 +141,7 @@ func Generate(opts GenerateOptions) (GenerateResult, error) {
 }
 
 func resolveWithin(dir, rel string) (string, error) {
-	if rel == "" || filepath.IsAbs(rel) {
+	if rel == "" || filepath.IsAbs(rel) || os.IsPathSeparator(rel[0]) || filepath.VolumeName(rel) != "" {
 		return "", fmt.Errorf("scaffold: refusing to write %q outside %s", rel, dir)
 	}
 	path := filepath.Join(dir, rel)

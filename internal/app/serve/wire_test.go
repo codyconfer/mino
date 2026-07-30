@@ -51,14 +51,19 @@ func TestWireEventErrorPreserved(t *testing.T) {
 	}
 }
 
-func shortSocketPath(t *testing.T) string {
+func shortHome(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "mn")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	return filepath.Join(dir, "s.sock")
+	return dir
+}
+
+func shortSocketPath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(shortHome(t), "s.sock")
 }
 
 func TestServeSocketDeliversToClients(t *testing.T) {

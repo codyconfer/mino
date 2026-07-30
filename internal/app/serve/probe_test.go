@@ -21,7 +21,7 @@ func dialGoroutines() int {
 }
 
 func TestEnsureLiveProviderProbeLeaksNoConnection(t *testing.T) {
-	home := t.TempDir()
+	home := shortHome(t)
 	s := &Server{App: &app.App{
 		Cfg:        &config.Config{Home: home, Role: "test"},
 		Directives: &config.Directives{},

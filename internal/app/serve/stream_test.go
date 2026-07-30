@@ -83,7 +83,7 @@ func TestOpenStreamsSkipsBlockingPlugin(t *testing.T) {
 }
 
 func TestSocketOpensDespiteBlockingPlugin(t *testing.T) {
-	home := t.TempDir()
+	home := shortHome(t)
 	s := &Server{App: &app.App{
 		Cfg:        &config.Config{Home: home, Role: "test", Timeout: "200ms"},
 		Directives: &config.Directives{},

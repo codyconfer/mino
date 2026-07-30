@@ -3,6 +3,7 @@ package plugin
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -293,6 +294,9 @@ func TestDiscoverLocalSkipsBrokenPacks(t *testing.T) {
 }
 
 func TestDiscoverLocalSkipsUnreadableSeedDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes do not deny reads on Windows")
+	}
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores file modes")
 	}
