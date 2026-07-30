@@ -1,6 +1,9 @@
 package role
 
 import (
+	"fmt"
+	"os/exec"
+
 	"github.com/codyconfer/sisyphus/lifecycle"
 
 	"github.com/codyconfer/munin/internal/config"
@@ -24,6 +27,25 @@ func RunHooks(hooks config.RoleShellHooks) error {
 		return nil
 	}
 	return Run(kind, script)
+}
+
+func Command(kind, script string) (*exec.Cmd, error) {
+	switch kind {
+	case "bash":
+		bin, err := lifecycle.LookBash()
+		if err != nil {
+			return nil, err
+		}
+		return exec.Command(bin, "-c", script), nil
+	case "powershell":
+		bin, err := lifecycle.LookPowerShell()
+		if err != nil {
+			return nil, err
+		}
+		return exec.Command(bin, "-NoProfile", "-Command", script), nil
+	default:
+		return nil, fmt.Errorf("unknown shell kind %q", kind)
+	}
 }
 
 func RunEnter(rd config.RoleDef) error {

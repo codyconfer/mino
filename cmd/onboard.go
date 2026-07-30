@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"io"
 	"os"
 
 	"github.com/charmbracelet/x/term"
@@ -50,7 +51,7 @@ func enforceOnboarding(cmd *cobra.Command) error {
 func requireOnboarding(cmd *cobra.Command) error {
 	err := enforceOnboarding(cmd)
 	if err != nil && errs.KindOf(err) == errs.KindOnboarding && term.IsTerminal(os.Stdout.Fd()) {
-		return runOnboard(cmd, false)
+		return runOnboardTo(cmd, cmd.ErrOrStderr(), false)
 	}
 	return err
 }
@@ -81,11 +82,15 @@ func newOnboardCmd() *cobra.Command {
 }
 
 func runOnboard(cmd *cobra.Command, statusOnly bool) error {
+	return runOnboardTo(cmd, cmd.OutOrStdout(), statusOnly)
+}
+
+func runOnboardTo(cmd *cobra.Command, w io.Writer, statusOnly bool) error {
 	apiURL, err := gh.NormalizeAPIURL(shared.Cfg.GitHub.APIURL)
 	if err != nil {
 		return err
 	}
-	return onboard.RunCLI(cmd.Context(), shared.Tokens, apiURL, cmd.OutOrStdout(), statusOnly,
+	return onboard.RunCLI(cmd.Context(), shared.Tokens, apiURL, w, statusOnly,
 		func(title, message, yes, no string) (bool, error) {
 			return deck.Confirm(title, message, yes, no)
 		})

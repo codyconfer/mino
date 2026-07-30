@@ -30,10 +30,11 @@ func (kit *Kit) Roles() vkdeck.View {
 		Icon:  glyph.Builder(),
 		Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.RoleBuilder()) },
 	}}
-	for _, n := range kit.d.App.Directives.RoleNames() {
+	for _, n := range kit.d.App.Dirs().RoleNames() {
+		rd, _ := kit.d.App.RoleDef(n)
 		items = append(items, vkdeck.MenuItem{
 			Label: n,
-			Desc:  roleSummary(kit.d.App.Directives.Roles[n]),
+			Desc:  roleSummary(rd),
 			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.RoleEditor(n)) },
 		})
 	}
@@ -71,7 +72,8 @@ type roleView struct {
 func (kit *Kit) RoleBuilder() vkdeck.View { return kit.newRoleView("", config.RoleDef{}) }
 
 func (kit *Kit) RoleEditor(name string) vkdeck.View {
-	return kit.newRoleView(name, kit.d.App.Directives.Roles[name])
+	rd, _ := kit.d.App.RoleDef(name)
+	return kit.newRoleView(name, rd)
 }
 
 func (kit *Kit) newRoleView(orig string, base config.RoleDef) *roleView {
@@ -171,7 +173,7 @@ func (v *roleView) draft() config.RoleDef {
 
 func (v *roleView) role() (config.RoleDef, error) {
 	rd := v.draft()
-	st := v.kit.d.App.Directives
+	st := v.kit.d.App.Dirs()
 
 	var unknown []string
 	if rd.Home != "" {
@@ -216,7 +218,7 @@ func (v *roleView) editorRun() (string, func() []signals.Section, error) {
 		return "", nil, errs.New(errs.KindUsage, "this role lists no flights to run").
 			WithHint("set a home flight, or add one to flights")
 	}
-	fl, ok := v.kit.d.App.Directives.Flights[home]
+	fl, ok := v.kit.d.App.Dirs().Flights[home]
 	if !ok {
 		return "", nil, errs.Newf(errs.KindConfig, "unknown flight: %s", home)
 	}
@@ -267,7 +269,7 @@ func (v *roleView) editorVerify(val any) Finding {
 	if name == "" {
 		name = editorAdhocLabel
 	}
-	return verify.Role(v.kit.d.App.Directives, name, rd)
+	return verify.Role(v.kit.d.App.Dirs(), name, rd)
 }
 
 func (v *roleView) editorPersist(val any) (string, error) {
@@ -276,11 +278,11 @@ func (v *roleView) editorPersist(val any) (string, error) {
 		return "", errs.New(errs.KindUsage, "name is required to save")
 	}
 	if rd.Name != v.orig {
-		if _, exists := v.kit.d.App.Directives.Roles[rd.Name]; exists {
+		if _, exists := v.kit.d.App.RoleDef(rd.Name); exists {
 			return "", errs.Newf(errs.KindUsage, "a role named %s already exists", rd.Name)
 		}
 	}
-	rel := v.kit.d.App.Directives.Source(config.TypeRole, v.orig)
+	rel := v.kit.d.App.Dirs().Source(config.TypeRole, v.orig)
 	summary, _, err := v.kit.saveDirective(config.TypeRole, rel, rd.Name, rd)
 	if err != nil {
 		return "", err

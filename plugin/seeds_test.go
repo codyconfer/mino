@@ -34,3 +34,45 @@ func TestRegisterSeedsRoundTrip(t *testing.T) {
 		t.Fatal("expected clear")
 	}
 }
+
+func TestRegisterSeedsRejectsEscapingRelPaths(t *testing.T) {
+	bad := []string{
+		"../escape.yaml",
+		"../../.config/systemd/user/foo.service",
+		"queries/../../escape.yaml",
+		"/etc/cron.d/evil",
+		`..\..\escape.yaml`,
+		"..",
+		".",
+		"",
+		"   ",
+	}
+	for _, rel := range bad {
+		t.Run(rel, func(t *testing.T) {
+			id := "test.public.seeds.escape"
+			plugin.RegisterSeeds(id, []plugin.FileSeed{{RelPath: rel, Content: []byte("evil\n")}})
+			t.Cleanup(func() { plugin.RegisterSeeds(id, nil) })
+			if got := plugin.SeedsFor(id); len(got) != 0 {
+				t.Fatalf("RegisterSeeds kept unsafe RelPath %q: %#v", rel, got)
+			}
+			for _, x := range plugin.SeedPluginIDs() {
+				if x == id {
+					t.Fatalf("SeedPluginIDs lists a plugin whose only seed was unsafe (%q)", rel)
+				}
+			}
+		})
+	}
+}
+
+func TestRegisterSeedsKeepsSafeSeedsBesideUnsafeOnes(t *testing.T) {
+	id := "test.public.seeds.mixed"
+	plugin.RegisterSeeds(id, []plugin.FileSeed{
+		{RelPath: "../escape.yaml", Content: []byte("evil\n")},
+		{RelPath: "queries/ok.yaml", Content: []byte("ok\n")},
+	})
+	t.Cleanup(func() { plugin.RegisterSeeds(id, nil) })
+	got := plugin.SeedsFor(id)
+	if len(got) != 1 || got[0].RelPath != "queries/ok.yaml" {
+		t.Fatalf("SeedsFor = %#v", got)
+	}
+}

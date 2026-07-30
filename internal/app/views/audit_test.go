@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -68,9 +69,9 @@ func TestAuditQueryDefaultAgainstAuditDB(t *testing.T) {
 	}
 
 	me := &auditView{home: home, dbIndex: 0}
-	res, err := me.exec(me.defaultSQL())
-	if err != nil {
-		t.Fatalf("exec: %v", err)
+	res := auditExec(me.dbPath(), me.defaultSQL())
+	if res.err != "" {
+		t.Fatalf("exec: %s", res.err)
 	}
 	out := auditRender(res)
 	if !strings.Contains(out, "morning") && !strings.Contains(out, "incidents") {
@@ -96,9 +97,9 @@ func TestAuditQueryDefaultAgainstConfigDB(t *testing.T) {
 
 	me := &auditView{home: home}
 	me.dbIndex = indexOfDB("config")
-	res, err := me.exec(me.defaultSQL())
-	if err != nil {
-		t.Fatalf("exec: %v", err)
+	res := auditExec(me.dbPath(), me.defaultSQL())
+	if res.err != "" {
+		t.Fatalf("exec: %s", res.err)
 	}
 	if out := auditRender(res); !strings.Contains(out, "queries") {
 		t.Fatalf("result missing store name: %q", out)
@@ -120,9 +121,9 @@ func TestAuditQueryDefaultAgainstTokensDB(t *testing.T) {
 
 	me := &auditView{home: home}
 	me.dbIndex = indexOfDB("tokens")
-	res, err := me.exec(me.defaultSQL())
-	if err != nil {
-		t.Fatalf("exec: %v", err)
+	res := auditExec(me.dbPath(), me.defaultSQL())
+	if res.err != "" {
+		t.Fatalf("exec: %s", res.err)
 	}
 	out := auditRender(res)
 	if !strings.Contains(out, "github") || !strings.Contains(out, "tokens") {
@@ -247,6 +248,39 @@ func TestAuditRunRejectsWrites(t *testing.T) {
 	me.run()
 	if !strings.Contains(me.result.err, "read-only") {
 		t.Fatalf("write statement not rejected: %+v", me.result)
+	}
+}
+
+func TestAuditEnterDefersTheQueryToACommand(t *testing.T) {
+	me := &auditView{home: t.TempDir(), sql: "SELECT 42 AS answer"}
+
+	cmd := me.Update(nil, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter returned no command: the query must run off the bubbletea Update goroutine")
+	}
+	if me.result.ran {
+		t.Fatalf("enter produced a result inside Update: %+v", me.result)
+	}
+}
+
+func TestAuditBackspaceKeepsMultiByteRunesIntact(t *testing.T) {
+	const typed = "select 'é🙂'"
+	me := &auditView{}
+	for _, r := range typed {
+		me.Update(nil, runeKey(r))
+	}
+	if me.sql != typed {
+		t.Fatalf("typed sql = %q, want %q", me.sql, typed)
+	}
+
+	for i, want := range []string{"select 'é🙂", "select 'é", "select '"} {
+		me.Update(nil, tea.KeyMsg{Type: tea.KeyBackspace})
+		if !utf8.ValidString(me.sql) {
+			t.Fatalf("backspace %d left invalid utf-8: %q", i+1, me.sql)
+		}
+		if me.sql != want {
+			t.Fatalf("backspace %d = %q, want %q", i+1, me.sql, want)
+		}
 	}
 }
 

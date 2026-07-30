@@ -2,44 +2,22 @@ package serve
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
-
+	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/plugin/ntr"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/active"
+	"github.com/codyconfer/munin/internal/signals/build"
 )
 
-func (s *Server) scheduledEvents(ctx context.Context, _ string, names []string, state *active.State) <-chan signals.Event {
-	var jobs []plugin.Scheduled
-	seen := map[string]bool{}
-	role := s.Cfg.Role
-	if role == "" {
-		role = "default"
-	}
-	var kvStore sysdaemon.KV
-	if state != nil {
-		kvStore = state.KV()
-	}
-	for _, name := range names {
-		q, ok := s.Directives.Queries[name]
-		if !ok || seen[q.Signal] {
-			continue
-		}
-		seen[q.Signal] = true
-		switch q.Signal {
-		case ntr.SignalName:
-			if !plugin.SignalEnabled(ntr.SignalName) {
-				continue
-			}
-			jobs = append(jobs, ntr.ReminderJob{Home: s.Cfg.Home, Role: role, KV: kvStore})
-		}
-	}
+func (s *Server) scheduledEvents(ctx context.Context, flight string, names []string, state *active.State) <-chan signals.Event {
+	jobs, watching := s.scheduledJobs(flight, names, state)
 	if len(jobs) == 0 {
 		return nil
 	}
@@ -64,6 +42,48 @@ func (s *Server) scheduledEvents(ctx context.Context, _ string, names []string, 
 			log.Warnf("serve: scheduled: %v", err)
 		}
 	}()
-	fmt.Fprintf(os.Stderr, "watching %-10s %s\n", "ntr", "(scheduled reminders)")
+	fmt.Fprintf(os.Stderr, "watching %-10s %s\n", strings.Join(watching, ","), "(scheduled)")
 	return out
+}
+
+func (s *Server) scheduledJobs(flight string, names []string, state *active.State) ([]plugin.Scheduled, []string) {
+	var jobs []plugin.Scheduled
+	var watching []string
+	seen := map[string]bool{}
+	for _, name := range names {
+		q, ok := s.Directives.Queries[name]
+		if !ok {
+			log.Debugf("serve: unknown query %q in flight %q", name, flight)
+			continue
+		}
+		if !q.Runnable() || seen[q.Signal] {
+			continue
+		}
+		seen[q.Signal] = true
+		if !plugin.HasCapability(q.Signal, plugin.CapScheduled) {
+			continue
+		}
+		resolved, err := s.Directives.Resolve(q)
+		if err != nil {
+			log.Warnf("serve: query %q: %v (skipping)", name, err)
+			continue
+		}
+		params, err := filter.ExpandParams(q.Params, resolved)
+		if err != nil {
+			log.Warnf("serve: query %q: %v (skipping)", name, err)
+			continue
+		}
+		job, err := build.ScheduledJob(q.Signal, params, s.Cfg, s.Tokens, state)
+		if err != nil {
+			if errors.Is(err, build.ErrNoScheduled) {
+				log.Debugf("serve: query %q signal %q has no scheduled support (skipping)", name, q.Signal)
+			} else {
+				log.Warnf("serve: query %q: %v (skipping)", name, err)
+			}
+			continue
+		}
+		jobs = append(jobs, job)
+		watching = append(watching, q.Signal)
+	}
+	return jobs, watching
 }

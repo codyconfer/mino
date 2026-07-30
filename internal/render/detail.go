@@ -38,7 +38,7 @@ func ItemIndex(sections []signals.Section) map[string]ItemRef {
 }
 
 func ItemLabel(it signals.Item) string {
-	kind := it.Kind
+	kind := signals.Clean(it.Kind)
 	if kind == "" {
 		kind = "detail"
 	}
@@ -90,18 +90,20 @@ func contentFrame(f layout.Frame) layout.Frame {
 }
 
 func DetailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail) string {
+	ref, d = cleanRef(ref), cleanDetail(d)
+
 	th := theme.Cur()
 	cf := contentFrame(f)
 	it := ref.Item
 
 	kind := it.Kind
-	title := signals.Clean(it.Title)
+	title := it.Title
 	if d != nil {
 		if d.Kind != "" {
 			kind = d.Kind
 		}
 		if d.Title != "" {
-			title = signals.Clean(d.Title)
+			title = d.Title
 		}
 	}
 
@@ -112,7 +114,7 @@ func DetailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail) string {
 	head += staleCue(th, ref.Meta)
 
 	lines := []string{th.Val.Render(title)}
-	if sub := signals.Clean(it.Subtitle); sub != "" {
+	if sub := it.Subtitle; sub != "" {
 		lines = append(lines, th.Dim.Render(sub))
 	}
 	if rows := detailRows(cf, th, ref, d); len(rows) > 0 {
@@ -175,7 +177,7 @@ func detailRows(f layout.Frame, th *theme.Theme, ref ItemRef, d *signals.ItemDet
 func localRows(ref ItemRef) [][2]string {
 	var rows [][2]string
 	for _, r := range detailMetaRows {
-		if v := signals.Clean(ref.Item.Meta[r.key]); v != "" {
+		if v := ref.Item.Meta[r.key]; v != "" {
 			rows = append(rows, [2]string{r.label, v})
 		}
 	}

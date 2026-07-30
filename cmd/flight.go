@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/codyconfer/munin/internal/app/flight"
@@ -52,19 +53,50 @@ func runQueries(ctx context.Context, w io.Writer, root string, queries []query, 
 func runQueriesWith(ctx context.Context, w, status io.Writer, root string, queries []query, parentID int64, o runOpts) error {
 	if !o.active {
 		if !interactiveTTY() {
-			return emit(w, root, fetchQueries(ctx, queries, parentID))
+			sections := fetchQueries(ctx, queries, parentID)
+			if err := emit(w, root, sections); err != nil {
+				return err
+			}
+			return flight.Failure(sections)
 		}
+		var seen sectionTally
 		tasks := make([]deck.Task, len(queries))
 		for i, q := range queries {
 			tasks[i] = deck.Task{
 				Label: q.Display(),
-				Run:   func(ctx context.Context) []signals.Section { return fetchQuery(ctx, q, parentID) },
+				Run: func(ctx context.Context) []signals.Section {
+					return seen.record(fetchQuery(ctx, q, parentID))
+				},
 			}
 		}
-		return deck.RunFlight(ctx, tasks)
+		if err := deck.RunFlight(ctx, tasks); err != nil {
+			return err
+		}
+		return flight.Failure(seen.sections())
 	}
 	groups := fetchGroupsLoading(ctx, status, o.formatter, queries, parentID)
-	return deliverGroups(w, status, o, root, groups)
+	if err := deliverGroups(w, status, o, root, groups); err != nil {
+		return err
+	}
+	return flight.Failure(flight.Flatten(groups))
+}
+
+type sectionTally struct {
+	mu  sync.Mutex
+	all []signals.Section
+}
+
+func (t *sectionTally) record(sections []signals.Section) []signals.Section {
+	t.mu.Lock()
+	t.all = append(t.all, sections...)
+	t.mu.Unlock()
+	return sections
+}
+
+func (t *sectionTally) sections() []signals.Section {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.all
 }
 
 func fetchGroupsLoading(ctx context.Context, status io.Writer, fd config.FormatterDef, queries []query, parentID int64) []flightGroup {

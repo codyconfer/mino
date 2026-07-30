@@ -20,45 +20,58 @@ type pendingAction struct {
 	serviceOnly  bool
 }
 
-func Register(d Descriptor) {
+func Register(d Descriptor) { registerDescriptor(d) }
+
+func registerDescriptor(d Descriptor) bool {
 	mu.Lock()
-	defer mu.Unlock()
-	registerLocked(d)
+	err := registerLocked(d)
 	flushPendingActionsLocked()
+	mu.Unlock()
+	if err != nil {
+		noteDiagnostic(Diagnostic{
+			PluginID: d.ID,
+			Kind:     d.Kind,
+			Ref:      kindKey(d),
+			Message:  err.Error(),
+		})
+		return false
+	}
+	return true
 }
 
-func registerLocked(d Descriptor) {
+func registerLocked(d Descriptor) error {
 	if d.ID == "" {
-		panic("plugin: empty id")
+		return fmt.Errorf("descriptor has an empty id; contribution skipped")
 	}
 	if !ValidKind(d.Kind) {
-		panic(fmt.Sprintf("plugin: unknown kind %q for %q", d.Kind, d.ID))
+		return fmt.Errorf("unknown kind %q; contribution skipped", d.Kind)
 	}
 	switch d.Kind {
 	case KindSignal:
 		if d.Signal == "" {
-			panic(fmt.Sprintf("plugin: KindSignal %q requires Signal", d.ID))
+			return fmt.Errorf("kind %q requires Signal; contribution skipped", d.Kind)
 		}
 	default:
 		if d.Ref == "" {
-			panic(fmt.Sprintf("plugin: kind %q id %q requires Ref", d.Kind, d.ID))
+			return fmt.Errorf("kind %q requires Ref; contribution skipped", d.Kind)
 		}
 	}
-	if _, ok := byID[d.ID]; ok {
-		panic(fmt.Sprintf("plugin: duplicate id %q", d.ID))
+	if prev, ok := byID[d.ID]; ok {
+		return fmt.Errorf("duplicate plugin id %q (already registered as kind %q); contribution skipped", d.ID, prev.Kind)
 	}
 	key := kindKey(d)
+	if prev, ok := kindIndex[d.Kind][key]; ok {
+		return fmt.Errorf("%s ref %q is already owned by %q; contribution skipped", d.Kind, key, prev)
+	}
 	if kindIndex[d.Kind] == nil {
 		kindIndex[d.Kind] = map[string]string{}
-	}
-	if prev, ok := kindIndex[d.Kind][key]; ok {
-		panic(fmt.Sprintf("plugin: duplicate %s ref %q (%s and %s)", d.Kind, key, prev, d.ID))
 	}
 	byID[d.ID] = d
 	kindIndex[d.Kind][key] = d.ID
 	if d.Kind == KindSignal && d.Signal != "" {
 		signalIndex[d.Signal] = d.ID
 	}
+	return nil
 }
 
 func kindKey(d Descriptor) string {
@@ -96,13 +109,15 @@ func ensureActionKindLocked(signal, name string, serviceOnly bool) bool {
 	if _, exists := byID[cid]; exists {
 		return true
 	}
-	registerLocked(Descriptor{
+	if err := registerLocked(Descriptor{
 		ID:          cid,
 		Kind:        KindAction,
 		Ref:         ref,
 		Parent:      id,
 		ServiceOnly: serviceOnly,
-	})
+	}); err != nil {
+		noteDiagnostic(Diagnostic{PluginID: cid, Kind: KindAction, Ref: ref, Message: err.Error()})
+	}
 	return true
 }
 
@@ -221,6 +236,10 @@ func HasCapability(signal string, cap Capability) bool {
 	if !ok {
 		return false
 	}
+	return descriptorHasCapability(d, cap)
+}
+
+func descriptorHasCapability(d Descriptor, cap Capability) bool {
 	for _, c := range d.Capabilities {
 		if c == cap {
 			return true

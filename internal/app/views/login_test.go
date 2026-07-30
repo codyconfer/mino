@@ -1,11 +1,16 @@
 package views
 
 import (
+	"context"
+	"io"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/app/loginflow"
@@ -98,6 +103,54 @@ func TestLoginFlowStepSelection(t *testing.T) {
 	v = kit.loginFlow(p).(*loginFlowView)
 	if v.step != loginStepRun || v.form != nil {
 		t.Fatalf("expected run step, got step=%d form=%v", v.step, v.form)
+	}
+}
+
+func TestLoginRunStepEscCancelsTheLogin(t *testing.T) {
+	kit := testKit(t)
+	started := make(chan context.Context, 1)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+
+	p := loginflow.Provider{
+		Key:    "github",
+		Label:  "GitHub",
+		Authed: func(*app.App) bool { return false },
+		Login: func(ctx context.Context, _ *app.App, _ map[string]string, _ io.Writer) error {
+			started <- ctx
+			select {
+			case <-ctx.Done():
+			case <-release:
+			}
+			return ctx.Err()
+		},
+	}
+
+	v := kit.loginFlow(p).(*loginFlowView)
+	if v.step != loginStepRun {
+		t.Fatalf("step = %d, want the device-flow run step", v.step)
+	}
+
+	a := deck.New(vkdeck.NewMenu("accounts", nil))
+	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
+	_ = a.Push(v)
+
+	var ctx context.Context
+	select {
+	case ctx = <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("login never started")
+	}
+
+	_ = v.Update(a, tea.KeyMsg{Type: tea.KeyEsc})
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("esc during the run step did not cancel the login context")
+	}
+	if a.Top() == vkdeck.View(v) {
+		t.Fatal("esc during the run step did not leave the login view")
 	}
 }
 

@@ -37,6 +37,7 @@ type Store struct {
 	mu     sync.Mutex
 	kv     *kv.Store
 	opened bool
+	closed bool
 }
 
 func New(home string, cfg config.CacheConfig, fingerprint string, mode Mode) *Store {
@@ -86,6 +87,10 @@ func (s *Store) open(ctx context.Context) *kv.Store {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		log.Debugf("cache: dropping work issued after close")
+		return nil
+	}
 	if s.opened {
 		return s.kv
 	}
@@ -108,12 +113,12 @@ func (s *Store) Close() error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.closed = true
 	if s.kv == nil {
-		s.opened = false
 		return nil
 	}
 	err := s.kv.Close()
-	s.kv, s.opened = nil, false
+	s.kv = nil
 	return err
 }
 
@@ -180,10 +185,14 @@ func (c *cached) Fetch(ctx context.Context) ([]signals.Section, error) {
 
 	sections, err := c.inner.Fetch(ctx)
 	if err != nil {
-		if hasPrev {
-			age := now.Sub(prev.FetchedAt)
+		age := now.Sub(prev.FetchedAt)
+		if hasPrev && age < staleGrace {
 			log.Debugf("cache: %s fetch failed (%v); serving results from %s ago", c.ns, err, age.Round(time.Second))
 			return mark(prev.Sections, "stale", age), nil
+		}
+		if hasPrev {
+			log.Debugf("cache: %s fetch failed (%v); cached copy is %s old, past the %s grace window",
+				c.ns, err, age.Round(time.Second), staleGrace)
 		}
 		return nil, err
 	}
@@ -235,8 +244,7 @@ func (s *Store) save(ctx context.Context, ns, key string, p payload, ttl time.Du
 		log.Debugf("cache: encode failed: %v", err)
 		return
 	}
-	grace := max(ttl, staleGrace)
-	if err := store.Put(ctx, ns, key, string(raw), p.FetchedAt.Add(grace)); err != nil {
+	if err := store.Put(ctx, ns, key, string(raw), p.FetchedAt.Add(ttl+staleGrace)); err != nil {
 		log.Debugf("cache: write failed: %v", err)
 	}
 }
@@ -271,6 +279,7 @@ type Stat struct {
 	Namespace string
 	Label     string
 	Entries   int
+	Expired   int
 	Fresh     int
 	Oldest    time.Time
 	Newest    time.Time
@@ -281,40 +290,50 @@ func (s *Store) Stats(ctx context.Context) ([]Stat, error) {
 	if store == nil {
 		return nil, errUnavailable
 	}
-	names, err := store.Namespaces(ctx)
+	rows, err := store.Stats(ctx, s.ttl)
 	if err != nil {
-		return nil, errs.Wrap(errs.KindStore, err, "list cache namespaces")
+		return nil, errs.Wrap(errs.KindStore, err, "summarize cache namespaces")
 	}
-	now := time.Now()
-	out := make([]Stat, 0, len(names))
-	for _, ns := range names {
-		entries, err := store.List(ctx, ns)
-		if err != nil {
-			return nil, errs.Wrapf(errs.KindStore, err, "list cache namespace %q", ns)
+	out := make([]Stat, 0, len(rows))
+	idx := make(map[string]int, len(rows))
+	windows := map[time.Duration][]string{}
+	for _, r := range rows {
+		if r.Entries == 0 {
+			continue
 		}
-		signal, isSignal := SignalOf(ns)
-		st := Stat{Namespace: ns, Label: ns, Entries: len(entries)}
-		if isSignal {
+		st := Stat{
+			Namespace: r.Namespace,
+			Label:     r.Namespace,
+			Entries:   int(r.Entries),
+			Expired:   int(r.Expired),
+			Oldest:    r.Oldest,
+			Newest:    r.Newest,
+		}
+		if signal, isSignal := SignalOf(r.Namespace); !isSignal {
+			st.Fresh = st.Entries
+		} else {
 			st.Label = signal
-		}
-		ttl := s.TTL(signal)
-		for _, e := range entries {
-			var p payload
-			at := e.Updated
-			if isSignal && json.Unmarshal([]byte(e.Value), &p) == nil && !p.FetchedAt.IsZero() {
-				at = p.FetchedAt
-			}
-			if ttl > 0 && now.Sub(at) < ttl {
-				st.Fresh++
-			}
-			if st.Oldest.IsZero() || at.Before(st.Oldest) {
-				st.Oldest = at
-			}
-			if at.After(st.Newest) {
-				st.Newest = at
+			if ttl := s.TTL(signal); ttl == s.ttl {
+				st.Fresh = int(r.Fresh)
+			} else if ttl > 0 {
+				windows[ttl] = append(windows[ttl], r.Namespace)
 			}
 		}
+		idx[r.Namespace] = len(out)
 		out = append(out, st)
+	}
+	for window, names := range windows {
+		rows, err := store.Stats(ctx, window)
+		if err != nil {
+			return nil, errs.Wrap(errs.KindStore, err, "summarize cache namespaces")
+		}
+		fresh := make(map[string]int64, len(rows))
+		for _, r := range rows {
+			fresh[r.Namespace] = r.Fresh
+		}
+		for _, ns := range names {
+			out[idx[ns]].Fresh = int(fresh[ns])
+		}
 	}
 	return out, nil
 }

@@ -219,7 +219,29 @@ func TestPluginsUninstallRemovesExternalFromListAndReinstallRestores(t *testing.
 
 	a := deck.New(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
+
 	a, cmd := update(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
+	if cmd != nil {
+		t.Fatal("u started an uninstall with no confirmation")
+	}
+	if !plugin.Installed(id) {
+		t.Fatal("u removed the plugin with no confirmation")
+	}
+	if body := pluginsAnsi.ReplaceAllString(a.View(), ""); !strings.Contains(body, "uninstall "+id+"?") {
+		t.Fatalf("u did not open a confirm dialog:\n%s", body)
+	}
+
+	a = step(a, tea.KeyMsg{Type: tea.KeyEsc})
+	if !plugin.Installed(id) {
+		t.Fatal("cancelling the dialog still uninstalled the plugin")
+	}
+	if a.Top() != page {
+		t.Fatal("esc on the confirm dialog left the plugins page")
+	}
+
+	a, cmd = update(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
+	a = step(a, tea.KeyMsg{Type: tea.KeyLeft})
+	a, cmd = update(a, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("expected uninstall cmd")
 	}

@@ -40,9 +40,10 @@ type ServeView struct {
 
 	FetchDetail func(signal string, it signals.Item) (*signals.ItemDetail, error)
 
-	refs  []render.ItemRef
-	lst   list.Model
-	width int
+	refs   []render.ItemRef
+	lst    list.Model
+	width  int
+	height int
 }
 
 func NewServeView(flight string, events <-chan signals.Event) *ServeView {
@@ -72,7 +73,7 @@ func (v *ServeView) rebind() {
 	for _, r := range v.refs {
 		items = append(items, r.Item)
 	}
-	v.lst.SetItems(render.ItemRows(layout.ScreenFrame(v.width), items))
+	v.lst.SetItemsKeepingCursor(render.ItemRows(layout.ScreenFrame(v.width), items))
 }
 
 func (v *ServeView) selected() (render.ItemRef, bool) {
@@ -110,7 +111,10 @@ func (v *ServeView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	}
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
-		v.width = m.Width
+		if m.Width == v.width && m.Height == v.height {
+			return nil
+		}
+		v.width, v.height = m.Width, m.Height
 		v.lst.SetSize(m.Width, max(m.Height/2-serveChromeReserve, 1))
 		v.rebind()
 		return nil

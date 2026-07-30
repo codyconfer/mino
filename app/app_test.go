@@ -1,13 +1,16 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/codyconfer/munin/app/defaults"
 	"github.com/codyconfer/munin/internal/app/onboard"
+	"github.com/codyconfer/munin/plugin"
 )
 
 func TestApplyBuildPolicy(t *testing.T) {
@@ -87,6 +90,78 @@ func TestListDefaultsMapFS(t *testing.T) {
 	}
 	if len(files) != 2 {
 		t.Fatalf("got %d files: %+v", len(files), files)
+	}
+}
+
+func TestDeprecatedEnforceAuthAlias(t *testing.T) {
+	origDomain := onboard.RequiredEmailDomain
+	origAllOrNothing := onboard.AllOrNothingAuth
+	t.Cleanup(func() {
+		onboard.RequiredEmailDomain = origDomain
+		onboard.AllOrNothingAuth = origAllOrNothing
+	})
+
+	for _, tc := range []struct {
+		name             string
+		allOrNothing     bool
+		enforceDeprecate bool
+		want             string
+	}{
+		{"neither", false, false, ""},
+		{"deprecated only", false, true, "true"},
+		{"new only", true, false, "true"},
+		{"both", true, true, "true"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			onboard.AllOrNothingAuth = ""
+			applyBuildPolicy(Options{
+				AllOrNothingAuth: tc.allOrNothing,
+				EnforceAuth:      tc.enforceDeprecate,
+			})
+			if onboard.AllOrNothingAuth != tc.want {
+				t.Fatalf("AllOrNothingAuth = %q, want %q", onboard.AllOrNothingAuth, tc.want)
+			}
+		})
+	}
+}
+
+func TestReportPluginDiagnostics(t *testing.T) {
+	plugin.Register(plugin.Descriptor{ID: "apptest.diag.a", Kind: plugin.KindSignal, Signal: "apptestdiag"})
+	plugin.Register(plugin.Descriptor{ID: "apptest.diag.b", Kind: plugin.KindSignal, Signal: "apptestdiag"})
+
+	var buf bytes.Buffer
+	ReportPluginDiagnostics(&buf)
+	out := buf.String()
+	if !strings.Contains(out, "apptest.diag.b") || !strings.Contains(out, "apptestdiag") {
+		t.Fatalf("diagnostics output = %q, want it to name the offending plugin and ref", out)
+	}
+	ReportPluginDiagnostics(nil)
+}
+
+func TestRunSurvivesPanickingPluginRegistration(t *testing.T) {
+	ran := false
+	opts := Options{
+		Args:            []string{"--help"},
+		RegisterPlugins: func() { panic(`plugin: duplicate signal ref "github" (munin.github and bad.dup)`) },
+		CLI: func(context.Context, []string) error {
+			ran = true
+			return nil
+		},
+	}
+	if err := Run(opts); err != nil {
+		t.Fatalf("Run = %v, want nil", err)
+	}
+	if !ran {
+		t.Fatal("CLI never ran: a panicking plugin bricked the binary")
+	}
+	found := false
+	for _, d := range plugin.Diagnostics() {
+		if strings.Contains(d.Message, "registration panicked") && strings.Contains(d.Message, "bad.dup") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the recovered registration panic was not surfaced as a diagnostic")
 	}
 }
 

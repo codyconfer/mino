@@ -33,7 +33,7 @@ func (kit *Kit) Flights() vkdeck.View {
 		n := n
 		items = append(items, vkdeck.MenuItem{
 			Label: n,
-			Desc:  flightSummary(kit.d.App.Directives.Flights[n]),
+			Desc:  flightSummary(kit.d.App.Dirs().Flights[n]),
 			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.FlightEditor(n)) },
 		})
 	}
@@ -64,7 +64,7 @@ func (kit *Kit) FlightBuilder() vkdeck.View {
 }
 
 func (kit *Kit) FlightEditor(name string) vkdeck.View {
-	return kit.newFlightView(name, kit.d.App.Directives.Flights[name])
+	return kit.newFlightView(name, kit.d.App.Dirs().Flights[name])
 }
 
 func (kit *Kit) newFlightView(orig string, base config.Flight) *flightView {
@@ -137,7 +137,7 @@ func (v *flightView) flight() (config.Flight, error) {
 	}
 	var unknown []string
 	for _, n := range names {
-		if _, ok := v.kit.d.App.Directives.Queries[n]; !ok {
+		if _, ok := v.kit.d.App.Dirs().Queries[n]; !ok {
 			unknown = append(unknown, n)
 		}
 	}
@@ -176,7 +176,7 @@ func (v *flightView) editorVerify(val any) Finding {
 	if name == "" {
 		name = editorAdhocLabel
 	}
-	return verify.Flight(v.kit.d.App.Directives, name, fl)
+	return verify.Flight(v.kit.d.App.Dirs(), name, fl)
 }
 
 func (v *flightView) editorPersist(val any) (string, error) {
@@ -185,11 +185,11 @@ func (v *flightView) editorPersist(val any) (string, error) {
 		return "", errs.New(errs.KindUsage, "name is required to save")
 	}
 	if fl.Name != v.orig {
-		if _, exists := v.kit.d.App.Directives.Flights[fl.Name]; exists {
+		if _, exists := v.kit.d.App.Dirs().Flights[fl.Name]; exists {
 			return "", errs.Newf(errs.KindUsage, "a flight named %s already exists", fl.Name)
 		}
 	}
-	rel := v.kit.d.App.Directives.Source(config.TypeFlight, v.orig)
+	rel := v.kit.d.App.Dirs().Source(config.TypeFlight, v.orig)
 	summary, _, err := v.kit.saveDirective(config.TypeFlight, rel, fl.Name, fl)
 	if err != nil {
 		return "", err

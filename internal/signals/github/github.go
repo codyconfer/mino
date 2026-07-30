@@ -4,15 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/signals"
 )
 
 const defaultPerPage = 30
+
+const maxResponseBytes = 8 << 20
 
 const githubAuthHintPrefix = "your GitHub token may be missing or lack "
 const githubAuthHintSuffix = "; run `munin login github` or set $GITHUB_TOKEN"
@@ -30,7 +35,11 @@ func githubBaseURL(raw string) string {
 }
 
 func newGitHubRequest(ctx context.Context, base, path, token string) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubBaseURL(base)+path, nil)
+	return newGitHubURLRequest(ctx, githubBaseURL(base)+path, token)
+}
+
+func newGitHubURLRequest(ctx context.Context, rawURL, token string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -52,13 +61,45 @@ func newGitHubPost(ctx context.Context, url, token string, body []byte) (*http.R
 	return req, nil
 }
 
-func checkGitHubStatus(resp *http.Response, body []byte, missingScope string) error {
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, strings.TrimSpace(string(body))).
-			WithHint("%s", githubAuthHint(missingScope))
+func readBody(resp *http.Response) ([]byte, error) {
+	if resp.ContentLength > maxResponseBytes {
+		return nil, oversizeBody(resp.ContentLength)
 	}
-	if resp.StatusCode >= 400 {
-		return errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
+	if err != nil {
+		return nil, errs.Wrap(errs.KindSignal, err, "github: reading response body")
+	}
+	if len(body) > maxResponseBytes {
+		return nil, oversizeBody(int64(len(body)))
+	}
+	return body, nil
+}
+
+func oversizeBody(n int64) error {
+	return errs.Newf(errs.KindSignal, "github: response body exceeds the %d MiB limit (%d bytes)", maxResponseBytes>>20, n).
+		WithHint("check that github.api_url points at a GitHub API endpoint")
+}
+
+func checkGitHubStatus(resp *http.Response, body []byte, missingScope string) error {
+	msg := strings.TrimSpace(string(body))
+	switch {
+	case resp.StatusCode == http.StatusUnauthorized:
+		return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, msg).
+			WithHint("%s", githubAuthHint(missingScope))
+	case rateLimited(resp, body):
+		err := errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, msg)
+		if d, ok := retryAfter(resp.Header, time.Now()); ok {
+			return err.WithHint("github rate limit reached; retry after %s", d.Round(time.Second))
+		}
+		return err.WithHint("github rate limit reached; retry in a few minutes")
+	case resp.StatusCode == http.StatusForbidden:
+		if hint := restrictionHint(body); hint != "" {
+			return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, msg).WithHint("%s", hint)
+		}
+		return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, msg).
+			WithHint("%s", githubAuthHint(missingScope))
+	case resp.StatusCode >= 400:
+		return errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, msg)
 	}
 	return nil
 }
@@ -122,7 +163,9 @@ func wrapQuery(q string, err error) error {
 }
 
 type searchResponse struct {
-	Items []struct {
+	TotalCount        int  `json:"total_count"`
+	IncompleteResults bool `json:"incomplete_results"`
+	Items             []struct {
 		Title         string `json:"title"`
 		HTMLURL       string `json:"html_url"`
 		Body          string `json:"body"`
@@ -159,7 +202,24 @@ func mapSearchResponse(raw []byte, title string) (signals.Section, error) {
 			Meta:      map[string]string{"author": it.User.Login},
 		})
 	}
+	sec.Meta = searchMeta(resp, title)
 	return sec, nil
+}
+
+func searchMeta(resp searchResponse, title string) map[string]string {
+	meta := map[string]string{"shown": strconv.Itoa(len(resp.Items))}
+	if resp.TotalCount > 0 {
+		meta["total"] = strconv.Itoa(resp.TotalCount)
+	}
+	if resp.TotalCount > len(resp.Items) {
+		meta["more"] = strconv.Itoa(resp.TotalCount - len(resp.Items))
+	}
+	if resp.IncompleteResults {
+		meta["truncated"] = "true"
+		meta["truncated_reason"] = "github's search backend timed out; these results are incomplete"
+		log.Debugf("github: search %q returned incomplete results (%d of %d)", title, len(resp.Items), resp.TotalCount)
+	}
+	return meta
 }
 
 func repoSlug(repoURL string) string {

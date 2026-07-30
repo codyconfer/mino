@@ -3,15 +3,20 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
-	"strconv"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/active"
+)
+
+const (
+	notificationsPath   = "/notifications?all=false&per_page=50"
+	notificationMaxPage = 5
 )
 
 type activeSignal struct {
@@ -26,69 +31,197 @@ func NewActive(token, baseURL string, interval time.Duration, state *active.Stat
 	if interval <= 0 {
 		interval = 60 * time.Second
 	}
-	return &activeSignal{token: token, baseURL: baseURL, interval: interval, http: http.DefaultClient, state: state}
+	return &activeSignal{token: token, baseURL: baseURL, interval: interval, http: signals.HTTPClient(), state: state}
 }
 
 func (h *activeSignal) Name() string { return "github" }
 
 func (h *activeSignal) LatencyFloor() time.Duration { return h.interval }
 
+func (h *activeSignal) client() *http.Client {
+	if h.http == nil {
+		return signals.HTTPClient()
+	}
+	return h.http
+}
+
 func (h *activeSignal) Stream(ctx context.Context) (<-chan signals.Event, error) {
 	cursor := h.state.Cursor("github", "last_modified")
-	lastModified := cursor.Load(ctx)
 	seen := h.state.Seen("github:notifications")
+	lastModified := cursor.Load(ctx)
+	fails := 0
 	step := func(ctx context.Context) ([]signals.Item, time.Duration, error) {
-		req, err := newGitHubRequest(ctx, h.baseURL, "/notifications?all=false", h.token)
+		res, err := h.poll(ctx, lastModified)
 		if err != nil {
-			return nil, 0, errs.Wrap(errs.KindSignal, err, "github: building notifications request")
+			fails++
+			return nil, h.retryInterval(res.next, fails), err
 		}
-		if lastModified != "" {
-			req.Header.Set("If-Modified-Since", lastModified)
+		fails = 0
+		if res.lastModified != "" && res.lastModified != lastModified {
+			lastModified = res.lastModified
+			_ = cursor.Save(ctx, res.lastModified)
 		}
-		hc := h.http
-		if hc == nil {
-			hc = http.DefaultClient
+		if res.notModified {
+			return nil, res.next, nil
 		}
-		resp, err := hc.Do(req)
-		if err != nil {
-			return nil, 0, errs.Wrap(errs.KindSignal, err, "github: notifications request failed")
-		}
-		defer resp.Body.Close()
-		next := h.nextInterval(resp)
-		if resp.StatusCode == http.StatusNotModified {
-			return nil, next, nil
-		}
-		body, _ := io.ReadAll(resp.Body)
-		if err := checkGitHubStatus(resp, body, "the notifications scope"); err != nil {
-			return nil, next, err
-		}
-		if lm := resp.Header.Get("Last-Modified"); lm != "" && lm != lastModified {
-			lastModified = lm
-			_ = cursor.Save(ctx, lm)
-		}
-		items, err := mapNotifications(body)
-		if err != nil {
-			return nil, next, err
-		}
-		return seen.Fresh(ctx, items, func(it signals.Item) string { return it.Meta["id"] + "|" + it.Meta["updated"] }), next, nil
+		return seen.Fresh(ctx, res.items, notificationKey), res.next, nil
 	}
 	return active.PollAdaptive(ctx, "github", h.interval, step), nil
 }
 
+func notificationKey(it signals.Item) string {
+	return it.Meta["id"] + "|" + it.Meta["updated"]
+}
+
+type pollResult struct {
+	items        []signals.Item
+	next         time.Duration
+	lastModified string
+	notModified  bool
+}
+
+func (h *activeSignal) poll(ctx context.Context, lastModified string) (pollResult, error) {
+	res := pollResult{next: h.interval}
+	pageURL := githubBaseURL(h.baseURL) + notificationsPath
+	for page := 0; pageURL != ""; page++ {
+		if page >= notificationMaxPage {
+			log.Debugf("github: stopping after %d notification page(s); %d thread(s) collected and more remain",
+				notificationMaxPage, len(res.items))
+			break
+		}
+		since := ""
+		if page == 0 {
+			since = lastModified
+		}
+		pg, err := h.fetchPage(ctx, pageURL, since)
+		if err != nil {
+			if len(res.items) > 0 {
+				log.Debugf("github: notifications page %d failed after %d thread(s): %v", page+1, len(res.items), err)
+				res.next = max(res.next, pg.next)
+				return res, nil
+			}
+			res.next = pg.next
+			return res, err
+		}
+		if page == 0 {
+			res.next = pg.next
+			res.lastModified = pg.lastModified
+			if pg.notModified {
+				res.notModified = true
+				return res, nil
+			}
+		}
+		items, err := mapNotifications(pg.body)
+		if err != nil {
+			if len(res.items) > 0 {
+				log.Debugf("github: notifications page %d unreadable after %d thread(s): %v", page+1, len(res.items), err)
+				return res, nil
+			}
+			return res, err
+		}
+		res.items = append(res.items, items...)
+		pageURL = pg.nextURL
+	}
+	return res, nil
+}
+
+type notificationPage struct {
+	body         []byte
+	nextURL      string
+	next         time.Duration
+	lastModified string
+	notModified  bool
+}
+
+func (h *activeSignal) fetchPage(ctx context.Context, rawURL, since string) (notificationPage, error) {
+	pg := notificationPage{next: h.interval}
+	req, err := newGitHubURLRequest(ctx, rawURL, h.token)
+	if err != nil {
+		return pg, errs.Wrap(errs.KindSignal, err, "github: building notifications request")
+	}
+	if since != "" {
+		req.Header.Set("If-Modified-Since", since)
+	}
+	resp, err := h.client().Do(req)
+	if err != nil {
+		return pg, errs.Wrap(errs.KindSignal, err, "github: notifications request failed")
+	}
+	defer resp.Body.Close()
+	pg.next = h.nextInterval(resp)
+	pg.lastModified = resp.Header.Get("Last-Modified")
+	if resp.StatusCode == http.StatusNotModified {
+		pg.notModified = true
+		return pg, nil
+	}
+	body, err := readBody(resp)
+	if err != nil {
+		return pg, err
+	}
+	if err := checkGitHubStatus(resp, body, "the notifications scope"); err != nil {
+		return pg, err
+	}
+	pg.body = body
+	pg.nextURL = nextPageURL(resp.Header.Get("Link"), rawURL)
+	return pg, nil
+}
+
 func (h *activeSignal) nextInterval(resp *http.Response) time.Duration {
-	hint := resp.Header.Get("X-Poll-Interval")
-	if hint == "" {
-		return h.interval
+	next := h.interval
+	if hint := pollIntervalHint(resp.Header); hint > next {
+		next = hint
 	}
-	secs, err := strconv.Atoi(strings.TrimSpace(hint))
-	if err != nil || secs <= 0 {
-		return h.interval
+	if d, ok := retryAfter(resp.Header, time.Now()); ok {
+		if d = withJitter(d); d > next {
+			next = d
+		}
 	}
-	server := time.Duration(secs) * time.Second
-	if server > h.interval {
-		return server
+	return next
+}
+
+func (h *activeSignal) retryInterval(next time.Duration, fails int) time.Duration {
+	return max(next, withJitter(backoffInterval(h.interval, fails)))
+}
+
+func nextPageURL(link, current string) string {
+	if strings.TrimSpace(link) == "" {
+		return ""
 	}
-	return h.interval
+	cur, err := url.Parse(current)
+	if err != nil {
+		return ""
+	}
+	for _, part := range strings.Split(link, ",") {
+		fields := strings.Split(strings.TrimSpace(part), ";")
+		if len(fields) < 2 {
+			continue
+		}
+		target := strings.TrimSpace(fields[0])
+		if !strings.HasPrefix(target, "<") || !strings.HasSuffix(target, ">") {
+			continue
+		}
+		if !hasRel(fields[1:], "next") {
+			continue
+		}
+		u, err := url.Parse(strings.Trim(target, "<>"))
+		if err != nil || u.Scheme != cur.Scheme || u.Host != cur.Host {
+			continue
+		}
+		return u.String()
+	}
+	return ""
+}
+
+func hasRel(params []string, want string) bool {
+	for _, p := range params {
+		k, v, ok := strings.Cut(strings.TrimSpace(p), "=")
+		if !ok || !strings.EqualFold(strings.TrimSpace(k), "rel") {
+			continue
+		}
+		if strings.Trim(strings.TrimSpace(v), `"`) == want {
+			return true
+		}
+	}
+	return false
 }
 
 type notification struct {

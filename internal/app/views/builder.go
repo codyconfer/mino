@@ -43,7 +43,7 @@ func (kit *Kit) Queries() vkdeck.View {
 		n := n
 		items = append(items, vkdeck.MenuItem{
 			Label: n,
-			Desc:  querySummary(kit.d.App.Directives.Queries[n]),
+			Desc:  querySummary(kit.d.App.Dirs().Queries[n]),
 			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.QueryEditor(n)) },
 		})
 	}
@@ -83,6 +83,8 @@ type builderView struct {
 
 	orig string
 	base config.Query
+
+	ackDrop bool
 }
 
 func (kit *Kit) QueryBuilder() vkdeck.View {
@@ -90,7 +92,7 @@ func (kit *Kit) QueryBuilder() vkdeck.View {
 }
 
 func (kit *Kit) QueryEditor(name string) vkdeck.View {
-	return kit.newBuilder(name, kit.d.App.Directives.Queries[name])
+	return kit.newBuilder(name, kit.d.App.Dirs().Queries[name])
 }
 
 func (kit *Kit) newBuilder(orig string, base config.Query) *builderView {
@@ -246,6 +248,7 @@ func (v *builderView) editorSync() bool {
 	changed := false
 	if idx := v.SelectedOf("type"); idx >= 0 && idx != v.typeIdx {
 		v.typeIdx = idx
+		v.ackDrop = false
 		changed = true
 	}
 	if idx := v.SelectedOf("signal"); idx >= 0 && idx != v.sigIdx {
@@ -266,10 +269,58 @@ func (v *builderView) editorSummary() string {
 	if name := v.Value("name"); name != "" {
 		parts = append(parts, "name="+name)
 	}
+	if drops := v.filterDrops(); len(drops) > 0 {
+		parts = append(parts, "drops "+strings.Join(drops, " and "))
+	}
 	if len(parts) == 0 {
 		return "unsaved draft"
 	}
 	return strings.Join(parts, "  ")
+}
+
+func (v *builderView) filterDrops() []string {
+	if !v.isFilter() {
+		return nil
+	}
+	vals := v.Remembered()
+	var out []string
+	if sig := forms.Str(vals, "signal"); sig != "" && sig != builderNoSignal {
+		out = append(out, "signal "+sig)
+	}
+	var params []string
+	for _, k := range sortedAnyKeys(vals) {
+		if !strings.HasPrefix(k, builderParamPrefix) || forms.Str(vals, k) == "" {
+			continue
+		}
+		params = append(params, strings.TrimPrefix(k, builderParamPrefix))
+	}
+	params = append(params, builderExtraKeys(forms.Str(vals, "extra"))...)
+	if len(params) > 0 {
+		out = append(out, "param "+strings.Join(params, ", "))
+	}
+	if refs := directiveSplit(forms.Str(vals, "filters")); len(refs) > 0 {
+		out = append(out, "filter "+strings.Join(refs, ", "))
+	}
+	return out
+}
+
+func sortedAnyKeys(vals map[string]any) []string {
+	out := make([]string, 0, len(vals))
+	for k := range vals {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func builderExtraKeys(s string) []string {
+	var out []string
+	for _, pair := range directiveSplit(s) {
+		if k, _, found := strings.Cut(pair, "="); found && strings.TrimSpace(k) != "" {
+			out = append(out, strings.TrimSpace(k))
+		}
+	}
+	return out
 }
 
 func (v *builderView) editorValue() (any, error) {
@@ -301,7 +352,7 @@ func (v *builderView) editorVerify(val any) Finding {
 	if name == "" {
 		name = editorAdhocLabel
 	}
-	return verify.Query(v.kit.d.App.Directives, name, q)
+	return verify.Query(v.kit.d.App.Dirs(), name, q)
 }
 
 func (v *builderView) editorPersist(val any) (string, error) {
@@ -309,13 +360,19 @@ func (v *builderView) editorPersist(val any) (string, error) {
 	if q.Name == "" {
 		return "", errs.New(errs.KindUsage, "name is required to save")
 	}
+	if drops := v.filterDrops(); len(drops) > 0 && !v.ackDrop {
+		v.ackDrop = true
+		return "", errs.Newf(errs.KindUsage,
+			"a `type: filter` document cannot carry %s, so saving now discards %s; press ctrl+s again to save the filter without them, or switch type back to keep them",
+			strings.Join(drops, " or "), strings.Join(drops, " and "))
+	}
 	if q.Name != v.orig {
-		if _, exists := v.kit.d.App.Directives.Queries[q.Name]; exists {
+		if _, exists := v.kit.d.App.Dirs().Queries[q.Name]; exists {
 			return "", errs.Newf(errs.KindUsage, "a query named %s already exists", q.Name)
 		}
 	}
 	kind := q.Kind()
-	rel := v.kit.d.App.Directives.Source(kind, v.orig)
+	rel := v.kit.d.App.Dirs().Source(kind, v.orig)
 	summary, _, err := v.kit.saveDirective(kind, rel, q.Name, q)
 	if err != nil {
 		return "", err
@@ -362,7 +419,7 @@ func (v *builderView) query() (config.Query, error) {
 			q.Params = params
 		}
 		for _, ref := range directiveSplit(forms.Str(vals, "filters")) {
-			if _, ok := v.kit.d.App.Directives.LookupFilter(ref); !ok {
+			if _, ok := v.kit.d.App.Dirs().LookupFilter(ref); !ok {
 				return config.Query{}, errs.Newf(errs.KindConfig, "unknown filter %q", ref).
 					WithHint("pick one of: %s", strings.Join(v.kit.d.App.VisibleFilters(), ", "))
 			}

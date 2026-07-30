@@ -37,7 +37,7 @@ func newFlyCmd() *cobra.Command {
 			if _, ok := shared.Directives.Flights[name]; !ok && len(args) == 0 {
 				return listFlights(cmd)
 			}
-			o, err := ff.resolve(shared.Directives.Flights[name].Formatter)
+			o, err := ff.resolve(cmd, shared.Directives.Flights[name].Formatter)
 			if err != nil {
 				return err
 			}

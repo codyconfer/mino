@@ -938,6 +938,57 @@ func TestBuilderTypeSpecificValidation(t *testing.T) {
 	}
 }
 
+func TestBuilderFilterSaveWarnsBeforeDroppingRememberedSignalAndParams(t *testing.T) {
+	kit := testKit(t)
+	v := builderFor(t, kit)
+	v.selectSignal(t, "github")
+	v.set(t, "param.query", "is:open")
+	v.selectType(t, string(config.TypeFilter))
+	v.set(t, "exclude", "(?i)bot$")
+	v.set(t, "name", "warned-filter")
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	path := filepath.Join(kit.d.App.Cfg.Home, config.DirQueries, "warned-filter.yaml")
+
+	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("the first ctrl+s wrote the filter, silently discarding the remembered signal and params")
+	}
+	status := v.Status()
+	for _, want := range []string{"github", "query", "ctrl+s"} {
+		if !strings.Contains(status, want) {
+			t.Errorf("save refusal %q does not mention %q", status, want)
+		}
+	}
+
+	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("a second ctrl+s did not save: %v (status %q)", err, v.Status())
+	}
+	if body := string(data); strings.Contains(body, "signal:") {
+		t.Errorf("acknowledged filter save still carries a signal:\n%s", body)
+	}
+}
+
+func TestBuilderFilterSaveWithoutARememberedSignalNeedsNoAck(t *testing.T) {
+	kit := testKit(t)
+	v := builderFor(t, kit)
+	v.selectType(t, string(config.TypeFilter))
+	v.set(t, "exclude", "(?i)bot$")
+	v.set(t, "name", "clean-filter")
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
+
+	path := filepath.Join(kit.d.App.Cfg.Home, config.DirQueries, "clean-filter.yaml")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("a filter with nothing to discard should save on the first ctrl+s: %v (status %q)", err, v.Status())
+	}
+}
+
 func TestBuilderSavedFilterMatchesWhatTheFormShows(t *testing.T) {
 	kit := testKit(t)
 	v := builderFor(t, kit)
@@ -949,6 +1000,7 @@ func TestBuilderSavedFilterMatchesWhatTheFormShows(t *testing.T) {
 
 	app := deck.New(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
 	data, err := os.ReadFile(filepath.Join(kit.d.App.Cfg.Home, config.DirQueries, "saved-filter.yaml"))

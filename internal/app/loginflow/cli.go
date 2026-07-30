@@ -16,6 +16,8 @@ import (
 	"github.com/codyconfer/munin/internal/render"
 )
 
+var stdinIsTTY = func() bool { return term.IsTerminal(os.Stdin.Fd()) }
+
 func RunCLI(ctx context.Context, a *app.App, p Provider, in io.Reader, out, errOut io.Writer) error {
 	if p.Authed(a) {
 		fmt.Fprintln(out, notify.Render(notify.AlreadyAuthed(p.Label)))
@@ -23,12 +25,12 @@ func RunCLI(ctx context.Context, a *app.App, p Provider, in io.Reader, out, errO
 	}
 
 	creds := map[string]string{}
-	if missing := p.Missing(a); len(missing) > 0 && term.IsTerminal(os.Stdin.Fd()) {
+	if missing := p.Missing(a); len(missing) > 0 && stdinIsTTY() {
 		reader := bufio.NewReader(in)
-		fmt.Fprintf(out, "%s needs OAuth client credentials — enter them to continue.\n", p.Label)
+		fmt.Fprintf(errOut, "%s needs OAuth client credentials — enter them to continue.\n", p.Label)
 		for _, f := range missing {
-			fmt.Fprintf(out, "  %s: ", f.Label)
-			val, err := readCredential(reader, f.Secret)
+			fmt.Fprintf(errOut, "  %s: ", f.Label)
+			val, err := readCredential(reader, errOut, f.Secret)
 			if err != nil {
 				return err
 			}
@@ -49,10 +51,10 @@ func RunCLI(ctx context.Context, a *app.App, p Provider, in io.Reader, out, errO
 	return nil
 }
 
-func readCredential(reader *bufio.Reader, secret bool) (string, error) {
+func readCredential(reader *bufio.Reader, echo io.Writer, secret bool) (string, error) {
 	if secret {
 		b, err := term.ReadPassword(os.Stdin.Fd())
-		fmt.Fprintln(os.Stdout)
+		fmt.Fprintln(echo)
 		if err != nil {
 			return "", errs.Wrap(errs.KindUsage, err, "reading credential input")
 		}

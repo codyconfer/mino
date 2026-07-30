@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -364,7 +365,11 @@ func (s *Directives) absorb(blob []byte) error {
 		for i, doc := range docs {
 			if doc.Type == TypeAuto {
 				if !doc.hasDirectiveFields() {
-					continue
+					if doc.Name == "" {
+						continue
+					}
+					return errs.Newf(errs.KindConfig, "document %d in %s names %q but declares nothing else", i+1, fn, doc.Name).
+						WithHint("add a `type:` line (one of %v) and the fields that go with it", DirectiveTypes())
 				}
 				return errs.Newf(errs.KindConfig, "document %d in %s declares no `type:`", i+1, fn).
 					WithHint("add a `type:` line: one of %v", DirectiveTypes())
@@ -378,10 +383,10 @@ func (s *Directives) absorb(blob []byte) error {
 				doc.Name = baseName(fn)
 			}
 			if err := doc.validate(k); err != nil {
-				return err
+				return inFile(fn, i, err)
 			}
 			if err := s.add(k, doc, fn); err != nil {
-				return err
+				return inFile(fn, i, err)
 			}
 			s.sources[sourceKey{k, doc.Name}] = fn
 			s.docs[fn]++
@@ -390,10 +395,21 @@ func (s *Directives) absorb(blob []byte) error {
 	return nil
 }
 
+func inFile(fn string, i int, err error) error {
+	wrapped := errs.Wrapf(errs.KindOf(err), err, "in %s (document %d)", fn, i+1)
+	if hint := errs.Hint(err); hint != "" {
+		return wrapped.WithHint("%s", hint)
+	}
+	return wrapped
+}
+
 func (s *Directives) add(k DirectiveType, doc directiveDoc, file string) error {
 	dup := func() error {
-		return errs.Newf(errs.KindConfig, "duplicate %s name %q", typeLabel(k), doc.Name).
-			WithHint("defined again in %s", file)
+		e := errs.Newf(errs.KindConfig, "duplicate %s name %q", typeLabel(k), doc.Name)
+		if first := s.Source(k, doc.Name); first != "" && first != file {
+			return e.WithHint("already defined in %s, and again in %s", first, file)
+		}
+		return e.WithHint("defined again in %s", file)
 	}
 	switch k {
 	case TypeQuery, TypeFilter:
@@ -557,17 +573,19 @@ func decodeJSONDocs[T any](name string, data []byte) ([]T, error) {
 }
 
 func decodeYAMLDocs[T any](name string, data []byte) ([]T, error) {
-	dec := yaml.NewDecoder(bytes.NewReader(data))
+	shape := yaml.NewDecoder(bytes.NewReader(data))
+	strict := yaml.NewDecoder(bytes.NewReader(data))
+	strict.KnownFields(true)
 	var out []T
 	for {
 		var doc yaml.Node
-		if err := dec.Decode(&doc); err != nil {
+		if err := shape.Decode(&doc); err != nil {
 			if errors.Is(err, io.EOF) {
 				return out, nil
 			}
-			return nil, errs.Wrapf(errs.KindConfig, err, "parsing %s", name)
+			return nil, decodeErr(name, err)
 		}
-		vals, err := decodeYAMLNode[T](name, &doc)
+		vals, err := decodeYAMLDoc[T](name, &doc, strict)
 		if err != nil {
 			return nil, err
 		}
@@ -575,28 +593,100 @@ func decodeYAMLDocs[T any](name string, data []byte) ([]T, error) {
 	}
 }
 
-func decodeYAMLNode[T any](name string, n *yaml.Node) ([]T, error) {
+func decodeYAMLDoc[T any](name string, n *yaml.Node, strict *yaml.Decoder) ([]T, error) {
 	if n.Kind == yaml.DocumentNode {
 		if len(n.Content) == 0 {
-			return nil, nil
+			return nil, skipYAMLDoc(name, strict)
 		}
 		n = n.Content[0]
 	}
 	switch {
 	case n.Kind == 0, n.Tag == "!!null":
-		return nil, nil
+		return nil, skipYAMLDoc(name, strict)
 	case n.Kind == yaml.SequenceNode:
 		var list []T
-		if err := n.Decode(&list); err != nil {
-			return nil, errs.Wrapf(errs.KindConfig, err, "parsing %s", name)
+		if err := strict.Decode(&list); err != nil {
+			if onlyUnknownFields(err) && !anyIdentified(list) {
+				return nil, nil
+			}
+			return nil, decodeErr(name, err)
 		}
 		return list, nil
 	}
 	var v T
-	if err := n.Decode(&v); err != nil {
-		return nil, errs.Wrapf(errs.KindConfig, err, "parsing %s", name)
+	if err := strict.Decode(&v); err != nil {
+		if onlyUnknownFields(err) && !identified(v) {
+			return nil, nil
+		}
+		return nil, decodeErr(name, err)
 	}
 	return []T{v}, nil
+}
+
+type identifiable interface{ identified() bool }
+
+func (d directiveDoc) identified() bool {
+	return d.Type != TypeAuto || d.Name != "" || d.hasDirectiveFields()
+}
+
+func identified[T any](v T) bool {
+	if id, ok := any(v).(identifiable); ok {
+		return id.identified()
+	}
+	return true
+}
+
+func anyIdentified[T any](list []T) bool {
+	for _, v := range list {
+		if identified(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func onlyUnknownFields(err error) bool {
+	var typed *yaml.TypeError
+	if !errors.As(err, &typed) || len(typed.Errors) == 0 {
+		return false
+	}
+	for _, m := range typed.Errors {
+		if !unknownFieldRe.MatchString(m) {
+			return false
+		}
+	}
+	return true
+}
+
+func skipYAMLDoc(name string, strict *yaml.Decoder) error {
+	var ignored any
+	if err := strict.Decode(&ignored); err != nil && !errors.Is(err, io.EOF) {
+		return decodeErr(name, err)
+	}
+	return nil
+}
+
+var unknownFieldRe = regexp.MustCompile(`field (\S+) not found in type \S+`)
+
+func decodeErr(name string, err error) error {
+	var typed *yaml.TypeError
+	if !errors.As(err, &typed) {
+		return errs.Wrapf(errs.KindConfig, err, "parsing %s", name)
+	}
+	msgs := make([]string, 0, len(typed.Errors))
+	unknown := false
+	for _, m := range typed.Errors {
+		if fixed := unknownFieldRe.ReplaceAllString(m, "unknown field `$1`"); fixed != m {
+			unknown = true
+			m = fixed
+		}
+		msgs = append(msgs, m)
+	}
+	e := errs.Newf(errs.KindConfig, "parsing %s: %s", name, strings.Join(msgs, "; "))
+	if unknown {
+		return e.WithHint("fix the spelling or drop the key: a key munin does not know would silently do nothing")
+	}
+	return e
 }
 
 func baseName(path string) string {

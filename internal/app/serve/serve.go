@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
+	"syscall"
 	"time"
 
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
@@ -25,7 +27,10 @@ import (
 	"github.com/codyconfer/munin/internal/signals/build"
 )
 
-const serveBuffer = 256
+const (
+	serveBuffer      = 256
+	sourceDrainGrace = 2 * time.Second
+)
 
 type Server struct {
 	*app.App
@@ -84,28 +89,138 @@ func (s *Server) openState() (*active.State, func()) {
 	return active.NewState(store), func() { _ = store.Close() }
 }
 
-func (s *Server) events(ctx context.Context, name string, interval time.Duration, state *active.State) (<-chan signals.Event, error) {
+func (s *Server) sources(ctx context.Context, name string, interval time.Duration, state *active.State) (sources, error) {
 	flight := s.Directives.Flights[name]
 	queries := s.activeQueries(name, flight.Queries, interval, state)
 
+	var wg sync.WaitGroup
 	var chans []<-chan signals.Event
-	for _, q := range queries {
-		ch, err := q.src.Stream(ctx)
-		if err != nil {
-			log.Warnf("serve: %s: %v (skipping)", q.label, err)
-			continue
-		}
-		chans = append(chans, applyFilters(ctx, ch, q.filters))
-		fmt.Fprintf(os.Stderr, "watching %-10s %s\n", q.src.Name(), latencyLabel(q.src.LatencyFloor()))
+	for _, open := range s.openStreams(ctx, queries) {
+		chans = append(chans, applyFilters(ctx, track(ctx, &wg, open.ch, open.stop), open.q.filters))
+		fmt.Fprintf(os.Stderr, "watching %-10s %s\n", open.q.src.Name(), latencyLabel(open.q.src.LatencyFloor()))
 	}
 	if sch := s.scheduledEvents(ctx, name, flight.Queries, state); sch != nil {
-		chans = append(chans, sch)
+		chans = append(chans, track(ctx, &wg, sch, nil))
 	}
 	if len(chans) == 0 {
-		return nil, errs.Newf(errs.KindUsage, "flight %q has no signals with realtime or scheduled support", name).
+		return sources{}, errs.Newf(errs.KindUsage, "flight %q has no signals with realtime or scheduled support", name).
 			WithHint("active: slack, github, calendar, tasks, demo; scheduled: ntr")
 	}
-	return sysdaemon.FanIn(ctx, chans...), nil
+	return sources{events: sysdaemon.FanIn(ctx, chans...), join: wg.Wait}, nil
+}
+
+type sources struct {
+	events <-chan signals.Event
+	join   func()
+}
+
+type openStream struct {
+	q    activeQuery
+	ch   <-chan signals.Event
+	stop context.CancelFunc
+}
+
+func (s *Server) openStreams(ctx context.Context, queries []activeQuery) []openStream {
+	timeout := s.SourceTimeout()
+	opened := make([]openStream, len(queries))
+	var wg sync.WaitGroup
+	for i := range queries {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ch, stop, err := openStreamWithin(ctx, queries[i], timeout)
+			if err != nil {
+				log.Warnf("serve: %s: %v (skipping)", queries[i].label, err)
+				return
+			}
+			opened[i] = openStream{q: queries[i], ch: ch, stop: stop}
+		}()
+	}
+	wg.Wait()
+	out := make([]openStream, 0, len(opened))
+	for _, o := range opened {
+		if o.ch != nil {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+func openStreamWithin(ctx context.Context, q activeQuery, timeout time.Duration) (<-chan signals.Event, context.CancelFunc, error) {
+	sctx, cancel := context.WithCancel(ctx)
+	type result struct {
+		ch  <-chan signals.Event
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		ch, err := q.src.Stream(sctx)
+		done <- result{ch: ch, err: err}
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case o := <-done:
+		if o.err == nil && o.ch == nil {
+			o.err = errs.Newf(errs.KindSignal, "opened no event stream")
+		}
+		if o.err != nil {
+			cancel()
+			return nil, nil, o.err
+		}
+		return o.ch, cancel, nil
+	case <-timer.C:
+		cancel()
+		return nil, nil, errs.Newf(errs.KindSignal, "did not open an event stream within %s", timeout)
+	case <-ctx.Done():
+		cancel()
+		return nil, nil, ctx.Err()
+	}
+}
+
+func track(ctx context.Context, wg *sync.WaitGroup, in <-chan signals.Event, stop context.CancelFunc) <-chan signals.Event {
+	out := make(chan signals.Event)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if stop != nil {
+			defer stop()
+		}
+		defer close(out)
+		for {
+			select {
+			case ev, ok := <-in:
+				if !ok {
+					return
+				}
+				select {
+				case out <- ev:
+				case <-ctx.Done():
+					drain(in)
+					return
+				}
+			case <-ctx.Done():
+				drain(in)
+				return
+			}
+		}
+	}()
+	return out
+}
+
+func drain(in <-chan signals.Event) {
+	t := time.NewTimer(sourceDrainGrace)
+	defer t.Stop()
+	for {
+		select {
+		case _, ok := <-in:
+			if !ok {
+				return
+			}
+		case <-t.C:
+			return
+		}
+	}
 }
 
 func (s *Server) activeQueries(flight string, names []string, interval time.Duration, state *active.State) []activeQuery {
@@ -212,16 +327,6 @@ func observeNotify(ctx context.Context, ch <-chan signals.Event, sink notifySink
 	}
 }
 
-func (s *Server) observable(ctx context.Context, name string, interval time.Duration, state *active.State) (*sysdaemon.Subject[signals.Event], error) {
-	events, err := s.events(ctx, name, interval, state)
-	if err != nil {
-		return nil, err
-	}
-	subj := sysdaemon.NewSubject[signals.Event]()
-	go subj.Pump(ctx, events)
-	return subj, nil
-}
-
 func (s *Server) socket(ctx context.Context, subj *sysdaemon.Subject[signals.Event]) func() {
 	path := s.SocketPath()
 	if sysdaemon.IsListening(config.SocketPrefix, path) {
@@ -230,7 +335,11 @@ func (s *Server) socket(ctx context.Context, subj *sysdaemon.Subject[signals.Eve
 	}
 	ln, err := sysdaemon.Listen(config.SocketPrefix, path)
 	if err != nil {
-		log.Debugf("serve: socket unavailable: %v", err)
+		if errors.Is(err, sysdaemon.ErrInUse) || errors.Is(err, syscall.EADDRINUSE) {
+			log.Debugf("serve: another daemon already owns %s: %v", path, err)
+		} else {
+			log.Debugf("serve: socket unavailable: %v", err)
+		}
 		return func() {}
 	}
 	go sysdaemon.Broadcast(ctx, ln, subj, serveBuffer, Encode)
@@ -285,28 +394,65 @@ type RunOptions struct {
 
 func (s *Server) Run(ctx context.Context, opt RunOptions) error {
 	cctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	state, closeState := s.openState()
 	defer closeState()
 
-	subj, err := s.observable(cctx, opt.Flight, opt.Interval, state)
+	src, err := s.sources(cctx, opt.Flight, opt.Interval, state)
 	if err != nil {
+		cancel()
 		return err
 	}
-	defer subj.Close()
-
-	closeSock := s.socket(cctx, subj)
-	defer closeSock()
-
-	flightID := s.Audit.StartFlight("serve", s.Cfg.Role)
-	defer s.Audit.FinishFlight(flightID)
-
-	go s.observeAudit(subj.Subscribe(serveBuffer), flightID)
-
 	sink := notifySink{bell: opt.Bell, desktop: opt.Desktop, terminal: opt.Terminal, onState: opt.OnState}
-	observeNotify(cctx, subj.Subscribe(serveBuffer), sink)
+	s.watch(cctx, cancel, src, sink)
 	return nil
+}
+
+type session struct {
+	cancel    context.CancelFunc
+	src       sources
+	closeSock func()
+	subj      *sysdaemon.Subject[signals.Event]
+	audited   <-chan struct{}
+	flightID  int64
+}
+
+func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sources, sink notifySink) {
+	subj := sysdaemon.NewSubject[signals.Event]()
+	closeSock := s.socket(ctx, subj)
+	flightID := s.Audit.StartFlight("serve", s.Cfg.Role)
+
+	audited := make(chan struct{})
+	auditCh := subj.Subscribe(serveBuffer)
+	notifyCh := subj.Subscribe(serveBuffer)
+	go func() {
+		defer close(audited)
+		s.observeAudit(auditCh, flightID)
+	}()
+	go subj.Pump(ctx, src.events)
+
+	defer s.endSession(session{
+		cancel:    cancel,
+		src:       src,
+		closeSock: closeSock,
+		subj:      subj,
+		audited:   audited,
+		flightID:  flightID,
+	})
+	observeNotify(ctx, notifyCh, sink)
+}
+
+func (s *Server) endSession(ses session) {
+	ses.cancel()
+	if ses.src.join != nil {
+		ses.src.join()
+	}
+	if ses.closeSock != nil {
+		ses.closeSock()
+	}
+	ses.subj.Close()
+	<-ses.audited
+	s.Audit.FinishFlight(ses.flightID)
 }
 
 func stateForEvent(ev signals.Event) sysdaemon.State {

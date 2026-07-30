@@ -48,7 +48,7 @@ func (a *App) PreviewRole(rd config.RoleDef, hold time.Duration, body func() Rol
 }
 
 func (a *App) restoreRole() string {
-	name := a.Cfg.Role
+	name := a.Role()
 	if name == "" {
 		role.ClearStatusChips()
 		return "restored: no active role"

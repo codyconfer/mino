@@ -150,3 +150,28 @@ func TestLoadGlobalSettingsDoesNotWarnForValidOrAbsentFiles(t *testing.T) {
 		t.Errorf("unexpected log output for healthy settings: %q", got)
 	}
 }
+
+func TestSaveGlobalSettingsDoesNotWriteThroughASymlink(t *testing.T) {
+	env := testenv.Isolate(t)
+	path := settingsPath(t, env)
+	victim := filepath.Join(t.TempDir(), "victim.yaml")
+	original := "home: /elsewhere\n"
+	write(t, victim, original)
+	if err := os.Symlink(victim, path); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+
+	if err := SaveGlobalSettings(GlobalSettings{Theme: "nord"}); err != nil {
+		t.Fatal(err)
+	}
+	if raw, err := os.ReadFile(victim); err != nil || string(raw) != original {
+		t.Fatalf("a file outside the config dir was overwritten through a symlink: %q (err=%v)", raw, err)
+	}
+	fi, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("%s is still a symlink; settings writes still escape the config dir", path)
+	}
+}

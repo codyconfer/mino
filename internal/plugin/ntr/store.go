@@ -2,6 +2,7 @@ package ntr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -67,12 +68,25 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+var ErrNoID = errors.New("ntr id: the id sequence returned no rows")
+
 func (s *Store) nextID(ctx context.Context) (int64, error) {
 	res, err := s.db.Query(ctx, `SELECT nextval('ntr_id_seq')`)
-	if err != nil || len(res.Rows) == 0 {
+	if err != nil {
 		return 0, fmt.Errorf("ntr id: %w", err)
 	}
-	return strconv.ParseInt(res.Rows[0][0], 10, 64)
+	return idFromRows(res.Rows)
+}
+
+func idFromRows(rows [][]string) (int64, error) {
+	if len(rows) == 0 || len(rows[0]) == 0 {
+		return 0, ErrNoID
+	}
+	id, err := strconv.ParseInt(rows[0][0], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("ntr id: %w", err)
+	}
+	return id, nil
 }
 
 type Note struct {

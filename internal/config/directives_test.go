@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/codyconfer/munin/internal/errs"
 )
 
 func seedDirectives(t *testing.T) string {
@@ -816,5 +818,110 @@ func mkdir(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTypoedDirectiveFieldErrorsInsteadOfVanishing(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"), "name: prs\nsinal: github.prs\n")
+
+	s, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatalf("a misspelled `signal:` loaded cleanly with queries=%v; the query simply does not exist", s.QueryNames())
+	}
+	if !strings.Contains(err.Error(), "prs.yaml") {
+		t.Errorf("error should name the file, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "sinal") {
+		t.Errorf("error should name the unknown key, got %v", err)
+	}
+}
+
+func TestTypoedParamsKeyErrorsInsteadOfRunningUnparameterised(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"),
+		"name: prs\ntype: query\nsignal: github.prs\nparmas:\n  repo: munin\n")
+
+	s, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatalf("a misspelled `params:` loaded cleanly; the query would run unparameterised: %#v", s.Queries["prs"])
+	}
+	if !strings.Contains(err.Error(), "parmas") {
+		t.Errorf("error should name the unknown key, got %v", err)
+	}
+}
+
+func TestNameOnlyDocumentErrorsInsteadOfBeingSkipped(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"), "name: prs\n")
+
+	if _, err := LoadDirectivesFromFiles(home); err == nil {
+		t.Fatal("a document holding only a name loaded as nothing at all, with nothing reported")
+	}
+}
+
+func TestBadFilterRegexErrorNamesTheFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "a.yaml"), "name: a\ntype: filter\nrules:\n  - include: \"[\"\n")
+
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("expected a compile error for a bad regex")
+	}
+	if !strings.Contains(err.Error(), "a.yaml") {
+		t.Errorf("a filter compile error must name the file it came from, got %v", err)
+	}
+}
+
+func TestBadFormatterTemplateErrorNamesTheFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirFormatters))
+	write(t, filepath.Join(home, DirFormatters, "x.yaml"), "name: x\ntype: formatter\ntemplate: \"{{ .Items\"\n")
+
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("expected a parse error for a malformed template")
+	}
+	if !strings.Contains(err.Error(), "x.yaml") {
+		t.Errorf("a formatter parse error must name the file it came from, got %v", err)
+	}
+}
+
+func TestValidationErrorNamesTheFileAndKeepsItsHint(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "b.yaml"), "name: b\ntype: query\n")
+
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("expected an error for a query with no signal")
+	}
+	if !strings.Contains(err.Error(), "b.yaml") {
+		t.Errorf("a validation error must name the file it came from, got %v", err)
+	}
+	if hint := errs.Hint(err); hint == "" {
+		t.Error("wrapping the validation error dropped its hint")
+	}
+}
+
+func TestDuplicateNameErrorNamesBothFiles(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "a-first.yaml"), "name: prs\ntype: query\nsignal: github\n")
+	write(t, filepath.Join(home, DirQueries, "b-second.yaml"), "name: prs\ntype: query\nsignal: gitlab\n")
+
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("expected a duplicate-name error")
+	}
+	full := err.Error() + " " + errs.Hint(err)
+	for _, want := range []string{"a-first.yaml", "b-second.yaml"} {
+		if !strings.Contains(full, want) {
+			t.Errorf("duplicate error should name %s, got %q", want, full)
+		}
 	}
 }

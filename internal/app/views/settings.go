@@ -198,7 +198,7 @@ func (k *Kit) setvStatusBarEntries() []statusBarEntry {
 	entries = append(entries, sectionStatusBarEntries()...)
 	home, role := "", ""
 	if k.d.App != nil && k.d.App.Cfg != nil {
-		home, role = k.d.App.Cfg.Home, k.d.App.Cfg.Role
+		home, role = k.d.App.Cfg.Home, k.d.App.Role()
 	}
 	seen := make(map[string]struct{}, len(entries))
 	for _, e := range entries {

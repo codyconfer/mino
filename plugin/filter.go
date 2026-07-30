@@ -34,74 +34,88 @@ var (
 
 func RegisterFilter(parentID string, f NamedFilter) {
 	if parentID == "" {
-		panic("plugin: RegisterFilter requires parent plugin id")
+		noteDiagnosticf("", KindFilter, f.Name, "RegisterFilter(%q) requires a parent plugin id; filter skipped", f.Name)
+		return
 	}
 	if f.Name == "" {
-		panic("plugin: RegisterFilter requires filter name")
+		noteDiagnostic(Diagnostic{PluginID: parentID, Message: "RegisterFilter requires a filter name; filter skipped"})
+		return
 	}
 	if err := validateNamedFilter(f); err != nil {
-		panic(fmt.Sprintf("plugin: RegisterFilter %q: %v", f.Name, err))
+		noteDiagnosticf(parentID, KindFilter, f.Name, "invalid filter: %v; filter skipped", err)
+		return
 	}
 	filterMu.Lock()
-	if existing, ok := namedByName[f.Name]; ok {
-		if !isFilterStub(existing) || engineByName[f.Name] != nil {
-			filterMu.Unlock()
-			panic(fmt.Sprintf("plugin: duplicate filter %q", f.Name))
-		}
+	dup := filterTakenLocked(f.Name)
+	if !dup {
+		namedByName[f.Name] = cloneNamed(f)
 	}
-	if _, ok := engineByName[f.Name]; ok {
-		filterMu.Unlock()
-		panic(fmt.Sprintf("plugin: duplicate filter %q", f.Name))
-	}
-	namedByName[f.Name] = cloneNamed(f)
 	filterMu.Unlock()
+	if dup {
+		noteDiagnosticf(parentID, KindFilter, f.Name, "filter %q is already registered; later filter skipped", f.Name)
+		return
+	}
 	registerFilterKind(parentID, f.Name)
 }
 
 func RegisterFilterEngine(parentID, name string, fn FilterFunc) {
-	if parentID == "" {
-		panic("plugin: RegisterFilterEngine requires parent plugin id")
-	}
 	name = strings.TrimSpace(name)
+	if parentID == "" {
+		noteDiagnosticf("", KindFilter, name, "RegisterFilterEngine(%q) requires a parent plugin id; engine skipped", name)
+		return
+	}
 	if name == "" || fn == nil {
-		panic("plugin: RegisterFilterEngine requires name and func")
+		noteDiagnostic(Diagnostic{PluginID: parentID, Message: "RegisterFilterEngine requires a name and func; engine skipped"})
+		return
 	}
 	filterMu.Lock()
-	if existing, ok := namedByName[name]; ok {
-		if !isFilterStub(existing) || engineByName[name] != nil {
-			filterMu.Unlock()
-			panic(fmt.Sprintf("plugin: duplicate filter %q", name))
-		}
+	dup := filterTakenLocked(name)
+	if !dup {
+		engineByName[name] = fn
+		namedByName[name] = NamedFilter{Name: name}
 	}
-	if _, ok := engineByName[name]; ok {
-		filterMu.Unlock()
-		panic(fmt.Sprintf("plugin: duplicate filter %q", name))
-	}
-	engineByName[name] = fn
-	namedByName[name] = NamedFilter{Name: name}
 	filterMu.Unlock()
+	if dup {
+		noteDiagnosticf(parentID, KindFilter, name, "filter %q is already registered; later engine skipped", name)
+		return
+	}
 	registerFilterKind(parentID, name)
 }
 
 func RegisterFilterKeywords(parentID, name string, fn KeywordsFunc) {
-	if parentID == "" {
-		panic("plugin: RegisterFilterKeywords requires parent plugin id")
-	}
 	name = strings.TrimSpace(name)
+	if parentID == "" {
+		noteDiagnosticf("", KindFilter, name, "RegisterFilterKeywords(%q) requires a parent plugin id; keywords skipped", name)
+		return
+	}
 	if name == "" || fn == nil {
-		panic("plugin: RegisterFilterKeywords requires name and func")
+		noteDiagnostic(Diagnostic{PluginID: parentID, Message: "RegisterFilterKeywords requires a name and func; keywords skipped"})
+		return
 	}
 	filterMu.Lock()
-	if _, ok := keywordsByName[name]; ok {
-		filterMu.Unlock()
-		panic(fmt.Sprintf("plugin: duplicate filter keywords %q", name))
-	}
-	keywordsByName[name] = fn
-	if _, ok := namedByName[name]; !ok {
-		namedByName[name] = NamedFilter{Name: name}
+	_, dup := keywordsByName[name]
+	if !dup {
+		keywordsByName[name] = fn
+		if _, ok := namedByName[name]; !ok {
+			namedByName[name] = NamedFilter{Name: name}
+		}
 	}
 	filterMu.Unlock()
+	if dup {
+		noteDiagnosticf(parentID, KindFilter, name, "filter keywords %q are already registered; later keywords skipped", name)
+		return
+	}
 	registerFilterKind(parentID, name)
+}
+
+func filterTakenLocked(name string) bool {
+	if _, ok := engineByName[name]; ok {
+		return true
+	}
+	if existing, ok := namedByName[name]; ok {
+		return !isFilterStub(existing)
+	}
+	return false
 }
 
 func registerFilterKind(parentID, name string) {

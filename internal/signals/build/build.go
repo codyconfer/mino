@@ -22,6 +22,7 @@ import (
 	"github.com/codyconfer/munin/internal/signals/gtasks"
 	slacksrc "github.com/codyconfer/munin/internal/signals/slack"
 	"github.com/codyconfer/munin/internal/token"
+	pub "github.com/codyconfer/munin/plugin"
 
 	_ "github.com/codyconfer/munin/internal/plugin/ntr"
 )
@@ -32,6 +33,8 @@ func init() {
 }
 
 var ErrNoActive = errs.New(errs.KindUsage, "signal has no active (streaming) implementation")
+
+var ErrNoScheduled = errs.New(errs.KindUsage, "signal has no scheduled implementation")
 
 func GoogleAuth(cfg *config.Config, tokens *token.Store) auth.GoogleAuth {
 	return auth.GoogleAuth{
@@ -63,6 +66,9 @@ func Signal(name string, params map[string]string, cfg *config.Config, tokens *t
 	if err != nil {
 		return nil, err
 	}
+	if q == nil {
+		return nil, errs.Newf(errs.KindInternal, "builder for signal %q returned no query", name)
+	}
 	return results.Wrap(q, name, cfg.Role, params), nil
 }
 
@@ -83,7 +89,52 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	if !plugin.HasCapability(name, plugin.CapStream) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q does not advertise CapStream", name)
 	}
-	return plugin.BuildStream(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, state: state})
+	src, err := plugin.BuildStream(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, state: state})
+	if err != nil {
+		return nil, err
+	}
+	if src == nil {
+		return nil, errs.Newf(errs.KindInternal, "builder for signal %q returned no stream", name)
+	}
+	return src, nil
+}
+
+func ScheduledJob(name string, params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (plugin.Scheduled, error) {
+	if !pub.HasScheduledBuilder(name) {
+		if plugin.HasCapability(name, plugin.CapScheduled) {
+			return nil, errs.Newf(errs.KindInternal, "signal %q advertises CapScheduled but has no scheduled builder", name)
+		}
+		return nil, ErrNoScheduled
+	}
+	if !plugin.HasCapability(name, plugin.CapScheduled) {
+		return nil, errs.Newf(errs.KindConfig, "signal %q does not advertise CapScheduled", name)
+	}
+	if !plugin.SignalEnabled(name) {
+		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
+			WithHint("enable with `munin plugins enable` for the backing plugin")
+	}
+	job, err := pub.BuildScheduled(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, state: state})
+	if err != nil {
+		return nil, err
+	}
+	if job == nil {
+		return nil, errs.Newf(errs.KindInternal, "builder for signal %q returned no scheduled job", name)
+	}
+	return job, nil
+}
+
+func ScheduledSignals() []string {
+	var out []string
+	for _, name := range pub.ScheduledSignals() {
+		if plugin.HasCapability(name, plugin.CapScheduled) && plugin.SignalEnabled(name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func HasScheduledBuilder(signal string) bool {
+	return pub.HasScheduledBuilder(signal)
 }
 
 func KnownSignals() map[string]bool {

@@ -34,7 +34,7 @@ func (kit *Kit) Reports() vkdeck.View {
 	for _, n := range kit.d.App.VisibleFormatters() {
 		items = append(items, vkdeck.MenuItem{
 			Label: n,
-			Desc:  formatterSummary(kit.d.App.Directives.Formatters[n]),
+			Desc:  formatterSummary(kit.d.App.Dirs().Formatters[n]),
 			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.ReportEditor(n)) },
 		})
 	}
@@ -72,7 +72,7 @@ func (kit *Kit) ReportBuilder() vkdeck.View {
 }
 
 func (kit *Kit) ReportEditor(name string) vkdeck.View {
-	return kit.newReportView(name, kit.d.App.Directives.Formatters[name])
+	return kit.newReportView(name, kit.d.App.Dirs().Formatters[name])
 }
 
 func (kit *Kit) newReportView(orig string, base config.FormatterDef) *reportView {
@@ -195,7 +195,7 @@ func (v *reportView) renderer() (reportRender, error) {
 	if label == "" {
 		label = editorAdhocLabel
 	}
-	queries := v.kit.d.App.Directives.Flights[flight].Queries
+	queries := v.kit.d.App.Dirs().Flights[flight].Queries
 	return reportRender{
 		label:  label,
 		flight: flight,
@@ -246,11 +246,11 @@ func (v *reportView) editorPersist(val any) (string, error) {
 		return "", errs.New(errs.KindUsage, "name is required to save")
 	}
 	if fd.Name != v.orig {
-		if _, exists := v.kit.d.App.Directives.Formatters[fd.Name]; exists {
+		if _, exists := v.kit.d.App.Dirs().Formatters[fd.Name]; exists {
 			return "", errs.Newf(errs.KindUsage, "a report named %s already exists", fd.Name)
 		}
 	}
-	rel := v.kit.d.App.Directives.Source(config.TypeFormatter, v.orig)
+	rel := v.kit.d.App.Dirs().Source(config.TypeFormatter, v.orig)
 	summary, _, err := v.kit.saveDirective(config.TypeFormatter, rel, fd.Name, fd)
 	if err != nil {
 		return "", err

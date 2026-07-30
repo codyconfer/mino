@@ -121,10 +121,7 @@ func SaveGlobalSettings(gs GlobalSettings) error {
 	if err != nil {
 		return errs.Wrap(errs.KindInternal, err, "marshal global settings")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return errs.Wrap(errs.KindInternal, err, "create global settings dir")
-	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	if _, err := sconfig.WriteItem(filepath.Dir(path), filepath.Base(path), data); err != nil {
 		return errs.Wrap(errs.KindInternal, err, "write global settings")
 	}
 	return nil

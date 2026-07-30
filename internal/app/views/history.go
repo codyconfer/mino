@@ -176,6 +176,7 @@ func (v *historyRunView) remove(a *vkdeck.Model) tea.Cmd {
 	if err := v.kit.d.App.Audit.Delete(v.row.ID); err != nil {
 		return a.Push(vkdeck.NewMessage("delete failed", err.Error(), v.ctx))
 	}
+	v.kit.forgetHistory()
 	return tea.Sequence(a.Pop(), reloadCmd())
 }
 

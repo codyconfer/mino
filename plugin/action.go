@@ -24,22 +24,35 @@ func actionKey(signal, name string) string { return signal + "\x00" + name }
 
 func RegisterAction(signal, name string, run ActionFunc, opts ...Option) {
 	if signal == "" || name == "" || run == nil {
-		panic("plugin: RegisterAction requires signal, name, and run")
+		noteDiagnosticf("", KindAction, signal+"/"+name,
+			"RegisterAction requires signal, name, and run; action skipped")
+		return
 	}
 	d := Descriptor{}
 	applyOptions(&d, opts)
 	actionMu.Lock()
 	k := actionKey(signal, name)
-	if _, ok := actions[k]; ok {
-		actionMu.Unlock()
-		panic(fmt.Sprintf("plugin: duplicate action %s/%s", signal, name))
+	_, dup := actions[k]
+	if !dup {
+		actions[k] = ActionSpec{Signal: signal, Name: name, Run: run}
 	}
-	actions[k] = ActionSpec{Signal: signal, Name: name, Run: run}
 	actionMu.Unlock()
+	if dup {
+		noteDiagnosticf(actionOwner(signal), KindAction, signal+"/"+name,
+			"action %s/%s is already registered; later action skipped", signal, name)
+		return
+	}
 
 	mu.Lock()
 	queueActionKindLocked(signal, name, d.ServiceOnly)
 	mu.Unlock()
+}
+
+func actionOwner(signal string) string {
+	if d, ok := BySignal(signal); ok {
+		return d.ID
+	}
+	return ""
 }
 
 func LookupAction(signal, name string) (ActionSpec, bool) {

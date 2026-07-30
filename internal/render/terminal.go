@@ -130,7 +130,7 @@ func lastCommentTime(it signals.Item) (time.Time, bool) {
 }
 
 func lastCommentChip(th *theme.Theme, it signals.Item) string {
-	last := signals.Clean(it.Meta["last_comment_by"])
+	last := it.Meta["last_comment_by"]
 	if last == "" {
 		return ""
 	}
@@ -152,12 +152,14 @@ func lastCommentChip(th *theme.Theme, it signals.Item) string {
 }
 
 func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
+	it = cleanItem(it)
+
 	icon := theme.SeverityStyle(glyph.ClassifyItem(it)).Render(glyph.Lead(glyph.ForItem(it)))
-	head := icon + th.Val.Render(signals.Clean(it.Title))
+	head := icon + th.Val.Render(it.Title)
 	if it.Subtitle != "" {
-		head += "  " + th.Dim.Render(signals.Clean(it.Subtitle))
+		head += "  " + th.Dim.Render(it.Subtitle)
 	}
-	if author := signals.Clean(it.Meta["author"]); author != "" {
+	if author := it.Meta["author"]; author != "" {
 		head += "  " + th.Dim.Render("@"+author)
 	}
 	tail := lastCommentChip(th, it)
@@ -175,7 +177,7 @@ func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
 		lines = append(lines, head)
 	}
 	if it.URL != "" {
-		lines = append(lines, th.Dim.Render(signals.Clean(it.URL)))
+		lines = append(lines, th.Dim.Render(it.URL))
 	}
 	return lines
 }

@@ -24,7 +24,10 @@ type GenerateResult struct {
 	Written []string
 }
 
-var identRE = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+var (
+	identRE  = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+	signalRE = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+)
 
 func Generate(opts GenerateOptions) (GenerateResult, error) {
 	id := strings.TrimSpace(opts.ID)
@@ -47,6 +50,9 @@ func Generate(opts GenerateOptions) (GenerateResult, error) {
 	if signal == "" {
 		signal = defaultSignal(id)
 	}
+	if !signalRE.MatchString(signal) {
+		return GenerateResult{}, fmt.Errorf("scaffold: invalid signal name %q (want %s)", signal, signalRE)
+	}
 	pkg := strings.TrimSpace(opts.Package)
 	if pkg == "" {
 		pkg = sanitizeIdent(signal)
@@ -61,18 +67,27 @@ func Generate(opts GenerateOptions) (GenerateResult, error) {
 		filepath.Join("queries", signal+"-ping.yaml"): renderQueryYAML(signal),
 	}
 
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return GenerateResult{}, err
-	}
 	rels := make([]string, 0, len(files))
 	for rel := range files {
 		rels = append(rels, rel)
 	}
 	sort.Strings(rels)
+	paths := make([]string, len(rels))
+	for i, rel := range rels {
+		p, err := resolveWithin(dir, rel)
+		if err != nil {
+			return GenerateResult{}, err
+		}
+		paths[i] = p
+	}
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return GenerateResult{}, err
+	}
 	var written []string
-	for _, rel := range rels {
+	for i, rel := range rels {
 		body := files[rel]
-		path := filepath.Join(dir, rel)
+		path := paths[i]
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return GenerateResult{}, err
 		}
@@ -87,6 +102,21 @@ func Generate(opts GenerateOptions) (GenerateResult, error) {
 		written = append(written, rel)
 	}
 	return GenerateResult{Dir: dir, Written: written}, nil
+}
+
+func resolveWithin(dir, rel string) (string, error) {
+	if rel == "" || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("scaffold: refusing to write %q outside %s", rel, dir)
+	}
+	path := filepath.Join(dir, rel)
+	inside, err := filepath.Rel(dir, path)
+	if err != nil {
+		return "", fmt.Errorf("scaffold: refusing to write %q outside %s", rel, dir)
+	}
+	if inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) || filepath.IsAbs(inside) {
+		return "", fmt.Errorf("scaffold: refusing to write %q outside %s", rel, dir)
+	}
+	return path, nil
 }
 
 func defaultSignal(id string) string {

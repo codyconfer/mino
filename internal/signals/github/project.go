@@ -119,7 +119,7 @@ func (p *projectSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 	}
 	var roster *Roster
 	if p.spec.Team != "" {
-		roster, err = ResolveTeam(ctx, p.backend, p.cache, p.spec.Team)
+		roster, err = ResolveTeam(ctx, p.backend, p.cache, p.spec.Team, p.policy)
 		if err != nil {
 			return nil, err
 		}

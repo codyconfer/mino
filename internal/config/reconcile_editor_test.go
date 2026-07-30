@@ -37,6 +37,56 @@ func TestEditorCmdResolvesVisualThenEditor(t *testing.T) {
 	}
 }
 
+func TestEditorArgvKeepsWindowsPathsIntact(t *testing.T) {
+	cases := []struct {
+		ed       string
+		path     string
+		wantName string
+		wantArgs []string
+	}{
+		{
+			ed:       "notepad",
+			path:     `C:\Users\x\.munin\config.yaml`,
+			wantName: "notepad",
+			wantArgs: []string{`C:\Users\x\.munin\config.yaml`},
+		},
+		{
+			ed:       "code --wait",
+			path:     `C:\Users\x\.munin\config.yaml`,
+			wantName: "code",
+			wantArgs: []string{"--wait", `C:\Users\x\.munin\config.yaml`},
+		},
+		{
+			ed:       `"C:\Program Files\Vim\vim.exe" --nofork`,
+			path:     `C:\Users\x\.munin\config.yaml`,
+			wantName: `C:\Program Files\Vim\vim.exe`,
+			wantArgs: []string{"--nofork", `C:\Users\x\.munin\config.yaml`},
+		},
+		{
+			ed:       "  vim  ",
+			path:     "/home/x/.munin/config.yaml",
+			wantName: "vim",
+			wantArgs: []string{"/home/x/.munin/config.yaml"},
+		},
+	}
+	for _, c := range cases {
+		name, args := editorArgv(c.ed, c.path)
+		if name != c.wantName {
+			t.Errorf("editorArgv(%q) name = %q, want %q", c.ed, name, c.wantName)
+		}
+		if len(args) != len(c.wantArgs) {
+			t.Errorf("editorArgv(%q) args = %v, want %v", c.ed, args, c.wantArgs)
+			continue
+		}
+		for i := range args {
+			if args[i] != c.wantArgs[i] {
+				t.Errorf("editorArgv(%q) args = %v, want %v", c.ed, args, c.wantArgs)
+				break
+			}
+		}
+	}
+}
+
 func TestConfigFilePathFindsOnDiskConfig(t *testing.T) {
 	home := t.TempDir()
 	if _, err := ConfigFilePath(home); err == nil {

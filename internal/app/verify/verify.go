@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/codyconfer/sisyphus/redact"
+	"github.com/codyconfer/sisyphus/secret"
 
 	"github.com/codyconfer/munin/internal/app/onboard"
 	"github.com/codyconfer/munin/internal/auth"
@@ -36,30 +37,52 @@ type Finding struct {
 	Warn    bool
 }
 
-func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *config.Directives, tokens auth.TokenStore, target string) error {
-	sty := render.NewReportStyles(w)
+const TargetAll = "all"
 
-	sections := []struct {
-		key   string
-		title string
-		run   func() []Finding
-	}{
-		{"config", "Config", func() []Finding { return Config(cfg, directives) }},
-		{"roles", "Roles", func() []Finding { return Roles(directives) }},
-		{"flights", "Flights", func() []Finding { return Flights(directives) }},
-		{"queries", "Queries", func() []Finding { return Queries(directives) }},
-		{"formatters", "Formatters", func() []Finding { return Formatters(directives) }},
-		{"plugins", "Plugins", func() []Finding { return Plugins() }},
-		{"onboarding", "Onboarding", func() []Finding { return Onboarding(ctx, tokens, cfg.GitHub.APIURL) }},
+type section struct {
+	Key   string
+	Title string
+}
+
+func sections() []section {
+	return []section{
+		{"config", "Config"},
+		{"roles", "Roles"},
+		{"flights", "Flights"},
+		{"queries", "Queries"},
+		{"formatters", "Formatters"},
+		{"plugins", "Plugins"},
+		{"onboarding", "Onboarding"},
+	}
+}
+
+func Targets() []string {
+	secs := sections()
+	out := make([]string, 0, len(secs)+1)
+	for _, s := range secs {
+		out = append(out, s.Key)
+	}
+	return append(out, TargetAll)
+}
+
+func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *config.Directives, tokens auth.TokenStore, target string) error {
+	if target == "" {
+		target = TargetAll
+	}
+	secs := sections()
+	if target != TargetAll && !slices.ContainsFunc(secs, func(s section) bool { return s.Key == target }) {
+		return errs.Newf(errs.KindUsage, "unknown verify target %q", target).
+			WithHint("valid targets: %s", strings.Join(Targets(), ", "))
 	}
 
+	sty := render.NewReportStyles(w)
 	problems := 0
-	for _, s := range sections {
-		if target != "all" && target != s.key {
+	for _, s := range secs {
+		if target != TargetAll && target != s.Key {
 			continue
 		}
-		findings := s.run()
-		fmt.Fprintln(w, sty.Title.Render(s.title))
+		findings := run(ctx, s.Key, cfg, directives, tokens)
+		fmt.Fprintln(w, sty.Title.Render(s.Title))
 		if len(findings) == 0 {
 			fmt.Fprintln(w, "  "+sty.Dim.Render("(none)"))
 		}
@@ -71,6 +94,26 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *confi
 
 	if problems > 0 {
 		return errs.Newf(errs.KindConfig, "%d problem(s) found", problems)
+	}
+	return nil
+}
+
+func run(ctx context.Context, key string, cfg *config.Config, directives *config.Directives, tokens auth.TokenStore) []Finding {
+	switch key {
+	case "config":
+		return Config(cfg, directives)
+	case "roles":
+		return Roles(directives)
+	case "flights":
+		return Flights(directives)
+	case "queries":
+		return Queries(directives)
+	case "formatters":
+		return Formatters(directives)
+	case "plugins":
+		return Plugins()
+	case "onboarding":
+		return Onboarding(ctx, tokens, cfg.GitHub.APIURL)
 	}
 	return nil
 }
@@ -113,13 +156,9 @@ func Config(cfg *config.Config, directives *config.Directives) []Finding {
 		check("github.api_url", err == nil, fmt.Sprintf("api_url=%q must be an https URL", cfg.GitHub.APIURL), "github:\n  api_url: "+cfg.GitHub.APIURL)
 	}
 
-	switch cfg.Backup.SecretBackend {
-	case "", "auto", "bitwarden", "1password", "keyring":
-		check("backup.secret_backend", true, "", "")
-	default:
-		check("backup.secret_backend", false,
-			fmt.Sprintf("unknown backend %q", cfg.Backup.SecretBackend), toYAML(cfg.Backup))
-	}
+	check("backup.secret_backend", secret.ValidBackend(cfg.Backup.SecretBackend),
+		fmt.Sprintf("unknown backend %q (have: %s)", cfg.Backup.SecretBackend, strings.Join(secret.Backends(), ", ")),
+		toYAML(cfg.Backup))
 	switch cfg.Backup.Destination {
 	case "", "local", "gdrive":
 		check("backup.destination", true, "", "")

@@ -461,3 +461,185 @@ func TestDataPathsUnderDotData(t *testing.T) {
 		t.Fatalf("%s must not read as directives: %v", DirData, rels)
 	}
 }
+
+func symlink(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+}
+
+func assertNotSymlink(t *testing.T, path string) {
+	t.Helper()
+	fi, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("%s is still a symlink; a later write would escape the munin home again", path)
+	}
+}
+
+func TestWriteDirectivesReplacesASymlinkInsteadOfWritingThroughIt(t *testing.T) {
+	home := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "victim.yaml")
+	write(t, victim, "victim: untouched\n")
+	mkdir(t, filepath.Join(home, DirQueries))
+	link := filepath.Join(home, DirQueries, "team.yaml")
+	symlink(t, victim, link)
+
+	payload := "name: team\ntype: query\nsignal: github\n"
+	blob, err := json.Marshal(map[string]string{DirQueries + "/team.yaml": payload})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteDirectives(home, blob); err != nil {
+		t.Fatal(err)
+	}
+
+	if raw, err := os.ReadFile(victim); err != nil || string(raw) != "victim: untouched\n" {
+		t.Fatalf("a file outside the munin home was overwritten through a symlink: %q (err=%v)", raw, err)
+	}
+	assertNotSymlink(t, link)
+	if raw, err := os.ReadFile(link); err != nil || string(raw) != payload {
+		t.Fatalf("%s = %q (err=%v), want the directive payload", link, raw, err)
+	}
+}
+
+func TestWriteDirectivesRollsBackWhenALaterFileCannotBeWritten(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	original := "name: a\ntype: query\nsignal: github\n"
+	write(t, filepath.Join(home, DirQueries, "a.yaml"), original)
+	write(t, filepath.Join(home, "zblock"), "a file, not a directory\n")
+
+	blob, err := json.Marshal(map[string]string{
+		DirQueries + "/a.yaml": "name: a\ntype: query\nsignal: gitlab\n",
+		"zblock/b.yaml":        "name: b\ntype: query\nsignal: github\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteDirectives(home, blob); err == nil {
+		t.Fatal("WriteDirectives reported success even though zblock/b.yaml could not be written")
+	}
+
+	raw, err := os.ReadFile(filepath.Join(home, DirQueries, "a.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != original {
+		t.Fatalf("queries/a.yaml = %q, want the pre-failure content %q: a failed export half-migrated the home", raw, original)
+	}
+	if raw, err := os.ReadFile(filepath.Join(home, "zblock")); err != nil || !strings.Contains(string(raw), "not a directory") {
+		t.Fatalf("zblock = %q (err=%v), want it left alone", raw, err)
+	}
+}
+
+func TestWriteDirectivesRollbackRemovesFilesItCreated(t *testing.T) {
+	home := t.TempDir()
+	write(t, filepath.Join(home, "zblock"), "a file, not a directory\n")
+	blob, err := json.Marshal(map[string]string{
+		DirQueries + "/fresh.yaml": "name: fresh\ntype: query\nsignal: github\n",
+		"zblock/b.yaml":            "name: b\ntype: query\nsignal: github\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteDirectives(home, blob); err == nil {
+		t.Fatal("WriteDirectives reported success on an unwritable target")
+	}
+	if _, err := os.Stat(filepath.Join(home, DirQueries, "fresh.yaml")); err == nil {
+		t.Fatal("queries/fresh.yaml survived a failed WriteDirectives; the home is half-migrated")
+	}
+}
+
+func TestSaveDirectiveRefusesASymlinkedDerivedTarget(t *testing.T) {
+	home := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "victim.yaml")
+	original := "name: team\ntype: query\nsignal: github\n"
+	write(t, victim, original)
+	mkdir(t, filepath.Join(home, DirQueries))
+	symlink(t, victim, filepath.Join(home, DirQueries, "team.yaml"))
+
+	_, _, err := SaveDirective(nil, home, "", TypeQuery, "team", Query{Name: "team", Signal: "gitlab"})
+	if err == nil {
+		t.Fatal("SaveDirective wrote through a symlink out of the munin home")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Errorf("error should say the target is a symlink, got %v", err)
+	}
+	if raw, rerr := os.ReadFile(victim); rerr != nil || string(raw) != original {
+		t.Fatalf("the file outside the home changed: %q (err=%v)", raw, rerr)
+	}
+}
+
+func TestSaveDirectiveWithExplicitPathReplacesASymlink(t *testing.T) {
+	home := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "victim.yaml")
+	write(t, victim, "victim: untouched\n")
+	mkdir(t, filepath.Join(home, DirQueries))
+	link := filepath.Join(home, DirQueries, "team.yaml")
+	symlink(t, victim, link)
+
+	if _, _, err := SaveDirective(nil, home, DirQueries+"/team.yaml", TypeQuery, "team", Query{Name: "team", Signal: "github"}); err != nil {
+		t.Fatal(err)
+	}
+	if raw, err := os.ReadFile(victim); err != nil || string(raw) != "victim: untouched\n" {
+		t.Fatalf("a file outside the munin home was overwritten through a symlink: %q (err=%v)", raw, err)
+	}
+	assertNotSymlink(t, link)
+}
+
+func TestReservedRootIgnoresCase(t *testing.T) {
+	reserved := []string{
+		"config.yaml", "Config.yaml", "CONFIG.YAML", "config.YML", "Config.Json",
+	}
+	for _, name := range reserved {
+		if !reservedRoot(name) {
+			t.Errorf("reservedRoot(%q) = false; on a case-insensitive filesystem that file is the live config and would be swept up as a directive", name)
+		}
+	}
+	for _, name := range []string{"team/Config.yaml", "configs.yaml", "myconfig.yaml", "config.txt"} {
+		if reservedRoot(name) {
+			t.Errorf("reservedRoot(%q) = true, want false", name)
+		}
+	}
+}
+
+func TestDirectiveFilesSkipsAMiscasedRootConfig(t *testing.T) {
+	home := t.TempDir()
+	logs := captureLog(t)
+	write(t, filepath.Join(home, "Config.yaml"), "google:\n  oauth_client_secret: SUPERSECRET\n")
+	write(t, filepath.Join(home, "dev.yaml"), "name: dev\ntype: role\n")
+
+	got, err := DirectiveFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, []string{"dev.yaml"}) {
+		t.Fatalf("DirectiveFiles = %v, want only dev.yaml: Config.yaml is a config file, not a directive", got)
+	}
+
+	blob, has, err := SerializeDirectives(home)
+	if err != nil || !has {
+		t.Fatalf("SerializeDirectives: has=%v err=%v", has, err)
+	}
+	if strings.Contains(string(blob), "SUPERSECRET") {
+		t.Fatalf("an unredacted config secret leaked into the directives blob: %s", blob)
+	}
+	if out := logs.String(); !strings.Contains(out, "Config.yaml") {
+		t.Errorf("a root file that differs only in case from config.yaml was ignored with no diagnostic, got %q", out)
+	}
+}
+
+func TestWriteDirectivesRejectsAMiscasedRootConfigKey(t *testing.T) {
+	home := t.TempDir()
+	blob, err := json.Marshal(map[string]string{"Config.yaml": "google:\n  oauth_client_secret: SUPERSECRET\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteDirectives(home, blob); err == nil {
+		t.Fatal("WriteDirectives materialized a config file out of a directive row")
+	}
+}

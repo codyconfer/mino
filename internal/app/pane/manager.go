@@ -22,6 +22,14 @@ const (
 	splitDivider  = 1
 )
 
+var errClosed = errs.New(errs.KindInternal, "pane manager is closed")
+
+var (
+	splitFn  = tmux.Split
+	killFn   = tmux.Kill
+	existsFn = tmux.Exists
+)
+
 func (m *Manager) layoutFor(percent int) (horizontal bool, size int) {
 	width, height, ok := tmux.PaneSize(m.own)
 	if !ok {
@@ -46,9 +54,10 @@ type Manager struct {
 	own    tmux.PaneID
 	env    []string
 
-	mu    sync.Mutex
-	panes []tracked
-	seq   int
+	mu     sync.Mutex
+	panes  []tracked
+	seq    int
+	closed bool
 }
 
 func NewManager(home, flight string) (*Manager, error) {
@@ -172,6 +181,7 @@ func (m *Manager) CloseAll() {
 	m.mu.Lock()
 	panes := m.panes
 	m.panes = nil
+	m.closed = true
 	m.mu.Unlock()
 	for _, p := range panes {
 		if err := m.discard(p); err != nil {
@@ -191,22 +201,39 @@ func (m *Manager) Count() int {
 }
 
 func (m *Manager) split(o tmux.SplitOpts, snapshot string) error {
+	if m.isClosed() {
+		return errClosed
+	}
 	m.prune()
-	id, err := tmux.Split(o)
+	id, err := splitFn(o)
 	if err != nil {
 		return err
 	}
+	t := tracked{id: id, snapshot: snapshot}
 	m.mu.Lock()
-	m.panes = append(m.panes, tracked{id: id, snapshot: snapshot})
+	if m.closed {
+		m.mu.Unlock()
+		if derr := m.discard(t); derr != nil {
+			log.Debugf("pane: discard %s opened after close: %v", t.id, derr)
+		}
+		return errClosed
+	}
+	m.panes = append(m.panes, t)
 	m.mu.Unlock()
 	return nil
+}
+
+func (m *Manager) isClosed() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.closed
 }
 
 func (m *Manager) discard(p tracked) error {
 	if p.snapshot != "" {
 		_ = os.Remove(p.snapshot)
 	}
-	return tmux.Kill(p.id)
+	return killFn(p.id)
 }
 
 func (m *Manager) prune() {
@@ -214,7 +241,7 @@ func (m *Manager) prune() {
 	kept := m.panes[:0]
 	var gone []tracked
 	for _, p := range m.panes {
-		if tmux.Exists(p.id) {
+		if existsFn(p.id) {
 			kept = append(kept, p)
 			continue
 		}

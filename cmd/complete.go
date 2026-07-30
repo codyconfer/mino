@@ -137,4 +137,9 @@ func bindRootCompletions(root *cobra.Command) {
 	bindFlagCompletion(root, "role", completeRoleNames)
 	bindFlagCompletion(root, "home", completeDirs)
 	bindFlagCompletion(root, "dir", completeDirs)
+	bindRootFlagRules(root)
+}
+
+func bindRootFlagRules(root *cobra.Command) {
+	root.MarkFlagsMutuallyExclusive("no-cache", "refresh")
 }

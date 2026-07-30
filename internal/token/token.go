@@ -61,6 +61,10 @@ func (s *Store) Get(ctx context.Context, service string) (auth.Credential, bool,
 	}
 	e, ok, err := s.s.Get(ctx, service)
 	if err != nil {
+		if errors.Is(err, sealed.ErrUndecodable) {
+			return auth.Credential{}, false, errs.Wrapf(errs.KindAuth, err, "read %s token", service).
+				WithHint("the token store cannot be decrypted with the current key: delete tokens.duckdb in the munin data directory and run `munin login %s` again", service)
+		}
 		return auth.Credential{}, ok, errs.Wrap(errs.KindStore, err, "read token")
 	}
 	if !ok {

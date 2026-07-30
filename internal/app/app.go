@@ -28,9 +28,87 @@ type App struct {
 	Cache      *cache.Store
 	Mgr        *sisyphus.Manager
 
+	mu            sync.RWMutex
+	roleTransient bool
+
 	thin         bool
 	ghAuth       ghAuthCache
 	roleDebounce roleDebounce
+}
+
+func (a *App) Role() string {
+	if a == nil {
+		return ""
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.Cfg == nil {
+		return ""
+	}
+	return a.Cfg.Role
+}
+
+func (a *App) Dirs() *config.Directives {
+	if a == nil {
+		return nil
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.Directives
+}
+
+func (a *App) RoleDef(name string) (config.RoleDef, bool) {
+	d := a.Dirs()
+	if d == nil || name == "" {
+		return config.RoleDef{}, false
+	}
+	rd, ok := d.Roles[name]
+	return rd, ok
+}
+
+func (a *App) setRole(name string) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	if a.Cfg != nil {
+		a.Cfg.Role = name
+	}
+	a.mu.Unlock()
+}
+
+func (a *App) setDirectives(d *config.Directives) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	a.Directives = d
+	a.mu.Unlock()
+}
+
+func (a *App) transientRole() bool {
+	if a == nil {
+		return false
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.roleTransient
+}
+
+func (a *App) clearTransientRole() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	a.roleTransient = false
+	a.mu.Unlock()
+}
+
+func (a *App) home() string {
+	if a == nil || a.Cfg == nil {
+		return ""
+	}
+	return a.Cfg.Home
 }
 
 type ghAuthCache struct {
@@ -95,6 +173,15 @@ func Load(opts Options) (*App, error) {
 		cfg.Role = opts.Role
 	}
 	if opts.Timeout != "" {
+		d, err := time.ParseDuration(opts.Timeout)
+		if err != nil {
+			return nil, errs.Newf(errs.KindUsage, "--timeout %q is not a valid duration", opts.Timeout).
+				WithHint("use a Go duration like 30s or 2m")
+		}
+		if d <= 0 {
+			return nil, errs.Newf(errs.KindUsage, "--timeout %q must be greater than zero", opts.Timeout).
+				WithHint("use a positive Go duration like 30s or 2m")
+		}
 		cfg.Timeout = opts.Timeout
 	}
 	if opts.CacheTTL != "" {
@@ -105,7 +192,7 @@ func Load(opts Options) (*App, error) {
 		cfg.Cache.TTL, cfg.Cache.Signals = opts.CacheTTL, nil
 		cfg.Cache.DetailTTL = opts.CacheTTL
 	}
-	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr, thin: opts.Thin}
+	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr, thin: opts.Thin, roleTransient: sessionScopedRole(opts)}
 	if opts.Thin || opts.Completion {
 		return a, nil
 	}
@@ -126,16 +213,37 @@ func loadConfig(opts Options) (*config.Config, *config.Directives, *sisyphus.Man
 
 func (a *App) Thin() bool { return a != nil && a.thin }
 
+const envSessionRole = "MUNIN_ROLE"
+
+func sessionScopedRole(opts Options) bool {
+	return opts.Role != "" || os.Getenv(envSessionRole) != ""
+}
+
 func (a *App) ActivateRole(name string) error {
 	if a == nil || a.Cfg == nil {
 		return errs.New(errs.KindInternal, "app not loaded")
 	}
-	if name == a.Cfg.Role {
+	if name == a.Role() && !a.transientRole() {
 		return nil
 	}
+	if _, ok := a.RoleDef(name); !ok && name != "" {
+		return errs.Newf(errs.KindUsage, "unknown role %q", name).
+			WithHint("run `munin role` to list defined roles")
+	}
+	if err := a.persistRole(name); err != nil {
+		return err
+	}
 	a.invalidateRoleDebounce()
-	a.Cfg.Role = name
-	a.syncRoleLifecycle()
+	a.setRole(name)
+	a.settleRoleChange()
+	return nil
+}
+
+func (a *App) persistRole(name string) error {
+	if _, err := config.SetValues(a.home(), map[string]any{"role": name}); err != nil {
+		return err
+	}
+	a.clearTransientRole()
 	return nil
 }
 
@@ -143,46 +251,23 @@ func (a *App) syncRoleLifecycle() {
 	if a == nil || a.Cfg == nil || a.thin {
 		return
 	}
-	home := a.Cfg.Home
-	prev := role.LoadActive(home)
-	next := a.Cfg.Role
-	if prev != next {
-		a.runRoleExit(prev)
-		a.runRoleEnter(next)
-		if err := role.SaveActive(home, next); err != nil {
-			log.Warnf("role state: %v", err)
-		}
-	} else if next != "" {
-		a.refreshRoleStatus(next)
-	} else {
-		role.ClearStatusChips()
+	if a.transientRole() {
+		a.refreshRoleStatus(a.Role())
+		a.applyRoleContexts()
+		return
 	}
-	a.applyRoleContexts()
+	a.settleRoleChange()
 }
 
-func (a *App) runRoleExit(name string) {
-	role.ClearStatusChips()
-	if name == "" || a.Directives == nil {
-		return
-	}
-	rd, ok := a.Directives.Roles[name]
-	if !ok {
-		log.Warnf("role exit: %q not defined; skipping hooks", name)
-		return
-	}
-	if err := role.RunExit(rd); err != nil {
-		log.Warnf("role %q exit hooks: %v", name, err)
-	}
+func (a *App) settleRoleChange() {
+	p := a.planRoleLifecycle()
+	a.runRolePlan(p)
+	a.commitRolePlan(p)
 }
 
 func (a *App) runRoleEnter(name string) {
-	if name == "" || a.Directives == nil {
-		role.ClearStatusChips()
-		return
-	}
-	rd, ok := a.Directives.Roles[name]
+	rd, ok := a.RoleDef(name)
 	if !ok {
-		log.Warnf("role enter: %q not defined; skipping hooks", name)
 		role.ClearStatusChips()
 		return
 	}
@@ -193,11 +278,7 @@ func (a *App) runRoleEnter(name string) {
 }
 
 func (a *App) refreshRoleStatus(name string) {
-	if name == "" || a.Directives == nil {
-		role.ClearStatusChips()
-		return
-	}
-	rd, ok := a.Directives.Roles[name]
+	rd, ok := a.RoleDef(name)
 	if !ok {
 		role.ClearStatusChips()
 		return
@@ -214,10 +295,7 @@ func (a *App) applyRoleStatus(rd config.RoleDef) {
 }
 
 func (a *App) applyRoleContexts() {
-	if a == nil || a.Cfg.Role == "" || a.Directives == nil {
-		return
-	}
-	rd, ok := a.Directives.Roles[a.Cfg.Role]
+	rd, ok := a.RoleDef(a.Role())
 	if !ok || len(rd.Contexts) == 0 {
 		return
 	}
@@ -234,11 +312,11 @@ func (a *App) RefreshDirectives(policy config.ReconcilePolicy) error {
 	if a == nil || a.Cfg == nil {
 		return errs.New(errs.KindInternal, "app not loaded")
 	}
-	d, err := config.ReloadDirectives(a.Mgr, a.Cfg.Home, policy)
+	d, err := config.ReloadDirectives(a.Mgr, a.home(), policy)
 	if err != nil {
 		return err
 	}
-	a.Directives = d
+	a.setDirectives(d)
 	a.applyRoleContexts()
 	return nil
 }
@@ -341,13 +419,13 @@ func (a *App) CloseDBs() {
 }
 
 func (a *App) Access() config.Access {
-	return config.NewAccess(a.Cfg.Role, a.Directives.Roles)
+	return config.NewAccess(a.Role(), a.Dirs().Roles)
 }
 
 func (a *App) VisibleQueries() []string {
 	ac := a.Access()
 	var out []string
-	for _, n := range a.Directives.QueryNames() {
+	for _, n := range a.Dirs().QueryNames() {
 		if ac.QueryVisible(n) {
 			out = append(out, n)
 		}
@@ -358,7 +436,7 @@ func (a *App) VisibleQueries() []string {
 func (a *App) VisibleFilters() []string {
 	ac := a.Access()
 	var out []string
-	for _, n := range a.Directives.FilterNames() {
+	for _, n := range a.Dirs().FilterNames() {
 		if ac.QueryVisible(n) {
 			out = append(out, n)
 		}
@@ -369,7 +447,7 @@ func (a *App) VisibleFilters() []string {
 func (a *App) VisibleFlights() []string {
 	ac := a.Access()
 	var out []string
-	for _, n := range a.Directives.FlightNames() {
+	for _, n := range a.Dirs().FlightNames() {
 		if ac.FlightVisible(n) {
 			out = append(out, n)
 		}
@@ -380,7 +458,7 @@ func (a *App) VisibleFlights() []string {
 func (a *App) VisibleFormatters() []string {
 	ac := a.Access()
 	var out []string
-	for _, n := range a.Directives.FormatterNames() {
+	for _, n := range a.Dirs().FormatterNames() {
 		if ac.FormatterVisible(n) {
 			out = append(out, n)
 		}
@@ -389,5 +467,5 @@ func (a *App) VisibleFormatters() []string {
 }
 
 func (a *App) NotInRoleError(kind, name string) error {
-	return errs.Newf(errs.KindUsage, "%s %q is not available in role %q", kind, name, a.Cfg.Role)
+	return errs.Newf(errs.KindUsage, "%s %q is not available in role %q", kind, name, a.Role())
 }

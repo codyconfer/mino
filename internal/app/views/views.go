@@ -45,12 +45,14 @@ type Kit struct {
 	d         Deps
 	storeRev  string
 	storeSeen bool
+	histKnown bool
+	histHas   bool
 }
 
 func New(d Deps) *Kit { return &Kit{d: d} }
 
 func (k *Kit) menuCtx() [][2]string {
-	if role := k.d.App.Cfg.Role; role != "" {
+	if role := k.d.App.Role(); role != "" {
 		return [][2]string{{"role", role}}
 	}
 	return nil
@@ -120,16 +122,32 @@ func (k *Kit) toolingMenuItems() []vkdeck.MenuItem {
 }
 
 func (k *Kit) hasHistory() bool {
-	st := k.d.App.Audit
-	if st == nil {
+	if k.d.App.Audit == nil {
 		return false
 	}
-	runs, err := st.RecentEntries(1)
-	if err != nil {
-		return true
+	if k.histKnown {
+		return k.histHas
 	}
-	return len(runs) > 0
+	return true
 }
+
+type historyProbedMsg struct{ has bool }
+
+func (k *Kit) probeHistory() tea.Cmd {
+	st := k.d.App.Audit
+	if st == nil || k.histHas {
+		return nil
+	}
+	return func() tea.Msg {
+		runs, err := st.RecentEntries(1)
+		if err != nil {
+			return historyProbedMsg{has: true}
+		}
+		return historyProbedMsg{has: len(runs) > 0}
+	}
+}
+
+func (k *Kit) forgetHistory() { k.histKnown, k.histHas = false, false }
 
 func (k *Kit) MainMenu() vkdeck.View {
 	return vkdeck.NewMenu("", k.menuCtx(), k.mainMenuItems()...)
@@ -148,15 +166,19 @@ func (k *Kit) Home() vkdeck.View {
 }
 
 func (k *Kit) homeFlightName() string {
-	role := k.d.App.Cfg.Role
+	role := k.d.App.Role()
 	if role == "" {
 		return ""
 	}
-	rd, ok := k.d.App.Directives.Roles[role]
+	d := k.d.App.Dirs()
+	if d == nil {
+		return ""
+	}
+	rd, ok := d.Roles[role]
 	if !ok || rd.Home == "" {
 		return ""
 	}
-	if _, ok := k.d.App.Directives.Flights[rd.Home]; !ok {
+	if _, ok := d.Flights[rd.Home]; !ok {
 		return ""
 	}
 	return rd.Home

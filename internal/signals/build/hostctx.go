@@ -3,6 +3,8 @@ package build
 import (
 	"context"
 
+	"github.com/codyconfer/sisyphus/daemon"
+
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/signals/active"
@@ -19,10 +21,11 @@ type hostBuildCtx struct {
 }
 
 func (c hostBuildCtx) Params() map[string]string {
-	if c.params == nil {
-		return map[string]string{}
+	out := make(map[string]string, len(c.params))
+	for k, v := range c.params {
+		out[k] = v
 	}
-	return c.params
+	return out
 }
 
 func (c hostBuildCtx) Home() string {
@@ -37,6 +40,13 @@ func (c hostBuildCtx) Role() string {
 		return ""
 	}
 	return c.cfg.Role
+}
+
+func (c hostBuildCtx) KV() daemon.KV {
+	if c.state == nil {
+		return nil
+	}
+	return c.state.KV()
 }
 
 func (c hostBuildCtx) GetToken(ctx context.Context, service string) (accessToken, scope string, ok bool, err error) {

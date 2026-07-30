@@ -59,31 +59,72 @@ func DiscoverLocal(home string) ([]LocalPlugin, error) {
 		if !ent.IsDir() || strings.HasPrefix(ent.Name(), ".") {
 			continue
 		}
-		lp, err := inspectLocalPlugin(filepath.Join(root, ent.Name()), ent.Name())
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, lp)
+		out = append(out, inspectLocalPlugin(filepath.Join(root, ent.Name()), ent.Name()))
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	sortLocal(out)
+	resolveLocalIDs(out)
+	sortLocal(out)
 	return out, nil
 }
 
-func inspectLocalPlugin(dir, name string) (LocalPlugin, error) {
+func sortLocal(out []LocalPlugin) {
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ID != out[j].ID {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Name < out[j].Name
+	})
+}
+
+func resolveLocalIDs(out []LocalPlugin) {
+	claimed := map[string]string{}
+	for i := range out {
+		lp := &out[i]
+		if owner, dup := claimed[lp.ID]; dup {
+			conflict := lp.ID
+			if _, taken := claimed[lp.Name]; !taken {
+				lp.ID = lp.Name
+				_, lp.Registered = Lookup(lp.ID)
+			}
+			lp.Installable = false
+			lp.Reason = fmt.Sprintf("id %q is already claimed by .plugins/%s", conflict, owner)
+		}
+		if _, ok := claimed[lp.ID]; !ok {
+			claimed[lp.ID] = lp.Name
+		}
+	}
+}
+
+func inspectLocalPlugin(dir, name string) LocalPlugin {
 	lp := LocalPlugin{Name: name, Dir: dir, ID: name}
-	if m, ok, err := readLocalManifest(dir); err != nil {
-		return lp, err
-	} else if ok {
-		if id := strings.TrimSpace(m.ID); id != "" {
-			lp.ID = id
-		} else if id := strings.TrimSpace(m.Name); id != "" {
-			lp.ID = id
+	m, ok, err := readLocalManifest(dir)
+	if err != nil {
+		lp.Reason = err.Error()
+		return lp
+	}
+	if ok {
+		claimed := strings.TrimSpace(m.ID)
+		if claimed == "" {
+			claimed = strings.TrimSpace(m.Name)
+		}
+		switch {
+		case claimed == "" || claimed == name:
+		case !validLocalID(claimed):
+			lp.Reason = fmt.Sprintf("manifest id %q is not a usable plugin id", claimed)
+			return lp
+		default:
+			if _, registered := Lookup(claimed); registered {
+				lp.Reason = fmt.Sprintf("manifest id %q belongs to a plugin built into this binary; rename .plugins/%s to %s to extend it", claimed, name, claimed)
+				return lp
+			}
+			lp.ID = claimed
 		}
 		lp.Description = strings.TrimSpace(m.Description)
 	}
 	seeds, err := collectLocalSeeds(dir)
 	if err != nil {
-		return lp, err
+		lp.Reason = err.Error()
+		return lp
 	}
 	lp.Seeds = seeds
 	_, lp.Registered = Lookup(lp.ID)
@@ -95,7 +136,22 @@ func inspectLocalPlugin(dir, name string) (LocalPlugin, error) {
 	default:
 		lp.Reason = "not linked into this binary and no directive seeds"
 	}
-	return lp, nil
+	return lp
+}
+
+func validLocalID(id string) bool {
+	if id == "" || len(id) > 128 {
+		return false
+	}
+	if strings.ContainsAny(id, " \t\r\n/\\") {
+		return false
+	}
+	for _, r := range id {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 func readLocalManifest(dir string) (localManifest, bool, error) {
@@ -162,6 +218,12 @@ func ListInstallCandidates(home string) ([]InstallCandidate, error) {
 	}
 	byID := map[string]LocalPlugin{}
 	for _, lp := range local {
+		if !lp.Installable {
+			continue
+		}
+		if _, dup := byID[lp.ID]; dup {
+			continue
+		}
 		byID[lp.ID] = lp
 	}
 
@@ -204,7 +266,7 @@ func ListInstallCandidates(home string) ([]InstallCandidate, error) {
 		if seen[lp.ID] {
 			continue
 		}
-		if lp.Registered && Installed(lp.ID) {
+		if lp.Installable && lp.Registered && Installed(lp.ID) {
 			continue
 		}
 		c := InstallCandidate{

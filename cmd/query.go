@@ -70,7 +70,7 @@ func newQueryCmd() *cobra.Command {
 			if _, ok := shared.Directives.Queries[name]; ok && !access().QueryVisible(name) {
 				return notInRoleError("query", name)
 			}
-			o, err := ff.resolve(shared.Directives.Queries[name].Formatter)
+			o, err := ff.resolve(cmd, shared.Directives.Queries[name].Formatter)
 			if err != nil {
 				return err
 			}

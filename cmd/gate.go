@@ -96,16 +96,22 @@ func classifyAuth(ctx context.Context) mode.AuthState {
 	return mode.AuthUnauthorized
 }
 
+var (
+	guidedLoginCLI = loginflow.RunCLI
+	guidedOnboard  = runOnboardTo
+)
+
 func cliGuidedAuth(cmd *cobra.Command) error {
 	p, ok := loginflow.Resolve("github")
 	if !ok {
 		return errs.New(errs.KindInternal, "github login provider unavailable")
 	}
-	if err := loginflow.RunCLI(cmd.Context(), shared, p, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr()); err != nil {
+	status := cmd.ErrOrStderr()
+	if err := guidedLoginCLI(cmd.Context(), shared, p, cmd.InOrStdin(), status, status); err != nil {
 		return err
 	}
 	shared.ResetGitHubAuth()
-	return runOnboard(cmd, false)
+	return guidedOnboard(cmd, status, false)
 }
 
 func gateWarn(cmd *cobra.Command, msg string) {

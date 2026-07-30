@@ -148,11 +148,47 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 		t.Fatalf("expected settle ticks, got %d", len(settleCmds))
 	}
 
+	var last tea.Cmd
 	for _, c := range settleCmds {
-		host = step(host, c())
+		host, last = update(host, c())
 	}
-	if len(calls) != 2 || calls[0] != "exit-ops" || calls[1] != "enter-weekly" {
-		t.Fatalf("settle hooks = %v", calls)
+	if len(calls) != 0 {
+		t.Fatalf("hooks must not run inside Update, they run via tea.ExecProcess: %v", calls)
+	}
+	if last == nil {
+		t.Fatal("settling produced no command; the exit/enter hooks must be handed back as a tea.ExecProcess chain")
+	}
+
+	home := kit.d.App.Cfg.Home
+	if got := role.LoadActive(home); got == "weekly" {
+		t.Fatal("the role was committed before its hooks ran")
+	}
+
+	gen, changed := kit.d.App.BeginRoleCycle("triage")
+	if !changed {
+		t.Fatal("cycling back to triage reported no change")
+	}
+	settle, ok := kit.d.App.BeginRoleSettle(gen)
+	if !ok {
+		t.Fatal("BeginRoleSettle rejected a fresh generation")
+	}
+	if len(settle.Steps) == 0 {
+		t.Fatal("the settle carries no hook steps")
+	}
+	if cmd := kit.runRoleHookStep(host, settle, 0); cmd == nil {
+		t.Fatal("the first hook step produced no command")
+	}
+	if len(calls) != 0 {
+		t.Fatalf("hooks ran without a process: %v", calls)
+	}
+	if got := role.LoadActive(home); got == "triage" {
+		t.Fatalf("the settle committed before its last hook step: active=%q", got)
+	}
+	if cmd := kit.runRoleHookStep(host, settle, len(settle.Steps)); cmd == nil {
+		t.Fatal("the end of the chain did not refresh the deck")
+	}
+	if got := role.LoadActive(home); got != "triage" {
+		t.Fatalf("active role after the chain finished = %q, want triage", got)
 	}
 }
 

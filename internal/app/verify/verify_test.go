@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/codyconfer/sisyphus/secret"
+
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/testenv"
 )
 
 func directivesFrom(t *testing.T, files map[string]string) *config.Directives {
@@ -318,6 +323,69 @@ func TestRoleChecksAnUnsavedDraft(t *testing.T) {
 	for _, want := range []string{"home flight ghost-flight", "query ghost-query"} {
 		if !strings.Contains(bad.Msg, want) {
 			t.Errorf("Msg = %q, want it to mention %q", bad.Msg, want)
+		}
+	}
+}
+
+func TestRunRejectsAnUnknownTarget(t *testing.T) {
+	var buf bytes.Buffer
+	err := Run(context.Background(), &buf, &config.Config{Output: "terminal"},
+		directivesFrom(t, map[string]string{}), nil, "flight")
+	if err == nil {
+		t.Fatalf("Run with a typo'd target = nil, want a usage error\n%s", buf.String())
+	}
+	if errs.KindOf(err) != errs.KindUsage {
+		t.Errorf("kind = %v, want KindUsage (err: %v)", errs.KindOf(err), err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("an unknown target still printed a report: %q", buf.String())
+	}
+}
+
+func TestRunAcceptsEveryAdvertisedTarget(t *testing.T) {
+	testenv.Isolate(t)
+	for _, target := range Targets() {
+		var buf bytes.Buffer
+		err := Run(context.Background(), &buf, &config.Config{Output: "terminal"},
+			directivesFrom(t, map[string]string{}), nil, target)
+		if errs.KindOf(err) == errs.KindUsage {
+			t.Errorf("target %q rejected: %v", target, err)
+		}
+		if buf.Len() == 0 {
+			t.Errorf("target %q printed nothing", target)
+		}
+	}
+	if !slices.Contains(Targets(), "plugins") {
+		t.Error("Targets() omits the live `plugins` section")
+	}
+}
+
+func TestSecretBackendMatchesSisyphus(t *testing.T) {
+	testenv.Isolate(t)
+	backendFinding := func(t *testing.T, backend string) Finding {
+		t.Helper()
+		cfg := &config.Config{Output: "terminal"}
+		cfg.Backup.SecretBackend = backend
+		return findingByName(t, Config(cfg, directivesFrom(t, map[string]string{})), "backup.secret_backend")
+	}
+
+	for _, backend := range append(secret.Backends(), "") {
+		if f := backendFinding(t, backend); !f.OK {
+			t.Errorf("secret_backend %q reported as a problem (%q) but sisyphus accepts it", backend, f.Msg)
+		}
+	}
+	for _, backend := range []string{"bw", "op"} {
+		if f := backendFinding(t, backend); !f.OK {
+			t.Errorf("secret_backend %q must validate; `munin backup` already accepts it", backend)
+		}
+	}
+	f := backendFinding(t, "nope")
+	if f.OK {
+		t.Fatal("an unknown backend was accepted")
+	}
+	for _, want := range []string{"bw", "op", "keyring"} {
+		if !strings.Contains(f.Msg, want) {
+			t.Errorf("Msg = %q, want it to list %q", f.Msg, want)
 		}
 	}
 }

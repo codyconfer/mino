@@ -2,8 +2,10 @@ package slack
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	slackapi "github.com/slack-go/slack"
@@ -12,12 +14,57 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-const defaultLimit = 50
+const (
+	defaultLimit  = 50
+	listPageSize  = 200
+	maxListPages  = 50
+	chanCacheTTL  = 10 * time.Minute
+	chanCacheKeep = 256
+)
+
+type resolved struct {
+	id   string
+	name string
+	at   time.Time
+}
+
+var chanCache struct {
+	mu sync.Mutex
+	m  map[string]resolved
+}
+
+func cacheKey(token, want string) string { return token + "\x00" + want }
+
+func cachedChannel(token, want string) (resolved, bool) {
+	chanCache.mu.Lock()
+	defer chanCache.mu.Unlock()
+	r, ok := chanCache.m[cacheKey(token, want)]
+	if !ok || time.Since(r.at) > chanCacheTTL {
+		return resolved{}, false
+	}
+	return r, true
+}
+
+func cacheChannel(token, want, id, name string) {
+	chanCache.mu.Lock()
+	defer chanCache.mu.Unlock()
+	if chanCache.m == nil || len(chanCache.m) > chanCacheKeep {
+		chanCache.m = map[string]resolved{}
+	}
+	chanCache.m[cacheKey(token, want)] = resolved{id: id, name: name, at: time.Now()}
+}
+
+func resetChannelCache() {
+	chanCache.mu.Lock()
+	chanCache.m = nil
+	chanCache.mu.Unlock()
+}
 
 type slackSignal struct {
 	token   string
 	channel string
 	limit   int
+	apiURL  string
 }
 
 func New(token, channel string, limit int) signals.Signal {
@@ -29,8 +76,15 @@ func New(token, channel string, limit int) signals.Signal {
 
 func (s *slackSignal) Name() string { return "slack" }
 
+func (s *slackSignal) client() *slackapi.Client {
+	if s.apiURL == "" {
+		return slackapi.New(s.token)
+	}
+	return slackapi.New(s.token, slackapi.OptionAPIURL(s.apiURL))
+}
+
 func (s *slackSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
-	api := slackapi.New(s.token)
+	api := s.client()
 
 	id, name, err := s.resolveChannel(ctx, api)
 	if err != nil {
@@ -63,33 +117,51 @@ func (s *slackSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 }
 
 func (s *slackSignal) resolveChannel(ctx context.Context, api *slackapi.Client) (id, name string, err error) {
-	want := strings.TrimPrefix(s.channel, "#")
-
 	if isChannelID(s.channel) {
 		return s.channel, "", nil
 	}
 
+	want := strings.TrimPrefix(s.channel, "#")
+	if hit, ok := cachedChannel(s.token, want); ok {
+		return hit.id, hit.name, nil
+	}
+
 	cursor := ""
-	for {
+	giveUp := ""
+	for page := 0; ; page++ {
+		if page >= maxListPages {
+			giveUp = fmt.Sprintf("stopped after %d pages", maxListPages)
+			break
+		}
 		channels, next, listErr := api.GetConversationsContext(ctx, &slackapi.GetConversationsParameters{
 			Types:  []string{"public_channel", "private_channel"},
 			Cursor: cursor,
-			Limit:  200,
+			Limit:  listPageSize,
 		})
 		if listErr != nil {
-			return "", "", errs.Wrap(errs.KindSignal, listErr, "slack: listing conversations")
+			return "", "", errs.Wrapf(errs.KindSignal, listErr, "slack: listing conversations (page %d)", page+1).
+				WithHint("retry in a moment, or set the channel by ID (C.../G.../D...) to skip the channel walk")
 		}
 		for _, ch := range channels {
 			if ch.Name == want {
+				cacheChannel(s.token, want, ch.ID, ch.Name)
 				return ch.ID, ch.Name, nil
 			}
 		}
 		if next == "" {
 			break
 		}
+		if next == cursor {
+			giveUp = "conversations.list returned the same pagination cursor twice"
+			break
+		}
 		cursor = next
 	}
 
+	if giveUp != "" {
+		return "", "", errs.Newf(errs.KindSignal, "slack: gave up resolving channel %q: %s", s.channel, giveUp).
+			WithHint("use the channel ID (C.../G.../D...) instead of its name to skip the channel walk")
+	}
 	return "", "", errs.Newf(errs.KindSignal, "slack: channel %q not found", s.channel).
 		WithHint("check the channel name, or use its ID (C.../G.../D...)")
 }

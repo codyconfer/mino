@@ -15,7 +15,7 @@ import (
 
 func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs ...string) (stop func()) {
 	stop = func() {}
-	if _, ok := s.Dial(ctx); ok {
+	if sysdaemon.IsListening(config.SocketPrefix, s.SocketPath()) {
 		return stop
 	}
 	self, err := muninterm.Self()
@@ -29,17 +29,21 @@ func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs
 		log.Debugf("deck: could not start a serve provider: %v", err)
 		return stop
 	}
-	waitListening(s.SocketPath(), 2*time.Second)
+	waitListening(ctx, s.SocketPath(), 2*time.Second)
 	return owned.Stop
 }
 
-func waitListening(path string, timeout time.Duration) {
+func waitListening(ctx context.Context, path string, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if sysdaemon.IsListening(config.SocketPrefix, path) {
 			return
 		}
-		time.Sleep(20 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
 	log.Debugf("deck: serve socket %s not listening within %s", path, timeout)
 }

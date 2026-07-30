@@ -65,7 +65,7 @@ func ExpandParams(params map[string]string, filters []Filter) (map[string]string
 
 func expandParamsAt(params map[string]string, filters []Filter, now func() time.Time) (map[string]string, error) {
 	if len(params) == 0 {
-		return params, nil
+		return map[string]string{}, nil
 	}
 	ctx, err := TemplateContext(filters)
 	if err != nil {

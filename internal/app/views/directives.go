@@ -42,7 +42,7 @@ func directiveNoFileNote(name string) string {
 }
 
 func (kit *Kit) directiveMultiDocNote(rel string) string {
-	n := kit.d.App.Directives.DocCount(rel)
+	n := kit.d.App.Dirs().DocCount(rel)
 	if n <= 1 {
 		return ""
 	}
@@ -66,7 +66,7 @@ func (kit *Kit) saveDirective(kind config.DirectiveType, rel, name string, doc a
 }
 
 func (kit *Kit) removeDirective(kind config.DirectiveType, name string) ([]string, string) {
-	rel := kit.d.App.Directives.Source(kind, name)
+	rel := kit.d.App.Dirs().Source(kind, name)
 	if rel == "" {
 		return nil, directiveNoFileNote(name)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/codyconfer/sisyphus/redact"
 
 	"github.com/codyconfer/munin/internal/app"
+	"github.com/codyconfer/munin/internal/app/verify"
 	"github.com/codyconfer/munin/internal/config"
 )
 
@@ -80,6 +81,46 @@ func TestVerifyAdvertisesTheFormattersTarget(t *testing.T) {
 	}
 	if !strings.Contains(c.Long, "formatter") {
 		t.Errorf("Long = %q, want it to mention formatter integrity", c.Long)
+	}
+}
+
+func TestVerifyRejectsAnUnknownTarget(t *testing.T) {
+	shared = &app.App{
+		Cfg:        &config.Config{Home: t.TempDir(), Output: "terminal"},
+		Directives: verifyDirectives(t, map[string]string{}),
+	}
+
+	var buf bytes.Buffer
+	c := newVerifyCmd()
+	c.SetOut(&buf)
+	c.SetErr(&buf)
+	c.SetArgs([]string{"flight"})
+	c.SilenceErrors = true
+	c.SilenceUsage = true
+	if err := c.Execute(); err == nil {
+		t.Fatalf("`verify flight` (typo) exited 0 while validating nothing:\n%s", buf.String())
+	}
+}
+
+func TestVerifyAcceptsEveryAdvertisedTarget(t *testing.T) {
+	c := newVerifyCmd()
+	targets := verify.Targets()
+	for _, want := range []string{"config", "roles", "flights", "queries", "formatters", "plugins", "onboarding", "all"} {
+		if !slices.Contains(targets, want) {
+			t.Errorf("verify.Targets() = %v, want it to include %q", targets, want)
+		}
+		if !slices.Contains(c.ValidArgs, want) {
+			t.Errorf("ValidArgs = %v, want it to include %q", c.ValidArgs, want)
+		}
+		if !strings.Contains(c.Use, want) {
+			t.Errorf("Use = %q, want it to document the %q target", c.Use, want)
+		}
+		if err := c.Args(c, []string{want}); err != nil {
+			t.Errorf("Args(%q) = %v, want it accepted", want, err)
+		}
+	}
+	if err := c.Args(c, []string{"flight"}); err == nil {
+		t.Error("Args accepted the unknown target \"flight\"")
 	}
 }
 

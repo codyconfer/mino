@@ -63,13 +63,13 @@ func ParseTeamRef(raw string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func ResolveTeam(ctx context.Context, backend Backend, cache RosterCache, ref string) (*Roster, error) {
+func ResolveTeam(ctx context.Context, backend Backend, cache RosterCache, ref string, pol CachePolicy) (*Roster, error) {
 	org, slug, err := ParseTeamRef(ref)
 	if err != nil {
 		return nil, err
 	}
 	key := org + "/" + slug
-	if cache != nil {
+	if cache != nil && pol.Read {
 		if raw, ok := cache.Get(ctx, teamCacheNS, key); ok {
 			return newRoster(key, strings.Split(raw, "\n")), nil
 		}
@@ -78,7 +78,7 @@ func ResolveTeam(ctx context.Context, backend Backend, cache RosterCache, ref st
 	if err != nil {
 		return nil, err
 	}
-	if cache != nil {
+	if cache != nil && pol.Write {
 		cache.Put(ctx, teamCacheNS, key, strings.Join(logins, "\n"), time.Now().Add(teamCacheTTL))
 	}
 	log.Debugf("github: resolved %d member(s) of team %s", len(logins), key)

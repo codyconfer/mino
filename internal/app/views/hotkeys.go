@@ -17,6 +17,11 @@ import (
 
 type roleLifecycleSettleMsg struct{ gen uint64 }
 
+type roleHookStepMsg struct {
+	settle *app.RoleSettle
+	next   int
+}
+
 func (k *Kit) KeyHook() vkdeck.KeyHook {
 	return func(m *vkdeck.Model, key tea.KeyMsg) (tea.Cmd, bool) {
 		binds := k.keybinds()
@@ -33,12 +38,21 @@ func (k *Kit) MsgHook() vkdeck.MsgHook {
 	return func(m *vkdeck.Model, msg tea.Msg) (tea.Cmd, bool) {
 		switch t := msg.(type) {
 		case roleLifecycleSettleMsg:
-			if k.d.App == nil || !k.d.App.SettleRoleCycle(t.gen) {
+			if k.d.App == nil {
 				return nil, true
 			}
-			return tea.Batch(m.RefreshStatus(), reloadCmd()), true
+			settle, ok := k.d.App.BeginRoleSettle(t.gen)
+			if !ok {
+				return nil, true
+			}
+			return k.runRoleHookStep(m, settle, 0), true
+		case roleHookStepMsg:
+			return k.runRoleHookStep(m, t.settle, t.next), true
 		case storeTickMsg:
-			return k.onStoreTick(m), true
+			return tea.Batch(k.onStoreTick(m), k.probeHistory()), true
+		case historyProbedMsg:
+			k.histKnown, k.histHas = true, t.has
+			return nil, true
 		}
 		return nil, false
 	}
@@ -46,7 +60,7 @@ func (k *Kit) MsgHook() vkdeck.MsgHook {
 
 func (k *Kit) onStoreTick(m *vkdeck.Model) tea.Cmd {
 	if !k.d.App.HasStore() {
-		return nil
+		return StoreTick()
 	}
 	if !k.storeChanged() {
 		return StoreTick()
@@ -56,6 +70,26 @@ func (k *Kit) onStoreTick(m *vkdeck.Model) tea.Cmd {
 		return StoreTick()
 	}
 	return tea.Batch(m.RefreshStatus(), reloadCmd(), StoreTick())
+}
+
+func (k *Kit) runRoleHookStep(m *vkdeck.Model, settle *app.RoleSettle, i int) tea.Cmd {
+	for ; settle != nil && i < len(settle.Steps); i++ {
+		step := settle.Steps[i]
+		cmd, err := step.Command()
+		if err != nil {
+			log.Warnf("role %q %s hooks: %v", step.Role, step.Phase, err)
+			continue
+		}
+		resume := roleHookStepMsg{settle: settle, next: i + 1}
+		return tea.ExecProcess(cmd, func(err error) tea.Msg {
+			if err != nil {
+				log.Warnf("role %q %s hooks: %v", step.Role, step.Phase, err)
+			}
+			return resume
+		})
+	}
+	k.d.App.FinishRoleSettle(settle)
+	return tea.Batch(m.RefreshStatus(), reloadCmd())
 }
 
 func reloadCmd() tea.Cmd {
@@ -93,10 +127,14 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 		return k.paneCmd(m, target)
 	}
 	name, ok := keymap.FlightTarget(target)
-	if !ok || k.d.App == nil || k.d.App.Directives == nil {
+	if !ok || k.d.App == nil {
 		return nil
 	}
-	if _, exists := k.d.App.Directives.Flights[name]; !exists {
+	d := k.d.App.Dirs()
+	if d == nil {
+		return nil
+	}
+	if _, exists := d.Flights[name]; !exists {
 		return nil
 	}
 	return m.Push(k.FlightResults(name))
@@ -138,10 +176,14 @@ func paneAction(fn func() error) tea.Cmd {
 }
 
 func (k *Kit) cycleRoleCmd(delta int) tea.Cmd {
-	if k.d.App == nil || k.d.App.Directives == nil {
+	if k.d.App == nil {
 		return nil
 	}
-	next, ok := app.NextRole(k.d.App.Directives.RoleNames(), k.d.App.Cfg.Role, delta)
+	d := k.d.App.Dirs()
+	if d == nil {
+		return nil
+	}
+	next, ok := app.NextRole(d.RoleNames(), k.d.App.Role(), delta)
 	if !ok {
 		return nil
 	}
@@ -157,7 +199,7 @@ func (k *Kit) cycleRoleCmd(delta int) tea.Cmd {
 func (k *Kit) ntrHomeRole() (home, role string) {
 	if k.d.App != nil && k.d.App.Cfg != nil {
 		home = k.d.App.Cfg.Home
-		role = k.d.App.Cfg.Role
+		role = k.d.App.Role()
 	}
 	if role == "" {
 		role = "default"

@@ -14,6 +14,7 @@ import (
 
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/render"
 	"github.com/codyconfer/munin/internal/signals"
 )
 
@@ -38,8 +39,54 @@ func (ff *formatterFlags) bindSinks(cmd *cobra.Command) {
 	f.StringVar(&ff.out, "out", "", "write the formatted report to this file")
 }
 
-func (ff *formatterFlags) resolve(fallback string) (runOpts, error) {
+type outputRequest struct {
+	raw      string
+	format   render.Format
+	explicit bool
+}
+
+func (o outputRequest) rendersFormatter() bool { return o.format == render.FormatTerminal }
+
+func requestedOutput(cmd *cobra.Command) (outputRequest, error) {
+	o := outputRequest{raw: shared.Cfg.Output, explicit: outputFlagChanged(cmd)}
+	if o.raw == "" {
+		o.raw = string(render.FormatTerminal)
+	}
+	o.format = render.Format(o.raw)
+	if _, err := render.New(o.format, ""); err != nil {
+		return outputRequest{}, err
+	}
+	return o, nil
+}
+
+func outputFlagChanged(cmd *cobra.Command) bool {
+	if cmd != nil {
+		if f := cmd.Flags().Lookup("output"); f != nil && f.Changed {
+			return true
+		}
+	}
+	return flagOutput != ""
+}
+
+func requireFormatterOutput(cmd *cobra.Command, name string) error {
+	o, err := requestedOutput(cmd)
+	if err != nil {
+		return err
+	}
+	if o.explicit && !o.rendersFormatter() {
+		return errs.Newf(errs.KindUsage, "formatter %q renders text, which --output %s cannot carry", name, o.raw).
+			WithHint("drop --output %s to get the report, or drop the formatter to get %s results", o.raw, o.raw)
+	}
+	return nil
+}
+
+func (ff *formatterFlags) resolve(cmd *cobra.Command, fallback string) (runOpts, error) {
+	o, err := requestedOutput(cmd)
+	if err != nil {
+		return runOpts{}, err
+	}
 	name := ff.name
+	fromFlag := name != ""
 	if name == "" {
 		name = fallback
 	}
@@ -48,6 +95,17 @@ func (ff *formatterFlags) resolve(fallback string) (runOpts, error) {
 			return runOpts{}, errs.New(errs.KindUsage, "--copy and --out only apply with a formatter").
 				WithHint("add --formatter <name>, or set `formatter:` on the query or flight")
 		}
+		return runOpts{}, nil
+	}
+	if o.explicit && !o.rendersFormatter() {
+		if fromFlag {
+			return runOpts{}, requireFormatterOutput(cmd, name)
+		}
+		if ff.copyOut || ff.out != "" {
+			return runOpts{}, errs.Newf(errs.KindUsage, "--output %s ignores the configured formatter %q, so --copy/--out have nothing to write", o.raw, name).
+				WithHint("drop --output %s, or pass --formatter %s to force the report", o.raw, name)
+		}
+		verbosef("--output %s overrides the configured formatter %q", o.raw, name)
 		return runOpts{}, nil
 	}
 	fd, err := lookupFormatter(name)
@@ -148,6 +206,9 @@ func newFormatterRenderCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fd, err := lookupFormatter(args[0])
 			if err != nil {
+				return err
+			}
+			if err := requireFormatterOutput(cmd, args[0]); err != nil {
 				return err
 			}
 			o := runOpts{formatter: fd, active: true, copyOut: ff.copyOut, out: ff.out}

@@ -311,6 +311,44 @@ func TestProjectFetchMarksTeamReplies(t *testing.T) {
 	}
 }
 
+func TestProjectRosterHonoursCacheMode(t *testing.T) {
+	cases := []struct {
+		name      string
+		max       int
+		policy    CachePolicy
+		wantGets  int
+		wantPuts  int
+		wantCalls int
+	}{
+		{name: "no-cache", max: 30, policy: CachePolicy{TTL: time.Hour}, wantGets: 0, wantPuts: 0, wantCalls: 1},
+		{name: "refresh", max: 31, policy: CachePolicy{Write: true, TTL: time.Hour}, wantGets: 0, wantPuts: 1, wantCalls: 1},
+		{name: "use", max: 32, policy: CachePolicy{Read: true, Write: true, TTL: time.Hour}, wantGets: 1, wantPuts: 1, wantCalls: 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			be := &fakeGraphQL{
+				pages:     []string{searchPage(false, "", teamReplyNode)},
+				teamPages: []string{teamPage(false, "", "alice")},
+			}
+			store := newFakeCache()
+			spec := ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Waiting", Team: "acme/platform"}
+			sig := NewProject(spec, be, c.max, store, WithDetailCache(store, c.policy))
+			if _, err := sig.Fetch(context.Background()); err != nil {
+				t.Fatalf("Fetch: %v", err)
+			}
+			if store.gets != c.wantGets {
+				t.Errorf("roster cache gets = %d, want %d", store.gets, c.wantGets)
+			}
+			if store.puts != c.wantPuts {
+				t.Errorf("roster cache puts = %d, want %d", store.puts, c.wantPuts)
+			}
+			if be.teamCalls != c.wantCalls {
+				t.Errorf("team api calls = %d, want %d", be.teamCalls, c.wantCalls)
+			}
+		})
+	}
+}
+
 func TestProjectFetchWithoutTeamOmitsTeamMeta(t *testing.T) {
 	be := &fakeGraphQL{pages: []string{searchPage(false, "", custReplyNode)}}
 	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Waiting"}, be, 30, nil)

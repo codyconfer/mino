@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/signals"
 )
 
 type Backend interface {
@@ -83,6 +83,13 @@ type APIBackend struct {
 	BaseURL string
 }
 
+func (b APIBackend) client() *http.Client {
+	if b.HTTP == nil {
+		return signals.HTTPClient()
+	}
+	return b.HTTP
+}
+
 func (b APIBackend) SearchIssues(ctx context.Context, query string, perPage int) ([]byte, error) {
 	path := fmt.Sprintf("/search/issues?q=%s&per_page=%d", url.QueryEscape(query), perPage)
 	req, err := newGitHubRequest(ctx, b.BaseURL, path, b.Token)
@@ -90,16 +97,15 @@ func (b APIBackend) SearchIssues(ctx context.Context, query string, perPage int)
 		return nil, errs.Wrap(errs.KindSignal, err, "github: building search request")
 	}
 
-	hc := b.HTTP
-	if hc == nil {
-		hc = http.DefaultClient
-	}
-	resp, err := hc.Do(req)
+	resp, err := b.client().Do(req)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindSignal, err, "github: search request failed")
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := readBody(resp)
+	if err != nil {
+		return nil, err
+	}
 	if err := checkGitHubStatus(resp, body, "scopes"); err != nil {
 		return nil, err
 	}
@@ -116,16 +122,15 @@ func (b APIBackend) GraphQL(ctx context.Context, query string, vars map[string]a
 		return nil, errs.Wrap(errs.KindSignal, err, "github: building graphql request")
 	}
 
-	hc := b.HTTP
-	if hc == nil {
-		hc = http.DefaultClient
-	}
-	resp, err := hc.Do(req)
+	resp, err := b.client().Do(req)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindSignal, err, "github: graphql request failed")
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := readBody(resp)
+	if err != nil {
+		return nil, err
+	}
 	if err := checkGitHubStatus(resp, body, "the read:project scope"); err != nil {
 		return nil, err
 	}

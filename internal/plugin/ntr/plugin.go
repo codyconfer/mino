@@ -30,15 +30,25 @@ func init() {
 	})
 	plugin.RegisterBuilders(SignalName, plugin.Builders{
 		Query: func(bc plugin.BuildContext) (plugin.Query, error) {
-			role := bc.Role()
-			if role == "" {
-				role = "default"
+			return Signal{Home: bc.Home(), Role: buildRole(bc)}, nil
+		},
+		Scheduled: func(bc plugin.BuildContext) (plugin.Scheduled, error) {
+			job := ReminderJob{Home: bc.Home(), Role: buildRole(bc)}
+			if src, ok := bc.(interface{ KV() daemon.KV }); ok {
+				job.KV = src.KV()
 			}
-			return Signal{Home: bc.Home(), Role: role}, nil
+			return job, nil
 		},
 	})
 	glyph.Register(GlyphID, glyph.Variants{Nerd: "", Uni: "✎", ASCII: "nt"})
 	plugin.RegisterStatusContribution(PluginID, StatusContribution)
+}
+
+func buildRole(bc plugin.BuildContext) string {
+	if role := bc.Role(); role != "" {
+		return role
+	}
+	return "default"
 }
 
 type Signal struct {

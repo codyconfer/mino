@@ -156,6 +156,5 @@ func Root() *cobra.Command { return newRootCmd() }
 
 func Shutdown() {
 	shared.Shutdown()
-	shared = nil
 	log.CloseFileSink()
 }

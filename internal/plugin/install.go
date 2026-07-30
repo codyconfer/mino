@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	pub "github.com/codyconfer/munin/plugin"
 
@@ -53,10 +54,30 @@ func Install(home, id string, opts InstallOptions) (InstallResult, error) {
 	return res, nil
 }
 
+func seedTarget(home, rel string) (string, error) {
+	trimmed := strings.TrimSpace(rel)
+	if trimmed == "" {
+		return "", errs.Newf(errs.KindConfig, "seed path is empty")
+	}
+	clean := filepath.FromSlash(strings.ReplaceAll(trimmed, `\`, "/"))
+	if filepath.IsAbs(clean) || filepath.VolumeName(clean) != "" {
+		return "", errs.Newf(errs.KindConfig, "seed path %q must be relative to the munin home", rel)
+	}
+	abs := filepath.Join(home, clean)
+	inside, err := filepath.Rel(home, abs)
+	if err != nil || inside == "." || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
+		return "", errs.Newf(errs.KindConfig, "seed path %q escapes the munin home", rel)
+	}
+	return abs, nil
+}
+
 func writeSeeds(home string, seeds []FileSeed, opts InstallOptions) (written, skipped []string, err error) {
 	for _, seed := range seeds {
 		rel := seed.RelPath
-		abs := filepath.Join(home, filepath.FromSlash(rel))
+		abs, err := seedTarget(home, rel)
+		if err != nil {
+			return written, skipped, err
+		}
 		if !opts.Force {
 			if _, err := os.Stat(abs); err == nil {
 				skipped = append(skipped, rel)
@@ -112,26 +133,39 @@ func Uninstall(home, id string, opts UninstallOptions) (UninstallResult, error) 
 		return res, nil
 	}
 
-	for _, seed := range SeedsFor(id) {
+	removed, kept, err := removeSeeds(home, SeedsFor(id), opts.Force)
+	res.Removed = append(res.Removed, removed...)
+	res.Kept = append(res.Kept, kept...)
+	if err != nil {
+		return res, err
+	}
+	return res, nil
+}
+
+func removeSeeds(home string, seeds []FileSeed, force bool) (removed, kept []string, err error) {
+	for _, seed := range seeds {
 		rel := seed.RelPath
-		abs := filepath.Join(home, filepath.FromSlash(rel))
+		abs, err := seedTarget(home, rel)
+		if err != nil {
+			return removed, kept, err
+		}
 		existing, err := os.ReadFile(abs)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return res, errs.Wrapf(errs.KindConfig, err, "read %s", rel)
+			return removed, kept, errs.Wrapf(errs.KindConfig, err, "read %s", rel)
 		}
-		if !opts.Force && !bytes.Equal(existing, seed.Content) {
-			res.Kept = append(res.Kept, rel)
+		if !force && !bytes.Equal(existing, seed.Content) {
+			kept = append(kept, rel)
 			continue
 		}
 		if err := os.Remove(abs); err != nil {
-			return res, errs.Wrapf(errs.KindConfig, err, "remove %s", rel)
+			return removed, kept, errs.Wrapf(errs.KindConfig, err, "remove %s", rel)
 		}
-		res.Removed = append(res.Removed, rel)
+		removed = append(removed, rel)
 	}
-	return res, nil
+	return removed, kept, nil
 }
 
 func init() {

@@ -75,4 +75,36 @@ func TestMapSearchResponse(t *testing.T) {
 			t.Errorf("item %d Timestamp = %v, want %v", i, got.Timestamp, wantTS)
 		}
 	}
+	if sec.Meta["truncated"] != "" {
+		t.Errorf("complete results flagged as truncated: %v", sec.Meta)
+	}
+	if sec.Meta["total"] != "2" {
+		t.Errorf("total meta = %q, want 2", sec.Meta["total"])
+	}
+}
+
+func TestMapSearchResponseFlagsIncompleteResults(t *testing.T) {
+	raw := `{"total_count":437,"incomplete_results":true,"items":[
+	  {"title":"one","html_url":"https://github.com/o/r/pull/1","repository_url":"https://api.github.com/repos/o/r"},
+	  {"title":"two","html_url":"https://github.com/o/r/pull/2","repository_url":"https://api.github.com/repos/o/r"}
+	]}`
+	sec, err := mapSearchResponse([]byte(raw), "Review Requests")
+	if err != nil {
+		t.Fatalf("mapSearchResponse: %v", err)
+	}
+	if len(sec.Items) != 2 {
+		t.Fatalf("got %d items, want 2", len(sec.Items))
+	}
+	if sec.Meta["truncated"] != "true" {
+		t.Errorf("truncated meta = %q, want true (github reported incomplete_results)", sec.Meta["truncated"])
+	}
+	if sec.Meta["total"] != "437" {
+		t.Errorf("total meta = %q, want 437", sec.Meta["total"])
+	}
+	if sec.Meta["shown"] != "2" {
+		t.Errorf("shown meta = %q, want 2", sec.Meta["shown"])
+	}
+	if sec.Meta["truncated_reason"] == "" {
+		t.Error("truncated_reason meta is empty")
+	}
 }

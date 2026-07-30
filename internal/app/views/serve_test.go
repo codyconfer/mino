@@ -13,6 +13,47 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
+func serveEventFor(url string) signals.Event {
+	return signals.Event{
+		Source: "demo",
+		At:     time.Now(),
+		Section: signals.Section{
+			Signal: "demo",
+			Title:  "demo",
+			Items:  []signals.Item{{Kind: "message", Title: "item " + url, URL: url}},
+		},
+	}
+}
+
+func TestServeViewKeepsTheCursorWhenNewEventsLand(t *testing.T) {
+	ch := make(chan signals.Event)
+	v := NewServeView("watch", ch)
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	_ = v.Update(app, serveEventMsg{serveEventFor("https://example.test/demo/1")})
+	_ = v.Update(app, serveEventMsg{serveEventFor("https://example.test/demo/2")})
+
+	_ = v.handleKey(app, tea.KeyMsg{Type: tea.KeyDown})
+	before, ok := v.selected()
+	if !ok {
+		t.Fatal("no row selected after moving down")
+	}
+	if before.Item.URL != "https://example.test/demo/2" {
+		t.Fatalf("cursor after one down = %q, want the second event", before.Item.URL)
+	}
+
+	_ = v.Update(app, serveEventMsg{serveEventFor("https://example.test/demo/3")})
+
+	after, ok := v.selected()
+	if !ok {
+		t.Fatal("no row selected after a new event arrived")
+	}
+	if after.Item.URL != before.Item.URL {
+		t.Fatalf("a new event moved the cursor from %q to %q", before.Item.URL, after.Item.URL)
+	}
+}
+
 func TestServeViewRendersAndPrunes(t *testing.T) {
 	ch := make(chan signals.Event)
 	v := NewServeView("watch", ch)

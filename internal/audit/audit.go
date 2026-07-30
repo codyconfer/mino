@@ -33,39 +33,59 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) StartFlight(name, role string) int64 {
+	return s.StartFlightContext(context.Background(), name, role)
+}
+
+func (s *Store) StartFlightContext(ctx context.Context, name, role string) int64 {
 	if s == nil {
 		return 0
 	}
-	id, _ := s.j.Begin(context.Background(), "flight", name, roleAttrs(role))
+	id, _ := s.j.Begin(ctx, "flight", name, roleAttrs(role))
 	return id
 }
 
 func (s *Store) FinishFlight(id int64) {
+	s.FinishFlightContext(context.Background(), id)
+}
+
+func (s *Store) FinishFlightContext(ctx context.Context, id int64) {
 	if s == nil {
 		return
 	}
-	_ = s.j.RollUp(context.Background(), id)
+	_ = s.j.RollUp(ctx, id)
 }
 
 func (s *Store) RecordQuery(parentID int64, label, role string, started, finished time.Time, sections []signals.Section) {
+	s.RecordQueryContext(context.Background(), parentID, label, role, started, finished, sections)
+}
+
+func (s *Store) RecordQueryContext(ctx context.Context, parentID int64, label, role string, started, finished time.Time, sections []signals.Section) {
 	if s == nil {
 		return
 	}
-	_, _ = s.j.Add(context.Background(), runFor(parentID, "query", label, role, started, finished, sections), recordsFor(sections))
+	_, _ = s.j.Add(ctx, runFor(parentID, "query", label, role, started, finished, sections), recordsFor(sections))
 }
 
 func (s *Store) RecordAction(label, role string, started, finished time.Time, sections []signals.Section) {
+	s.RecordActionContext(context.Background(), label, role, started, finished, sections)
+}
+
+func (s *Store) RecordActionContext(ctx context.Context, label, role string, started, finished time.Time, sections []signals.Section) {
 	if s == nil {
 		return
 	}
-	_, _ = s.j.Add(context.Background(), runFor(0, "write", label, role, started, finished, sections), recordsFor(sections))
+	_, _ = s.j.Add(ctx, runFor(0, "write", label, role, started, finished, sections), recordsFor(sections))
 }
 
 func (s *Store) Delete(id int64) error {
+	return s.DeleteContext(context.Background(), id)
+}
+
+func (s *Store) DeleteContext(ctx context.Context, id int64) error {
 	if s == nil {
 		return errs.New(errs.KindStore, "audit is disabled")
 	}
-	if err := s.j.Delete(context.Background(), id); err != nil {
+	if err := s.j.Delete(ctx, id); err != nil {
 		return errs.Wrapf(errs.KindStore, err, "deleting run %d", id)
 	}
 	return nil

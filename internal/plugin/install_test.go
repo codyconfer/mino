@@ -246,6 +246,131 @@ func TestUninstallKeepSeeds(t *testing.T) {
 	}
 }
 
+func escapeHomeFixture(t *testing.T) (home, victim string) {
+	t.Helper()
+	base := t.TempDir()
+	home = filepath.Join(base, "nest", "home")
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	victim = filepath.Join(base, "nest", "victim.yaml")
+	return home, victim
+}
+
+const escapeVictimData = "important: user data\n"
+
+func TestInstallSeedCannotEscapeHome(t *testing.T) {
+	testenv.Isolate(t)
+	id := "test.install.escape"
+	if _, ok := Lookup(id); !ok {
+		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testinstallescape", Capabilities: []Capability{CapQuery}})
+	}
+	home, victim := escapeHomeFixture(t)
+	if err := os.WriteFile(victim, []byte(escapeVictimData), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	RegisterSeeds(id, []FileSeed{
+		{RelPath: "../victim.yaml", Content: []byte("evil\n")},
+		{RelPath: "../../.config/systemd/user/evil.service", Content: []byte("evil\n")},
+	})
+	t.Cleanup(func() { RegisterSeeds(id, nil) })
+
+	res, _ := Install(home, id, InstallOptions{Force: true})
+	for _, w := range res.Written {
+		if strings.Contains(w, "..") {
+			t.Errorf("Install reported writing outside the home: %q", w)
+		}
+	}
+	got, err := os.ReadFile(victim)
+	if err != nil {
+		t.Fatalf("file outside the munin home was removed/renamed: %v", err)
+	}
+	if string(got) != escapeVictimData {
+		t.Fatalf("install clobbered a file outside the munin home: %q", got)
+	}
+	outsideTree := filepath.Join(home, "..", "..", ".config")
+	if _, err := os.Stat(outsideTree); !os.IsNotExist(err) {
+		t.Fatalf("install created %s outside the munin home: %v", outsideTree, err)
+	}
+}
+
+func TestUninstallSeedRemoveCannotEscapeHome(t *testing.T) {
+	testenv.Isolate(t)
+	id := "test.uninstall.escape"
+	if _, ok := Lookup(id); !ok {
+		Register(Descriptor{ID: id, Kind: KindSignal, Signal: "testuninstallescape", Capabilities: []Capability{CapQuery}})
+	}
+	home, victim := escapeHomeFixture(t)
+	seed := []byte("seed body\n")
+	if err := os.WriteFile(victim, seed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	RegisterSeeds(id, []FileSeed{{RelPath: "../victim.yaml", Content: seed}})
+	t.Cleanup(func() { RegisterSeeds(id, nil) })
+
+	res, _ := Uninstall(home, id, UninstallOptions{Force: true})
+	for _, r := range res.Removed {
+		if strings.Contains(r, "..") {
+			t.Errorf("Uninstall reported removing outside the home: %q", r)
+		}
+	}
+	if _, err := os.Stat(victim); err != nil {
+		t.Fatalf("uninstall removed a file outside the munin home: %v", err)
+	}
+}
+
+func TestWriteSeedsRefusesEscapingRelPath(t *testing.T) {
+	home, victim := escapeHomeFixture(t)
+	if err := os.WriteFile(victim, []byte(escapeVictimData), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{"../victim.yaml", "queries/../../victim.yaml", filepath.Join(filepath.Dir(home), "victim.yaml")} {
+		written, _, err := writeSeeds(home, []FileSeed{{RelPath: rel, Content: []byte("evil\n")}}, InstallOptions{Force: true})
+		if err == nil {
+			t.Errorf("writeSeeds accepted %q (written=%v)", rel, written)
+		}
+		got, rerr := os.ReadFile(victim)
+		if rerr != nil {
+			t.Fatalf("%q: victim gone: %v", rel, rerr)
+		}
+		if string(got) != escapeVictimData {
+			t.Fatalf("%q clobbered a file outside the home: %q", rel, got)
+		}
+	}
+}
+
+func TestRemoveSeedsRefusesEscapingRelPath(t *testing.T) {
+	home, victim := escapeHomeFixture(t)
+	body := []byte("seed body\n")
+	if err := os.WriteFile(victim, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{"../victim.yaml", "queries/../../victim.yaml", filepath.Join(filepath.Dir(home), "victim.yaml"), `..\victim.yaml`, "..", ""} {
+		removed, _, err := removeSeeds(home, []FileSeed{{RelPath: rel, Content: body}}, true)
+		if err == nil {
+			t.Errorf("removeSeeds accepted %q (removed=%v)", rel, removed)
+		}
+		if _, err := os.Stat(victim); err != nil {
+			t.Fatalf("%q removed a file outside the home: %v", rel, err)
+		}
+	}
+}
+
+func TestSeedTargetContainment(t *testing.T) {
+	home := t.TempDir()
+	for _, rel := range []string{"", "   ", "..", "../x", "queries/../../x", "/etc/x", `..\x`, `..\..\x`, "."} {
+		if got, err := seedTarget(home, rel); err == nil {
+			t.Errorf("seedTarget(%q) = %q, want error", rel, got)
+		}
+	}
+	got, err := seedTarget(home, "queries/x.yaml")
+	if err != nil || got != filepath.Join(home, "queries", "x.yaml") {
+		t.Fatalf("seedTarget = %q, %v", got, err)
+	}
+}
+
 func TestInstallUnknownPlugin(t *testing.T) {
 	testenv.Isolate(t)
 	_, err := Install(t.TempDir(), "does.not.exist", InstallOptions{})

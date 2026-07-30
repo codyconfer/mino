@@ -104,6 +104,7 @@ type loginFlowView struct {
 	spin   spinner.Model
 	out    chan string
 	result chan error
+	cancel context.CancelFunc
 	log    string
 	err    error
 }
@@ -160,15 +161,25 @@ func (v *loginFlowView) Init() tea.Cmd {
 func (v *loginFlowView) start() tea.Cmd {
 	v.out = make(chan string, 64)
 	v.result = make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	v.cancel = cancel
 	app := v.kit.d.App
 	prov := v.prov
 	creds := v.creds
 	go func(out chan string, result chan error) {
-		err := prov.Login(context.Background(), app, creds, chanWriter{out})
+		err := prov.Login(ctx, app, creds, chanWriter{out})
+		cancel()
 		close(out)
 		result <- err
 	}(v.out, v.result)
 	return tea.Batch(v.spin.Tick, v.readCmd())
+}
+
+func (v *loginFlowView) stop() {
+	if v.cancel != nil {
+		v.cancel()
+		v.cancel = nil
+	}
 }
 
 func (v *loginFlowView) readCmd() tea.Cmd {
@@ -200,6 +211,7 @@ func (v *loginFlowView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		v.log += m.line
 		return v.readCmd()
 	case loginDoneMsg:
+		v.stop()
 		v.err = m.err
 		v.step = loginStepDone
 		if m.err == nil && v.prov.Key == "github" {
@@ -238,6 +250,11 @@ func (v *loginFlowView) handleKey(a *vkdeck.Model, key tea.KeyMsg) tea.Cmd {
 			return v.submit(a)
 		default:
 			v.form.Handle(act)
+		}
+	case loginStepRun:
+		if act, ok := keymap.Menu().Action(key.String()); ok && act == keys.Cancel {
+			v.stop()
+			return a.Pop()
 		}
 	case loginStepDone:
 		if act, ok := keymap.Menu().Action(key.String()); ok && (act == keys.Cancel || act == keys.Confirm) {

@@ -20,6 +20,7 @@ var muninPalette = theme.Palette{
 	Failure:  lipgloss.Color("#ff5c57"),
 	Info:     lipgloss.Color("#5aa9ff"),
 	Series2:  lipgloss.Color("#c58aff"),
+	Series3:  lipgloss.Color("#33d0c4"),
 	Bg:       lipgloss.Color("#0b0f16"),
 }
 

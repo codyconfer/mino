@@ -10,13 +10,34 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
+const maxStepTimeout = 2 * time.Minute
+
+func stepTimeout(interval time.Duration) time.Duration {
+	if interval <= 0 || interval > maxStepTimeout {
+		return maxStepTimeout
+	}
+	return interval
+}
+
 func Poll(ctx context.Context, name string, interval time.Duration, step func(ctx context.Context) ([]signals.Item, error)) <-chan signals.Event {
-	em := daemon.Poll(ctx, interval, step)
+	timeout := stepTimeout(interval)
+	bounded := func(ctx context.Context) ([]signals.Item, error) {
+		sctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return step(sctx)
+	}
+	em := daemon.Poll(ctx, interval, bounded)
 	return emit(ctx, name, em)
 }
 
 func PollAdaptive(ctx context.Context, name string, interval time.Duration, step func(ctx context.Context) ([]signals.Item, time.Duration, error)) <-chan signals.Event {
-	em := daemon.PollAdaptive(ctx, interval, step)
+	timeout := stepTimeout(interval)
+	bounded := func(ctx context.Context) ([]signals.Item, time.Duration, error) {
+		sctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return step(sctx)
+	}
+	em := daemon.PollAdaptive(ctx, interval, bounded)
 	return emit(ctx, name, em)
 }
 

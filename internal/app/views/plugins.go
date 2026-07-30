@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
@@ -48,10 +49,12 @@ type pluginRow struct {
 }
 
 type pluginsPage struct {
-	kit    *Kit
-	rows   []pluginRow
-	cursor int
-	toast  *vkdeck.Toaster
+	kit     *Kit
+	rows    []pluginRow
+	cursor  int
+	toast   *vkdeck.Toaster
+	confirm *forms.Confirm
+	pending string
 }
 
 func (k *Kit) Plugins() vkdeck.View {
@@ -102,6 +105,9 @@ func (p *pluginsPage) Context() [][2]string { return p.kit.menuCtx() }
 func (p *pluginsPage) Init() tea.Cmd        { return nil }
 
 func (p *pluginsPage) Hints() [][2]string {
+	if p.confirm != nil {
+		return [][2]string{{"←/→", "choose"}, {"enter", "confirm"}}
+	}
 	hints := [][2]string{
 		{"↑/↓", "move"},
 		{"enter/d", "enable/disable"},
@@ -116,6 +122,9 @@ func (p *pluginsPage) Hints() [][2]string {
 func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	if cmd, handled := p.toast.Update(msg); handled {
 		return cmd
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && p.confirm != nil {
+		return p.answer(key)
 	}
 	switch m := msg.(type) {
 	case pluginsToggledMsg:
@@ -170,23 +179,57 @@ func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 			if plugin.IsInternal(id) {
 				return nil
 			}
-			home := p.kit.d.App.Cfg.Home
-			app := p.kit.d.App
-			return func() tea.Msg {
-				res, err := plugin.Uninstall(home, id, plugin.UninstallOptions{})
-				if err != nil {
-					return pluginsUninstalledMsg{id: id, err: err}
-				}
-				if err := app.ReloadDirectives(); err != nil {
-					return pluginsUninstalledMsg{id: id, removed: len(res.Removed), kept: len(res.Kept), err: err}
-				}
-				return pluginsUninstalledMsg{id: id, removed: len(res.Removed), kept: len(res.Kept)}
-			}
+			p.ask(id)
+			return nil
 		case keys.Cancel:
 			return a.Pop()
 		}
 	}
 	return nil
+}
+
+func (p *pluginsPage) ask(id string) {
+	p.pending = id
+	p.confirm = &forms.Confirm{
+		Title:    "uninstall " + id + "?",
+		Message:  "This disables the plugin and removes the seed files it still owns.",
+		YesLabel: "Uninstall",
+		NoLabel:  "Keep",
+	}
+}
+
+func (p *pluginsPage) answer(key tea.KeyMsg) tea.Cmd {
+	act, ok := keymap.ConfirmMap().Action(key.String())
+	if !ok {
+		return nil
+	}
+	switch p.confirm.Handle(act) {
+	case forms.Submitted:
+		yes, id := p.confirm.Yes, p.pending
+		p.confirm, p.pending = nil, ""
+		if !yes {
+			return nil
+		}
+		return p.uninstall(id)
+	case forms.Cancelled:
+		p.confirm, p.pending = nil, ""
+	}
+	return nil
+}
+
+func (p *pluginsPage) uninstall(id string) tea.Cmd {
+	home := p.kit.d.App.Cfg.Home
+	app := p.kit.d.App
+	return func() tea.Msg {
+		res, err := plugin.Uninstall(home, id, plugin.UninstallOptions{})
+		if err != nil {
+			return pluginsUninstalledMsg{id: id, err: err}
+		}
+		if err := app.ReloadDirectives(); err != nil {
+			return pluginsUninstalledMsg{id: id, removed: len(res.Removed), kept: len(res.Kept), err: err}
+		}
+		return pluginsUninstalledMsg{id: id, removed: len(res.Removed), kept: len(res.Kept)}
+	}
 }
 
 func (k *Kit) pluginsInstallPicker() vkdeck.View {
@@ -243,7 +286,7 @@ func (p *pluginsPage) Body(width, _ int) string {
 	f := layout.ScreenFrame(width)
 	if len(p.rows) == 0 {
 		body := f.TitledBox(strings.ToUpper(p.Title()), th.Dim.Render("(no managed plugins — press i to install)"))
-		return p.toast.Body(body, width)
+		return p.overlay(p.toast.Body(body, width), width)
 	}
 	lines := make([]string, 0, len(p.rows))
 	for i, row := range p.rows {
@@ -265,5 +308,12 @@ func (p *pluginsPage) Body(width, _ int) string {
 	}
 	lines = layout.CursorRows(lines, p.cursor, 0)
 	body := f.TitledBox(strings.ToUpper(p.Title()), lines...)
-	return p.toast.Body(body, width)
+	return p.overlay(p.toast.Body(body, width), width)
+}
+
+func (p *pluginsPage) overlay(body string, width int) string {
+	if p.confirm == nil {
+		return body
+	}
+	return p.confirm.Overlay(body, layout.NewFrame(layout.DialogWidth(width)))
 }

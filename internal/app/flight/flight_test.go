@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -179,6 +183,207 @@ func TestFlattenFetchGroupsEqualsFetchQueries(t *testing.T) {
 
 	if !reflect.DeepEqual(viaGroups, direct) {
 		t.Errorf("Flatten(FetchGroups(...)) = %+v, want it to equal FetchQueries(...) = %+v", viaGroups, direct)
+	}
+}
+
+type panickySignal struct {
+	name  string
+	value any
+}
+
+func (p panickySignal) Name() string { return p.name }
+
+func (p panickySignal) Fetch(context.Context) ([]signals.Section, error) {
+	panic(p.value)
+}
+
+func TestFetchGroupsRecoversPluginPanic(t *testing.T) {
+	queries := []Query{
+		{Label: "bad", Src: panickySignal{name: "panicker", value: "assignment to entry in nil map"}},
+		{Label: "healthy", Src: fakeSignal{name: "healthy-src", items: []string{"kept"}}},
+	}
+
+	groups := FetchGroups(context.Background(), nil, "test", time.Second, queries, 0)
+	if len(groups) != 2 {
+		t.Fatalf("got %d groups, want 2", len(groups))
+	}
+	if len(groups[0].Sections) != 1 {
+		t.Fatalf("panicking query yielded %d sections, want 1", len(groups[0].Sections))
+	}
+	sec := groups[0].Sections[0]
+	if sec.Err == nil {
+		t.Fatal("panicking query produced no Section.Err")
+	}
+	if sec.Signal != "panicker" || sec.Title != "panicker" {
+		t.Errorf("error section = %+v, want signal and title naming panicker", sec)
+	}
+	msg := sec.Err.Error()
+	if !strings.Contains(msg, "panicker") {
+		t.Errorf("Err = %q, want the culprit signal named", msg)
+	}
+	if !strings.Contains(msg, "assignment to entry in nil map") {
+		t.Errorf("Err = %q, want the recovered panic value included", msg)
+	}
+	if got := itemTitles(groups[1].Sections); len(got) != 1 || got[0] != "kept" {
+		t.Errorf("healthy query items = %v, want [kept]", got)
+	}
+}
+
+func TestFetchQueryRecoversPluginPanic(t *testing.T) {
+	sections := FetchQuery(context.Background(), nil, "test", time.Second,
+		Query{Label: "bad", Src: panickySignal{name: "panicker", value: errors.New("nil deref")}}, 0)
+	if len(sections) != 1 || sections[0].Err == nil {
+		t.Fatalf("FetchQuery over a panicking signal = %+v, want one error section", sections)
+	}
+	if !strings.Contains(sections[0].Err.Error(), "panicker") {
+		t.Errorf("Err = %q, want the culprit named", sections[0].Err)
+	}
+}
+
+func TestFetchQueryWithoutSourceReportsConfigError(t *testing.T) {
+	sections := FetchQuery(context.Background(), nil, "test", time.Second, Query{Label: "orphan"}, 0)
+	if len(sections) != 1 || sections[0].Err == nil {
+		t.Fatalf("FetchQuery without a source = %+v, want one error section", sections)
+	}
+	if sections[0].Signal != "orphan" {
+		t.Errorf("error section signal = %q, want the query label", sections[0].Signal)
+	}
+}
+
+type peakCounter struct {
+	mu   sync.Mutex
+	cur  int
+	peak int
+}
+
+func (p *peakCounter) enter() {
+	p.mu.Lock()
+	p.cur++
+	if p.cur > p.peak {
+		p.peak = p.cur
+	}
+	p.mu.Unlock()
+}
+
+func (p *peakCounter) exit() {
+	p.mu.Lock()
+	p.cur--
+	p.mu.Unlock()
+}
+
+func (p *peakCounter) max() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.peak
+}
+
+type countingSignal struct {
+	name    string
+	counter *peakCounter
+	calls   *atomic.Int64
+}
+
+func (c countingSignal) Name() string { return c.name }
+
+func (c countingSignal) Fetch(context.Context) ([]signals.Section, error) {
+	c.counter.enter()
+	defer c.counter.exit()
+	c.calls.Add(1)
+	time.Sleep(5 * time.Millisecond)
+	return []signals.Section{{Signal: c.name, Title: c.name, Items: []signals.Item{{Kind: "test", Title: c.name}}}}, nil
+}
+
+func TestFetchGroupsLimitsConcurrency(t *testing.T) {
+	t.Setenv(FetchLimitEnv, "3")
+	var peak peakCounter
+	var calls atomic.Int64
+	queries := make([]Query, 24)
+	for i := range queries {
+		queries[i] = Query{Label: "q" + strconv.Itoa(i), Src: countingSignal{name: "src", counter: &peak, calls: &calls}}
+	}
+
+	groups := FetchGroups(context.Background(), nil, "test", 5*time.Second, queries, 0)
+	if len(groups) != len(queries) {
+		t.Fatalf("got %d groups, want %d", len(groups), len(queries))
+	}
+	if got := calls.Load(); got != int64(len(queries)) {
+		t.Errorf("ran %d fetches, want %d", got, len(queries))
+	}
+	if got := peak.max(); got > 3 {
+		t.Errorf("peak concurrency = %d, want at most the limit of 3", got)
+	}
+	if got := peak.max(); got < 2 {
+		t.Errorf("peak concurrency = %d, want the queries to still run in parallel", got)
+	}
+}
+
+func TestFetchLimitDefaultsAndEnvOverride(t *testing.T) {
+	t.Setenv(FetchLimitEnv, "")
+	if got := FetchLimit(); got != DefaultFetchLimit {
+		t.Errorf("FetchLimit with no env = %d, want %d", got, DefaultFetchLimit)
+	}
+	t.Setenv(FetchLimitEnv, "2")
+	if got := FetchLimit(); got != 2 {
+		t.Errorf("FetchLimit = %d, want 2", got)
+	}
+	for _, bad := range []string{"0", "-4", "many"} {
+		t.Setenv(FetchLimitEnv, bad)
+		if got := FetchLimit(); got != DefaultFetchLimit {
+			t.Errorf("FetchLimit with %q = %d, want the default %d", bad, got, DefaultFetchLimit)
+		}
+	}
+}
+
+func TestFailureOnlyWhenEveryQueryFailed(t *testing.T) {
+	boom := errors.New("exit status 4")
+	item := signals.Item{Kind: "test", Title: "kept"}
+	cases := []struct {
+		name     string
+		sections []signals.Section
+		wantErr  bool
+	}{
+		{"no sections", nil, false},
+		{"all succeeded", []signals.Section{{Signal: "a", Items: []signals.Item{item}}}, false},
+		{"empty but healthy", []signals.Section{{Signal: "a"}}, false},
+		{"partial failure", []signals.Section{{Signal: "a", Err: boom}, {Signal: "b", Items: []signals.Item{item}}}, false},
+		{"partial failure with empty sibling", []signals.Section{{Signal: "a", Err: boom}, {Signal: "b"}}, false},
+		{"every section failed", []signals.Section{{Signal: "a", Err: boom}, {Signal: "b", Err: boom}}, true},
+		{"single failure", []signals.Section{{Signal: "a", Err: boom}}, true},
+		{"all failed but items salvaged", []signals.Section{{Signal: "a", Err: boom, Items: []signals.Item{item}}}, false},
+	}
+	for _, tc := range cases {
+		err := Failure(tc.sections)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("%s: Failure = nil, want an error", tc.name)
+				continue
+			}
+			if !errors.Is(err, ErrAllQueriesFailed) {
+				t.Errorf("%s: Failure = %v, want it to wrap ErrAllQueriesFailed", tc.name, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s: Failure = %v, want nil", tc.name, err)
+		}
+	}
+}
+
+func TestFailureAfterFetchGroupsWithNoAuth(t *testing.T) {
+	authErr := errors.New("gh auth login: exit status 4")
+	queries := []Query{
+		{Label: "github", Src: fakeSignal{name: "github", err: authErr}},
+		{Label: "gmail", Src: fakeSignal{name: "gmail", err: authErr}},
+	}
+	sections := FetchQueries(context.Background(), nil, "test", time.Second, queries, 0)
+	if err := Failure(sections); err == nil {
+		t.Fatal("a run where every query failed must surface an error for the exit code")
+	}
+
+	queries[1] = Query{Label: "gmail", Src: fakeSignal{name: "gmail", items: []string{"one"}}}
+	sections = FetchQueries(context.Background(), nil, "test", time.Second, queries, 0)
+	if err := Failure(sections); err != nil {
+		t.Errorf("partial failure = %v, want nil so degraded runs still exit 0", err)
 	}
 }
 

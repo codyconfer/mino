@@ -9,6 +9,7 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/munin/internal/app"
+	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/testenv"
@@ -83,6 +84,75 @@ func TestStoreTickReloadsAfterExternalApply(t *testing.T) {
 	}
 	if _, ok := kit.d.App.Directives.Flights["standup"]; !ok {
 		t.Fatalf("directives did not pick up the applied flight: %v", kit.d.App.Directives.FlightNames())
+	}
+}
+
+func TestHistoryProbeRunsOffTheUpdateGoroutine(t *testing.T) {
+	st, err := audit.Open(context.Background(), config.DataPath(t.TempDir(), "audit.duckdb"))
+	if err != nil {
+		t.Fatalf("audit.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	kit := testKit(t)
+	kit.d.App.Audit = st
+	if !kit.hasHistory() {
+		t.Fatal("an open audit store should list History until a probe says otherwise")
+	}
+
+	hook := kit.MsgHook()
+	m := vkdeck.New(vkdeck.NewMenu("root", nil))
+	cmd, handled := hook(m, storeTickMsg{})
+	if !handled || cmd == nil {
+		t.Fatalf("tick handled=%v cmd=%v", handled, cmd != nil)
+	}
+
+	var probed *historyProbedMsg
+	for _, c := range flattenCmds(cmd) {
+		if c == nil {
+			continue
+		}
+		if msg, ok := c().(historyProbedMsg); ok {
+			probed = &msg
+		}
+	}
+	if probed == nil {
+		t.Fatal("the tick did not hand the audit query to a command")
+	}
+	if probed.has {
+		t.Fatal("an empty audit store should probe as having no history")
+	}
+
+	if _, handled := hook(m, *probed); !handled {
+		t.Fatal("the probe result was not handled")
+	}
+	if kit.hasHistory() {
+		t.Fatal("History still listed after the probe found no runs")
+	}
+	for _, it := range kit.directiveMenuItems() {
+		if it.Label == "History" {
+			t.Fatal("directives menu still offers History")
+		}
+	}
+}
+
+func TestStoreTickRearmsWithoutAConfigStore(t *testing.T) {
+	kit := testKit(t)
+	if kit.d.App.HasStore() {
+		t.Fatal("fixture unexpectedly opened a config store")
+	}
+	hook := kit.MsgHook()
+	m := vkdeck.New(vkdeck.NewMenu("root", nil))
+
+	cmd, handled := hook(m, storeTickMsg{})
+	if !handled {
+		t.Fatal("store tick without a store was not handled")
+	}
+	if cmd == nil {
+		t.Fatal("a tick without a store did not re-arm: auto-reload is dead for the rest of the session")
+	}
+	if _, ok := cmd().(storeTickMsg); !ok {
+		t.Fatalf("re-armed with %T, want storeTickMsg", cmd())
 	}
 }
 

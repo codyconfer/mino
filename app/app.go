@@ -3,11 +3,14 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"os"
 
 	internalapp "github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/app/onboard"
+	"github.com/codyconfer/munin/plugin"
 )
 
 var ErrNoCLI = errors.New("app: Options.CLI is required (wire cmd.Root().ExecuteContext)")
@@ -20,6 +23,9 @@ type Options struct {
 	EmailDomain string
 
 	AllOrNothingAuth bool
+
+	// Deprecated: use AllOrNothingAuth; the two are OR-ed together.
+	EnforceAuth bool
 
 	Defaults fs.FS
 
@@ -38,9 +44,8 @@ func Run(opts Options) (err error) {
 	}
 	applyBuildPolicy(opts)
 	internalapp.SetDefaultsFS(opts.Defaults)
-	if opts.RegisterPlugins != nil {
-		opts.RegisterPlugins()
-	}
+	registerPlugins(opts.RegisterPlugins)
+	ReportPluginDiagnostics(os.Stderr)
 
 	ctx := context.Background()
 	if opts.BeforeRun != nil {
@@ -64,11 +69,32 @@ func Run(opts Options) (err error) {
 	return err
 }
 
+func registerPlugins(fn func()) {
+	if fn == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			plugin.NoteDiagnostic("", "", "", fmt.Sprintf("plugin registration panicked: %v", r))
+		}
+	}()
+	fn()
+}
+
+func ReportPluginDiagnostics(w io.Writer) {
+	if w == nil {
+		return
+	}
+	for _, d := range plugin.Diagnostics() {
+		fmt.Fprintf(w, "munin: plugin problem: %s\n", d)
+	}
+}
+
 func applyBuildPolicy(opts Options) {
 	if opts.EmailDomain != "" {
 		onboard.RequiredEmailDomain = opts.EmailDomain
 	}
-	if opts.AllOrNothingAuth {
+	if opts.AllOrNothingAuth || opts.EnforceAuth {
 		onboard.AllOrNothingAuth = "true"
 	}
 }

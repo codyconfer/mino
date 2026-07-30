@@ -103,16 +103,36 @@ func Defaults() *Config {
 	}
 }
 
-func ReadConfigFile(homeOverride string) (home string, raw []byte, format string, err error) {
+func ConfigBasenames() []string { return []string{"config.yaml", "config.yml", "config.json"} }
+
+func formatOfBasename(name string) string {
+	if strings.EqualFold(filepath.Ext(name), ".json") {
+		return "json"
+	}
+	return "yaml"
+}
+
+func readConfigFileNamed(homeOverride string) (home, name string, raw []byte, format string, err error) {
 	home, err = Home(homeOverride)
 	if err != nil {
-		return "", nil, "", err
+		return "", "", nil, "", err
 	}
-	raw, format, err = sconfig.ReadFile(home)
-	if err != nil {
-		return home, nil, "", errs.Wrapf(errs.KindConfig, err, "read config file").WithHint("checked under %s", home)
+	for _, base := range ConfigBasenames() {
+		data, ok, rerr := sconfig.ReadRaw(filepath.Join(home, base))
+		if rerr != nil {
+			return home, "", nil, "", errs.Wrap(errs.KindConfig, rerr, "read config file").
+				WithHint("checked under %s", home)
+		}
+		if ok {
+			return home, base, data, formatOfBasename(base), nil
+		}
 	}
-	return home, raw, format, nil
+	return home, "", nil, "", nil
+}
+
+func ReadConfigFile(homeOverride string) (home string, raw []byte, format string, err error) {
+	home, _, raw, format, err = readConfigFileNamed(homeOverride)
+	return home, raw, format, err
 }
 
 func ConfigFilePath(homeOverride string) (string, error) {
@@ -120,7 +140,7 @@ func ConfigFilePath(homeOverride string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, name := range []string{"config.yaml", "config.yml", "config.json"} {
+	for _, name := range ConfigBasenames() {
 		path := filepath.Join(home, name)
 		if sconfig.IsFile(path) {
 			return path, nil

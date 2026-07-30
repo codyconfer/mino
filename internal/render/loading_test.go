@@ -3,12 +3,36 @@ package render
 import (
 	"bytes"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func (b *lockedBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Len()
+}
+
 func TestLoadingStartStopClearsLine(t *testing.T) {
-	var buf bytes.Buffer
+	var buf lockedBuffer
 	l := StartLoading(LoadingOptions{
 		Writer:   &buf,
 		Message:  "starting…",
@@ -45,7 +69,7 @@ func TestLoadingStartStopClearsLine(t *testing.T) {
 }
 
 func TestLoadingNonTTYNoOp(t *testing.T) {
-	var buf bytes.Buffer
+	var buf lockedBuffer
 	l := StartLoading(LoadingOptions{
 		Writer:  &buf,
 		Message: "starting…",
@@ -73,7 +97,7 @@ func stripANSI(s string) string {
 }
 
 func TestLoadingDoneSettlesIntoACheckmark(t *testing.T) {
-	var buf bytes.Buffer
+	var buf lockedBuffer
 	l := StartLoading(LoadingOptions{
 		Writer:      &buf,
 		Message:     "starting…",
@@ -112,7 +136,7 @@ func TestLoadingDoneSettlesIntoACheckmark(t *testing.T) {
 }
 
 func TestLoadingDoneOnNonTTYStaysSilent(t *testing.T) {
-	var buf bytes.Buffer
+	var buf lockedBuffer
 	l := StartLoading(LoadingOptions{Writer: &buf, Message: "starting…", DoneMessage: "ready"})
 	l.Done()
 	if buf.Len() != 0 {

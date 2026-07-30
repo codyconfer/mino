@@ -77,7 +77,7 @@ func TestParseTeamRef(t *testing.T) {
 
 func TestResolveTeamSinglePage(t *testing.T) {
 	be := &fakeGraphQL{teamPages: []string{teamPage(false, "", "Alice", "bob")}}
-	roster, err := ResolveTeam(context.Background(), be, nil, "acme/platform")
+	roster, err := ResolveTeam(context.Background(), be, nil, "acme/platform", CachePolicy{})
 	if err != nil {
 		t.Fatalf("ResolveTeam: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestResolveTeamPages(t *testing.T) {
 		teamPage(true, "cur1", "alice"),
 		teamPage(false, "", "bob"),
 	}}
-	roster, err := ResolveTeam(context.Background(), be, nil, "acme/platform")
+	roster, err := ResolveTeam(context.Background(), be, nil, "acme/platform", CachePolicy{})
 	if err != nil {
 		t.Fatalf("ResolveTeam: %v", err)
 	}
@@ -115,14 +115,14 @@ func TestResolveTeamPages(t *testing.T) {
 func TestResolveTeamCacheHitSkipsAPI(t *testing.T) {
 	cache := newFakeCache()
 	be := &fakeGraphQL{teamPages: []string{teamPage(false, "", "alice")}}
-	if _, err := ResolveTeam(context.Background(), be, cache, "acme/platform"); err != nil {
+	if _, err := ResolveTeam(context.Background(), be, cache, "acme/platform", CachePolicy{Read: true, Write: true, TTL: teamCacheTTL}); err != nil {
 		t.Fatalf("ResolveTeam: %v", err)
 	}
 	if cache.puts != 1 {
 		t.Fatalf("cache puts = %d, want 1", cache.puts)
 	}
 
-	roster, err := ResolveTeam(context.Background(), be, cache, "acme/platform")
+	roster, err := ResolveTeam(context.Background(), be, cache, "acme/platform", CachePolicy{Read: true, Write: true, TTL: teamCacheTTL})
 	if err != nil {
 		t.Fatalf("ResolveTeam (cached): %v", err)
 	}
@@ -136,7 +136,7 @@ func TestResolveTeamCacheHitSkipsAPI(t *testing.T) {
 
 func TestResolveTeamMissingTeam(t *testing.T) {
 	be := &fakeGraphQL{teamPages: []string{`{"data":{"organization":{"team":null}}}`}}
-	_, err := ResolveTeam(context.Background(), be, nil, "acme/nope")
+	_, err := ResolveTeam(context.Background(), be, nil, "acme/nope", CachePolicy{})
 	if err == nil {
 		t.Fatal("want error for missing team")
 	}
@@ -147,7 +147,7 @@ func TestResolveTeamMissingTeam(t *testing.T) {
 
 func TestResolveTeamScopeError(t *testing.T) {
 	be := &fakeGraphQL{teamPages: []string{`{"errors":[{"type":"INSUFFICIENT_SCOPES","message":"missing scope"}]}`}}
-	_, err := ResolveTeam(context.Background(), be, nil, "acme/platform")
+	_, err := ResolveTeam(context.Background(), be, nil, "acme/platform", CachePolicy{})
 	if err == nil {
 		t.Fatal("want error")
 	}
@@ -165,7 +165,7 @@ func TestResolveTeamScopeError(t *testing.T) {
 
 func TestResolveTeamBadRefMakesNoCalls(t *testing.T) {
 	be := &fakeGraphQL{}
-	if _, err := ResolveTeam(context.Background(), be, nil, "platform"); err == nil {
+	if _, err := ResolveTeam(context.Background(), be, nil, "platform", CachePolicy{}); err == nil {
 		t.Fatal("want error for bad team ref")
 	}
 	if be.teamCalls != 0 {

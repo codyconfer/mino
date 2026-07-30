@@ -11,21 +11,22 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"gopkg.in/yaml.v3"
 
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/log"
 )
 
 var collectionExts = []string{".yaml", ".yml", ".json"}
 
-var reservedHomeFiles = map[string]bool{
-	"config.yaml": true,
-	"config.yml":  true,
-	"config.json": true,
-}
+var (
+	miscasedMu   sync.Mutex
+	miscasedSeen = map[string]bool{}
+)
 
 func DirectiveFiles(home string) ([]string, error) {
 	var out []string
@@ -50,7 +51,11 @@ func DirectiveFiles(home string) ([]string, error) {
 			}
 			return nil
 		}
-		if strings.HasPrefix(d.Name(), ".") || !hasCollectionExt(d.Name()) || reservedRoot(rel) {
+		if strings.HasPrefix(d.Name(), ".") || !hasCollectionExt(d.Name()) {
+			return nil
+		}
+		if reservedRoot(rel) {
+			warnMiscasedConfig(home, rel)
 			return nil
 		}
 		out = append(out, rel)
@@ -68,7 +73,32 @@ func skipDir(name string) bool {
 }
 
 func reservedRoot(rel string) bool {
-	return !strings.Contains(rel, "/") && reservedHomeFiles[rel]
+	return !strings.Contains(rel, "/") && isReservedConfigName(rel)
+}
+
+func isReservedConfigName(name string) bool {
+	for _, reserved := range ConfigBasenames() {
+		if strings.EqualFold(name, reserved) {
+			return true
+		}
+	}
+	return false
+}
+
+func warnMiscasedConfig(home, rel string) {
+	canonical := strings.ToLower(rel)
+	if rel == canonical {
+		return
+	}
+	path := filepath.Join(home, rel)
+	miscasedMu.Lock()
+	defer miscasedMu.Unlock()
+	if miscasedSeen[path] {
+		return
+	}
+	miscasedSeen[path] = true
+	log.Warnf("%s differs only in case from %s: munin reads it as the config file on case-insensitive filesystems "+
+		"and ignores it everywhere else, and either way it is not a directive; rename it to %s", path, canonical, canonical)
 }
 
 func SerializeDirectives(home string) ([]byte, bool, error) {
@@ -101,26 +131,56 @@ func WriteDirectives(home string, blob []byte) ([]string, error) {
 		return nil, err
 	}
 	rels := sortedKeys(files)
-	for _, rel := range rels {
+	targets := make([]string, len(rels))
+	for i, rel := range rels {
 		if err := checkDirectiveRel(rel); err != nil {
 			return nil, err
 		}
-	}
-	written := make([]string, 0, len(rels))
-	for _, rel := range rels {
 		target, err := directivePath(home, rel)
 		if err != nil {
 			return nil, err
 		}
+		targets[i] = target
+	}
+	var undo []func()
+	written := make([]string, 0, len(rels))
+	for i, rel := range rels {
+		target := targets[i]
+		prev, existed, err := sconfig.ReadRaw(target)
+		if err != nil {
+			return nil, rollbackDirectives(undo, errs.Wrapf(errs.KindConfig, err, "reading %s", target))
+		}
 		if err := sconfig.EnsureDir(filepath.Dir(target)); err != nil {
-			return nil, errs.Wrapf(errs.KindConfig, err, "creating parent of %s", rel)
+			return nil, rollbackDirectives(undo, errs.Wrapf(errs.KindConfig, err, "creating parent of %s", rel))
 		}
-		if err := os.WriteFile(target, []byte(files[rel]), 0o600); err != nil {
-			return nil, errs.Wrapf(errs.KindConfig, err, "writing %s", target)
+		if _, err := writeItem(target, []byte(files[rel])); err != nil {
+			return nil, rollbackDirectives(undo, errs.Wrapf(errs.KindConfig, err, "writing %s", target))
 		}
+		undo = append(undo, undoDirectiveWrite(target, prev, existed))
 		written = append(written, rel)
 	}
 	return written, nil
+}
+
+func writeItem(target string, data []byte) (string, error) {
+	return sconfig.WriteItem(filepath.Dir(target), filepath.Base(target), data)
+}
+
+func undoDirectiveWrite(target string, prev []byte, existed bool) func() {
+	if !existed {
+		return func() { _ = os.Remove(target) }
+	}
+	return func() { _, _ = writeItem(target, prev) }
+}
+
+func rollbackDirectives(undo []func(), cause *errs.Error) error {
+	for i := len(undo) - 1; i >= 0; i-- {
+		undo[i]()
+	}
+	if len(undo) == 0 {
+		return cause
+	}
+	return cause.WithHint("nothing was applied: the %d file(s) written before the failure were rolled back", len(undo))
 }
 
 func checkDirectiveRel(rel string) error {
@@ -203,7 +263,7 @@ func SaveDirective(mgr *sisyphus.Manager, home, rel string, kind DirectiveType, 
 	if err := sconfig.EnsureDir(filepath.Dir(target)); err != nil {
 		return "", false, errs.Wrapf(errs.KindConfig, err, "creating parent of %s", rel)
 	}
-	if err := os.WriteFile(target, data, 0o600); err != nil {
+	if _, err := writeItem(target, data); err != nil {
 		return "", false, errs.Wrapf(errs.KindConfig, err, "writing %s", target)
 	}
 	stored, err := SyncDirectives(mgr, home)
@@ -211,13 +271,25 @@ func SaveDirective(mgr *sisyphus.Manager, home, rel string, kind DirectiveType, 
 }
 
 func checkDerivedTarget(target, rel string, kind DirectiveType, name string) error {
-	raw, err := os.ReadFile(target)
+	fi, err := os.Lstat(target)
 	switch {
 	case err == nil:
 	case os.IsNotExist(err):
 		return nil
 	default:
+		return errs.Wrapf(errs.KindConfig, err, "inspecting %s", target)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return errs.Newf(errs.KindConfig, "%s is a symlink", rel).
+			WithHint("munin replaces directive files in place and will not write through a link; remove it, or save %s %q to a path of your own",
+				typeLabel(kind), name)
+	}
+	raw, ok, err := sconfig.ReadRaw(target)
+	if err != nil {
 		return errs.Wrapf(errs.KindConfig, err, "reading %s", target)
+	}
+	if !ok {
+		return nil
 	}
 	docs, err := decodeDocs[directiveDoc](rel, raw)
 	if err != nil {

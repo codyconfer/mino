@@ -3,6 +3,7 @@ package views
 import (
 	"context"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -26,7 +27,10 @@ var auditvDefaultSQL = map[string]string{
 	"tokens": "SELECT namespace, key, updated_at, expiry IS NOT NULL AS has_expiry FROM kv ORDER BY namespace, key",
 }
 
-const auditvChrome = 10
+const (
+	auditvChrome  = 10
+	auditvTimeout = 30 * time.Second
+)
 
 type auditResult struct {
 	cols []string
@@ -35,11 +39,16 @@ type auditResult struct {
 	ran  bool
 }
 
+type auditRanMsg struct{ result auditResult }
+
 type auditView struct {
 	home    string
 	dbIndex int
 	sql     string
 	result  auditResult
+	running bool
+
+	exec func(path, query string) auditResult
 
 	scroll layout.ScrollState
 	height int
@@ -58,7 +67,11 @@ func (me *auditView) Title() string { return "query · " + me.db() }
 func (me *auditView) Init() tea.Cmd { return nil }
 
 func (me *auditView) Context() [][2]string {
-	return [][2]string{{"db", me.db()}}
+	cues := [][2]string{{"db", me.db()}}
+	if me.running {
+		cues = append(cues, [2]string{"state", "running"})
+	}
+	return cues
 }
 
 func (me *auditView) Hints() [][2]string {
@@ -75,6 +88,12 @@ func (me *auditView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		}
 		me.height = h
 		me.ready = true
+		me.scrollBy(0)
+		return nil
+	case auditRanMsg:
+		me.running = false
+		me.result = m.result
+		me.scroll.Offset = 0
 		me.scrollBy(0)
 		return nil
 	case tea.KeyMsg:
@@ -97,12 +116,10 @@ func (me *auditView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 			me.cycle(1)
 			return nil
 		case keys.Confirm:
-			me.run()
-			me.scroll.Offset = 0
-			return nil
+			return me.run()
 		case keys.Erase:
-			if n := len(me.sql); n > 0 {
-				me.sql = me.sql[:n-1]
+			if r := []rune(me.sql); len(r) > 0 {
+				me.sql = string(r[:len(r)-1])
 			}
 			return nil
 		case keys.Up:
@@ -147,21 +164,23 @@ func (me *auditView) defaultSQL() string {
 	return auditvDefaultSQL["audit"]
 }
 
-func (me *auditView) run() {
+func (me *auditView) run() tea.Cmd {
+	if me.running {
+		return nil
+	}
 	query := strings.TrimSpace(me.sql)
 	if query == "" {
 		query = me.defaultSQL()
 	}
+	me.scroll.Offset = 0
 	if !auditvReadOnly(query) {
 		me.result = auditResult{err: "only read-only statements are allowed (select/with/pragma/describe/show)", ran: true}
-		return
+		return nil
 	}
-	res, err := me.exec(query)
-	if err != nil {
-		me.result = auditResult{err: err.Error(), ran: true}
-		return
-	}
-	me.result = res
+	me.running = true
+	me.result = auditResult{}
+	exec, path := me.execFn(), me.dbPath()
+	return func() tea.Msg { return auditRanMsg{result: exec(path, query)} }
 }
 
 func auditvReadOnly(query string) bool {
@@ -174,18 +193,32 @@ func auditvReadOnly(query string) bool {
 	return false
 }
 
-func (me *auditView) exec(query string) (auditResult, error) {
-	path := config.DataPath(me.home, me.db()+".duckdb")
-	res, err := store.Query(context.Background(), path, query)
-	if err != nil {
-		return auditResult{}, err
+func (me *auditView) dbPath() string {
+	return config.DataPath(me.home, me.db()+".duckdb")
+}
+
+func (me *auditView) execFn() func(path, query string) auditResult {
+	if me.exec != nil {
+		return me.exec
 	}
-	return auditResult{cols: res.Columns, rows: res.Rows, ran: true}, nil
+	return auditExec
+}
+
+func auditExec(path, query string) auditResult {
+	ctx, cancel := context.WithTimeout(context.Background(), auditvTimeout)
+	defer cancel()
+	res, err := store.Query(ctx, path, query)
+	if err != nil {
+		return auditResult{err: err.Error(), ran: true}
+	}
+	return auditResult{cols: res.Columns, rows: res.Rows, ran: true}
 }
 
 func (me *auditView) results(f layout.Frame) string {
 	th := theme.Cur()
 	switch {
+	case me.running:
+		return th.Dim.Render("running…")
 	case me.result.err != "":
 		return th.Cant.Render(me.result.err)
 	case !me.result.ran:

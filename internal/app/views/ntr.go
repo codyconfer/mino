@@ -14,7 +14,7 @@ func (k *Kit) NTR() vkdeck.View {
 	role := ""
 	if k.d.App != nil && k.d.App.Cfg != nil {
 		home = k.d.App.Cfg.Home
-		role = k.d.App.Cfg.Role
+		role = k.d.App.Role()
 	}
 	return ntr.NewHomeView(home, role)
 }
