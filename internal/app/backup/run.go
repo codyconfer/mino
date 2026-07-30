@@ -23,6 +23,32 @@ import (
 
 const secretService = "munin"
 
+func secretName(cfg *config.Config) string {
+	if cfg != nil && cfg.Backup.SecretName != "" {
+		return cfg.Backup.SecretName
+	}
+	return config.Defaults().Backup.SecretName
+}
+
+func backupSpec(cfg *config.Config, files []string) sisyphus.BackupSpec {
+	return sisyphus.BackupSpec{
+		Files:         files,
+		SecretBackend: cfg.Backup.SecretBackend,
+		SecretName:    secretName(cfg),
+		SecretService: secretService,
+	}
+}
+
+func restoreSpec(cfg *config.Config, sealed []byte, dest string) sisyphus.RestoreSpec {
+	return sisyphus.RestoreSpec{
+		Sealed:        sealed,
+		SecretBackend: cfg.Backup.SecretBackend,
+		SecretName:    secretName(cfg),
+		SecretService: secretService,
+		DestDir:       dest,
+	}
+}
+
 func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), ga auth.GoogleAuth, outDir string) error {
 	home := cfg.Home
 
@@ -36,12 +62,7 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), 
 	files = append(files, store.BackupPaths()...)
 	files = append(files, plugin.DataPaths(home)...)
 
-	sealed, storeName, err := sisyphus.Backup(ctx, sisyphus.BackupSpec{
-		Files:         files,
-		SecretBackend: cfg.Backup.SecretBackend,
-		SecretName:    cfg.Backup.SecretName,
-		SecretService: secretService,
-	})
+	sealed, storeName, err := sisyphus.Backup(ctx, backupSpec(cfg, files))
 	if err != nil {
 		return errs.Wrap(errs.KindBackup, err, "creating encrypted backup").
 			WithHint("configure a secret backend (backup.secret_backend) or ensure the OS keyring is available")
@@ -84,13 +105,7 @@ func Restore(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func
 
 	closeDBs()
 
-	names, storeName, err := sisyphus.Restore(ctx, sisyphus.RestoreSpec{
-		Sealed:        sealed,
-		SecretBackend: cfg.Backup.SecretBackend,
-		SecretName:    cfg.Backup.SecretName,
-		SecretService: secretService,
-		DestDir:       dest,
-	})
+	names, storeName, err := sisyphus.Restore(ctx, restoreSpec(cfg, sealed, dest))
 	if err != nil {
 		return errs.Wrap(errs.KindBackup, err, "restoring backup").
 			WithHint("ensure the same secret backend (backup.secret_backend) that created the backup is configured")

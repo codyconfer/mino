@@ -1,4 +1,4 @@
-//go:build daemon
+//go:build daemon && !nodaemon
 
 package main
 

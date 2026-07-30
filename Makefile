@@ -1,4 +1,4 @@
-.PHONY: build build-experimental dev install command run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
+.PHONY: build build-experimental build-nodaemon dev install command run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
 BIN     ?= $(DIST)/munin
@@ -85,6 +85,15 @@ build:
 build-experimental:
 	go build -tags daemon -o /dev/null .
 	go vet -tags daemon ./...
+
+# Build the `nodaemon` configuration so it cannot rot. TAGS=nodaemon is a
+# sisyphus-supported build that compiles out serve/daemon mode entirely (see
+# sisyphus/mode.DaemonSupported), and with it kardianos/service and systray.
+# Everything under ./daemon is constrained to !nodaemon, so this is the build
+# that catches a daemon-only file that forgot its build tag.
+build-nodaemon:
+	go build -tags nodaemon ./...
+	go vet -tags nodaemon ./...
 
 # Build a dev binary to $(BIN) honoring RACE/TAGS/EMAIL_DOMAIN/ALL_OR_NOTHING_AUTH.
 # Phony so it always rebuilds (go build is incremental) before a mode target runs.
@@ -188,7 +197,7 @@ fmt-check:
 
 # go vet: the standard toolchain analyzers.
 vet:
-	go vet ./...
+	go vet $(GOFLAGS_TAGS) ./...
 
 # golangci-lint: aggregate static analysis (govet, staticcheck, errcheck, ...).
 lint:
@@ -199,7 +208,7 @@ govulncheck:
 	$(GO_TOOL) govulncheck ./...
 
 # Full gate: build, format check, lint, vulncheck, test.
-check: build build-experimental fmt-check lint govulncheck test
+check: build build-experimental build-nodaemon fmt-check lint govulncheck test
 
 # CI entrypoint: identical to the full gate.
 ci: check

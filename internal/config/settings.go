@@ -3,12 +3,14 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/log"
 )
 
 type GlobalSettings struct {
@@ -56,24 +58,64 @@ func GlobalSettingsPath() string {
 	return path
 }
 
-func LoadGlobalSettings() GlobalSettings {
+var (
+	settingsWarnMu sync.Mutex
+	settingsWarned = map[string]string{}
+)
+
+func readGlobalSettingsAt(path string) (GlobalSettings, error) {
 	var gs GlobalSettings
+	data, ok, err := sconfig.ReadRaw(path)
+	if err != nil {
+		return gs, errs.Wrap(errs.KindConfig, err, "read global settings")
+	}
+	if !ok {
+		return gs, nil
+	}
+	if err := yaml.Unmarshal(data, &gs); err != nil {
+		return GlobalSettings{}, errs.Wrapf(errs.KindConfig, err, "malformed global settings %s", path)
+	}
+	return gs, nil
+}
+
+func loadGlobalSettings() (string, GlobalSettings, error) {
 	path := GlobalSettingsPath()
 	if path == "" {
+		return "", GlobalSettings{}, errs.New(errs.KindInternal, "cannot resolve global settings path")
+	}
+	gs, err := readGlobalSettingsAt(path)
+	return path, gs, err
+}
+
+func ReadGlobalSettings() (GlobalSettings, error) {
+	_, gs, err := loadGlobalSettings()
+	return gs, err
+}
+
+func LoadGlobalSettings() GlobalSettings {
+	path, gs, err := loadGlobalSettings()
+	settingsWarnMu.Lock()
+	defer settingsWarnMu.Unlock()
+	if err == nil {
+		delete(settingsWarned, path)
 		return gs
 	}
-	data, ok, err := sconfig.ReadRaw(path)
-	if err != nil || !ok {
-		return gs
+	msg := err.Error()
+	if settingsWarned[path] != msg {
+		settingsWarned[path] = msg
+		log.Warnf("%s: falling back to built-in defaults; munin will not overwrite the file", msg)
 	}
-	_ = yaml.Unmarshal(data, &gs)
-	return gs
+	return GlobalSettings{}
 }
 
 func SaveGlobalSettings(gs GlobalSettings) error {
 	path := GlobalSettingsPath()
 	if path == "" {
 		return errs.New(errs.KindInternal, "cannot resolve global settings path")
+	}
+	if _, err := readGlobalSettingsAt(path); err != nil {
+		return errs.Wrap(errs.KindConfig, err, "refusing to overwrite global settings").
+			WithHint("fix the syntax in %s, or delete the file to start from defaults", path)
 	}
 	data, err := yaml.Marshal(gs)
 	if err != nil {

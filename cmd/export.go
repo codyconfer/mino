@@ -36,7 +36,10 @@ func newExportCmd() *cobra.Command {
 			"restored at the home-relative paths they were imported from, nesting included,\n" +
 			"creating parent directories as needed. Defaults to the munin home directory.\n" +
 			"queries, flights, and roles are deprecated aliases for directives.\n" +
-			"Secret values in config are masked unless --include-secrets is set.",
+			"Secret values in config are masked unless --include-secrets is set. A masked\n" +
+			"config is a copy for sharing, not a working config, so it is never written into\n" +
+			"the munin home: exporting config there needs --out <other-dir> for the masked\n" +
+			"copy, or --include-secrets to materialize the real values.",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeDirectives,
 		Annotations:       map[string]string{annoReconcile: "ignore"},
@@ -48,14 +51,10 @@ func newExportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			home := out
-			if home == "" {
-				home = shared.Cfg.Home
-			}
-			return config.Export(cmd.OutOrStdout(), db, home, args[0], includeSecrets)
+			return config.Export(cmd.OutOrStdout(), db, out, shared.Cfg.Home, args[0], includeSecrets)
 		},
 	}
-	c.Flags().StringVar(&out, "out", "", "output directory (default: munin home)")
+	c.Flags().StringVar(&out, "out", "", "output directory (default: munin home; a masked config export requires a directory other than the munin home)")
 	bindFlagCompletion(c, "out", completeDirs)
 	c.Flags().BoolVar(&includeSecrets, "include-secrets", false, "write secret values in cleartext (default: masked; cleartext is not safe to share)")
 	return c

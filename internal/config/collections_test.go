@@ -5,7 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/codyconfer/munin/internal/filter"
 )
 
 func seedNestedHome(t *testing.T) string {
@@ -265,6 +268,178 @@ func TestDefaultDirectivePathByKind(t *testing.T) {
 		if got := DefaultDirectivePath(kind, "prs"); got != want {
 			t.Errorf("DefaultDirectivePath(%q) = %q, want %q", kind, got, want)
 		}
+	}
+}
+
+const twoQueryDocs = "name: alpha\ntype: query\nsignal: github\n---\nname: beta\ntype: query\nsignal: github\n"
+
+func TestSaveDirectiveRefusesToClobberAMultiDocFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	target := filepath.Join(home, DirQueries, "team.yaml")
+	write(t, target, twoQueryDocs)
+
+	_, _, err := SaveDirective(nil, home, "", TypeQuery, "team", Query{Name: "team", Signal: "github"})
+	if err == nil {
+		t.Fatal("SaveDirective overwrote a multi-document file")
+	}
+	if !strings.Contains(err.Error(), DirQueries+"/team.yaml") {
+		t.Errorf("error must name the file: %v", err)
+	}
+	raw, readErr := os.ReadFile(target)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(raw) != twoQueryDocs {
+		t.Fatalf("%s rewritten:\n%s", target, raw)
+	}
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"alpha", "beta"} {
+		if _, ok := s.Queries[name]; !ok {
+			t.Errorf("%q lost: %v", name, s.QueryNames())
+		}
+	}
+	if _, ok := s.Queries["team"]; ok {
+		t.Error("refused save still landed in the collection")
+	}
+}
+
+func TestSaveDirectiveRefusesToClobberADifferentDirective(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	target := filepath.Join(home, DirQueries, "team.yaml")
+	body := "name: alpha\ntype: query\nsignal: github\n"
+	write(t, target, body)
+
+	if _, _, err := SaveDirective(nil, home, "", TypeQuery, "team", Query{Name: "team", Signal: "github"}); err == nil {
+		t.Fatal("SaveDirective overwrote a file holding another directive")
+	}
+	raw, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != body {
+		t.Fatalf("%s rewritten:\n%s", target, raw)
+	}
+}
+
+func TestSaveDirectiveRefusesToClobberAMultiDocRoleFile(t *testing.T) {
+	home := t.TempDir()
+	target := filepath.Join(home, "team.yaml")
+	body := "name: dev\ntype: role\nqueries: [prs]\n---\nname: ops\ntype: role\nqueries: [prs]\n"
+	write(t, target, body)
+
+	if _, _, err := SaveDirective(nil, home, "", TypeRole, "team", RoleDef{Name: "team"}); err == nil {
+		t.Fatal("SaveDirective overwrote a multi-document role file")
+	}
+	raw, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != body {
+		t.Fatalf("%s rewritten:\n%s", target, raw)
+	}
+}
+
+func TestSaveDirectiveOverwritesItsOwnFile(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	target := filepath.Join(home, DirQueries, "team.yaml")
+	write(t, target, "name: team\ntype: query\nsignal: github\n")
+
+	path, _, err := SaveDirective(nil, home, "", TypeQuery, "team", Query{
+		Name:   "team",
+		Signal: "github",
+		Params: map[string]string{"query": "is:open"},
+	})
+	if err != nil {
+		t.Fatalf("editing an existing single-directive file must work: %v", err)
+	}
+	if path != target {
+		t.Fatalf("path = %q, want %q", path, target)
+	}
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Queries["team"]; got.Params["query"] != "is:open" {
+		t.Fatalf("edit not written: %#v", got)
+	}
+}
+
+func TestSaveDirectiveOverwritesANamelessFileMatchingItsBase(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	target := filepath.Join(home, DirQueries, "team.yaml")
+	write(t, target, "type: query\nsignal: github\n")
+
+	if _, _, err := SaveDirective(nil, home, "", TypeQuery, "team", Query{Name: "team", Signal: "gitlab"}); err != nil {
+		t.Fatalf("nameless single-directive file takes its base name: %v", err)
+	}
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Queries["team"]; got.Signal != "gitlab" {
+		t.Fatalf("edit not written: %#v", got)
+	}
+}
+
+func TestSaveDirectiveTurnsAQueryIntoAFilterInPlace(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "team.yaml"), "name: team\ntype: query\nsignal: github\n")
+
+	f := Query{Name: "team", Rules: []filter.Rule{{Exclude: "bot$"}}}
+	if _, _, err := SaveDirective(nil, home, "", TypeFilter, "team", f); err != nil {
+		t.Fatalf("query -> filter in its own file must work: %v", err)
+	}
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Queries["team"]; got.Kind() != TypeFilter {
+		t.Fatalf("stored kind = %q: %#v", got.Kind(), got)
+	}
+}
+
+func TestSaveDirectiveRefusesAnUnparseableTarget(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	target := filepath.Join(home, DirQueries, "team.yaml")
+	body := "name: team\n\ttype: query\n"
+	write(t, target, body)
+
+	if _, _, err := SaveDirective(nil, home, "", TypeQuery, "team", Query{Name: "team", Signal: "github"}); err == nil {
+		t.Fatal("SaveDirective overwrote a file it could not read")
+	}
+	raw, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != body {
+		t.Fatalf("%s rewritten:\n%s", target, raw)
+	}
+}
+
+func TestSaveDirectiveExplicitRelStillOverwrites(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	target := filepath.Join(home, DirQueries, "team.yaml")
+	write(t, target, twoQueryDocs)
+
+	if _, _, err := SaveDirective(nil, home, DirQueries+"/team.yaml", TypeQuery, "team", Query{Name: "team", Signal: "github"}); err != nil {
+		t.Fatalf("an explicit path is the escape hatch and must still write: %v", err)
+	}
+	raw, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "alpha") {
+		t.Fatalf("explicit save did not rewrite the file:\n%s", raw)
 	}
 }
 

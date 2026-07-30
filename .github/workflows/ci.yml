@@ -13,6 +13,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build:
+    name: build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            tags: ""
+          - name: daemon
+            tags: daemon
+          - name: nodaemon
+            tags: nodaemon
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: make build
+        run: make build TAGS="${{ matrix.tags }}"
+      - name: make vet
+        run: make vet TAGS="${{ matrix.tags }}"
+      - name: make test
+        run: make test TAGS="${{ matrix.tags }}"
+
   check:
     name: check (${{ matrix.os }})
     strategy:

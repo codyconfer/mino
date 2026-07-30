@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/codyconfer/sisyphus"
@@ -179,7 +180,8 @@ func DefaultDirectivePath(kind DirectiveType, name string) string {
 }
 
 func SaveDirective(mgr *sisyphus.Manager, home, rel string, kind DirectiveType, name string, doc any) (string, bool, error) {
-	if strings.TrimSpace(rel) == "" {
+	derived := strings.TrimSpace(rel) == ""
+	if derived {
 		rel = DefaultDirectivePath(kind, name)
 	}
 	if err := checkDirectiveRel(rel); err != nil {
@@ -193,6 +195,11 @@ func SaveDirective(mgr *sisyphus.Manager, home, rel string, kind DirectiveType, 
 	if err != nil {
 		return "", false, err
 	}
+	if derived {
+		if err := checkDerivedTarget(target, rel, kind, name); err != nil {
+			return "", false, err
+		}
+	}
 	if err := sconfig.EnsureDir(filepath.Dir(target)); err != nil {
 		return "", false, errs.Wrapf(errs.KindConfig, err, "creating parent of %s", rel)
 	}
@@ -201,6 +208,61 @@ func SaveDirective(mgr *sisyphus.Manager, home, rel string, kind DirectiveType, 
 	}
 	stored, err := SyncDirectives(mgr, home)
 	return target, stored, err
+}
+
+func checkDerivedTarget(target, rel string, kind DirectiveType, name string) error {
+	raw, err := os.ReadFile(target)
+	switch {
+	case err == nil:
+	case os.IsNotExist(err):
+		return nil
+	default:
+		return errs.Wrapf(errs.KindConfig, err, "reading %s", target)
+	}
+	docs, err := decodeDocs[directiveDoc](rel, raw)
+	if err != nil {
+		return errs.Wrapf(errs.KindConfig, err, "%s already exists and does not parse", rel).
+			WithHint("fix or remove that file, or save %s %q to a path of your own", typeLabel(kind), name)
+	}
+	if len(docs) == 0 || (len(docs) == 1 && sameDirective(docs[0], rel, kind, name)) {
+		return nil
+	}
+	return errs.Newf(errs.KindConfig, "%s already holds %s", rel, describeDirectiveDocs(docs)).
+		WithHint("writing %s %q there would drop that content; give it a file of its own, or add it to %s by hand",
+			typeLabel(kind), name, rel)
+}
+
+func sameDirective(doc directiveDoc, rel string, kind DirectiveType, name string) bool {
+	have := doc.Name
+	if have == "" {
+		have = baseName(rel)
+	}
+	return have == name && sameDirectiveKind(doc.Type, kind)
+}
+
+func sameDirectiveKind(have, want DirectiveType) bool {
+	if have == TypeAuto || want == TypeAuto || have == want {
+		return true
+	}
+	return queryish(have) && queryish(want)
+}
+
+func queryish(k DirectiveType) bool { return k == TypeQuery || k == TypeFilter }
+
+func describeDirectiveDocs(docs []directiveDoc) string {
+	names := make([]string, 0, len(docs))
+	for _, d := range docs {
+		if d.Name == "" {
+			names = append(names, "an unnamed "+typeLabel(d.Type))
+			continue
+		}
+		names = append(names, typeLabel(d.Type)+" "+strconv.Quote(d.Name))
+	}
+	count := strconv.Itoa(len(docs)) + " documents"
+	if len(docs) == 1 {
+		count = "1 document"
+	}
+	return count + ": " + strings.Join(names, ", ")
 }
 
 func stampType(doc any, kind DirectiveType) any {

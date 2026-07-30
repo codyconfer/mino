@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strings"
 	"time"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
@@ -80,25 +82,47 @@ func shortHash(h string) string {
 	return h
 }
 
-func Export(w io.Writer, db *configdb.Store, home, directive string, includeSecrets bool) error {
+func Export(w io.Writer, db *configdb.Store, out, liveHome, directive string, includeSecrets bool) error {
 	directive, err := ResolveDirectiveArg(directive)
 	if err != nil {
 		return err
 	}
+	if out == "" {
+		out = liveHome
+	}
 	switch directive {
 	case "all":
-		if err := exportConfig(w, db, home, false, includeSecrets); err != nil {
+		if err := exportConfig(w, db, out, liveHome, false, includeSecrets); err != nil {
 			return err
 		}
-		return exportDirectives(w, db, home, false)
+		return exportDirectives(w, db, out, false)
 	case ConfigDirective:
-		return exportConfig(w, db, home, true, includeSecrets)
+		return exportConfig(w, db, out, liveHome, true, includeSecrets)
 	default:
-		return exportDirectives(w, db, home, true)
+		return exportDirectives(w, db, out, true)
 	}
 }
 
-func exportConfig(w io.Writer, db *configdb.Store, out string, single, includeSecrets bool) error {
+func SamePath(a, b string) bool {
+	return resolvePath(a) == resolvePath(b)
+}
+
+func resolvePath(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	} else {
+		p = filepath.Clean(p)
+	}
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		p = real
+	}
+	if runtime.GOOS == "windows" {
+		return strings.ToLower(p)
+	}
+	return p
+}
+
+func exportConfig(w io.Writer, db *configdb.Store, out, liveHome string, single, includeSecrets bool) error {
 	v, ok, err := db.Current(context.Background(), ConfigDirective)
 	if err != nil {
 		return errs.Wrap(errs.KindStore, err, "reading config from store")
@@ -115,7 +139,14 @@ func exportConfig(w io.Writer, db *configdb.Store, out string, single, includeSe
 	if includeSecrets {
 		fmt.Fprintln(w, "warning: exported config contains secret values in cleartext")
 	} else {
+		if SamePath(out, liveHome) {
+			return errs.Newf(errs.KindUsage,
+				"refusing to overwrite the live config in %s with a secret-masked copy", out).
+				WithHint("masked exports are for sharing only: pass --out <other-dir> to write the masked copy elsewhere, " +
+					"or --include-secrets to materialize the real config back into the munin home")
+		}
 		content = redact.Config([]byte(v.Content), v.Format)
+		fmt.Fprintf(w, "warning: secret values are replaced with %q and comments and key order are lost; this copy is for sharing, not a working config\n", redact.Mask)
 	}
 	path, err := sconfig.WriteConfigFile(out, []byte(content), v.Format)
 	if err != nil {
