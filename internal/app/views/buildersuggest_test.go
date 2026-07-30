@@ -7,7 +7,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/codyconfer/viewkit/forms"
-	"github.com/codyconfer/viewkit/keys"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
@@ -16,20 +15,32 @@ import (
 
 func (v *builderView) focus(t *testing.T, key string) {
 	t.Helper()
-	for i := range v.Form().Fields {
-		if v.Form().Fields[i].Key == key {
-			for range i {
-				v.Form().Handle(keys.Down)
+	want := v.fieldIndex(t, key)
+	for range len(v.Form().Fields) + 1 {
+		at := v.focusedIndex()
+		if at == want {
+			if got := v.focusedKey(); got != key {
+				t.Fatalf("field %d is %q, want %q (fields %v)", want, got, key, v.fieldKeys())
 			}
 			return
 		}
+		if at < want {
+			v.press(tea.KeyMsg{Type: tea.KeyDown})
+		} else {
+			v.press(tea.KeyMsg{Type: tea.KeyUp})
+		}
 	}
-	t.Fatalf("builder has no field %q (fields: %v)", key, v.fieldKeys())
+	t.Fatalf("↑/↓ never reached field %q (focus stuck on %q, fields %v)", key, v.focusedKey(), v.fieldKeys())
 }
 
-func (v *builderView) typeIn(s string) {
+func (v *builderView) typeIn(t *testing.T, s string) {
+	t.Helper()
+	before := v.focusedKey()
 	for _, r := range s {
-		v.Form().Insert(string(r))
+		v.press(runeKey(r))
+	}
+	if got := v.focusedKey(); got != before {
+		t.Fatalf("typing %q moved focus off %q to %q", s, before, got)
 	}
 }
 
@@ -49,15 +60,16 @@ func TestBuilderFiltersFieldSuggestsSavedFilters(t *testing.T) {
 	v.selectSignal(t, "github")
 
 	v.focus(t, "filters")
-	v.typeIn("f")
+	v.typeIn(t, "f")
 	if got := v.Form().Suggestions(); !slices.Contains(got, "f1") {
 		t.Fatalf("Suggestions() = %v, want the saved filter f1", got)
 	}
-	if !v.Form().AcceptSuggestion() {
-		t.Fatal("accepting the suggestion failed")
-	}
+	v.press(tea.KeyMsg{Type: tea.KeyTab})
 	if got := textOf(t, v, "filters"); got != "f1" {
-		t.Fatalf("filters = %q, want %q", got, "f1")
+		t.Fatalf("tab did not accept the suggestion, filters = %q, want %q", got, "f1")
+	}
+	if got := v.focusedKey(); got != "filters" {
+		t.Fatalf("accepting a suggestion moved focus to %q, want to stay on filters", got)
 	}
 }
 
@@ -66,20 +78,19 @@ func TestBuilderGithubQueryParamSuggestsSearchTerms(t *testing.T) {
 	v.selectSignal(t, "github")
 
 	v.focus(t, "param.query")
-	v.typeIn("is:o")
-	if !v.Form().AcceptSuggestion() {
-		t.Fatal("accepting is:open failed")
-	}
+	v.typeIn(t, "is:o")
+	v.press(tea.KeyMsg{Type: tea.KeyTab})
 	if got := textOf(t, v, "param.query"); got != "is:open" {
 		t.Fatalf("param.query = %q, want %q", got, "is:open")
 	}
 
-	v.typeIn(" author")
-	if !v.Form().AcceptSuggestion() {
-		t.Fatal("accepting the second term failed")
-	}
+	v.typeIn(t, " author")
+	v.press(tea.KeyMsg{Type: tea.KeyTab})
 	if got := textOf(t, v, "param.query"); got != "is:open author:@me" {
 		t.Fatalf("param.query = %q, want both terms", got)
+	}
+	if got := v.focusedKey(); got != "param.query" {
+		t.Fatalf("two accepted suggestions moved focus to %q, want to stay on param.query", got)
 	}
 }
 
@@ -88,7 +99,7 @@ func TestBuilderExtraFieldSuggestsParamKeys(t *testing.T) {
 	v.selectSignal(t, "github")
 
 	v.focus(t, "extra")
-	v.typeIn("tea")
+	v.typeIn(t, "tea")
 	if got := v.Form().Suggestions(); !slices.Contains(got, "team=") {
 		t.Fatalf("Suggestions() = %v, want team=", got)
 	}
@@ -99,7 +110,7 @@ func TestBuilderRegexFieldsOfferNothing(t *testing.T) {
 	v.selectSignal(t, "github")
 
 	v.focus(t, "include")
-	v.typeIn("^wip")
+	v.typeIn(t, "^wip")
 	if got := v.Form().Suggestions(); len(got) != 0 {
 		t.Fatalf("a regex field has no vocabulary, got %v", got)
 	}
@@ -117,7 +128,7 @@ func TestTabAcceptsSuggestionThenSwitchesFocus(t *testing.T) {
 	a, _ = updateBuilder(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	v.focus(t, "filters")
-	v.typeIn("f")
+	v.typeIn(t, "f")
 	a, _ = updateBuilder(a, tea.KeyMsg{Type: tea.KeyTab})
 	if got := textOf(t, v, "filters"); got != "f1" {
 		t.Fatalf("tab with a suggestion showing must accept it, filters = %q", got)

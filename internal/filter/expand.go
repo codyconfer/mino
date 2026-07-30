@@ -12,6 +12,8 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
+const dayLayout = "2006-01-02"
+
 var ExternalKeywords func(name string) (map[string]string, bool)
 
 var (
@@ -58,6 +60,10 @@ func TemplateContext(filters []Filter) (map[string]string, error) {
 }
 
 func ExpandParams(params map[string]string, filters []Filter) (map[string]string, error) {
+	return expandParamsAt(params, filters, time.Now)
+}
+
+func expandParamsAt(params map[string]string, filters []Filter, now func() time.Time) (map[string]string, error) {
 	if len(params) == 0 {
 		return params, nil
 	}
@@ -67,7 +73,7 @@ func ExpandParams(params map[string]string, filters []Filter) (map[string]string
 	}
 	out := make(map[string]string, len(params))
 	for k, v := range params {
-		expanded, err := Expand(v, ctx)
+		expanded, err := expandAt(v, ctx, now)
 		if err != nil {
 			return nil, errs.Wrapf(errs.KindConfig, err, "expanding param %q", k)
 		}
@@ -77,10 +83,14 @@ func ExpandParams(params map[string]string, filters []Filter) (map[string]string
 }
 
 func Expand(s string, ctx map[string]string) (string, error) {
+	return expandAt(s, ctx, time.Now)
+}
+
+func expandAt(s string, ctx map[string]string, now func() time.Time) (string, error) {
 	if s == "" {
 		return s, nil
 	}
-	out, err := expandRelativeQualifiers(s, time.Now)
+	out, err := expandRelativeQualifiers(s, now)
 	if err != nil {
 		return "", err
 	}
@@ -88,7 +98,7 @@ func Expand(s string, ctx map[string]string) (string, error) {
 	if !strings.Contains(out, "{{") {
 		return out, nil
 	}
-	return executeTemplate(out, ctx, time.Now)
+	return executeTemplate(out, ctx, now)
 }
 
 func expandBracedAliases(s string, ctx map[string]string) string {
@@ -126,7 +136,7 @@ func expandRelativeQualifiers(s string, now func() time.Time) (string, error) {
 			}
 			return m
 		}
-		return qual + ":>=" + day.UTC().Format("2006-01-02")
+		return qual + ":>=" + day.Format(dayLayout)
 	})
 	return out, firstErr
 }
@@ -150,7 +160,7 @@ func templateFuncs(now func() time.Time) template.FuncMap {
 			if err != nil {
 				return "", err
 			}
-			return name + ":>=" + day.UTC().Format("2006-01-02"), nil
+			return name + ":>=" + day.Format(dayLayout), nil
 		}
 	}
 	return template.FuncMap{
@@ -162,7 +172,7 @@ func templateFuncs(now func() time.Time) template.FuncMap {
 			if err != nil {
 				return "", err
 			}
-			return day.UTC().Format("2006-01-02"), nil
+			return day.Format(dayLayout), nil
 		},
 	}
 }
@@ -180,12 +190,16 @@ func relativeDay(phrase string, now time.Time) (time.Time, error) {
 	unit := strings.ToLower(m[2])
 	switch unit {
 	case "day", "days":
-		return now.AddDate(0, 0, -n), nil
+		return startOfDay(now.AddDate(0, 0, -n)), nil
 	case "week", "weeks":
-		return now.AddDate(0, 0, -7*n), nil
+		return startOfDay(now.AddDate(0, 0, -7*n)), nil
 	case "hour", "hours":
-		return now.Add(-time.Duration(n) * time.Hour), nil
+		return startOfDay(now.Add(-time.Duration(n) * time.Hour)), nil
 	default:
 		return time.Time{}, fmt.Errorf("unsupported relative time unit %q", unit)
 	}
+}
+
+func startOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }

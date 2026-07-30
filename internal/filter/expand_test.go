@@ -1,36 +1,244 @@
 package filter
 
 import (
-	"strings"
 	"testing"
 	"time"
 )
+
+func mustLoad(t *testing.T, name string) *time.Location {
+	t.Helper()
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		t.Fatalf("load %s: %v", name, err)
+	}
+	return loc
+}
+
+func fixedClock(at time.Time) func() time.Time {
+	return func() time.Time { return at }
+}
 
 func TestExpandBracedAliasAndRelativeCreated(t *testing.T) {
 	ctx := map[string]string{
 		"REPOS_ALIAS": "repo:acme/a repo:acme/b",
 	}
-	got, err := Expand(`is:open is:pr {REPOS_ALIAS} created:(3 days ago)`, ctx)
-	if err != nil {
-		t.Fatal(err)
+	la := mustLoad(t, "America/Los_Angeles")
+	tokyo := mustLoad(t, "Asia/Tokyo")
+
+	cases := []struct {
+		name string
+		now  time.Time
+		want string
+	}{
+		{
+			name: "los_angeles_evening_utc_already_tomorrow",
+			now:  time.Date(2026, 7, 29, 19, 30, 0, 0, la),
+			want: "is:open is:pr repo:acme/a repo:acme/b created:>=2026-07-26",
+		},
+		{
+			name: "tokyo_morning_utc_still_yesterday",
+			now:  time.Date(2026, 7, 29, 8, 0, 0, 0, tokyo),
+			want: "is:open is:pr repo:acme/a repo:acme/b created:>=2026-07-26",
+		},
+		{
+			name: "utc_control",
+			now:  time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC),
+			want: "is:open is:pr repo:acme/a repo:acme/b created:>=2026-07-26",
+		},
 	}
-	wantDay := time.Now().AddDate(0, 0, -3).UTC().Format("2006-01-02")
-	want := "is:open is:pr repo:acme/a repo:acme/b created:>=" + wantDay
-	if got != want {
-		t.Fatalf("got %q\nwant %q", got, want)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := expandAt(`is:open is:pr {REPOS_ALIAS} created:(3 days ago)`, ctx, fixedClock(tc.now))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q\nwant %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestExpandRelativeQualifierUsesLocalCalendarDay(t *testing.T) {
+	la := mustLoad(t, "America/Los_Angeles")
+	tokyo := mustLoad(t, "Asia/Tokyo")
+
+	cases := []struct {
+		name  string
+		now   time.Time
+		query string
+		want  string
+	}{
+		{
+			name:  "los_angeles_1930_one_day_ago",
+			now:   time.Date(2026, 7, 29, 19, 30, 0, 0, la),
+			query: "updated:(1 day ago)",
+			want:  "updated:>=2026-07-28",
+		},
+		{
+			name:  "los_angeles_1930_zero_days_ago",
+			now:   time.Date(2026, 7, 29, 19, 30, 0, 0, la),
+			query: "updated:(0 days ago)",
+			want:  "updated:>=2026-07-29",
+		},
+		{
+			name:  "los_angeles_1930_one_week_ago",
+			now:   time.Date(2026, 7, 29, 19, 30, 0, 0, la),
+			query: "closed:(1 week ago)",
+			want:  "closed:>=2026-07-22",
+		},
+		{
+			name:  "tokyo_0800_one_day_ago",
+			now:   time.Date(2026, 7, 29, 8, 0, 0, 0, tokyo),
+			query: "updated:(1 day ago)",
+			want:  "updated:>=2026-07-28",
+		},
+		{
+			name:  "tokyo_0800_zero_days_ago",
+			now:   time.Date(2026, 7, 29, 8, 0, 0, 0, tokyo),
+			query: "updated:(0 days ago)",
+			want:  "updated:>=2026-07-29",
+		},
+		{
+			name:  "tokyo_0800_five_hours_ago_stays_same_local_day",
+			now:   time.Date(2026, 7, 29, 8, 0, 0, 0, tokyo),
+			query: "updated:(5 hours ago)",
+			want:  "updated:>=2026-07-29",
+		},
+		{
+			name:  "utc_control_one_day_ago",
+			now:   time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC),
+			query: "updated:(1 day ago)",
+			want:  "updated:>=2026-07-28",
+		},
+		{
+			name:  "utc_control_one_week_ago",
+			now:   time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC),
+			query: "closed:(1 week ago)",
+			want:  "closed:>=2026-07-22",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := expandAt(tc.query, nil, fixedClock(tc.now))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q\nwant %q", got, tc.want)
+			}
+		})
 	}
 }
 
 func TestExpandGoTemplate(t *testing.T) {
+	la := mustLoad(t, "America/Los_Angeles")
+	tokyo := mustLoad(t, "Asia/Tokyo")
 	ctx := map[string]string{"REPOS_1": "repo:org/x"}
-	got, err := Expand(`{{.REPOS_1}} {{created "1 week ago"}}`, ctx)
-	if err != nil {
-		t.Fatal(err)
+
+	cases := []struct {
+		name string
+		now  time.Time
+		want string
+	}{
+		{
+			name: "los_angeles_1930",
+			now:  time.Date(2026, 7, 29, 19, 30, 0, 0, la),
+			want: "repo:org/x created:>=2026-07-22",
+		},
+		{
+			name: "tokyo_0800",
+			now:  time.Date(2026, 7, 29, 8, 0, 0, 0, tokyo),
+			want: "repo:org/x created:>=2026-07-22",
+		},
+		{
+			name: "utc_control",
+			now:  time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC),
+			want: "repo:org/x created:>=2026-07-22",
+		},
 	}
-	wantDay := time.Now().AddDate(0, 0, -7).UTC().Format("2006-01-02")
-	want := "repo:org/x created:>=" + wantDay
-	if got != want {
-		t.Fatalf("got %q\nwant %q", got, want)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := expandAt(`{{.REPOS_1}} {{created "1 week ago"}}`, ctx, fixedClock(tc.now))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q\nwant %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestExpandTemplateFuncsUseLocalCalendarDay(t *testing.T) {
+	la := mustLoad(t, "America/Los_Angeles")
+	tokyo := mustLoad(t, "Asia/Tokyo")
+
+	cases := []struct {
+		name string
+		now  time.Time
+		tmpl string
+		want string
+	}{
+		{
+			name: "los_angeles_updated_one_day_ago",
+			now:  time.Date(2026, 7, 29, 19, 30, 0, 0, la),
+			tmpl: `{{updated "1 day ago"}}`,
+			want: "updated:>=2026-07-28",
+		},
+		{
+			name: "los_angeles_closed_three_days_ago",
+			now:  time.Date(2026, 7, 29, 19, 30, 0, 0, la),
+			tmpl: `{{closed "3 days ago"}}`,
+			want: "closed:>=2026-07-26",
+		},
+		{
+			name: "los_angeles_ago_bare_date",
+			now:  time.Date(2026, 7, 29, 19, 30, 0, 0, la),
+			tmpl: `{{ago "1 day ago"}}`,
+			want: "2026-07-28",
+		},
+		{
+			name: "tokyo_updated_one_day_ago",
+			now:  time.Date(2026, 7, 29, 8, 0, 0, 0, tokyo),
+			tmpl: `{{updated "1 day ago"}}`,
+			want: "updated:>=2026-07-28",
+		},
+		{
+			name: "tokyo_ago_bare_date",
+			now:  time.Date(2026, 7, 29, 8, 0, 0, 0, tokyo),
+			tmpl: `{{ago "1 day ago"}}`,
+			want: "2026-07-28",
+		},
+		{
+			name: "tokyo_ago_five_hours_stays_same_local_day",
+			now:  time.Date(2026, 7, 29, 8, 0, 0, 0, tokyo),
+			tmpl: `{{ago "5 hours ago"}}`,
+			want: "2026-07-29",
+		},
+		{
+			name: "utc_control_updated_one_day_ago",
+			now:  time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC),
+			tmpl: `{{updated "1 day ago"}}`,
+			want: "updated:>=2026-07-28",
+		},
+		{
+			name: "utc_control_ago_bare_date",
+			now:  time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC),
+			tmpl: `{{ago "1 day ago"}}`,
+			want: "2026-07-28",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := expandAt(tc.tmpl, map[string]string{}, fixedClock(tc.now))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q\nwant %q", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -52,15 +260,14 @@ func TestExpandParamsUsesFilterAliases(t *testing.T) {
 	params := map[string]string{
 		"query": "is:pr {REPOS_1} created:(2 days ago)",
 	}
-	got, err := ExpandParams(params, filters)
+	la := mustLoad(t, "America/Los_Angeles")
+	got, err := expandParamsAt(params, filters, fixedClock(time.Date(2026, 7, 29, 19, 30, 0, 0, la)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got["query"], "repo:a repo:b") {
-		t.Fatalf("missing repos: %q", got["query"])
-	}
-	if !strings.Contains(got["query"], "created:>=") {
-		t.Fatalf("missing created: %q", got["query"])
+	want := "is:pr repo:a repo:b created:>=2026-07-27"
+	if got["query"] != want {
+		t.Fatalf("got %q\nwant %q", got["query"], want)
 	}
 }
 
@@ -96,12 +303,16 @@ func TestTemplateContextMergesKeywordsAndExternal(t *testing.T) {
 }
 
 func TestExpandRelativeQualifiersOnlyWhenPhraseMatches(t *testing.T) {
-	got, err := Expand(`created:(not a relative) updated:(1 day ago)`, nil)
+	la := mustLoad(t, "America/Los_Angeles")
+	got, err := expandAt(
+		`created:(not a relative) updated:(1 day ago)`,
+		nil,
+		fixedClock(time.Date(2026, 7, 29, 19, 30, 0, 0, la)),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantDay := time.Now().AddDate(0, 0, -1).UTC().Format("2006-01-02")
-	want := "created:(not a relative) updated:>=" + wantDay
+	want := "created:(not a relative) updated:>=2026-07-28"
 	if got != want {
 		t.Fatalf("got %q\nwant %q", got, want)
 	}

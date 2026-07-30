@@ -29,15 +29,64 @@ func builderFor(t *testing.T, kit *Kit) *builderView {
 	return v
 }
 
-func (v *builderView) set(t *testing.T, key, val string) {
+func (v *builderView) press(msgs ...tea.KeyMsg) {
+	for _, msg := range msgs {
+		v.Update(nil, msg)
+	}
+}
+
+func runeKey(r rune) tea.KeyMsg {
+	if r == ' ' {
+		return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
+	}
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}
+}
+
+func (v *builderView) focusedKey() string {
+	if fd := v.Form().Focused(); fd != nil {
+		return fd.Key
+	}
+	return ""
+}
+
+func (v *builderView) focusedIndex() int {
+	fm := v.Form()
+	fd := fm.Focused()
+	if fd == nil {
+		return -1
+	}
+	for i := range fm.Fields {
+		if &fm.Fields[i] == fd {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v *builderView) fieldIndex(t *testing.T, key string) int {
 	t.Helper()
 	for i := range v.Form().Fields {
 		if v.Form().Fields[i].Key == key {
-			v.Form().Fields[i].Text = val
-			return
+			return i
 		}
 	}
 	t.Fatalf("builder has no field %q (fields: %v)", key, v.fieldKeys())
+	return -1
+}
+
+func (v *builderView) set(t *testing.T, key, val string) {
+	t.Helper()
+	v.focus(t, key)
+	for range len([]rune(textOf(t, v, key))) {
+		v.press(tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	if got := textOf(t, v, key); got != "" {
+		t.Fatalf("backspace did not clear field %q, still %q", key, got)
+	}
+	v.typeIn(t, val)
+	if got := textOf(t, v, key); got != val {
+		t.Fatalf("typing into %q produced %q, want %q", key, got, val)
+	}
 }
 
 func (v *builderView) fieldKeys() []string {
@@ -50,14 +99,26 @@ func (v *builderView) fieldKeys() []string {
 
 func (v *builderView) selectOption(t *testing.T, key string, idx int) {
 	t.Helper()
-	for i := range v.Form().Fields {
-		if v.Form().Fields[i].Key == key {
-			v.Form().Fields[i].Selected = idx
-			v.SyncFields()
+	budget := 2 * (len(builderTypes) + len(v.signals) + 1)
+	for range budget {
+		cur := v.SelectedOf(key)
+		switch {
+		case cur < 0:
+			t.Fatalf("builder has no %q selector (fields: %v)", key, v.fieldKeys())
+		case cur == idx:
 			return
 		}
+		v.focus(t, key)
+		if cur < idx {
+			v.press(tea.KeyMsg{Type: tea.KeyRight})
+		} else {
+			v.press(tea.KeyMsg{Type: tea.KeyLeft})
+		}
+		if got := v.SelectedOf(key); got == cur {
+			t.Fatalf("←/→ on %q did not move off option %d of %d", key, cur, idx)
+		}
 	}
-	t.Fatalf("builder has no %q selector (fields: %v)", key, v.fieldKeys())
+	t.Fatalf("←/→ never reached option %d of %q (stuck at %d)", idx, key, v.SelectedOf(key))
 }
 
 func (v *builderView) selectSignal(t *testing.T, name string) {
@@ -686,6 +747,71 @@ func TestBuilderTypeIsTheFirstField(t *testing.T) {
 	if keys := v.fieldKeys(); len(keys) == 0 || keys[0] != "type" {
 		t.Fatalf("first field = %v, want type first", keys)
 	}
+	if got := v.focusedKey(); got != "type" {
+		t.Fatalf("a fresh builder focuses %q, want type: a new form always starts on field 0", got)
+	}
+}
+
+const pinsC93 = "C-93 (KNOWN BUG, PINNED ON PURPOSE): viewkit/deck/editor.go syncFields " +
+	"replaces the whole form with forms.NewForm on every select change, and a new form starts " +
+	"focused on field 0 — which in the query builder is `type`. So picking a signal throws focus " +
+	"off `signal` onto `type`, and the next two → keys, which read as \"cycle signals\", rewrite " +
+	"the document type to `filter`; builder.go fields() then drops `signal` and every param.* " +
+	"field, wrecking the draft in three keystrokes. This test asserts the BUGGY behaviour so the " +
+	"fix cannot land unnoticed, and MUST BE INVERTED when C-93 is fixed (forms.Form.FocusKey lets " +
+	"syncFields restore focus, after which focus stays on `signal` and → keeps walking signals)."
+
+func TestBuilderFocusResetsOnSignalChange_PinsC93(t *testing.T) {
+	t.Log(pinsC93)
+
+	v := builderFor(t, testKit(t))
+	v.selectSignal(t, "github")
+	v.set(t, "param.query", "is:open is:pr")
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	v.focus(t, "signal")
+	if got := v.focusedKey(); got != "signal" {
+		t.Fatalf("setup: focus = %q, want signal", got)
+	}
+
+	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
+	if got := v.signal(); got == "github" {
+		t.Fatalf("→ did not move the signal select off github")
+	}
+	if got := v.focusedKey(); got != "type" {
+		t.Fatalf("pin is stale: focus after picking a signal = %q, want the buggy %q.\n%s", got, "type", pinsC93)
+	}
+
+	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
+	if got := v.Value("type"); got != builderTypes[1] {
+		t.Fatalf("second → set type = %q, want %q", got, builderTypes[1])
+	}
+	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
+	if got := v.Value("type"); got != builderTypes[2] {
+		t.Fatalf("third → set type = %q, want %q", got, builderTypes[2])
+	}
+
+	joined := strings.Join(v.fieldKeys(), " ")
+	if strings.Contains(joined, "signal") {
+		t.Errorf("type: filter should have dropped the signal field: %v", v.fieldKeys())
+	}
+	if strings.Contains(joined, builderParamPrefix) {
+		t.Errorf("type: filter should have dropped every param field: %v", v.fieldKeys())
+	}
+	if got := v.Value(builderParamPrefix + "query"); got != "" {
+		t.Errorf("param.query = %q, want it gone from the visible document", got)
+	}
+	if got := v.signal(); got != "" {
+		t.Errorf("signal = %q, want it dropped with the field", got)
+	}
+	if _, err := v.query(); err == nil {
+		t.Error("the wrecked draft still builds a document; it should now fail as a rule-less filter")
+	}
+	if body := app.View(); strings.Contains(body, "is:open is:pr") {
+		t.Errorf("the typed param is still on screen after three → keys:\n%s", body)
+	}
 }
 
 func TestBuilderFilterTypeHidesQueryOnlyFields(t *testing.T) {
@@ -1074,8 +1200,16 @@ func TestBuilderCollapsesFormWhenResultsNeedRoom(t *testing.T) {
 	if strings.Contains(restored, "tab to edit  ·") {
 		t.Errorf("tabbing back to the form should expand it again:\n%s", restored)
 	}
-	if !strings.Contains(restored, "type") {
-		t.Errorf("expanded form shows no fields:\n%s", restored)
+	if got := v.focusedKey(); got != "name" {
+		t.Fatalf("focus = %q, want the last field typed into (name)", got)
+	}
+	for _, want := range []string{"name (required to save)", "shortform"} {
+		if !strings.Contains(restored, want) {
+			t.Errorf("expanded form does not show the focused field %q:\n%s", want, restored)
+		}
+	}
+	if strings.Contains(restored, "name=shortform") {
+		t.Errorf("expanded form still renders the collapsed summary:\n%s", restored)
 	}
 }
 
