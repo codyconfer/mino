@@ -239,7 +239,7 @@ func TestPluginsUninstallRemovesExternalFromListAndReinstallRestores(t *testing.
 		t.Fatal("esc on the confirm dialog left the plugins page")
 	}
 
-	a, cmd = update(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
+	a, _ = update(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
 	a = step(a, tea.KeyMsg{Type: tea.KeyLeft})
 	a, cmd = update(a, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {

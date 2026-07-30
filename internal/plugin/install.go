@@ -68,7 +68,60 @@ func seedTarget(home, rel string) (string, error) {
 	if err != nil || inside == "." || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
 		return "", errs.Newf(errs.KindConfig, "seed path %q escapes the munin home", rel)
 	}
+	if err := checkResolvedWithinHome(home, abs, rel); err != nil {
+		return "", err
+	}
 	return abs, nil
+}
+
+// checkResolvedWithinHome repeats the containment check on resolved paths. The
+// string comparison above cannot see a symlink at, say, $HOME/queries pointing
+// outside the munin home, so on its own it lets both writes and removals land
+// outside while reporting success.
+func checkResolvedWithinHome(home, abs, rel string) error {
+	realHome, err := resolveExisting(home)
+	if err != nil {
+		return errs.Wrapf(errs.KindConfig, err, "resolve munin home")
+	}
+	realParent, err := resolveExisting(filepath.Dir(abs))
+	if err != nil {
+		return errs.Wrapf(errs.KindConfig, err, "resolve parent of seed %q", rel)
+	}
+	within, err := filepath.Rel(realHome, realParent)
+	if err != nil || within == ".." || filepath.IsAbs(within) ||
+		strings.HasPrefix(within, ".."+string(filepath.Separator)) {
+		return errs.Newf(errs.KindConfig, "seed path %q resolves outside the munin home", rel).
+			WithHint("a symlink inside the munin home points elsewhere; remove or repoint it")
+	}
+	if fi, err := os.Lstat(abs); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return errs.Newf(errs.KindConfig, "seed path %q is a symlink; refusing to follow it", rel)
+	}
+	return nil
+}
+
+// resolveExisting resolves symlinks on the deepest existing ancestor of path and
+// re-attaches the components that do not exist yet.
+func resolveExisting(path string) (string, error) {
+	path = filepath.Clean(path)
+	var tail []string
+	for {
+		resolved, err := filepath.EvalSymlinks(path)
+		if err == nil {
+			for i := len(tail) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, tail[i])
+			}
+			return resolved, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return "", err
+		}
+		tail = append(tail, filepath.Base(path))
+		path = parent
+	}
 }
 
 func writeSeeds(home string, seeds []FileSeed, opts InstallOptions) (written, skipped []string, err error) {

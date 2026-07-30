@@ -38,7 +38,7 @@ func ItemIndex(sections []signals.Section) map[string]ItemRef {
 }
 
 func ItemLabel(it signals.Item) string {
-	kind := signals.Clean(it.Kind)
+	kind := signals.CleanLine(it.Kind)
 	if kind == "" {
 		kind = "detail"
 	}
@@ -49,7 +49,7 @@ func ItemLabel(it signals.Item) string {
 }
 
 func ItemScope(it signals.Item) string {
-	sub := signals.Clean(it.Subtitle)
+	sub := signals.CleanLine(it.Subtitle)
 	if sub == "" {
 		return ""
 	}
@@ -90,7 +90,7 @@ func contentFrame(f layout.Frame) layout.Frame {
 }
 
 func DetailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail) string {
-	ref, d = cleanRef(ref), cleanDetail(d)
+	ref, d = cleanRef(ref), signals.CleanDetail(d)
 
 	th := theme.Cur()
 	cf := contentFrame(f)

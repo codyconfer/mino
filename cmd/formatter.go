@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -39,16 +40,31 @@ func (ff *formatterFlags) bindSinks(cmd *cobra.Command) {
 	f.StringVar(&ff.out, "out", "", "write the formatted report to this file")
 }
 
+const envOutput = "MUNIN_OUTPUT"
+
 type outputRequest struct {
 	raw      string
 	format   render.Format
 	explicit bool
+	fromEnv  bool
 }
 
 func (o outputRequest) rendersFormatter() bool { return o.format == render.FormatTerminal }
 
+func (o outputRequest) label() string {
+	if o.fromEnv {
+		return envOutput + "=" + o.raw
+	}
+	return "--output " + o.raw
+}
+
 func requestedOutput(cmd *cobra.Command) (outputRequest, error) {
-	o := outputRequest{raw: shared.Cfg.Output, explicit: outputFlagChanged(cmd)}
+	flagged := outputFlagChanged(cmd)
+	o := outputRequest{
+		raw:      shared.Cfg.Output,
+		explicit: flagged || envOutputSet(),
+		fromEnv:  !flagged && envOutputSet(),
+	}
 	if o.raw == "" {
 		o.raw = string(render.FormatTerminal)
 	}
@@ -68,14 +84,18 @@ func outputFlagChanged(cmd *cobra.Command) bool {
 	return flagOutput != ""
 }
 
+func envOutputSet() bool {
+	return strings.TrimSpace(os.Getenv(envOutput)) != ""
+}
+
 func requireFormatterOutput(cmd *cobra.Command, name string) error {
 	o, err := requestedOutput(cmd)
 	if err != nil {
 		return err
 	}
 	if o.explicit && !o.rendersFormatter() {
-		return errs.Newf(errs.KindUsage, "formatter %q renders text, which --output %s cannot carry", name, o.raw).
-			WithHint("drop --output %s to get the report, or drop the formatter to get %s results", o.raw, o.raw)
+		return errs.Newf(errs.KindUsage, "formatter %q renders text, which %s cannot carry", name, o.label()).
+			WithHint("drop %s to get the report, or drop the formatter to get %s results", o.label(), o.raw)
 	}
 	return nil
 }
@@ -102,10 +122,10 @@ func (ff *formatterFlags) resolve(cmd *cobra.Command, fallback string) (runOpts,
 			return runOpts{}, requireFormatterOutput(cmd, name)
 		}
 		if ff.copyOut || ff.out != "" {
-			return runOpts{}, errs.Newf(errs.KindUsage, "--output %s ignores the configured formatter %q, so --copy/--out have nothing to write", o.raw, name).
-				WithHint("drop --output %s, or pass --formatter %s to force the report", o.raw, name)
+			return runOpts{}, errs.Newf(errs.KindUsage, "%s ignores the configured formatter %q, so --copy/--out have nothing to write", o.label(), name).
+				WithHint("drop %s, or pass --formatter %s to force the report", o.label(), name)
 		}
-		verbosef("--output %s overrides the configured formatter %q", o.raw, name)
+		verbosef("%s overrides the configured formatter %q", o.label(), name)
 		return runOpts{}, nil
 	}
 	fd, err := lookupFormatter(name)

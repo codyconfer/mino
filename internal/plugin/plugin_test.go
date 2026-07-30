@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -54,4 +55,37 @@ func TestContextSwitch(t *testing.T) {
 	if _, ok := ByKind(KindContext, "testtool"); !ok {
 		t.Fatal("expected KindContext companion")
 	}
+}
+
+func TestDiagnosticsAreReachableForListings(t *testing.T) {
+	Register(Descriptor{ID: "test.diagexport.a", Kind: KindSignal, Signal: "testdiagexport"})
+	Register(Descriptor{ID: "test.diagexport.b", Kind: KindSignal, Signal: "testdiagexport"})
+
+	if len(DiagnosticsFor("test.diagexport.b")) == 0 {
+		t.Fatal("the skipped contribution has no diagnostic reachable from internal/plugin, so plugins list cannot surface it")
+	}
+	if !HasDiagnostics() {
+		t.Fatal("HasDiagnostics = false")
+	}
+	found := false
+	for _, d := range Diagnostics() {
+		if d.PluginID == "test.diagexport.b" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("Diagnostics() does not include the skipped contribution")
+	}
+}
+
+func TestDiagnosticLinesRenderForListings(t *testing.T) {
+	Register(Descriptor{ID: "test.diaglines.a", Kind: KindSignal, Signal: "testdiaglines"})
+	Register(Descriptor{ID: "test.diaglines.b", Kind: KindSignal, Signal: "testdiaglines"})
+
+	for _, line := range DiagnosticLines() {
+		if strings.Contains(line, "test.diaglines.b") {
+			return
+		}
+	}
+	t.Fatalf("DiagnosticLines has no line for the skipped contribution: %v", DiagnosticLines())
 }

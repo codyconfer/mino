@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/filter"
 )
 
@@ -157,7 +159,7 @@ func TestWriteDirectivesRoundTripsNesting(t *testing.T) {
 }
 
 func TestWriteDirectivesRejectsBadKeys(t *testing.T) {
-	for _, rel := range []string{"../escape.yaml", "config.yaml", "queries/plain.txt", ".plugins/vendored.yaml"} {
+	for _, rel := range []string{"../escape.yaml", "queries/plain.txt", ".plugins/vendored.yaml"} {
 		t.Run(rel, func(t *testing.T) {
 			home := t.TempDir()
 			write(t, filepath.Join(home, "config.yaml"), "output: terminal\n")
@@ -633,13 +635,141 @@ func TestDirectiveFilesSkipsAMiscasedRootConfig(t *testing.T) {
 	}
 }
 
-func TestWriteDirectivesRejectsAMiscasedRootConfigKey(t *testing.T) {
+func TestWriteDirectivesSkipsAReservedRootConfigKey(t *testing.T) {
+	for _, rel := range []string{"config.yaml", "Config.yaml", "CONFIG.YML"} {
+		t.Run(rel, func(t *testing.T) {
+			home := t.TempDir()
+			logs := captureLog(t)
+			write(t, filepath.Join(home, "config.yaml"), "output: terminal\n")
+			blob, err := json.Marshal(map[string]string{
+				rel:                      "google:\n  oauth_client_secret: SUPERSECRET\n",
+				DirQueries + "/prs.yaml": "name: prs\ntype: query\nsignal: github\n",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			written, err := WriteDirectives(home, blob)
+			if err != nil {
+				t.Fatalf("one unusable row must not brick the other rows: %v", err)
+			}
+			if slices.Contains(written, rel) {
+				t.Errorf("WriteDirectives claims it wrote %q: %v", rel, written)
+			}
+			if !slices.Contains(written, DirQueries+"/prs.yaml") {
+				t.Errorf("the usable row was dropped along with the bad one: %v", written)
+			}
+			if raw, _ := os.ReadFile(filepath.Join(home, "config.yaml")); string(raw) != "output: terminal\n" {
+				t.Fatalf("WriteDirectives materialized a config file out of a directive row: %q", raw)
+			}
+			for _, name := range []string{rel, "config.yaml"} {
+				if raw, err := os.ReadFile(filepath.Join(home, name)); err == nil && strings.Contains(string(raw), "SUPERSECRET") {
+					t.Fatalf("the directive row's content landed in %s: %q", name, raw)
+				}
+			}
+			if out := logs.String(); !strings.Contains(out, rel) || !strings.Contains(out, "munin import directives") {
+				t.Errorf("the skipped row must be reported with a way to remove it from the store, got %q", out)
+			}
+		})
+	}
+}
+
+func TestWriteDirectivesRollbackRestoresASymlinkItReplaced(t *testing.T) {
 	home := t.TempDir()
-	blob, err := json.Marshal(map[string]string{"Config.yaml": "google:\n  oauth_client_secret: SUPERSECRET\n"})
+	outside := filepath.Join(t.TempDir(), "victim.yaml")
+	write(t, outside, "victim: untouched\n")
+	mkdir(t, filepath.Join(home, DirQueries))
+	link := filepath.Join(home, DirQueries, "team.yaml")
+	symlink(t, outside, link)
+	write(t, filepath.Join(home, "zblock"), "a file, not a directory\n")
+
+	blob, err := json.Marshal(map[string]string{
+		DirQueries + "/team.yaml": "name: team\ntype: query\nsignal: github\n",
+		"zblock/b.yaml":           "name: b\ntype: query\nsignal: github\n",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := WriteDirectives(home, blob); err == nil {
-		t.Fatal("WriteDirectives materialized a config file out of a directive row")
+		t.Fatal("WriteDirectives reported success even though zblock/b.yaml could not be written")
+	}
+
+	fi, err := os.Lstat(link)
+	if err != nil {
+		t.Fatalf("queries/team.yaml is gone after a rollback that claims nothing was applied: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		body, _ := os.ReadFile(link)
+		t.Fatalf("rollback destroyed the user's symlink and left a regular file holding %q", body)
+	}
+	dest, err := os.Readlink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dest != outside {
+		t.Errorf("restored link points at %q, want %q", dest, outside)
+	}
+	if raw, err := os.ReadFile(outside); err != nil || string(raw) != "victim: untouched\n" {
+		t.Fatalf("the file outside the home was changed: %q (err=%v)", raw, err)
+	}
+}
+
+func TestWriteDirectivesRollbackRemovesDirectoriesItCreated(t *testing.T) {
+	home := t.TempDir()
+	write(t, filepath.Join(home, "zblock"), "a file, not a directory\n")
+	blob, err := json.Marshal(map[string]string{
+		"deep/nest/fresh.yaml": "name: fresh\ntype: query\nsignal: github\n",
+		"zblock/b.yaml":        "name: b\ntype: query\nsignal: github\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	werr := WriteDirectivesErr(t, home, blob)
+	for _, leftover := range []string{filepath.Join(home, "deep", "nest"), filepath.Join(home, "deep")} {
+		if _, err := os.Stat(leftover); err == nil {
+			t.Errorf("%s survived a rollback that claims %q", leftover, errs.Hint(werr))
+		}
+	}
+}
+
+func WriteDirectivesErr(t *testing.T, home string, blob []byte) error {
+	t.Helper()
+	_, err := WriteDirectives(home, blob)
+	if err == nil {
+		t.Fatal("WriteDirectives reported success on an unwritable target")
+	}
+	return err
+}
+
+func TestRollbackSaysWhatIsStuckWhenItCannotUndo(t *testing.T) {
+	home := t.TempDir()
+	blocked := filepath.Join(home, "blocker")
+	write(t, blocked, "a file, not a directory\n")
+	stuck := undoStep{target: filepath.Join(blocked, "a.yaml"), prior: priorFile, body: []byte("name: a\n")}
+	fine := undoStep{target: filepath.Join(home, "gone.yaml")}
+
+	err := rollbackDirectives([]undoStep{fine, stuck}, errs.New(errs.KindConfig, "writing z.yaml failed"))
+	hint := errs.Hint(err)
+	if strings.Contains(hint, "nothing was applied") {
+		t.Fatalf("rollback failed but still claims nothing was applied: %q", hint)
+	}
+	if !strings.Contains(hint, stuck.target) {
+		t.Errorf("the hint must name what is still changed on disk, got %q", hint)
+	}
+	if !strings.Contains(hint, "1 of the 2") {
+		t.Errorf("the hint must say how much is stuck, got %q", hint)
+	}
+}
+
+func TestRollbackClaimsNothingWasAppliedOnlyWhenItSucceeded(t *testing.T) {
+	home := t.TempDir()
+	target := filepath.Join(home, "a.yaml")
+	write(t, target, "name: a\n")
+	err := rollbackDirectives([]undoStep{{target: target, prior: priorFile, body: []byte("name: original\n")}},
+		errs.New(errs.KindConfig, "writing z.yaml failed"))
+	if hint := errs.Hint(err); !strings.Contains(hint, "nothing was applied") {
+		t.Errorf("a clean rollback should say so, got %q", hint)
+	}
+	if raw, rerr := os.ReadFile(target); rerr != nil || string(raw) != "name: original\n" {
+		t.Errorf("%s = %q (err=%v), want the captured content restored", target, raw, rerr)
 	}
 }

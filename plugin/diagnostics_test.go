@@ -133,3 +133,40 @@ func TestEmptyBuildersReportedAsDiagnostic(t *testing.T) {
 	}, plugin.Builders{})
 	findDiagnostic(t, "diag.nobuilders", "no Query, Stream, or Scheduled builder")
 }
+
+func TestGuardedContainsAPanicToOnePlugin(t *testing.T) {
+	const bad = "diag.guarded.bad"
+	const good = "diag.guarded.good"
+
+	plugin.Guarded(bad, func() {
+		plugin.Register(plugin.Descriptor{ID: bad, Kind: plugin.KindSignal, Signal: "diagguardedbad"})
+		panic("boom")
+	})
+	plugin.Guarded(good, func() {
+		plugin.Register(plugin.Descriptor{ID: good, Kind: plugin.KindSignal, Signal: "diagguardedgood"})
+	})
+
+	findDiagnostic(t, bad, "panicked", "truncated")
+	if _, ok := plugin.Lookup(good); !ok {
+		t.Fatal("a panic in one plugin stopped the next plugin from registering")
+	}
+	if _, ok := plugin.Lookup(bad); !ok {
+		t.Fatal("contributions made before the panic were rolled back")
+	}
+}
+
+func TestRegistrationCheckpointNamesTheLastContribution(t *testing.T) {
+	_, before := plugin.RegistrationCheckpoint()
+	plugin.Register(plugin.Descriptor{
+		ID:     "diag.checkpoint.owner",
+		Kind:   plugin.KindSignal,
+		Signal: "diagcheckpoint",
+	})
+	who, after := plugin.RegistrationCheckpoint()
+	if after <= before {
+		t.Fatalf("checkpoint count did not advance: %d -> %d", before, after)
+	}
+	if who != "diag.checkpoint.owner" {
+		t.Fatalf("checkpoint owner = %q", who)
+	}
+}

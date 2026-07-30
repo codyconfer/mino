@@ -178,24 +178,30 @@ func exportDirectives(w io.Writer, db *configdb.Store, out string, single bool) 
 }
 
 func ExportAllToFiles(db *configdb.Store, home string) ([]string, error) {
-	var written []string
-	if cur, ok, err := db.Current(context.Background(), ConfigDirective); err != nil {
-		return nil, err
-	} else if ok {
-		path, err := sconfig.WriteConfigFile(home, []byte(cur.Content), cur.Format)
-		if err != nil {
-			return nil, err
-		}
-		written = append(written, path)
-	}
-	cur, ok, err := db.Current(context.Background(), DirectivesDirective)
+	var plan *directivePlan
+	cur, hasDirectives, err := db.Current(context.Background(), DirectivesDirective)
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
+	if hasDirectives {
+		if plan, err = planDirectives(home, []byte(cur.Content)); err != nil {
+			return nil, err
+		}
+	}
+	var written []string
+	if cfg, ok, cerr := db.Current(context.Background(), ConfigDirective); cerr != nil {
+		return nil, cerr
+	} else if ok {
+		path, werr := sconfig.WriteConfigFile(home, []byte(cfg.Content), cfg.Format)
+		if werr != nil {
+			return nil, werr
+		}
+		written = append(written, path)
+	}
+	if !hasDirectives {
 		return written, nil
 	}
-	names, err := WriteDirectives(home, []byte(cur.Content))
+	names, err := plan.apply()
 	if err != nil {
 		return nil, err
 	}

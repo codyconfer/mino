@@ -12,7 +12,10 @@ import (
 	"github.com/codyconfer/munin/internal/errs"
 )
 
-const dayLayout = "2006-01-02"
+const (
+	dayLayout       = "2006-01-02"
+	qualifierLayout = time.RFC3339
+)
 
 var ExternalKeywords func(name string) (map[string]string, bool)
 
@@ -136,7 +139,7 @@ func expandRelativeQualifiers(s string, now func() time.Time) (string, error) {
 			}
 			return m
 		}
-		return qual + ":>=" + day.Format(dayLayout)
+		return qual + ":>=" + day.Format(qualifierLayout)
 	})
 	return out, firstErr
 }
@@ -160,7 +163,7 @@ func templateFuncs(now func() time.Time) template.FuncMap {
 			if err != nil {
 				return "", err
 			}
-			return name + ":>=" + day.Format(dayLayout), nil
+			return name + ":>=" + day.Format(qualifierLayout), nil
 		}
 	}
 	return template.FuncMap{

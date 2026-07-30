@@ -35,7 +35,7 @@ func Detail(ctx context.Context, signal string, it signals.Item, cfg *config.Con
 		}
 		return signals.ItemDetail{}, err
 	}
-	q, err := plugin.BuildQuery(signal, hostBuildCtx{cfg: cfg, tokens: tokens, cache: results})
+	q, err := plugin.BuildQuery(signal, hostBuildCtx{signal: signal, cfg: cfg, tokens: tokens, cache: results})
 	if err != nil {
 		return signals.ItemDetail{}, err
 	}

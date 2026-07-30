@@ -4,6 +4,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/munin/internal/app/loginflow"
+	"github.com/codyconfer/munin/internal/auth"
+	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/errs"
 )
 
 func newLoginCmd() *cobra.Command {
@@ -24,7 +27,22 @@ func newLoginCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := refuseUnreadableStore(p); err != nil {
+				return err
+			}
 			return loginflow.RunCLI(cmd.Context(), shared, p, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
+}
+
+func refuseUnreadableStore(p loginflow.Provider) error {
+	if shared == nil || shared.Tokens == nil {
+		return nil
+	}
+	if _, state, _ := auth.ReadCredential(shared.Tokens, p.Key); state != auth.CredUnreadable {
+		return nil
+	}
+	path := config.DataPath(shared.Cfg.Home, config.TokensDB)
+	return errs.Newf(errs.KindAuth, "the stored %s credential cannot be decrypted, so a new login would not be readable either", p.Label).
+		WithHint("the credential store was written with a different encryption key: delete %s (this drops every cached token), or restore the keyring entry munin used before, then run `munin login %s` again", path, p.Key)
 }

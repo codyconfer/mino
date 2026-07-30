@@ -64,16 +64,31 @@ func Provider(a *app.App) deck.StatusFunc {
 				Level: googleLevel,
 			})
 		}
+		if svc, ok := credentialStoreChip(); ok {
+			info.Services = append(info.Services, svc)
+		}
 		for _, chip := range chips {
 			if svc, ok := chip(); ok {
 				info.Services = append(info.Services, svc)
 			}
 		}
-		home, roleName := a.Cfg.Home, a.Cfg.Role
-		info.Services = append(info.Services, deck.PluginServices(home, roleName)...)
+		home, roleName := a.Cfg.Home, a.Role()
+		info.Services = append(info.Services, deck.PluginServicesContext(ctx, home, roleName)...)
 		info.Services = append(info.Services, deck.RoleServices()...)
 		return info
 	}
+}
+
+func credentialStoreChip() (deck.ServiceStatus, bool) {
+	if auth.CredentialStoreError() == nil {
+		return deck.ServiceStatus{}, false
+	}
+	return deck.ServiceStatus{
+		ID:     "credentials",
+		Name:   "credentials",
+		Detail: auth.CredUnreadable.String(),
+		Level:  deck.StatusBad,
+	}, true
 }
 
 func githubStatus(ctx context.Context, a *app.App, apiURL string) (user string, svc deck.ServiceStatus, ok bool) {

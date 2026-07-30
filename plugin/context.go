@@ -25,37 +25,81 @@ var (
 	lastSwitch = map[string]string{}
 )
 
+// RegisterContextProvider installs a live provider for its tool. Like every
+// other registration site it is first-write-wins: the incumbent keeps the tool
+// and the later provider is skipped with a diagnostic, so a plugin can never
+// take over a tool another plugin already owns.
 func RegisterContextProvider(p ContextProvider) {
-	if p == nil || p.Tool() == "" {
+	if p == nil {
 		return
 	}
+	tool := p.Tool()
+	if tool == "" {
+		return
+	}
+	registerContextProvider("", tool, p)
+}
+
+func registerContextProvider(ownerID, tool string, p ContextProvider) bool {
 	ctxMu.Lock()
-	providers[p.Tool()] = p
+	_, dup := providers[tool]
+	if !dup {
+		providers[tool] = p
+	}
 	ctxMu.Unlock()
+	if dup {
+		noteDiagnosticf(ownerID, KindContext, tool,
+			"context tool %q already has a live provider (%s); later provider skipped",
+			tool, contextOwner(tool))
+		return false
+	}
+	return true
+}
+
+func contextOwner(tool string) string {
+	if d, ok := ByKind(KindContext, tool); ok {
+		return d.ID
+	}
+	return "registered by an earlier caller"
 }
 
 func RegisterContext(parentID string, p ContextProvider) {
 	if parentID == "" {
-		panic("plugin: RegisterContext requires parent plugin id")
+		noteDiagnostic(Diagnostic{
+			Kind:    KindContext,
+			Message: "RegisterContext requires a parent plugin id; context provider skipped",
+		})
+		return
 	}
-	if p == nil || p.Tool() == "" {
-		panic("plugin: RegisterContext requires provider with Tool()")
+	if p == nil {
+		noteDiagnosticf(parentID, KindContext, "",
+			"RegisterContext requires a non-nil ContextProvider; context provider skipped")
+		return
 	}
-	RegisterContextProvider(p)
 	tool := p.Tool()
+	if tool == "" {
+		noteDiagnosticf(parentID, KindContext, "",
+			"RegisterContext requires a provider whose Tool() is non-empty; context provider skipped")
+		return
+	}
 	cid := parentID + "/context/" + tool
 	if _, ok := Lookup(cid); ok {
 		return
 	}
-	if _, ok := ByKind(KindContext, tool); ok {
+	if prev, ok := ByKind(KindContext, tool); ok {
+		noteDiagnosticf(parentID, KindContext, tool,
+			"context tool %q is already owned by %q; later context provider skipped", tool, prev.ID)
 		return
 	}
-	Register(Descriptor{
+	if !registerDescriptor(Descriptor{
 		ID:     cid,
 		Kind:   KindContext,
 		Ref:    tool,
 		Parent: parentID,
-	})
+	}) {
+		return
+	}
+	registerContextProvider(cid, tool, p)
 }
 
 func HasContextProvider(tool string) bool {
@@ -83,12 +127,26 @@ func ResetContextProvidersForTest() {
 	ctxMu.Unlock()
 }
 
-func SwitchContext(ctx context.Context, tool, name string) error {
+// providerFor resolves the live provider for tool. A provider whose owning
+// plugin is disabled is not usable: disabling a plugin must revoke it, not just
+// hide it from listings.
+func providerFor(tool string) (ContextProvider, error) {
 	ctxMu.RLock()
 	p, ok := providers[tool]
 	ctxMu.RUnlock()
 	if !ok {
-		return errUnknownTool(tool)
+		return nil, errUnknownTool(tool)
+	}
+	if d, ok := ByKind(KindContext, tool); ok && !pluginEnabled(d.ID) {
+		return nil, &disabledToolError{tool: tool, owner: OwnerID(d)}
+	}
+	return p, nil
+}
+
+func SwitchContext(ctx context.Context, tool, name string) error {
+	p, err := providerFor(tool)
+	if err != nil {
+		return err
 	}
 	if err := p.Switch(ctx, name); err != nil {
 		return err
@@ -100,13 +158,13 @@ func SwitchContext(ctx context.Context, tool, name string) error {
 }
 
 func CurrentContext(ctx context.Context, tool string) (Context, bool) {
-	ctxMu.RLock()
-	p, ok := providers[tool]
-	last := lastSwitch[tool]
-	ctxMu.RUnlock()
-	if !ok {
+	p, err := providerFor(tool)
+	if err != nil {
 		return Context{}, false
 	}
+	ctxMu.RLock()
+	last := lastSwitch[tool]
+	ctxMu.RUnlock()
 	if name, pokeOK, err := p.Current(ctx); err == nil && pokeOK {
 		return Context{Tool: tool, Name: name}, true
 	}
@@ -160,4 +218,10 @@ type unknownToolError struct{ tool string }
 
 func (e *unknownToolError) Error() string {
 	return "unknown context tool " + e.tool
+}
+
+type disabledToolError struct{ tool, owner string }
+
+func (e *disabledToolError) Error() string {
+	return "context tool " + e.tool + " is provided by disabled plugin " + e.owner
 }

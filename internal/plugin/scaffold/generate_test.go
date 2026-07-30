@@ -207,3 +207,31 @@ func TestSanitizeIdent(t *testing.T) {
 		t.Fatalf("defaultSignal = %q", got)
 	}
 }
+
+func TestGenerateRejectsOverlongSignalWithoutLeavingFiles(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "toolong")
+	long := strings.Repeat("s", 400)
+
+	if _, err := Generate(GenerateOptions{ID: "team.toolong", Dir: out, Signal: long}); err == nil {
+		t.Fatal("Generate accepted a 400-character signal name")
+	}
+
+	entries, err := os.ReadDir(out)
+	if err != nil {
+		return
+	}
+	var left []string
+	for _, e := range entries {
+		left = append(left, e.Name())
+	}
+	if len(left) > 0 {
+		t.Fatalf("a failed scaffold left files behind with no cleanup: %v", left)
+	}
+}
+
+func TestGenerateRejectsOverlongPluginID(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "longid")
+	if _, err := Generate(GenerateOptions{ID: strings.Repeat("a", 400), Dir: out}); err == nil {
+		t.Fatal("Generate accepted a 400-character plugin id")
+	}
+}

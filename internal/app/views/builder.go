@@ -366,13 +366,14 @@ func (v *builderView) editorPersist(val any) (string, error) {
 			"a `type: filter` document cannot carry %s, so saving now discards %s; press ctrl+s again to save the filter without them, or switch type back to keep them",
 			strings.Join(drops, " or "), strings.Join(drops, " and "))
 	}
+	d := v.kit.d.App.Dirs()
 	if q.Name != v.orig {
-		if _, exists := v.kit.d.App.Dirs().Queries[q.Name]; exists {
+		if _, exists := d.Queries[q.Name]; exists {
 			return "", errs.Newf(errs.KindUsage, "a query named %s already exists", q.Name)
 		}
 	}
 	kind := q.Kind()
-	rel := v.kit.d.App.Dirs().Source(kind, v.orig)
+	rel := d.Source(kind, v.orig)
 	summary, _, err := v.kit.saveDirective(kind, rel, q.Name, q)
 	if err != nil {
 		return "", err

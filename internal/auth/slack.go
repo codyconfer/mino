@@ -89,7 +89,7 @@ func SlackLogin(ctx context.Context, sa SlackAuth, w io.Writer) error {
 		return err
 	}
 
-	token, err := slackExchange(ctx, http.DefaultClient, sa, code, redirect, verifier)
+	token, err := slackExchange(ctx, HTTPClient(), sa, code, redirect, verifier)
 	if err != nil {
 		return err
 	}

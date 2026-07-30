@@ -80,6 +80,23 @@ func DiagnosticsFor(pluginID string) []Diagnostic {
 
 func HasDiagnostics() bool { return len(Diagnostics()) > 0 }
 
+// Guarded runs one plugin's registration behind its own recover so a panic in
+// that plugin's code becomes a diagnostic instead of truncating every plugin
+// that would have registered after it. Compose a host's RegisterPlugins hook out
+// of Guarded calls to get per-plugin containment.
+func Guarded(pluginID string, register func()) {
+	if register == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			noteDiagnosticf(pluginID, "", "",
+				"registration panicked: %v; this plugin's registration was truncated, so its remaining contributions were skipped", r)
+		}
+	}()
+	register()
+}
+
 func capabilityDiagnostics() []Diagnostic {
 	var out []Diagnostic
 	for _, d := range AllOfKind(KindSignal) {
@@ -92,6 +109,23 @@ func capabilityDiagnostics() []Diagnostic {
 				Kind:     KindSignal,
 				Ref:      d.Signal,
 				Message:  "declares CapScheduled but registered no Builders.Scheduled, so the job can never run",
+			})
+		}
+	}
+	// The inverse mistake is equally likely and equally fatal: both
+	// serve's scheduledJobs and build.ScheduledSignals gate on the
+	// capability, so a builder without CapScheduled is dead code.
+	for _, signal := range ScheduledSignals() {
+		d, ok := BySignal(signal)
+		if !ok || IsInternal(OwnerID(d)) {
+			continue
+		}
+		if !descriptorHasCapability(d, CapScheduled) {
+			out = append(out, Diagnostic{
+				PluginID: d.ID,
+				Kind:     KindSignal,
+				Ref:      signal,
+				Message:  "registered Builders.Scheduled but the descriptor omits CapScheduled, so the job can never run",
 			})
 		}
 	}

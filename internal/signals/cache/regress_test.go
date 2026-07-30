@@ -134,8 +134,8 @@ func TestStatsCountsNonSignalNamespaces(t *testing.T) {
 
 func TestStatsHonorsPerSignalTTL(t *testing.T) {
 	s := New(t.TempDir(), config.CacheConfig{
-		TTL:     "1h",
-		Signals: map[string]string{localSignal: "1ns"},
+		TTL:     "1ns",
+		Signals: map[string]string{localSignal: "1h"},
 	}, "fp", ModeUse)
 	t.Cleanup(func() { s.Close() })
 	ctx := context.Background()
@@ -148,19 +148,90 @@ func TestStatsHonorsPerSignalTTL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seen := 0
 	for _, st := range stats {
 		switch st.Label {
 		case cacheableSignal:
-			if st.Entries != 1 || st.Fresh != 1 {
-				t.Errorf("%s entries=%d fresh=%d, want 1 and 1", st.Label, st.Entries, st.Fresh)
+			seen++
+			if st.Entries != 1 || st.Fresh != 0 {
+				t.Errorf("%s entries=%d fresh=%d, want 1 and 0 under the global 1ns ttl", st.Label, st.Entries, st.Fresh)
 			}
 		case localSignal:
-			if st.Entries != 1 || st.Fresh != 0 {
-				t.Errorf("%s entries=%d fresh=%d, want 1 and 0 under a 1ns ttl", st.Label, st.Entries, st.Fresh)
+			seen++
+			if st.Entries != 1 || st.Fresh != 1 {
+				t.Errorf("%s entries=%d fresh=%d, want 1 and 1: its own 1h ttl must be counted against its own "+
+					"window, not the global one", st.Label, st.Entries, st.Fresh)
 			}
 		default:
 			t.Errorf("unexpected namespace %q", st.Namespace)
 		}
+	}
+	if seen != 2 {
+		t.Errorf("stats reported %d of the 2 signal namespaces: %+v", seen, stats)
+	}
+}
+
+func TestSaveKeepsRowsForTheFullStaleGrace(t *testing.T) {
+	const ttl = 720 * time.Hour
+	s := newStore(t, "720h", ModeUse)
+	ctx := context.Background()
+	fetch(t, s.Wrap(&fake{title: "a"}, cacheableSignal, "", nil))
+
+	store := s.open(ctx)
+	if store == nil {
+		t.Fatal("cache store unavailable")
+	}
+	entry, found, err := store.Get(ctx, Namespace(cacheableSignal), entryKey(cacheableSignal, "", "fp", nil))
+	if err != nil || !found {
+		t.Fatalf("Get after a warm fetch: found=%v err=%v", found, err)
+	}
+	want := time.Now().Add(ttl + staleGrace)
+	if d := entry.Expiry.Sub(want); d > time.Minute || d < -time.Minute {
+		t.Errorf("row expiry = %s, want ~%s (ttl + the %s stale grace): a row that expires at the ttl is swept "+
+			"before the stale window it exists to cover, so the fallback has nothing to serve",
+			entry.Expiry.UTC(), want.UTC(), staleGrace)
+	}
+}
+
+func TestClearSignalDropsAuxiliaryNamespaces(t *testing.T) {
+	s := newStore(t, "1h", ModeUse)
+	ctx := context.Background()
+	fetch(t, s.Wrap(&fake{title: "a"}, cacheableSignal, "", nil))
+	s.Put(ctx, cacheableSignal+":team", "acme/plat", "alice", time.Now().Add(24*time.Hour))
+	s.Put(ctx, cacheableSignal+":detail", "acme/plat#1", "{}", time.Now().Add(5*time.Minute))
+	s.Put(ctx, cacheableSignal+":detail", "acme/plat#2", "{}", time.Now().Add(-time.Hour))
+	s.Put(ctx, "othersignal:team", "acme/plat", "bob", time.Now().Add(24*time.Hour))
+	s.Put(ctx, Namespace(localSignal), "k", "{}", time.Now().Add(time.Hour))
+
+	n, err := s.ClearSignal(ctx, cacheableSignal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 4 {
+		t.Errorf("ClearSignal removed %d rows, want 4 (1 result, 1 roster, 2 detail rows including the expired one)", n)
+	}
+
+	for _, ns := range []string{Namespace(cacheableSignal), cacheableSignal + ":team", cacheableSignal + ":detail"} {
+		left, err := s.Clear(ctx, ns)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if left != 0 {
+			t.Errorf("%s still held %d row(s) after clearing the signal", ns, left)
+		}
+	}
+	if left, err := s.Clear(ctx, "othersignal:team"); err != nil || left != 1 {
+		t.Errorf("othersignal:team = %d rows (err %v), want 1 left untouched", left, err)
+	}
+	if left, err := s.Clear(ctx, Namespace(localSignal)); err != nil || left != 1 {
+		t.Errorf("%s = %d rows (err %v), want 1 left untouched", Namespace(localSignal), left, err)
+	}
+}
+
+func TestClearSignalOnAnUnavailableStore(t *testing.T) {
+	var nilStore *Store
+	if _, err := nilStore.ClearSignal(context.Background(), "github"); err == nil {
+		t.Error("ClearSignal on a nil store should report unavailable")
 	}
 }
 

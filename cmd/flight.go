@@ -25,15 +25,15 @@ func emit(w io.Writer, root string, sections []signals.Section) error {
 }
 
 func fetchQuery(ctx context.Context, q query, parentID int64) []signals.Section {
-	return flight.FetchQuery(ctx, shared.Audit, shared.Cfg.Role, sourceTimeout(), q, parentID)
+	return flight.FetchQuery(ctx, shared.Audit, shared.Role(), sourceTimeout(), q, parentID)
 }
 
 func fetchQueries(ctx context.Context, queries []query, parentID int64) []signals.Section {
-	return flight.FetchQueries(ctx, shared.Audit, shared.Cfg.Role, sourceTimeout(), queries, parentID)
+	return flight.FetchQueries(ctx, shared.Audit, shared.Role(), sourceTimeout(), queries, parentID)
 }
 
 func fetchGroups(ctx context.Context, queries []query, parentID int64) []flight.Group {
-	return flight.FetchGroups(ctx, shared.Audit, shared.Cfg.Role, sourceTimeout(), queries, parentID)
+	return flight.FetchGroups(ctx, shared.Audit, shared.Role(), sourceTimeout(), queries, parentID)
 }
 
 type flightGroup = flight.Group
@@ -120,7 +120,7 @@ func renderReport(fd config.FormatterDef, root, kind string, groups []flightGrou
 		Formatter: fd.Name,
 		Name:      root,
 		Kind:      kind,
-		Role:      shared.Cfg.Role,
+		Role:      shared.Role(),
 		Groups:    make([]format.InputGroup, 0, len(groups)),
 	}
 	for _, g := range groups {

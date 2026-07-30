@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"strings"
 	"testing"
 
 	vnotify "github.com/codyconfer/viewkit/notify"
@@ -74,5 +75,73 @@ func TestPluginUninstalled(t *testing.T) {
 	n := PluginUninstalled("munin.ntr", 1, 1)
 	if n.Tone != vnotify.ToneNeutral || n.Message != "munin.ntr uninstalled (removed 1, kept 1)" {
 		t.Fatalf("toast = %+v", n)
+	}
+}
+
+func TestFromEventKeepsNotificationsSingleLine(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ev   signals.Event
+	}{
+		{"item title", signals.Event{Source: "github", Section: signals.Section{
+			Title: "prs",
+			Items: []signals.Item{{Kind: "pr", Title: "benign\nFAKE ALERT"}},
+		}}},
+		{"item subtitle", signals.Event{Source: "github", Section: signals.Section{
+			Title: "prs",
+			Items: []signals.Item{{Kind: "pr", Title: "ok", Subtitle: "repo\nFAKE"}},
+		}}},
+		{"section title", signals.Event{Source: "github", Section: signals.Section{
+			Title: "prs\nFAKE",
+			Items: []signals.Item{{Kind: "pr", Title: "ok"}},
+		}}},
+		{"tab in title", signals.Event{Source: "github", Section: signals.Section{
+			Title: "prs",
+			Items: []signals.Item{{Kind: "pr", Title: "col\tumn"}},
+		}}},
+		{"escape in title", signals.Event{Source: "github", Section: signals.Section{
+			Title: "prs",
+			Items: []signals.Item{{Kind: "pr", Title: "x\x1b]0;pwned\x07y"}},
+		}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			n, ok := FromEvent(tc.ev)
+			if !ok {
+				t.Fatal("FromEvent produced no notification")
+			}
+			assertSingleLine(t, "title", n.Title)
+			assertSingleLine(t, "message", n.Message)
+		})
+	}
+}
+
+func TestFromEventErrorNotificationIsSingleLine(t *testing.T) {
+	ev := signals.Event{Source: "github", Section: signals.Section{
+		Signal: "github",
+		Err:    errSingleLineProbe{},
+	}}
+	n, ok := FromEvent(ev)
+	if !ok {
+		t.Fatal("FromEvent produced no notification for a failed section")
+	}
+	assertSingleLine(t, "title", n.Title)
+	assertSingleLine(t, "message", n.Message)
+}
+
+type errSingleLineProbe struct{}
+
+func (errSingleLineProbe) Error() string {
+	return "search failed\nFAKE: all checks passed\x1b[2J\ttrailing"
+}
+
+func assertSingleLine(t *testing.T, field, got string) {
+	t.Helper()
+	for _, r := range []struct {
+		name string
+		ch   string
+	}{{"newline", "\n"}, {"carriage return", "\r"}, {"tab", "\t"}, {"escape", "\x1b"}, {"bell", "\x07"}, {"delete", "\x7f"}} {
+		if strings.Contains(got, r.ch) {
+			t.Errorf("notification %s carries a %s, so a remote value can forge a second line or spoof the notifier: %q", field, r.name, got)
+		}
 	}
 }

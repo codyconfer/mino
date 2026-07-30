@@ -46,11 +46,15 @@ func (h *activeSignal) client() *http.Client {
 }
 
 func (h *activeSignal) Stream(ctx context.Context) (<-chan signals.Event, error) {
+	return active.PollAdaptive(ctx, "github", h.interval, h.step(ctx)), nil
+}
+
+func (h *activeSignal) step(ctx context.Context) func(context.Context) ([]signals.Item, time.Duration, error) {
 	cursor := h.state.Cursor("github", "last_modified")
 	seen := h.state.Seen("github:notifications")
 	lastModified := cursor.Load(ctx)
 	fails := 0
-	step := func(ctx context.Context) ([]signals.Item, time.Duration, error) {
+	return func(ctx context.Context) ([]signals.Item, time.Duration, error) {
 		res, err := h.poll(ctx, lastModified)
 		if err != nil {
 			fails++
@@ -66,7 +70,6 @@ func (h *activeSignal) Stream(ctx context.Context) (<-chan signals.Event, error)
 		}
 		return seen.Fresh(ctx, res.items, notificationKey), res.next, nil
 	}
-	return active.PollAdaptive(ctx, "github", h.interval, step), nil
 }
 
 func notificationKey(it signals.Item) string {
@@ -78,6 +81,12 @@ type pollResult struct {
 	next         time.Duration
 	lastModified string
 	notModified  bool
+}
+
+func partial(res pollResult) pollResult {
+	res.lastModified = ""
+	res.notModified = false
+	return res
 }
 
 func (h *activeSignal) poll(ctx context.Context, lastModified string) (pollResult, error) {
@@ -96,12 +105,13 @@ func (h *activeSignal) poll(ctx context.Context, lastModified string) (pollResul
 		pg, err := h.fetchPage(ctx, pageURL, since)
 		if err != nil {
 			if len(res.items) > 0 {
-				log.Debugf("github: notifications page %d failed after %d thread(s): %v", page+1, len(res.items), err)
+				log.Debugf("github: notifications page %d failed after %d thread(s); discarding the poll: %v",
+					page+1, len(res.items), err)
 				res.next = max(res.next, pg.next)
-				return res, nil
+			} else {
+				res.next = pg.next
 			}
-			res.next = pg.next
-			return res, err
+			return partial(res), err
 		}
 		if page == 0 {
 			res.next = pg.next
@@ -114,10 +124,10 @@ func (h *activeSignal) poll(ctx context.Context, lastModified string) (pollResul
 		items, err := mapNotifications(pg.body)
 		if err != nil {
 			if len(res.items) > 0 {
-				log.Debugf("github: notifications page %d unreadable after %d thread(s): %v", page+1, len(res.items), err)
-				return res, nil
+				log.Debugf("github: notifications page %d unreadable after %d thread(s); discarding the poll: %v",
+					page+1, len(res.items), err)
 			}
-			return res, err
+			return partial(res), err
 		}
 		res.items = append(res.items, items...)
 		pageURL = pg.nextURL

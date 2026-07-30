@@ -50,8 +50,9 @@ func (s *Server) scheduledJobs(flight string, names []string, state *active.Stat
 	var jobs []plugin.Scheduled
 	var watching []string
 	seen := map[string]bool{}
+	d := s.Dirs()
 	for _, name := range names {
-		q, ok := s.Directives.Queries[name]
+		q, ok := d.Queries[name]
 		if !ok {
 			log.Debugf("serve: unknown query %q in flight %q", name, flight)
 			continue
@@ -63,7 +64,7 @@ func (s *Server) scheduledJobs(flight string, names []string, state *active.Stat
 		if !plugin.HasCapability(q.Signal, plugin.CapScheduled) {
 			continue
 		}
-		resolved, err := s.Directives.Resolve(q)
+		resolved, err := d.Resolve(q)
 		if err != nil {
 			log.Warnf("serve: query %q: %v (skipping)", name, err)
 			continue

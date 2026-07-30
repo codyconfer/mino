@@ -6,7 +6,8 @@ import (
 )
 
 func TestHTTPClientIsShared(t *testing.T) {
-	if HTTPClient() != HTTPClient() {
+	first, second := HTTPClient(), HTTPClient()
+	if first != second {
 		t.Error("HTTPClient must return one shared client so connections are reused")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -63,45 +64,60 @@ func newGitHubPost(ctx context.Context, url, token string, body []byte) (*http.R
 
 func readBody(resp *http.Response) ([]byte, error) {
 	if resp.ContentLength > maxResponseBytes {
-		return nil, oversizeBody(resp.ContentLength)
+		return nil, oversizeBody(resp, resp.ContentLength)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, errs.Wrap(errs.KindSignal, err, "github: reading response body")
 	}
 	if len(body) > maxResponseBytes {
-		return nil, oversizeBody(int64(len(body)))
+		return nil, oversizeBody(resp, int64(len(body)))
 	}
 	return body, nil
 }
 
-func oversizeBody(n int64) error {
-	return errs.Newf(errs.KindSignal, "github: response body exceeds the %d MiB limit (%d bytes)", maxResponseBytes>>20, n).
+func oversizeBody(resp *http.Response, n int64) error {
+	detail := fmt.Sprintf("response body exceeds the %d MiB limit (%d bytes)", maxResponseBytes>>20, n)
+	if resp.StatusCode >= 400 {
+		return checkGitHubStatus(resp, []byte(detail), "the required scopes")
+	}
+	return errs.Newf(errs.KindSignal, "github: %s", detail).
 		WithHint("check that github.api_url points at a GitHub API endpoint")
 }
 
 func checkGitHubStatus(resp *http.Response, body []byte, missingScope string) error {
-	msg := strings.TrimSpace(string(body))
+	msg := errs.ExcerptBytes(body)
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized:
 		return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, msg).
 			WithHint("%s", githubAuthHint(missingScope))
-	case rateLimited(resp, body):
-		err := errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, msg)
-		if d, ok := retryAfter(resp.Header, time.Now()); ok {
-			return err.WithHint("github rate limit reached; retry after %s", d.Round(time.Second))
-		}
-		return err.WithHint("github rate limit reached; retry in a few minutes")
 	case resp.StatusCode == http.StatusForbidden:
-		if hint := restrictionHint(body); hint != "" {
-			return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, msg).WithHint("%s", hint)
-		}
-		return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, msg).
-			WithHint("%s", githubAuthHint(missingScope))
+		return forbiddenError(resp, body, msg, missingScope)
+	case rateLimited(resp, body):
+		return rateLimitError(resp, msg)
 	case resp.StatusCode >= 400:
 		return errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, msg)
 	}
 	return nil
+}
+
+func forbiddenError(resp *http.Response, body []byte, msg, missingScope string) error {
+	if hint := restrictionHint(body); hint != "" {
+		return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, msg).WithHint("%s", hint)
+	}
+	if rateLimited(resp, body) {
+		return rateLimitError(resp, msg)
+	}
+	return errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, msg).
+		WithHint("%s", githubAuthHint(missingScope))
+}
+
+func rateLimitError(resp *http.Response, msg string) error {
+	err := errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, msg)
+	if d, ok := retryAfter(resp.Header, time.Now()); ok {
+		return err.WithHint("github rate limit reached; retry after %s", d.Round(time.Second))
+	}
+	return err.WithHint("github rate limit reached; retry in a few minutes")
 }
 
 type query struct {

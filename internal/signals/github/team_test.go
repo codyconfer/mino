@@ -134,6 +134,37 @@ func TestResolveTeamCacheHitSkipsAPI(t *testing.T) {
 	}
 }
 
+func TestResolveTeamPolicyGatesTheCache(t *testing.T) {
+	cases := []struct {
+		name       string
+		pol        CachePolicy
+		gets, puts int
+	}{
+		{name: "read and write", pol: CachePolicy{Read: true, Write: true, TTL: time.Hour}, gets: 1, puts: 1},
+		{name: "read only", pol: CachePolicy{Read: true, TTL: time.Hour}, gets: 1},
+		{name: "write only", pol: CachePolicy{Write: true, TTL: time.Hour}, puts: 1},
+		{name: "neither", pol: CachePolicy{TTL: time.Hour}},
+		{name: "zero ttl disables both", pol: CachePolicy{Read: true, Write: true}},
+		{name: "zero value", pol: CachePolicy{}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cache := newFakeCache()
+			be := &fakeGraphQL{teamPages: []string{teamPage(false, "", "alice")}}
+			if _, err := ResolveTeam(context.Background(), be, cache, "acme/platform", c.pol); err != nil {
+				t.Fatalf("ResolveTeam: %v", err)
+			}
+			if cache.gets != c.gets {
+				t.Errorf("cache gets = %d, want %d under %+v; the roster must ride the same policy as the "+
+					"detail resolver, so --cache-ttl 0 really stops touching github:team", cache.gets, c.gets, c.pol)
+			}
+			if cache.puts != c.puts {
+				t.Errorf("cache puts = %d, want %d under %+v", cache.puts, c.puts, c.pol)
+			}
+		})
+	}
+}
+
 func TestResolveTeamMissingTeam(t *testing.T) {
 	be := &fakeGraphQL{teamPages: []string{`{"data":{"organization":{"team":null}}}`}}
 	_, err := ResolveTeam(context.Background(), be, nil, "acme/nope", CachePolicy{})

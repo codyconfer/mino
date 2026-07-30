@@ -1,13 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/viewkit/theme"
 
+	"github.com/codyconfer/munin/internal/app/suggest"
 	"github.com/codyconfer/munin/internal/render/glyph"
 	"github.com/codyconfer/munin/internal/signals/cache"
 )
@@ -35,10 +39,14 @@ func newCacheCmd() *cobra.Command {
 			},
 		},
 		&cobra.Command{
-			Use:               "clear [signal]",
-			Short:             "Drop cached results for one signal, or all of them",
+			Use:   "clear [target]",
+			Short: "Drop cached results for one signal, or all of them",
+			Long: "With no argument every namespace is dropped. With a signal name that signal's\n" +
+				"results go along with the side tables it owns (github also keeps `github:team`\n" +
+				"rosters and `github:detail` entries). Naming one of those namespaces directly\n" +
+				"clears just it; `munin cache stats` lists everything that is clearable.",
 			Args:              cobra.MaximumNArgs(1),
-			ValidArgsFunction: completeCacheSignals,
+			ValidArgsFunction: completeCacheTargets,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return cacheClear(cmd, args)
 			},
@@ -71,14 +79,47 @@ func cacheStats(cmd *cobra.Command) error {
 }
 
 func cacheClear(cmd *cobra.Command, args []string) error {
-	namespace, label := "", "cache"
-	if len(args) == 1 {
-		namespace, label = cache.Namespace(args[0]), args[0]
-	}
-	n, err := shared.Cache.Clear(cmd.Context(), namespace)
+	n, label, err := clearTarget(cmd, args)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "cleared %d %s from %s\n", n, plural(int(n), "entry", "entries"), label)
 	return nil
+}
+
+func clearTarget(cmd *cobra.Command, args []string) (int64, string, error) {
+	if len(args) == 0 {
+		n, err := shared.Cache.Clear(cmd.Context(), "")
+		return n, "cache", err
+	}
+	target := args[0]
+	if strings.Contains(target, ":") {
+		n, err := shared.Cache.Clear(cmd.Context(), target)
+		return n, target, err
+	}
+	n, err := shared.Cache.ClearSignal(cmd.Context(), target)
+	return n, target, err
+}
+
+func completeCacheTargets(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeNames(func() []string {
+		names := suggest.Signals()
+		ctx := context.Background()
+		if cmd != nil && cmd.Context() != nil {
+			ctx = cmd.Context()
+		}
+		stats, err := shared.Cache.Stats(ctx)
+		if err != nil {
+			return names
+		}
+		for _, s := range stats {
+			if _, isSignal := cache.SignalOf(s.Namespace); isSignal {
+				continue
+			}
+			if !slices.Contains(names, s.Namespace) {
+				names = append(names, s.Namespace)
+			}
+		}
+		return names
+	})(cmd, args, toComplete)
 }

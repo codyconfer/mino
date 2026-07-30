@@ -27,11 +27,42 @@ func TestPollStepGetsDeadline(t *testing.T) {
 		if d <= 0 {
 			t.Fatal("poll step ran on a context with no deadline: a hung request would block the source forever")
 		}
-		if d > 200*time.Millisecond {
-			t.Fatalf("step deadline = %s, want at most the 200ms poll interval", d)
+		if d > maxStepTimeout {
+			t.Fatalf("step deadline = %s, want at most %s", d, maxStepTimeout)
+		}
+		if d <= 200*time.Millisecond {
+			t.Fatalf("step deadline = %s, want the %s floor: a budget equal to a short poll interval "+
+				"leaves no time for the request itself", d, minStepTimeout)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("step never ran")
+	}
+}
+
+func TestPollShortIntervalStillLetsAStepFinish(t *testing.T) {
+	const work = 300 * time.Millisecond
+	step := func(ctx context.Context) ([]signals.Item, error) {
+		select {
+		case <-time.After(work):
+			return []signals.Item{{Title: "done"}}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events := Poll(ctx, "test", 100*time.Millisecond, step)
+	select {
+	case ev := <-events:
+		if ev.Section.Err != nil {
+			t.Fatalf("a %s step under a 100ms interval failed with %v: the per-step budget must not be the "+
+				"poll period, or a short --interval breaks the source on every poll", work, ev.Section.Err)
+		}
+		if len(ev.Section.Items) != 1 {
+			t.Errorf("items = %d, want 1", len(ev.Section.Items))
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no event within 3s")
 	}
 }
 
@@ -68,7 +99,7 @@ func TestPollBlockedStepEmitsError(t *testing.T) {
 		if ev.Section.Err == nil {
 			t.Fatalf("want an error event, got %#v", ev.Section)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(minStepTimeout + 3*time.Second):
 		t.Fatal("a step blocked on its context never returned: the poll loop is unbounded")
 	}
 }
@@ -82,7 +113,12 @@ func TestStepTimeout(t *testing.T) {
 		{interval: 0, want: maxStepTimeout},
 		{interval: -time.Second, want: maxStepTimeout},
 		{interval: time.Hour, want: maxStepTimeout},
-		{interval: time.Millisecond, want: time.Millisecond},
+		{interval: maxStepTimeout, want: maxStepTimeout},
+		{interval: minStepTimeout, want: minStepTimeout},
+		{interval: minStepTimeout + time.Second, want: minStepTimeout + time.Second},
+		{interval: time.Second, want: minStepTimeout},
+		{interval: 100 * time.Millisecond, want: minStepTimeout},
+		{interval: time.Millisecond, want: minStepTimeout},
 	}
 	for _, c := range cases {
 		if got := stepTimeout(c.interval); got != c.want {

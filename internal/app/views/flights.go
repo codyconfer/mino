@@ -184,12 +184,13 @@ func (v *flightView) editorPersist(val any) (string, error) {
 	if fl.Name == "" {
 		return "", errs.New(errs.KindUsage, "name is required to save")
 	}
+	d := v.kit.d.App.Dirs()
 	if fl.Name != v.orig {
-		if _, exists := v.kit.d.App.Dirs().Flights[fl.Name]; exists {
+		if _, exists := d.Flights[fl.Name]; exists {
 			return "", errs.Newf(errs.KindUsage, "a flight named %s already exists", fl.Name)
 		}
 	}
-	rel := v.kit.d.App.Dirs().Source(config.TypeFlight, v.orig)
+	rel := d.Source(config.TypeFlight, v.orig)
 	summary, _, err := v.kit.saveDirective(config.TypeFlight, rel, fl.Name, fl)
 	if err != nil {
 		return "", err

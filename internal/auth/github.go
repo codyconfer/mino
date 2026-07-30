@@ -54,7 +54,7 @@ var (
 )
 
 func GitHubDeviceFlow(ctx context.Context, clientID, scope string, w io.Writer) (string, error) {
-	return runGitHubDeviceFlow(ctx, http.DefaultClient, githubDeviceCodeURL, githubAccessTokenURL, clientID, scope, w, time.Sleep)
+	return runGitHubDeviceFlow(ctx, deviceFlowHTTPClient, githubDeviceCodeURL, githubAccessTokenURL, clientID, scope, w, time.Sleep)
 }
 
 func runGitHubDeviceFlow(ctx context.Context, hc *http.Client, deviceURL, tokenURL, clientID, scope string, w io.Writer, sleep func(time.Duration)) (string, error) {

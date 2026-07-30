@@ -152,7 +152,7 @@ func lastCommentChip(th *theme.Theme, it signals.Item) string {
 }
 
 func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
-	it = cleanItem(it)
+	it = signals.CleanItem(it)
 
 	icon := theme.SeverityStyle(glyph.ClassifyItem(it)).Render(glyph.Lead(glyph.ForItem(it)))
 	head := icon + th.Val.Render(it.Title)

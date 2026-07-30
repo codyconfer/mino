@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,6 +122,14 @@ func TestExportConfigMasksOnlyOutsideTheLiveHome(t *testing.T) {
 	if !strings.Contains(buf.String(), "warning") {
 		t.Errorf("the masking path must warn about what it produced, got:\n%s", buf.String())
 	}
+
+	var live bytes.Buffer
+	if err := Export(&live, db, home, home, ConfigDirective, false); err == nil {
+		t.Fatalf("the same masked export aimed at the live home must be refused\n%s", live.String())
+	}
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); !os.IsNotExist(err) {
+		t.Errorf("the refused export still touched the live home, stat err = %v", err)
+	}
 }
 
 func TestExportConfigWithSecretsMaterializesIntoTheLiveHome(t *testing.T) {
@@ -138,6 +147,17 @@ func TestExportConfigWithSecretsMaterializesIntoTheLiveHome(t *testing.T) {
 	if !strings.Contains(buf.String(), "cleartext") {
 		t.Errorf("the cleartext path must warn, got:\n%s", buf.String())
 	}
+
+	var masked bytes.Buffer
+	if err := Export(&masked, db, "", home, ConfigDirective, false); err == nil {
+		t.Fatalf("only --include-secrets may write the live home; the masked form must be refused\n%s", masked.String())
+	}
+	if got := liveConfigBody(t, home); got != exportTestConfig {
+		t.Errorf("the refused masked export overwrote the cleartext config:\n%s", got)
+	}
+	if strings.Contains(liveConfigBody(t, home), redact.Mask) {
+		t.Error("the mask marker landed in the live config")
+	}
 }
 
 func TestSamePath(t *testing.T) {
@@ -150,5 +170,79 @@ func TestSamePath(t *testing.T) {
 	}
 	if SamePath(filepath.Join(dir, "sub"), dir) {
 		t.Errorf("SamePath(%q/sub, %q) = true, want false", dir, dir)
+	}
+
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(dir, link); err != nil {
+		t.Skipf("symlinks unavailable here: %v", err)
+	}
+	if !SamePath(link, dir) {
+		t.Errorf("SamePath(%q, %q) = false: a symlink to the munin home is the munin home", link, dir)
+	}
+	if !SamePath(filepath.Join(link, "."), dir) {
+		t.Errorf("SamePath(%q/., %q) = false", link, dir)
+	}
+	if SamePath(link, filepath.Dir(link)) {
+		t.Errorf("SamePath(%q, %q) = true, want false", link, filepath.Dir(link))
+	}
+}
+
+func importDirectiveRows(t *testing.T, db *configdb.Store, rows map[string]string) {
+	t.Helper()
+	blob, err := json.Marshal(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Import(context.Background(), DirectivesDirective, blob, "collection"); err != nil {
+		t.Fatalf("Import directives: %v", err)
+	}
+}
+
+func TestExportAllToFilesSkipsALegacyConfigRowInsteadOfLosingEveryDirective(t *testing.T) {
+	home := t.TempDir()
+	db := exportTestStore(t, home, exportTestConfig)
+	importDirectiveRows(t, db, map[string]string{
+		"Config.yaml":            "output: terminal\n",
+		DirQueries + "/prs.yaml": "name: prs\ntype: query\nsignal: github\n",
+	})
+
+	written, err := ExportAllToFiles(db, home)
+	if err != nil {
+		t.Fatalf("one unusable row bricked every apply: %v", err)
+	}
+	prs := filepath.Join(home, DirQueries, "prs.yaml")
+	raw, err := os.ReadFile(prs)
+	if err != nil {
+		t.Fatalf("queries/prs.yaml was lost to the bad row: %v", err)
+	}
+	if !strings.Contains(string(raw), "signal: github") {
+		t.Errorf("queries/prs.yaml = %q", raw)
+	}
+	if got := liveConfigBody(t, home); got != exportTestConfig {
+		t.Errorf("config.yaml = %q, want the stored config, not the skipped row", got)
+	}
+	for _, p := range written {
+		if filepath.Base(p) == "Config.yaml" {
+			t.Errorf("the skipped row was reported as written: %v", written)
+		}
+	}
+}
+
+func TestExportAllToFilesValidatesEveryRowBeforeWritingTheConfig(t *testing.T) {
+	home := t.TempDir()
+	db := exportTestStore(t, home, exportTestConfig)
+	importDirectiveRows(t, db, map[string]string{
+		DirQueries + "/plain.txt": "name: nope\ntype: query\nsignal: github\n",
+		DirQueries + "/prs.yaml":  "name: prs\ntype: query\nsignal: github\n",
+	})
+
+	if written, err := ExportAllToFiles(db, home); err == nil {
+		t.Fatalf("ExportAllToFiles accepted an unusable row: written=%v", written)
+	}
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); !os.IsNotExist(err) {
+		t.Errorf("config.yaml was written before the directive set was checked, so one bad row half-applies the store (stat err = %v)", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, DirQueries, "prs.yaml")); !os.IsNotExist(err) {
+		t.Errorf("a directive was written even though the apply failed (stat err = %v)", err)
 	}
 }

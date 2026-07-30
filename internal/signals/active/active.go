@@ -10,13 +10,20 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-const maxStepTimeout = 2 * time.Minute
+const (
+	minStepTimeout = 5 * time.Second
+	maxStepTimeout = 2 * time.Minute
+)
 
 func stepTimeout(interval time.Duration) time.Duration {
-	if interval <= 0 || interval > maxStepTimeout {
+	switch {
+	case interval <= 0 || interval > maxStepTimeout:
 		return maxStepTimeout
+	case interval < minStepTimeout:
+		return minStepTimeout
+	default:
+		return interval
 	}
-	return interval
 }
 
 func Poll(ctx context.Context, name string, interval time.Duration, step func(ctx context.Context) ([]signals.Item, error)) <-chan signals.Event {

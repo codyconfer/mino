@@ -75,4 +75,17 @@ func TestRegisterSeedsKeepsSafeSeedsBesideUnsafeOnes(t *testing.T) {
 	if len(got) != 1 || got[0].RelPath != "queries/ok.yaml" {
 		t.Fatalf("SeedsFor = %#v", got)
 	}
+	// Keeping the safe seed is right; dropping the unsafe one silently is not.
+	findDiagnostic(t, id, "../escape.yaml")
+}
+
+func TestRegisterSeedsReportsUnsafePaths(t *testing.T) {
+	id := "test.public.seeds.diag"
+	plugin.RegisterSeeds(id, []plugin.FileSeed{
+		{RelPath: "../escape.yaml", Content: []byte("evil\n")},
+	})
+	t.Cleanup(func() { plugin.RegisterSeeds(id, nil) })
+
+	findDiagnostic(t, id, "../escape.yaml")
+	findDiagnostic(t, id, "no seeds")
 }

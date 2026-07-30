@@ -19,6 +19,9 @@ func pollIntervalHint(hdr http.Header) time.Duration {
 	if err != nil || secs <= 0 {
 		return 0
 	}
+	if maxSecs := int(maxRetryAfter / time.Second); secs > maxSecs {
+		return maxRetryAfter
+	}
 	return time.Duration(secs) * time.Second
 }
 
@@ -70,11 +73,15 @@ func rateLimited(resp *http.Response, body []byte) bool {
 	if resp.StatusCode != http.StatusForbidden {
 		return false
 	}
-	if strings.TrimSpace(resp.Header.Get("X-RateLimit-Remaining")) == "0" {
+	remaining := strings.TrimSpace(resp.Header.Get("X-RateLimit-Remaining"))
+	if remaining == "0" {
 		return true
 	}
 	if strings.TrimSpace(resp.Header.Get("Retry-After")) != "" {
 		return true
+	}
+	if remaining != "" {
+		return false
 	}
 	return strings.Contains(strings.ToLower(string(body)), "rate limit")
 }

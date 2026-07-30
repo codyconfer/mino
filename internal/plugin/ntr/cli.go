@@ -10,6 +10,7 @@ import (
 	"github.com/codyconfer/sisyphus/kv"
 
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/render"
 )
 
@@ -225,7 +226,8 @@ func CLICatchUp(ctx context.Context, w io.Writer, home, role string) error {
 		return err
 	}
 	defer store.Close()
-	job := ReminderJob{Home: home, Role: role, KV: store}
+	// Same scoping the serve/daemon path gets, so both write one watermark.
+	job := ReminderJob{Home: home, Role: role, KV: plugin.ScopeKV(store, PluginID)}
 	secs, err := job.Fetch(ctx)
 	if err != nil {
 		return err

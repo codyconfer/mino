@@ -15,6 +15,7 @@ import (
 
 func useFormatterTestApp(t *testing.T, output string) {
 	t.Helper()
+	t.Setenv(envOutput, "")
 	orig := shared
 	t.Cleanup(func() { shared = orig })
 	shared = &app.App{
@@ -70,12 +71,42 @@ func TestExplicitJSONOutputBeatsAConfigFormatter(t *testing.T) {
 	}
 }
 
-func TestConfigFormatterStillAppliesWithoutAnExplicitOutputFlag(t *testing.T) {
+func TestConfigFormatterStillAppliesWithoutAnExplicitOutputRequest(t *testing.T) {
 	useFormatterTestApp(t, "json")
 
 	out, _ := runFly(t, "demo")
 	if !strings.Contains(out, "Standup") {
-		t.Fatalf("a config-level formatter should still render when --output was not given:\n%s", out)
+		t.Fatalf("a config-level formatter should still render when no output was requested for this run:\n%s", out)
+	}
+}
+
+func TestEnvOutputBeatsAConfigFormatter(t *testing.T) {
+	useFormatterTestApp(t, "json")
+	t.Setenv(envOutput, "json")
+
+	out, _ := runFly(t, "demo")
+	if strings.Contains(out, "Standup") {
+		t.Fatalf("MUNIN_OUTPUT=json rendered the config formatter instead of JSON, so "+
+			"`MUNIN_OUTPUT=json munin fly | jq` gets a text report:\n%s", out)
+	}
+	if !json.Valid([]byte(out)) {
+		t.Fatalf("MUNIN_OUTPUT=json did not emit JSON:\n%s", out)
+	}
+}
+
+func TestEnvOutputWithAnExplicitFormatterIsAUsageError(t *testing.T) {
+	useFormatterTestApp(t, "json")
+	t.Setenv(envOutput, "json")
+
+	out, err := runFly(t, "--formatter", "standup", "plain")
+	if err == nil {
+		t.Fatalf("--formatter under MUNIN_OUTPUT=json exited 0:\n%s", out)
+	}
+	if errs.KindOf(err) != errs.KindUsage {
+		t.Errorf("kind = %v, want KindUsage (err: %v)", errs.KindOf(err), err)
+	}
+	if !strings.Contains(err.Error(), "MUNIN_OUTPUT=json") {
+		t.Errorf("err = %v, want it to name MUNIN_OUTPUT as the thing to change", err)
 	}
 }
 

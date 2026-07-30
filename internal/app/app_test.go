@@ -93,3 +93,52 @@ func TestReloadDirectivesPicksUpNewFiles(t *testing.T) {
 		t.Fatalf("Source(flight, ntr) = %q, want team/ntr.yaml", got)
 	}
 }
+
+func TestDirsIsUsableWithoutDirectives(t *testing.T) {
+	cases := map[string]*App{
+		"nil app":            nil,
+		"app no directives":  {Cfg: &config.Config{}},
+		"app no cfg":         {},
+		"thin no directives": {Cfg: &config.Config{}, thin: true},
+	}
+	for name, a := range cases {
+		t.Run(name, func(t *testing.T) {
+			d := a.Dirs()
+			if d == nil {
+				t.Fatal("Dirs() returned nil; every a.Dirs().Roles / .RoleNames() caller nil-derefs")
+			}
+			if got := d.RoleNames(); len(got) != 0 {
+				t.Errorf("RoleNames() = %v, want empty", got)
+			}
+			if len(d.Roles) != 0 || len(d.Queries) != 0 || len(d.Flights) != 0 || len(d.Formatters) != 0 {
+				t.Error("empty directives should carry no entries")
+			}
+			_ = d.QueryNames()
+			_ = d.FlightNames()
+			_ = d.FilterNames()
+			_ = d.FormatterNames()
+			_ = d.RunnableNames()
+			_ = d.Source(config.TypeRole, "ops")
+			_ = d.DocCount("ops.yaml")
+			if _, ok := a.RoleDef("ops"); ok {
+				t.Error("RoleDef found a role in empty directives")
+			}
+			_ = a.Access()
+			if got := a.VisibleQueries(); got != nil {
+				t.Errorf("VisibleQueries() = %v, want nil", got)
+			}
+			if got := a.VisibleFilters(); got != nil {
+				t.Errorf("VisibleFilters() = %v, want nil", got)
+			}
+			if got := a.VisibleFlights(); got != nil {
+				t.Errorf("VisibleFlights() = %v, want nil", got)
+			}
+			if got := a.VisibleFormatters(); got != nil {
+				t.Errorf("VisibleFormatters() = %v, want nil", got)
+			}
+			if err := a.NotInRoleError("query", "incidents"); err == nil {
+				t.Error("NotInRoleError returned nil")
+			}
+		})
+	}
+}

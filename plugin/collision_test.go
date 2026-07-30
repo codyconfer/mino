@@ -216,7 +216,12 @@ func TestPendingActionKindsStillFlushAfterCollisions(t *testing.T) {
 		t.Fatal("action kind must stay pending until its signal registers")
 	}
 
-	plugin.Register(plugin.Descriptor{ID: "collide.pending.dup", Kind: plugin.KindSignal, Signal: "collidesignal"})
+	const dupSignal = "collidependingdup"
+	plugin.Register(plugin.Descriptor{ID: "collide.pending.owner", Kind: plugin.KindSignal, Signal: dupSignal})
+	plugin.Register(plugin.Descriptor{ID: "collide.pending.dup", Kind: plugin.KindSignal, Signal: dupSignal})
+	if d, ok := plugin.BySignal(dupSignal); !ok || d.ID != "collide.pending.owner" {
+		t.Fatalf("the local collision did not resolve to its first owner: %+v ok=%v", d, ok)
+	}
 
 	plugin.Register(plugin.Descriptor{
 		ID:           "collide.pending",

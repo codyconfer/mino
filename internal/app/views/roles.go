@@ -30,8 +30,9 @@ func (kit *Kit) Roles() vkdeck.View {
 		Icon:  glyph.Builder(),
 		Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.RoleBuilder()) },
 	}}
-	for _, n := range kit.d.App.Dirs().RoleNames() {
-		rd, _ := kit.d.App.RoleDef(n)
+	d := kit.d.App.Dirs()
+	for _, n := range d.RoleNames() {
+		rd := d.Roles[n]
 		items = append(items, vkdeck.MenuItem{
 			Label: n,
 			Desc:  roleSummary(rd),
@@ -277,12 +278,13 @@ func (v *roleView) editorPersist(val any) (string, error) {
 	if rd.Name == "" {
 		return "", errs.New(errs.KindUsage, "name is required to save")
 	}
+	d := v.kit.d.App.Dirs()
 	if rd.Name != v.orig {
-		if _, exists := v.kit.d.App.RoleDef(rd.Name); exists {
+		if _, exists := d.Roles[rd.Name]; exists {
 			return "", errs.Newf(errs.KindUsage, "a role named %s already exists", rd.Name)
 		}
 	}
-	rel := v.kit.d.App.Dirs().Source(config.TypeRole, v.orig)
+	rel := d.Source(config.TypeRole, v.orig)
 	summary, _, err := v.kit.saveDirective(config.TypeRole, rel, rd.Name, rd)
 	if err != nil {
 		return "", err

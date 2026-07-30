@@ -3,6 +3,7 @@ package github
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -134,6 +135,46 @@ func TestReadBodyAllowsNormalPayloads(t *testing.T) {
 	}
 	if string(body) != `{"ok":true}` {
 		t.Errorf("body = %q", body)
+	}
+
+	exact := bytes.Repeat([]byte("a"), maxResponseBytes)
+	resp = &http.Response{ContentLength: int64(len(exact)), Body: io.NopCloser(bytes.NewReader(exact))}
+	body, err = readBody(resp)
+	if err != nil {
+		t.Fatalf("readBody at exactly the limit: %v", err)
+	}
+	if len(body) != maxResponseBytes {
+		t.Errorf("body = %d bytes, want the full %d", len(body), maxResponseBytes)
+	}
+}
+
+type countingStream struct {
+	read int
+	cap  int
+}
+
+func (s *countingStream) Read(p []byte) (int, error) {
+	if s.read >= s.cap {
+		return 0, errors.New("read past the cap")
+	}
+	n := len(p)
+	if s.read+n > s.cap {
+		n = s.cap - s.read
+	}
+	s.read += n
+	return n, nil
+}
+
+func TestReadBodyStopsPullingAtTheLimit(t *testing.T) {
+	stream := &countingStream{cap: 4 * maxResponseBytes}
+	resp := &http.Response{ContentLength: -1, Body: io.NopCloser(stream)}
+
+	if _, err := readBody(resp); err == nil {
+		t.Fatal("want an oversize error from an endless body")
+	}
+	if stream.read > maxResponseBytes+1 {
+		t.Errorf("readBody pulled %d bytes from an endless body, want at most %d: the read has to be capped, "+
+			"not just measured after the fact", stream.read, maxResponseBytes+1)
 	}
 }
 

@@ -22,16 +22,19 @@ func RegisterSeeds(pluginID string, files []FileSeed) {
 	if pluginID == "" {
 		return
 	}
-	seedMu.Lock()
-	defer seedMu.Unlock()
+	noteRegistrationCheckpoint(pluginID)
 	if len(files) == 0 {
+		seedMu.Lock()
 		delete(seedCatalog, pluginID)
+		seedMu.Unlock()
 		return
 	}
 	dst := make([]FileSeed, 0, len(files))
+	var rejected []string
 	for _, f := range files {
 		rel, ok := cleanSeedRel(f.RelPath)
 		if !ok {
+			rejected = append(rejected, f.RelPath)
 			continue
 		}
 		dst = append(dst, FileSeed{
@@ -39,11 +42,23 @@ func RegisterSeeds(pluginID string, files []FileSeed) {
 			Content: append([]byte(nil), f.Content...),
 		})
 	}
+
+	seedMu.Lock()
 	if len(dst) == 0 {
 		delete(seedCatalog, pluginID)
-		return
+	} else {
+		seedCatalog[pluginID] = dst
 	}
-	seedCatalog[pluginID] = dst
+	seedMu.Unlock()
+
+	for _, rel := range rejected {
+		noteDiagnosticf(pluginID, "", "",
+			"seed path %q is not a safe path relative to the munin home; seed skipped", rel)
+	}
+	if len(dst) == 0 {
+		noteDiagnosticf(pluginID, "", "",
+			"every seed was rejected, so this plugin registered no seeds; `munin plugins install %s` will write nothing", pluginID)
+	}
 }
 
 func cleanSeedRel(rel string) (string, bool) {

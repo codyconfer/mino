@@ -125,14 +125,34 @@ func SerializeDirectives(home string) ([]byte, bool, error) {
 	return blob, true, nil
 }
 
+type directivePlan struct {
+	files   map[string]string
+	rels    []string
+	targets []string
+	skipped []string
+}
+
 func WriteDirectives(home string, blob []byte) ([]string, error) {
+	plan, err := planDirectives(home, blob)
+	if err != nil {
+		return nil, err
+	}
+	return plan.apply()
+}
+
+func planDirectives(home string, blob []byte) (*directivePlan, error) {
 	files, err := decodeCollection(blob)
 	if err != nil {
 		return nil, err
 	}
-	rels := sortedKeys(files)
-	targets := make([]string, len(rels))
-	for i, rel := range rels {
+	plan := &directivePlan{files: files}
+	for _, rel := range sortedKeys(files) {
+		if reservedRoot(normalizeRel(rel)) {
+			plan.skipped = append(plan.skipped, rel)
+			log.Warnf("skipping stored directive %q: %s is the name munin reads as its config file, so it can never be a directive; "+
+				"run `munin import directives` to rewrite the stored set from your munin home and drop this row", rel, rel)
+			continue
+		}
 		if err := checkDirectiveRel(rel); err != nil {
 			return nil, err
 		}
@@ -140,23 +160,32 @@ func WriteDirectives(home string, blob []byte) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		targets[i] = target
+		plan.rels = append(plan.rels, rel)
+		plan.targets = append(plan.targets, target)
 	}
-	var undo []func()
-	written := make([]string, 0, len(rels))
-	for i, rel := range rels {
-		target := targets[i]
-		prev, existed, err := sconfig.ReadRaw(target)
+	return plan, nil
+}
+
+func (p *directivePlan) apply() ([]string, error) {
+	var undo []undoStep
+	written := make([]string, 0, len(p.rels))
+	for i, rel := range p.rels {
+		target := p.targets[i]
+		step, err := capturePriorEntity(target)
 		if err != nil {
 			return nil, rollbackDirectives(undo, errs.Wrapf(errs.KindConfig, err, "reading %s", target))
 		}
-		if err := sconfig.EnsureDir(filepath.Dir(target)); err != nil {
-			return nil, rollbackDirectives(undo, errs.Wrapf(errs.KindConfig, err, "creating parent of %s", rel))
+		created, derr := ensureDirTracked(filepath.Dir(target))
+		step.dirs = created
+		if derr != nil {
+			undo = append(undo, step)
+			return nil, rollbackDirectives(undo, errs.Wrapf(errs.KindConfig, derr, "creating parent of %s", rel))
 		}
-		if _, err := writeItem(target, []byte(files[rel])); err != nil {
+		if _, err := writeItem(target, []byte(p.files[rel])); err != nil {
+			undo = append(undo, step)
 			return nil, rollbackDirectives(undo, errs.Wrapf(errs.KindConfig, err, "writing %s", target))
 		}
-		undo = append(undo, undoDirectiveWrite(target, prev, existed))
+		undo = append(undo, step)
 		written = append(written, rel)
 	}
 	return written, nil
@@ -166,25 +195,124 @@ func writeItem(target string, data []byte) (string, error) {
 	return sconfig.WriteItem(filepath.Dir(target), filepath.Base(target), data)
 }
 
-func undoDirectiveWrite(target string, prev []byte, existed bool) func() {
-	if !existed {
-		return func() { _ = os.Remove(target) }
-	}
-	return func() { _, _ = writeItem(target, prev) }
+type priorEntity int
+
+const (
+	priorAbsent priorEntity = iota
+	priorFile
+	priorLink
+)
+
+type undoStep struct {
+	target string
+	prior  priorEntity
+	body   []byte
+	link   string
+	dirs   []string
 }
 
-func rollbackDirectives(undo []func(), cause *errs.Error) error {
-	for i := len(undo) - 1; i >= 0; i-- {
-		undo[i]()
+func capturePriorEntity(target string) (undoStep, error) {
+	step := undoStep{target: target}
+	fi, err := os.Lstat(target)
+	switch {
+	case err == nil:
+	case os.IsNotExist(err):
+		return step, nil
+	default:
+		return step, errs.Wrapf(errs.KindConfig, err, "inspecting %s", target)
 	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		dest, lerr := os.Readlink(target)
+		if lerr != nil {
+			return step, errs.Wrapf(errs.KindConfig, lerr, "reading the link %s", target)
+		}
+		step.prior, step.link = priorLink, dest
+		return step, nil
+	}
+	body, ok, rerr := sconfig.ReadRaw(target)
+	if rerr != nil {
+		return step, errs.Wrapf(errs.KindConfig, rerr, "reading %s", target)
+	}
+	if ok {
+		step.prior, step.body = priorFile, body
+	}
+	return step, nil
+}
+
+func (u undoStep) restore() error {
+	switch u.prior {
+	case priorFile:
+		if _, err := writeItem(u.target, u.body); err != nil {
+			return errs.Wrapf(errs.KindConfig, err, "restoring %s", u.target)
+		}
+	case priorLink:
+		if err := removeIfPresent(u.target); err != nil {
+			return err
+		}
+		if err := os.Symlink(u.link, u.target); err != nil {
+			return errs.Wrapf(errs.KindConfig, err, "restoring the link %s", u.target)
+		}
+	default:
+		if err := removeIfPresent(u.target); err != nil {
+			return err
+		}
+	}
+	for _, dir := range u.dirs {
+		if err := removeIfPresent(dir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeIfPresent(p string) error {
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		return errs.Wrapf(errs.KindConfig, err, "removing %s", p)
+	}
+	return nil
+}
+
+func ensureDirTracked(dir string) ([]string, error) {
+	var created []string
+	for p := dir; ; {
+		if _, err := os.Lstat(p); err == nil {
+			break
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+		created = append(created, p)
+		parent := filepath.Dir(p)
+		if parent == p {
+			break
+		}
+		p = parent
+	}
+	if err := sconfig.EnsureDir(dir); err != nil {
+		return created, err
+	}
+	return created, nil
+}
+
+func rollbackDirectives(undo []undoStep, cause *errs.Error) error {
 	if len(undo) == 0 {
 		return cause
+	}
+	var stuck []string
+	for i := len(undo) - 1; i >= 0; i-- {
+		if err := undo[i].restore(); err != nil {
+			stuck = append(stuck, err.Error())
+		}
+	}
+	if len(stuck) > 0 {
+		sort.Strings(stuck)
+		return cause.WithHint("the apply was only partly undone: %d of the %d change(s) made before the failure are still on disk and have to be put back by hand (%s)",
+			len(stuck), len(undo), strings.Join(stuck, "; "))
 	}
 	return cause.WithHint("nothing was applied: the %d file(s) written before the failure were rolled back", len(undo))
 }
 
 func checkDirectiveRel(rel string) error {
-	clean := path.Clean(strings.ReplaceAll(rel, `\`, "/"))
+	clean := normalizeRel(rel)
 	if reservedRoot(clean) {
 		return errs.Newf(errs.KindConfig, "directive file %q collides with the config file", rel)
 	}
@@ -291,11 +419,12 @@ func checkDerivedTarget(target, rel string, kind DirectiveType, name string) err
 	if !ok {
 		return nil
 	}
-	docs, err := decodeDocs[directiveDoc](rel, raw)
+	placed, err := decodeDocs[directiveDoc](rel, raw)
 	if err != nil {
 		return errs.Wrapf(errs.KindConfig, err, "%s already exists and does not parse", rel).
 			WithHint("fix or remove that file, or save %s %q to a path of your own", typeLabel(kind), name)
 	}
+	docs := placedValues(placed)
 	if len(docs) == 0 || (len(docs) == 1 && sameDirective(docs[0], rel, kind, name)) {
 		return nil
 	}

@@ -86,12 +86,12 @@ func Render(err error) string {
 	var b strings.Builder
 	var e *Error
 	if errors.As(err, &e) {
-		fmt.Fprintf(&b, "%s %s %s\n", mark, th.Dim.Render("["+string(e.Kind)+"]"), err.Error())
+		fmt.Fprintf(&b, "%s %s %s\n", mark, th.Dim.Render("["+string(e.Kind)+"]"), Clean(err.Error()))
 		if e.Hint != "" {
-			fmt.Fprintf(&b, "  %s %s\n", th.Accent.Render("hint:"), e.Hint)
+			fmt.Fprintf(&b, "  %s %s\n", th.Accent.Render("hint:"), Clean(e.Hint))
 		}
 		return b.String()
 	}
-	fmt.Fprintf(&b, "%s %s\n", mark, err.Error())
+	fmt.Fprintf(&b, "%s %s\n", mark, Clean(err.Error()))
 	return b.String()
 }

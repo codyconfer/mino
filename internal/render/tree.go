@@ -17,7 +17,7 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 	th := theme.Cur()
 	c := tree.DefaultConnectors()
 
-	label := signals.Clean(root)
+	label := signals.CleanLine(root)
 	if label == "" {
 		label = "flight"
 	}
@@ -34,7 +34,7 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 		if title == "" {
 			title = s.Signal
 		}
-		title = fmt.Sprintf("%s  (%s)", signals.Clean(title), sectionCount(s))
+		title = fmt.Sprintf("%s  (%s)", signals.CleanLine(title), sectionCount(s))
 		icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
 
 		rows = append(rows, tree.Branch(c, last, []string{icon + th.Title.Render(title) + staleChip(th, s)}, ""))
@@ -43,15 +43,41 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 	return rows
 }
 
+const wireTruncatedKey = "munin.truncated"
+
 func staleChip(th *theme.Theme, s signals.Section) string {
-	return staleCue(th, s.Meta)
+	return staleCue(th, s.Meta) + truncationCue(th, s.Meta)
+}
+
+func truncationCue(th *theme.Theme, meta map[string]string) string {
+	if !isTruncated(meta) {
+		return ""
+	}
+	if more := signals.CleanLine(meta["more"]); more != "" {
+		return th.Cant.Render("  (truncated, +" + more + " more)")
+	}
+	return th.Cant.Render("  (truncated)")
+}
+
+func isTruncated(meta map[string]string) bool {
+	if len(meta) == 0 {
+		return false
+	}
+	if strings.TrimSpace(meta[wireTruncatedKey]) != "" {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(meta["truncated"])) {
+	case "", "false", "0", "no":
+		return false
+	}
+	return true
 }
 
 func staleCue(th *theme.Theme, meta map[string]string) string {
 	if meta["cache"] != "stale" {
 		return ""
 	}
-	if age := signals.Clean(meta["age"]); age != "" {
+	if age := signals.CleanLine(meta["age"]); age != "" {
 		return th.Dim.Render("  (stale " + age + ")")
 	}
 	return th.Dim.Render("  (stale)")

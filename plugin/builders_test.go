@@ -2,6 +2,7 @@ package plugin_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/codyconfer/munin/plugin"
@@ -71,5 +72,46 @@ func TestTokenSourceOptional(t *testing.T) {
 	tok, scope, present, err := ts.GetToken(context.Background(), "gcx")
 	if err != nil || !present || tok != "tok" || scope != "irm" {
 		t.Fatalf("GetToken = %q %q %v %v", tok, scope, present, err)
+	}
+}
+
+func TestStandaloneRegisterBuildersDiagnosticNamesItsOwner(t *testing.T) {
+	const signal = "standalonebuilders"
+	const owner = "test.standalone.owner"
+	q := func(plugin.BuildContext) (plugin.Query, error) { return testQuery{name: signal}, nil }
+
+	plugin.Register(plugin.Descriptor{
+		ID:           owner,
+		Kind:         plugin.KindSignal,
+		Signal:       signal,
+		Capabilities: []plugin.Capability{plugin.CapQuery},
+	})
+	plugin.RegisterBuilders(signal, plugin.Builders{Query: q})
+	plugin.RegisterBuilders(signal, plugin.Builders{Query: q})
+
+	d := findDiagnostic(t, owner, "already registered")
+	if d.PluginID == "" || strings.Contains(d.String(), "unidentified plugin") {
+		t.Fatalf("diagnostic from the documented standalone route is unattributed: %s", d.String())
+	}
+}
+
+func TestBuilderCollisionDoesNotNameTheOffenderAsTheIncumbent(t *testing.T) {
+	const signal = "buildernomix"
+	const later = "test.buildermix.later"
+	q := func(plugin.BuildContext) (plugin.Query, error) { return testQuery{name: signal}, nil }
+
+	// An earlier plugin registered builders with no descriptor of its own.
+	plugin.RegisterBuilders(signal, plugin.Builders{Query: q})
+	// A later plugin registers the descriptor plus its own builders.
+	plugin.RegisterSignal(plugin.Descriptor{
+		ID:           later,
+		Kind:         plugin.KindSignal,
+		Signal:       signal,
+		Capabilities: []plugin.Capability{plugin.CapQuery},
+	}, plugin.Builders{Query: q})
+
+	d := findDiagnostic(t, later, "already registered")
+	if strings.Contains(d.Message, `by "`+later+`"`) {
+		t.Fatalf("the collision blames the offender for owning the incumbent builders: %s", d.String())
 	}
 }

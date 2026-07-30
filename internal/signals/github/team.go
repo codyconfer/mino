@@ -69,7 +69,7 @@ func ResolveTeam(ctx context.Context, backend Backend, cache RosterCache, ref st
 		return nil, err
 	}
 	key := org + "/" + slug
-	if cache != nil && pol.Read {
+	if cache != nil && pol.reads() {
 		if raw, ok := cache.Get(ctx, teamCacheNS, key); ok {
 			return newRoster(key, strings.Split(raw, "\n")), nil
 		}
@@ -78,7 +78,7 @@ func ResolveTeam(ctx context.Context, backend Backend, cache RosterCache, ref st
 	if err != nil {
 		return nil, err
 	}
-	if cache != nil && pol.Write {
+	if cache != nil && pol.writes() {
 		cache.Put(ctx, teamCacheNS, key, strings.Join(logins, "\n"), time.Now().Add(teamCacheTTL))
 	}
 	log.Debugf("github: resolved %d member(s) of team %s", len(logins), key)

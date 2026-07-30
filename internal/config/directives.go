@@ -4,11 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 
@@ -362,31 +367,32 @@ func (s *Directives) absorb(blob []byte) error {
 		if err != nil {
 			return err
 		}
-		for i, doc := range docs {
+		for _, placed := range docs {
+			doc, at := placed.val, placed.where()
 			if doc.Type == TypeAuto {
 				if !doc.hasDirectiveFields() {
 					if doc.Name == "" {
 						continue
 					}
-					return errs.Newf(errs.KindConfig, "document %d in %s names %q but declares nothing else", i+1, fn, doc.Name).
+					return errs.Newf(errs.KindConfig, "%s in %s names %q but declares nothing else", at, fn, doc.Name).
 						WithHint("add a `type:` line (one of %v) and the fields that go with it", DirectiveTypes())
 				}
-				return errs.Newf(errs.KindConfig, "document %d in %s declares no `type:`", i+1, fn).
+				return errs.Newf(errs.KindConfig, "%s in %s declares no `type:`", at, fn).
 					WithHint("add a `type:` line: one of %v", DirectiveTypes())
 			}
 			k := doc.Type
 			if doc.Name == "" {
 				if len(docs) > 1 {
-					return errs.Newf(errs.KindConfig, "%s %d in %s has no name", typeLabel(k), i+1, fn).
+					return errs.Newf(errs.KindConfig, "the %s at %s in %s has no name", typeLabel(k), at, fn).
 						WithHint("every document in a multi-document file needs its own `name`")
 				}
 				doc.Name = baseName(fn)
 			}
 			if err := doc.validate(k); err != nil {
-				return inFile(fn, i, err)
+				return inFile(fn, at, err)
 			}
 			if err := s.add(k, doc, fn); err != nil {
-				return inFile(fn, i, err)
+				return inFile(fn, at, err)
 			}
 			s.sources[sourceKey{k, doc.Name}] = fn
 			s.docs[fn]++
@@ -395,8 +401,8 @@ func (s *Directives) absorb(blob []byte) error {
 	return nil
 }
 
-func inFile(fn string, i int, err error) error {
-	wrapped := errs.Wrapf(errs.KindOf(err), err, "in %s (document %d)", fn, i+1)
+func inFile(fn, at string, err error) error {
+	wrapped := errs.Wrapf(errs.KindOf(err), err, "in %s (%s)", fn, at)
 	if hint := errs.Hint(err); hint != "" {
 		return wrapped.WithHint("%s", hint)
 	}
@@ -546,38 +552,103 @@ func decodeCollection(blob []byte) (map[string]string, error) {
 	return c, nil
 }
 
-func decodeDocs[T any](name string, data []byte) ([]T, error) {
+type placedDoc[T any] struct {
+	val  T
+	doc  int
+	item int
+}
+
+func (p placedDoc[T]) where() string {
+	if p.item > 0 {
+		return fmt.Sprintf("item %d of document %d", p.item, p.doc)
+	}
+	return fmt.Sprintf("document %d", p.doc)
+}
+
+func placedValues[T any](in []placedDoc[T]) []T {
+	out := make([]T, 0, len(in))
+	for _, p := range in {
+		out = append(out, p.val)
+	}
+	return out
+}
+
+func placeSequence[T any](list []T, doc int) []placedDoc[T] {
+	out := make([]placedDoc[T], 0, len(list))
+	for i, v := range list {
+		out = append(out, placedDoc[T]{val: v, doc: doc, item: i + 1})
+	}
+	return out
+}
+
+func directiveDirs() []string { return []string{DirQueries, DirFlights, DirFormatters} }
+
+func normalizeRel(rel string) string {
+	return path.Clean(strings.ReplaceAll(filepath.ToSlash(rel), `\`, "/"))
+}
+
+func directiveLocation(rel string) bool {
+	dir := path.Dir(normalizeRel(rel))
+	if dir == "." || dir == "/" {
+		return true
+	}
+	return slices.Contains(directiveDirs(), strings.SplitN(strings.TrimPrefix(dir, "/"), "/", 2)[0])
+}
+
+func decodeDocs[T any](name string, data []byte) ([]placedDoc[T], error) {
 	if strings.EqualFold(filepath.Ext(name), ".json") {
 		return decodeJSONDocs[T](name, data)
 	}
 	return decodeYAMLDocs[T](name, data)
 }
 
-func decodeJSONDocs[T any](name string, data []byte) ([]T, error) {
+func decodeJSONDocs[T any](name string, data []byte) ([]placedDoc[T], error) {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 {
 		return nil, nil
 	}
+	expected := directiveLocation(name)
 	if trimmed[0] == '[' {
-		var list []T
-		if err := json.Unmarshal(trimmed, &list); err != nil {
+		var lenient []T
+		if err := json.Unmarshal(trimmed, &lenient); err != nil {
 			return nil, errs.Wrapf(errs.KindConfig, err, "parsing %s", name)
 		}
-		return list, nil
+		var list []T
+		if err := decodeStrictJSON(trimmed, &list); err != nil {
+			if !expected && jsonUnknownField(err) != "" && !anyIdentified(lenient) {
+				return nil, nil
+			}
+			return nil, jsonDecodeErr(name, err)
+		}
+		return placeSequence(list, 1), nil
 	}
-	var v T
-	if err := json.Unmarshal(trimmed, &v); err != nil {
+	var lenient T
+	if err := json.Unmarshal(trimmed, &lenient); err != nil {
 		return nil, errs.Wrapf(errs.KindConfig, err, "parsing %s", name)
 	}
-	return []T{v}, nil
+	var v T
+	if err := decodeStrictJSON(trimmed, &v); err != nil {
+		if !expected && jsonUnknownField(err) != "" && !identified(lenient) {
+			return nil, nil
+		}
+		return nil, jsonDecodeErr(name, err)
+	}
+	return []placedDoc[T]{{val: v, doc: 1}}, nil
 }
 
-func decodeYAMLDocs[T any](name string, data []byte) ([]T, error) {
+func decodeStrictJSON(data []byte, v any) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
+}
+
+func decodeYAMLDocs[T any](name string, data []byte) ([]placedDoc[T], error) {
 	shape := yaml.NewDecoder(bytes.NewReader(data))
 	strict := yaml.NewDecoder(bytes.NewReader(data))
 	strict.KnownFields(true)
-	var out []T
-	for {
+	expected := directiveLocation(name)
+	var out []placedDoc[T]
+	for idx := 1; ; idx++ {
 		var doc yaml.Node
 		if err := shape.Decode(&doc); err != nil {
 			if errors.Is(err, io.EOF) {
@@ -585,7 +656,7 @@ func decodeYAMLDocs[T any](name string, data []byte) ([]T, error) {
 			}
 			return nil, decodeErr(name, err)
 		}
-		vals, err := decodeYAMLDoc[T](name, &doc, strict)
+		vals, err := decodeYAMLDoc[T](name, &doc, strict, expected, idx)
 		if err != nil {
 			return nil, err
 		}
@@ -593,7 +664,7 @@ func decodeYAMLDocs[T any](name string, data []byte) ([]T, error) {
 	}
 }
 
-func decodeYAMLDoc[T any](name string, n *yaml.Node, strict *yaml.Decoder) ([]T, error) {
+func decodeYAMLDoc[T any](name string, n *yaml.Node, strict *yaml.Decoder, expected bool, idx int) ([]placedDoc[T], error) {
 	if n.Kind == yaml.DocumentNode {
 		if len(n.Content) == 0 {
 			return nil, skipYAMLDoc(name, strict)
@@ -606,21 +677,21 @@ func decodeYAMLDoc[T any](name string, n *yaml.Node, strict *yaml.Decoder) ([]T,
 	case n.Kind == yaml.SequenceNode:
 		var list []T
 		if err := strict.Decode(&list); err != nil {
-			if onlyUnknownFields(err) && !anyIdentified(list) {
+			if !expected && onlyUnknownFields(err) && !anyIdentified(list) {
 				return nil, nil
 			}
 			return nil, decodeErr(name, err)
 		}
-		return list, nil
+		return placeSequence(list, idx), nil
 	}
 	var v T
 	if err := strict.Decode(&v); err != nil {
-		if onlyUnknownFields(err) && !identified(v) {
+		if !expected && onlyUnknownFields(err) && !identified(v) {
 			return nil, nil
 		}
 		return nil, decodeErr(name, err)
 	}
-	return []T{v}, nil
+	return []placedDoc[T]{{val: v, doc: idx}}, nil
 }
 
 type identifiable interface{ identified() bool }
@@ -666,7 +737,10 @@ func skipYAMLDoc(name string, strict *yaml.Decoder) error {
 	return nil
 }
 
-var unknownFieldRe = regexp.MustCompile(`field (\S+) not found in type \S+`)
+var (
+	unknownFieldRe     = regexp.MustCompile(`field (\S+) not found in type \S+`)
+	jsonUnknownFieldRe = regexp.MustCompile(`^json: unknown field "([^"]*)"`)
+)
 
 func decodeErr(name string, err error) error {
 	var typed *yaml.TypeError
@@ -674,20 +748,65 @@ func decodeErr(name string, err error) error {
 		return errs.Wrapf(errs.KindConfig, err, "parsing %s", name)
 	}
 	msgs := make([]string, 0, len(typed.Errors))
-	unknown := false
+	var unknown []string
 	for _, m := range typed.Errors {
-		if fixed := unknownFieldRe.ReplaceAllString(m, "unknown field `$1`"); fixed != m {
-			unknown = true
-			m = fixed
+		if found := unknownFieldRe.FindStringSubmatch(m); found != nil {
+			unknown = append(unknown, found[1])
+			m = unknownFieldRe.ReplaceAllString(m, "unknown field `$1`")
 		}
 		msgs = append(msgs, m)
 	}
 	e := errs.Newf(errs.KindConfig, "parsing %s: %s", name, strings.Join(msgs, "; "))
-	if unknown {
-		return e.WithHint("fix the spelling or drop the key: a key munin does not know would silently do nothing")
+	if len(unknown) > 0 {
+		return e.WithHint("%s", unknownFieldHint(name, unknown))
 	}
 	return e
 }
+
+func jsonUnknownField(err error) string {
+	if err == nil {
+		return ""
+	}
+	if found := jsonUnknownFieldRe.FindStringSubmatch(err.Error()); found != nil {
+		return found[1]
+	}
+	return ""
+}
+
+func jsonDecodeErr(name string, err error) error {
+	if key := jsonUnknownField(err); key != "" {
+		return errs.Newf(errs.KindConfig, "parsing %s: unknown field `%s`", name, key).
+			WithHint("%s", unknownFieldHint(name, []string{key}))
+	}
+	return errs.Wrapf(errs.KindConfig, err, "parsing %s", name)
+}
+
+func unknownFieldHint(name string, keys []string) string {
+	seen := map[string]bool{}
+	quoted := make([]string, 0, len(keys))
+	for _, k := range keys {
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		quoted = append(quoted, "`"+k+"`")
+	}
+	return fmt.Sprintf("delete %s from %s, or correct the spelling: munin ignores keys it does not know, so the line would silently do nothing; a directive takes %s",
+		strings.Join(quoted, ", "), name, strings.Join(directiveFieldNames(), ", "))
+}
+
+var directiveFieldNames = sync.OnceValue(func() []string {
+	t := reflect.TypeFor[directiveDoc]()
+	names := make([]string, 0, t.NumField())
+	for i := range t.NumField() {
+		tag, _, _ := strings.Cut(t.Field(i).Tag.Get("yaml"), ",")
+		if tag != "" && tag != "-" {
+			names = append(names, tag)
+		}
+	}
+	sort.Strings(names)
+	return names
+})
 
 func baseName(path string) string {
 	b := filepath.Base(path)

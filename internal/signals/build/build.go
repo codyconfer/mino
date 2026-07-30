@@ -62,11 +62,11 @@ func Signal(name string, params map[string]string, cfg *config.Config, tokens *t
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `munin plugins enable` for the backing plugin")
 	}
-	q, err := plugin.BuildQuery(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, cache: results})
+	q, err := plugin.BuildQuery(name, hostBuildCtx{signal: name, params: params, cfg: cfg, tokens: tokens, cache: results})
 	if err != nil {
 		return nil, err
 	}
-	if q == nil {
+	if isNilRef(q) {
 		return nil, errs.Newf(errs.KindInternal, "builder for signal %q returned no query", name)
 	}
 	return results.Wrap(q, name, cfg.Role, params), nil
@@ -89,11 +89,11 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	if !plugin.HasCapability(name, plugin.CapStream) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q does not advertise CapStream", name)
 	}
-	src, err := plugin.BuildStream(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, state: state})
+	src, err := plugin.BuildStream(name, hostBuildCtx{signal: name, params: params, cfg: cfg, tokens: tokens, state: state})
 	if err != nil {
 		return nil, err
 	}
-	if src == nil {
+	if isNilRef(src) {
 		return nil, errs.Newf(errs.KindInternal, "builder for signal %q returned no stream", name)
 	}
 	return src, nil
@@ -113,11 +113,11 @@ func ScheduledJob(name string, params map[string]string, cfg *config.Config, tok
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `munin plugins enable` for the backing plugin")
 	}
-	job, err := pub.BuildScheduled(name, hostBuildCtx{params: params, cfg: cfg, tokens: tokens, state: state})
+	job, err := pub.BuildScheduled(name, hostBuildCtx{signal: name, params: params, cfg: cfg, tokens: tokens, state: state})
 	if err != nil {
 		return nil, err
 	}
-	if job == nil {
+	if isNilRef(job) {
 		return nil, errs.Newf(errs.KindInternal, "builder for signal %q returned no scheduled job", name)
 	}
 	return job, nil

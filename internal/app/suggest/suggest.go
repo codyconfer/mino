@@ -42,10 +42,10 @@ func FormatterNames(a *app.App) []string {
 }
 
 func RoleNames(a *app.App) []string {
-	if a == nil || a.Directives == nil {
+	if a == nil {
 		return nil
 	}
-	return a.Directives.RoleNames()
+	return a.Dirs().RoleNames()
 }
 
 func Signals() []string {

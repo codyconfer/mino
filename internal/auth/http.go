@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,7 +11,7 @@ import (
 
 func postForm(ctx context.Context, client *http.Client, endpoint string, form url.Values, out any) error {
 	if client == nil {
-		client = http.DefaultClient
+		client = HTTPClient()
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -25,12 +24,12 @@ func postForm(ctx context.Context, client *http.Client, endpoint string, form ur
 		return err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("%s: %s", resp.Status, errorExcerpt(resp.Body))
+	}
+	body, err := readBounded(resp, "oauth", maxTokenResponseBytes)
 	if err != nil {
 		return err
-	}
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 	return json.Unmarshal(body, out)
 }

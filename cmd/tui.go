@@ -46,7 +46,7 @@ func newDeckCmd() *cobra.Command {
 			name := deckFlightName()
 			if len(args) == 1 {
 				name = args[0]
-				if _, ok := shared.Directives.Flights[name]; !ok {
+				if _, ok := shared.Dirs().Flights[name]; !ok {
 					return errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix())
 				}
 			}
@@ -62,7 +62,7 @@ func newDeckCmd() *cobra.Command {
 
 			stopServe := ensureServeProvider(cmd.Context(), name)
 			defer stopServe()
-			kit := buildViewsWithPanes(panes)
+			kit := buildViewsFor(cmd.Context(), panes)
 			stopLaunchLoading()
 			opts := []deck.Option{
 				deck.WithStatus(statusProvider()),
@@ -98,8 +98,9 @@ func launchTmuxDeck(args []string) error {
 }
 
 func deckFlightName() string {
-	if rd, ok := shared.Directives.Roles[shared.Cfg.Role]; ok && rd.Home != "" {
-		if _, exists := shared.Directives.Flights[rd.Home]; exists {
+	d := shared.Dirs()
+	if rd, ok := d.Roles[shared.Role()]; ok && rd.Home != "" {
+		if _, exists := d.Flights[rd.Home]; exists {
 			return rd.Home
 		}
 	}
@@ -118,24 +119,39 @@ func deckPanes(useTmux bool, flight string) (*pane.Manager, error) {
 	return pane.NewManager(shared.Cfg.Home, flight)
 }
 
-func buildViews() *views.Kit { return buildViewsWithPanes(nil) }
+func buildViews() *views.Kit { return buildViewsFor(context.Background(), nil) }
 
-func buildViewsWithPanes(panes *pane.Manager) *views.Kit {
+func buildViewsFor(ctx context.Context, panes *pane.Manager) *views.Kit {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return views.New(views.Deps{
-		App:                shared,
-		Panes:              panes,
-		FetchQuery:         fetchQuerySections,
-		FetchFlightAudited: fetchFlightAuditedSections,
-		FetchHomeFlight:    fetchHomeFlightSections,
-		FetchAdhoc:         fetchAdhocSections,
-		FetchFlightQueries: fetchFlightQueriesSections,
-		FetchDetail:        fetchItemDetail,
-		Verify:             verifyFindings,
-		ExportDirectives:   exportDirectivesToFiles,
-		RenderReport:       renderSectionsReport,
-		CopyText:           clipboard.Copy,
-		SaveReport:         saveReportFile,
-		PreviewRole:        shared.PreviewRole,
+		App:   shared,
+		Panes: panes,
+		FetchQuery: func(name string) []signals.Section {
+			return fetchQuerySections(ctx, name)
+		},
+		FetchFlightAudited: func(name string) []signals.Section {
+			return fetchFlightAuditedSections(ctx, name)
+		},
+		FetchHomeFlight: func(name string) []signals.Section {
+			return fetchFlightAuditedSections(ctx, name)
+		},
+		FetchAdhoc: func(q config.Query) []signals.Section {
+			return fetchAdhocSections(ctx, q)
+		},
+		FetchFlightQueries: func(label string, names []string) []signals.Section {
+			return fetchFlightQueriesSections(ctx, label, names)
+		},
+		FetchDetail: func(signal string, it signals.Item) (*signals.ItemDetail, error) {
+			return fetchItemDetail(ctx, signal, it)
+		},
+		Verify:           verifyFindings,
+		ExportDirectives: exportDirectivesToFiles,
+		RenderReport:     renderSectionsReport,
+		CopyText:         clipboard.Copy,
+		SaveReport:       saveReportFile,
+		PreviewRole:      shared.PreviewRole,
 	})
 }
 
@@ -153,8 +169,8 @@ func saveReportFile(formatter, text string) (string, error) {
 	return path, nil
 }
 
-func fetchItemDetail(signal string, it signals.Item) (*signals.ItemDetail, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), sourceTimeout())
+func fetchItemDetail(ctx context.Context, signal string, it signals.Item) (*signals.ItemDetail, error) {
+	ctx, cancel := context.WithTimeout(ctx, sourceTimeout())
 	defer cancel()
 	d, err := build.Detail(ctx, signal, it, shared.Cfg, shared.Tokens, shared.Cache)
 	if err != nil {
@@ -163,7 +179,7 @@ func fetchItemDetail(signal string, it signals.Item) (*signals.ItemDetail, error
 	return &d, nil
 }
 
-func fetchAdhocSections(q config.Query) []signals.Section {
+func fetchAdhocSections(ctx context.Context, q config.Query) []signals.Section {
 	label := q.Name
 	if label == "" {
 		label = "ad-hoc"
@@ -172,43 +188,40 @@ func fetchAdhocSections(q config.Query) []signals.Section {
 	if err != nil {
 		return []signals.Section{{Signal: q.Signal, Title: label, Err: err}}
 	}
-	return fetchQueries(context.Background(), []query{built}, 0)
+	return fetchQueries(ctx, []query{built}, 0)
 }
 
-func fetchQuerySections(name string) []signals.Section {
+func fetchQuerySections(ctx context.Context, name string) []signals.Section {
 	q, err := buildQuery(name)
 	if err != nil {
 		return []signals.Section{{Signal: name, Title: name, Err: err}}
 	}
-	return fetchQueries(context.Background(), []query{q}, 0)
+	return fetchQueries(ctx, []query{q}, 0)
 }
 
-func fetchFlightAuditedSections(name string) []signals.Section {
-	return fetchFlightQueriesSections(name, shared.Directives.Flights[name].Queries)
+func fetchFlightAuditedSections(ctx context.Context, name string) []signals.Section {
+	return fetchFlightQueriesSections(ctx, name, shared.Dirs().Flights[name].Queries)
 }
 
-func fetchFlightQueriesSections(label string, names []string) []signals.Section {
+func fetchFlightQueriesSections(ctx context.Context, label string, names []string) []signals.Section {
 	queries := flightQueries(label, names)
-	fid := shared.Audit.StartFlight(label, shared.Cfg.Role)
-	sections := fetchQueries(context.Background(), queries, fid)
+	fid := shared.Audit.StartFlightContext(ctx, label, shared.Role())
+	sections := fetchQueries(ctx, queries, fid)
 	shared.Audit.FinishFlight(fid)
 	return sections
 }
 
-func fetchHomeFlightSections(name string) []signals.Section {
-	return fetchFlightAuditedSections(name)
-}
-
 func verifyFindings(kind string) []verify.Finding {
+	d := shared.Dirs()
 	switch kind {
 	case "queries":
-		return verify.Queries(shared.Directives)
+		return verify.Queries(d)
 	case "flights":
-		return verify.Flights(shared.Directives)
+		return verify.Flights(d)
 	case "roles":
-		return verify.Roles(shared.Directives)
+		return verify.Roles(d)
 	case "formatters":
-		return verify.Formatters(shared.Directives)
+		return verify.Formatters(d)
 	}
 	return nil
 }

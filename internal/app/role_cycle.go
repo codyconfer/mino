@@ -17,6 +17,7 @@ type roleDebounce struct {
 	mu      sync.Mutex
 	gen     uint64
 	pending bool
+	active  *RoleSettle
 }
 
 const NoRole = ""
@@ -71,7 +72,30 @@ func (s RoleHookStep) Command() (*exec.Cmd, error) {
 
 type RoleSettle struct {
 	Steps []RoleHookStep
-	plan  rolePlan
+
+	mu   sync.Mutex
+	done int
+	plan rolePlan
+}
+
+func (s *RoleSettle) MarkDone(n int) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if n > s.done {
+		s.done = min(n, len(s.Steps))
+	}
+	s.mu.Unlock()
+}
+
+func (s *RoleSettle) Remaining() []RoleHookStep {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Steps[s.done:]
 }
 
 type rolePlan struct {
@@ -115,8 +139,10 @@ func (a *App) roleHookSteps(name, phase string) []RoleHookStep {
 	return []RoleHookStep{{Role: name, Phase: phase, Kind: kind, Script: script}}
 }
 
-func (a *App) runRolePlan(p rolePlan) {
-	for _, s := range p.steps {
+func (a *App) runRolePlan(p rolePlan) { a.runRoleHookSteps(p.steps) }
+
+func (a *App) runRoleHookSteps(steps []RoleHookStep) {
+	for _, s := range steps {
 		if err := role.Run(s.Kind, s.Script); err != nil {
 			log.Warnf("role %q %s hooks: %v", s.Role, s.Phase, err)
 		}
@@ -164,14 +190,26 @@ func (a *App) BeginRoleSettle(gen uint64) (*RoleSettle, bool) {
 	a.roleDebounce.pending = false
 	a.roleDebounce.gen++
 	a.roleDebounce.mu.Unlock()
+
 	p := a.planRoleLifecycle()
-	return &RoleSettle{Steps: p.steps, plan: p}, true
+	s := &RoleSettle{Steps: p.steps, plan: p}
+
+	a.roleDebounce.mu.Lock()
+	a.roleDebounce.active = s
+	a.roleDebounce.mu.Unlock()
+	return s, true
 }
 
 func (a *App) FinishRoleSettle(s *RoleSettle) {
 	if a == nil || s == nil {
 		return
 	}
+	a.roleDebounce.mu.Lock()
+	if a.roleDebounce.active == s {
+		a.roleDebounce.active = nil
+	}
+	a.roleDebounce.mu.Unlock()
+	s.MarkDone(len(s.Steps))
 	a.commitActivatedRole(s.plan)
 }
 
@@ -200,15 +238,24 @@ func (a *App) FlushRoleLifecycle() {
 	}
 	a.roleDebounce.mu.Lock()
 	pending := a.roleDebounce.pending
+	abandoned := a.roleDebounce.active
+	a.roleDebounce.active = nil
 	a.roleDebounce.pending = false
 	a.roleDebounce.gen++
 	a.roleDebounce.mu.Unlock()
-	if !pending {
+	if pending {
+		p := a.planRoleLifecycle()
+		a.runRolePlan(p)
+		a.commitActivatedRole(p)
 		return
 	}
-	p := a.planRoleLifecycle()
-	a.runRolePlan(p)
-	a.commitActivatedRole(p)
+	if abandoned == nil {
+		return
+	}
+	remaining := abandoned.Remaining()
+	abandoned.MarkDone(len(abandoned.Steps))
+	a.runRoleHookSteps(remaining)
+	a.commitActivatedRole(abandoned.plan)
 }
 
 func (a *App) invalidateRoleDebounce() {
@@ -218,5 +265,6 @@ func (a *App) invalidateRoleDebounce() {
 	a.roleDebounce.mu.Lock()
 	a.roleDebounce.gen++
 	a.roleDebounce.pending = false
+	a.roleDebounce.active = nil
 	a.roleDebounce.mu.Unlock()
 }

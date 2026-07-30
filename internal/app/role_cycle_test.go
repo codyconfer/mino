@@ -1,6 +1,9 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/codyconfer/munin/internal/config"
@@ -290,5 +293,130 @@ func TestActivateRoleCancelsPendingCycle(t *testing.T) {
 	}
 	if a.SettleRoleCycle(gen) {
 		t.Fatal("debounced settle after ActivateRole must be ignored")
+	}
+}
+
+func settleFixture(t *testing.T) (*App, string, *[]string) {
+	t.Helper()
+	home := t.TempDir()
+	calls := &[]string{}
+	orig := role.Run
+	role.Run = func(_, script string) error {
+		*calls = append(*calls, script)
+		return nil
+	}
+	t.Cleanup(func() { role.Run = orig })
+	t.Cleanup(role.ClearStatusChips)
+
+	dirs := &config.Directives{
+		Roles: map[string]config.RoleDef{
+			"ops": {Name: "ops", Hooks: config.RoleHooks{
+				Enter: config.RoleShellHooks{Bash: "enter-ops", PowerShell: "enter-ops"},
+				Exit:  config.RoleShellHooks{Bash: "exit-ops", PowerShell: "exit-ops"},
+			}},
+			"triage": {Name: "triage", Hooks: config.RoleHooks{
+				Enter: config.RoleShellHooks{Bash: "enter-triage", PowerShell: "enter-triage"},
+				Exit:  config.RoleShellHooks{Bash: "exit-triage", PowerShell: "exit-triage"},
+			}},
+			"weekly": {Name: "weekly", Hooks: config.RoleHooks{
+				Enter: config.RoleShellHooks{Bash: "enter-weekly", PowerShell: "enter-weekly"},
+			}},
+		},
+	}
+	a := &App{Cfg: &config.Config{Home: home, Role: "ops"}, Directives: dirs}
+	a.syncRoleLifecycle()
+	*calls = nil
+	return a, home, calls
+}
+
+func requireRolePersisted(t *testing.T, home, want string) {
+	t.Helper()
+	if got := role.LoadActive(home); got != want {
+		t.Errorf("active-role marker = %q, want %q (the UI showed %q all session)", got, want, want)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, "config.yaml"))
+	if err != nil {
+		t.Fatalf("config.yaml was never written: %v", err)
+	}
+	if !strings.Contains(string(raw), "role: "+want) {
+		t.Errorf("config.yaml = %q, want role: %s", raw, want)
+	}
+}
+
+func TestFlushRoleLifecycleCompletesAbandonedSettle(t *testing.T) {
+	a, home, calls := settleFixture(t)
+
+	gen, changed := a.BeginRoleCycle("triage")
+	if !changed {
+		t.Fatal("BeginRoleCycle should report a change")
+	}
+	if _, ok := a.BeginRoleSettle(gen); !ok {
+		t.Fatal("BeginRoleSettle rejected a fresh generation")
+	}
+
+	a.FlushRoleLifecycle()
+
+	if a.Role() != "triage" {
+		t.Fatalf("in-memory role = %q, want triage", a.Role())
+	}
+	requireRolePersisted(t, home, "triage")
+	if len(*calls) != 2 || (*calls)[0] != "exit-ops" || (*calls)[1] != "enter-triage" {
+		t.Errorf("flush hooks = %v, want exit-ops then enter-triage", *calls)
+	}
+}
+
+func TestFlushRoleLifecycleResumesPartiallyRunSettle(t *testing.T) {
+	a, home, calls := settleFixture(t)
+
+	gen, _ := a.BeginRoleCycle("triage")
+	s, ok := a.BeginRoleSettle(gen)
+	if !ok {
+		t.Fatal("BeginRoleSettle rejected a fresh generation")
+	}
+	if len(s.Steps) != 2 {
+		t.Fatalf("steps = %+v, want exit-ops then enter-triage", s.Steps)
+	}
+	s.MarkDone(1)
+
+	a.FlushRoleLifecycle()
+
+	requireRolePersisted(t, home, "triage")
+	if len(*calls) != 1 || (*calls)[0] != "enter-triage" {
+		t.Errorf("resumed hooks = %v, want only the unrun enter-triage", *calls)
+	}
+}
+
+func TestFlushRoleLifecyclePrefersNewerPendingCycleOverStaleSettle(t *testing.T) {
+	a, home, calls := settleFixture(t)
+
+	gen, _ := a.BeginRoleCycle("triage")
+	if _, ok := a.BeginRoleSettle(gen); !ok {
+		t.Fatal("BeginRoleSettle rejected a fresh generation")
+	}
+	if _, changed := a.BeginRoleCycle("weekly"); !changed {
+		t.Fatal("second cycle should report a change")
+	}
+
+	a.FlushRoleLifecycle()
+
+	requireRolePersisted(t, home, "weekly")
+	if len(*calls) != 2 || (*calls)[0] != "exit-ops" || (*calls)[1] != "enter-weekly" {
+		t.Errorf("flush hooks = %v, want exit-ops then enter-weekly", *calls)
+	}
+}
+
+func TestFinishedSettleIsNotReplayedByFlush(t *testing.T) {
+	a, home, calls := settleFixture(t)
+
+	gen, _ := a.BeginRoleCycle("triage")
+	if !a.SettleRoleCycle(gen) {
+		t.Fatal("SettleRoleCycle should run")
+	}
+	requireRolePersisted(t, home, "triage")
+	*calls = nil
+
+	a.FlushRoleLifecycle()
+	if len(*calls) != 0 {
+		t.Errorf("flush replayed a finished settle: %v", *calls)
 	}
 }

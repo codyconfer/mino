@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -30,6 +31,12 @@ import (
 const (
 	serveBuffer      = 256
 	sourceDrainGrace = 2 * time.Second
+)
+
+var (
+	auditEnqueueGrace = 2 * time.Second
+	auditDrainGrace   = 10 * time.Second
+	auditAbortGrace   = 2 * time.Second
 )
 
 type Server struct {
@@ -90,13 +97,13 @@ func (s *Server) openState() (*active.State, func()) {
 }
 
 func (s *Server) sources(ctx context.Context, name string, interval time.Duration, state *active.State) (sources, error) {
-	flight := s.Directives.Flights[name]
+	flight := s.Dirs().Flights[name]
 	queries := s.activeQueries(name, flight.Queries, interval, state)
 
 	var wg sync.WaitGroup
 	var chans []<-chan signals.Event
 	for _, open := range s.openStreams(ctx, queries) {
-		chans = append(chans, applyFilters(ctx, track(ctx, &wg, open.ch, open.stop), open.q.filters))
+		chans = append(chans, applyFilters(ctx, &wg, track(ctx, &wg, open.ch, open.stop), open.q.filters))
 		fmt.Fprintf(os.Stderr, "watching %-10s %s\n", open.q.src.Name(), latencyLabel(open.q.src.LatencyFloor()))
 	}
 	if sch := s.scheduledEvents(ctx, name, flight.Queries, state); sch != nil {
@@ -225,8 +232,9 @@ func drain(in <-chan signals.Event) {
 
 func (s *Server) activeQueries(flight string, names []string, interval time.Duration, state *active.State) []activeQuery {
 	var out []activeQuery
+	d := s.Dirs()
 	for _, name := range names {
-		q, ok := s.Directives.Queries[name]
+		q, ok := d.Queries[name]
 		if !ok {
 			log.Debugf("serve: unknown query %q in flight %q", name, flight)
 			continue
@@ -235,7 +243,7 @@ func (s *Server) activeQueries(flight string, names []string, interval time.Dura
 			log.Debugf("serve: %q is filter-only, not a runnable query (skipping)", name)
 			continue
 		}
-		resolved, err := s.Directives.Resolve(q)
+		resolved, err := d.Resolve(q)
 		if err != nil {
 			log.Warnf("serve: query %q: %v (skipping)", name, err)
 			continue
@@ -275,12 +283,14 @@ func activeParams(params map[string]string, interval time.Duration) map[string]s
 	return out
 }
 
-func applyFilters(ctx context.Context, in <-chan signals.Event, filters []filter.Compiled) <-chan signals.Event {
+func applyFilters(ctx context.Context, wg *sync.WaitGroup, in <-chan signals.Event, filters []filter.Compiled) <-chan signals.Event {
 	if len(filters) == 0 {
 		return in
 	}
 	out := make(chan signals.Event)
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer close(out)
 		for {
 			select {
@@ -307,9 +317,68 @@ func applyFilters(ctx context.Context, in <-chan signals.Event, filters []filter
 	return out
 }
 
-func (s *Server) observeAudit(ch <-chan signals.Event, flightID int64) {
-	for ev := range ch {
-		s.Audit.RecordQuery(flightID, ev.Source, s.Cfg.Role, ev.At, time.Now(), []signals.Section{ev.Section})
+type auditFeed struct {
+	ch       chan signals.Event
+	seen     atomic.Int64
+	recorded atomic.Int64
+	dropped  atomic.Int64
+}
+
+func newAuditFeed(buffer int) *auditFeed {
+	return &auditFeed{ch: make(chan signals.Event, buffer)}
+}
+
+func (f *auditFeed) tee(ctx context.Context, in <-chan signals.Event) <-chan signals.Event {
+	out := make(chan signals.Event)
+	go func() {
+		defer close(out)
+		defer close(f.ch)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-in:
+				if !ok {
+					return
+				}
+				f.seen.Add(1)
+				f.offer(ev)
+				select {
+				case out <- ev:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return out
+}
+
+func (f *auditFeed) offer(ev signals.Event) {
+	select {
+	case f.ch <- ev:
+		return
+	default:
+	}
+	t := time.NewTimer(auditEnqueueGrace)
+	defer t.Stop()
+	select {
+	case f.ch <- ev:
+	case <-t.C:
+		f.dropped.Add(1)
+		log.Debugf("serve: audit queue still full after %s; dropping a %s event", auditEnqueueGrace, ev.Source)
+	}
+}
+
+func (f *auditFeed) missing() int64 {
+	return f.seen.Load() - f.recorded.Load()
+}
+
+func (s *Server) observeAudit(ctx context.Context, f *auditFeed, flightID int64) {
+	role := s.Role()
+	for ev := range f.ch {
+		s.Audit.RecordQueryContext(ctx, flightID, ev.Source, role, ev.At, time.Now(), []signals.Section{ev.Section})
+		f.recorded.Add(1)
 	}
 }
 
@@ -414,22 +483,25 @@ type session struct {
 	closeSock func()
 	subj      *sysdaemon.Subject[signals.Event]
 	audited   <-chan struct{}
+	stopAudit context.CancelFunc
+	feed      *auditFeed
 	flightID  int64
 }
 
 func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sources, sink notifySink) {
 	subj := sysdaemon.NewSubject[signals.Event]()
 	closeSock := s.socket(ctx, subj)
-	flightID := s.Audit.StartFlight("serve", s.Cfg.Role)
+	flightID := s.Audit.StartFlightContext(ctx, "serve", s.Role())
 
+	auditCtx, stopAudit := context.WithCancel(context.WithoutCancel(ctx))
+	feed := newAuditFeed(serveBuffer)
 	audited := make(chan struct{})
-	auditCh := subj.Subscribe(serveBuffer)
 	notifyCh := subj.Subscribe(serveBuffer)
 	go func() {
 		defer close(audited)
-		s.observeAudit(auditCh, flightID)
+		s.observeAudit(auditCtx, feed, flightID)
 	}()
-	go subj.Pump(ctx, src.events)
+	go subj.Pump(ctx, feed.tee(ctx, src.events))
 
 	defer s.endSession(session{
 		cancel:    cancel,
@@ -437,6 +509,8 @@ func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sourc
 		closeSock: closeSock,
 		subj:      subj,
 		audited:   audited,
+		stopAudit: stopAudit,
+		feed:      feed,
 		flightID:  flightID,
 	})
 	observeNotify(ctx, notifyCh, sink)
@@ -451,8 +525,47 @@ func (s *Server) endSession(ses session) {
 		ses.closeSock()
 	}
 	ses.subj.Close()
-	<-ses.audited
+	s.drainAudit(ses)
 	s.Audit.FinishFlight(ses.flightID)
+}
+
+func (s *Server) drainAudit(ses session) {
+	defer func() {
+		if ses.stopAudit != nil {
+			ses.stopAudit()
+		}
+	}()
+	if ses.audited == nil {
+		return
+	}
+	t := time.NewTimer(auditDrainGrace)
+	defer t.Stop()
+	select {
+	case <-ses.audited:
+		s.reportAuditLoss(ses.feed, "")
+		return
+	case <-t.C:
+	}
+	if ses.stopAudit != nil {
+		ses.stopAudit()
+	}
+	select {
+	case <-ses.audited:
+	case <-time.After(auditAbortGrace):
+	}
+	s.reportAuditLoss(ses.feed, "audit drain exceeded "+auditDrainGrace.String()+"; ")
+}
+
+func (s *Server) reportAuditLoss(f *auditFeed, prefix string) {
+	if f == nil {
+		return
+	}
+	missing := f.missing()
+	if missing <= 0 && prefix == "" {
+		return
+	}
+	log.Warnf("serve: %s%d of %d event(s) were not recorded to the audit log (%d dropped by a full audit queue)",
+		prefix, missing, f.seen.Load(), f.dropped.Load())
 }
 
 func stateForEvent(ev signals.Event) sysdaemon.State {

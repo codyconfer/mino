@@ -30,13 +30,26 @@ type Builders struct {
 }
 
 var (
-	buildMu  sync.RWMutex
-	builders = map[string]Builders{}
+	buildMu       sync.RWMutex
+	builders      = map[string]Builders{}
+	builderOwners = map[string]string{}
 )
 
-func RegisterBuilders(signal string, b Builders) { registerBuilders("", signal, b) }
+// RegisterBuilders is the standalone route: the caller registered its
+// Descriptor separately, so the owning plugin is resolved from the signal.
+func RegisterBuilders(signal string, b Builders) {
+	registerBuilders(descriptorOwner(signal), signal, b)
+}
+
+func descriptorOwner(signal string) string {
+	if d, ok := BySignal(signal); ok {
+		return d.ID
+	}
+	return ""
+}
 
 func registerBuilders(ownerID, signal string, b Builders) bool {
+	noteRegistrationCheckpoint(ownerID)
 	if signal == "" {
 		noteDiagnostic(Diagnostic{
 			PluginID: ownerID,
@@ -53,6 +66,7 @@ func registerBuilders(ownerID, signal string, b Builders) bool {
 	_, dup := builders[signal]
 	if !dup {
 		builders[signal] = b
+		builderOwners[signal] = ownerID
 	}
 	buildMu.Unlock()
 	if dup {
@@ -63,11 +77,16 @@ func registerBuilders(ownerID, signal string, b Builders) bool {
 	return true
 }
 
+// builderOwner names whoever registered the *incumbent* builders, which is not
+// necessarily the descriptor owner for the signal.
 func builderOwner(signal string) string {
-	if d, ok := BySignal(signal); ok {
-		return d.ID
+	buildMu.RLock()
+	owner := builderOwners[signal]
+	buildMu.RUnlock()
+	if owner == "" {
+		return "an earlier registration"
 	}
-	return "an earlier registration"
+	return owner
 }
 
 func RegisterSignal(d Descriptor, b Builders) {
@@ -139,7 +158,7 @@ func BuildQuery(signal string, bc BuildContext) (Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	if q == nil {
+	if isNilRef(q) {
 		return nil, fmt.Errorf("plugin: builder for %q returned no query", signal)
 	}
 	return q, nil
@@ -154,7 +173,7 @@ func BuildStream(signal string, bc BuildContext) (Stream, error) {
 	if err != nil {
 		return nil, err
 	}
-	if s == nil {
+	if isNilRef(s) {
 		return nil, fmt.Errorf("plugin: builder for %q returned no stream", signal)
 	}
 	return s, nil
@@ -169,7 +188,7 @@ func BuildScheduled(signal string, bc BuildContext) (Scheduled, error) {
 	if err != nil {
 		return nil, err
 	}
-	if j == nil {
+	if isNilRef(j) {
 		return nil, fmt.Errorf("plugin: builder for %q returned no scheduled job", signal)
 	}
 	return j, nil

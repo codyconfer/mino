@@ -1,18 +1,53 @@
 package app
 
 import (
+	"bytes"
+	"strings"
 	"time"
 
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/role"
 )
 
-const RolePreviewHold = 5 * time.Second
+const (
+	RolePreviewHold = 5 * time.Second
+
+	previewOutputLimit = 400
+)
 
 type RolePreviewStep struct {
 	Label  string
 	Detail string
 	Err    error
+}
+
+var previewHook = capturedHook
+
+func capturedHook(kind, script string) (string, error) {
+	cmd, err := role.Command(kind, script)
+	if err != nil {
+		return "", err
+	}
+	var out bytes.Buffer
+	cmd.Stdin = nil
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err = cmd.Run()
+	return trimPreviewOutput(out.String()), err
+}
+
+func trimPreviewOutput(s string) string {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
+	s = strings.Join(strings.Fields(strings.ReplaceAll(s, "\n", " ")), " ")
+	if len(s) > previewOutputLimit {
+		return s[:previewOutputLimit] + "…"
+	}
+	return s
+}
+
+func previewHookStep(label, kind, script string) RolePreviewStep {
+	out, err := previewHook(kind, script)
+	return RolePreviewStep{Label: label, Detail: out, Err: err}
 }
 
 func (a *App) PreviewRole(rd config.RoleDef, hold time.Duration, body func() RolePreviewStep) []RolePreviewStep {
@@ -23,12 +58,12 @@ func (a *App) PreviewRole(rd config.RoleDef, hold time.Duration, body func() Rol
 		return []RolePreviewStep{body()}
 	}
 
-	enterKind, _, hasEnter := role.Select(rd.Hooks.Enter)
-	exitKind, _, hasExit := role.Select(rd.Hooks.Exit)
+	enterKind, enterScript, hasEnter := role.Select(rd.Hooks.Enter)
+	exitKind, exitScript, hasExit := role.Select(rd.Hooks.Exit)
 
 	var steps []RolePreviewStep
 	if hasEnter {
-		steps = append(steps, RolePreviewStep{Label: "enter hook (" + enterKind + ")", Err: role.RunEnter(rd)})
+		steps = append(steps, previewHookStep("enter hook ("+enterKind+")", enterKind, enterScript))
 	}
 
 	steps = append(steps, body())
@@ -42,18 +77,27 @@ func (a *App) PreviewRole(rd config.RoleDef, hold time.Duration, body func() Rol
 		steps = append(steps, RolePreviewStep{Label: "held " + hold.String()})
 	}
 	if hasExit {
-		steps = append(steps, RolePreviewStep{Label: "exit hook (" + exitKind + ")", Err: role.RunExit(rd)})
+		steps = append(steps, previewHookStep("exit hook ("+exitKind+")", exitKind, exitScript))
 	}
-	return append(steps, RolePreviewStep{Label: a.restoreRole()})
+	return append(steps, a.restoreRole())
 }
 
-func (a *App) restoreRole() string {
+func (a *App) restoreRole() RolePreviewStep {
 	name := a.Role()
 	if name == "" {
 		role.ClearStatusChips()
-		return "restored: no active role"
+		return RolePreviewStep{Label: "restored: no active role"}
 	}
-	a.runRoleEnter(name)
+	step := RolePreviewStep{Label: "restored role: " + name}
+	rd, ok := a.RoleDef(name)
+	if !ok {
+		role.ClearStatusChips()
+		return step
+	}
+	if kind, script, has := role.Select(rd.Hooks.Enter); has {
+		step.Detail, step.Err = previewHook(kind, script)
+	}
+	a.applyRoleStatus(rd)
 	a.applyRoleContexts()
-	return "restored role: " + name
+	return step
 }

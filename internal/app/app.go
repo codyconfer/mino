@@ -50,19 +50,22 @@ func (a *App) Role() string {
 
 func (a *App) Dirs() *config.Directives {
 	if a == nil {
-		return nil
+		return &config.Directives{}
 	}
 	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.Directives
+	d := a.Directives
+	a.mu.RUnlock()
+	if d == nil {
+		return &config.Directives{}
+	}
+	return d
 }
 
 func (a *App) RoleDef(name string) (config.RoleDef, bool) {
-	d := a.Dirs()
-	if d == nil || name == "" {
+	if name == "" {
 		return config.RoleDef{}, false
 	}
-	rd, ok := d.Roles[name]
+	rd, ok := a.Dirs().Roles[name]
 	return rd, ok
 }
 
@@ -265,18 +268,6 @@ func (a *App) settleRoleChange() {
 	a.commitRolePlan(p)
 }
 
-func (a *App) runRoleEnter(name string) {
-	rd, ok := a.RoleDef(name)
-	if !ok {
-		role.ClearStatusChips()
-		return
-	}
-	if err := role.RunEnter(rd); err != nil {
-		log.Warnf("role %q enter hooks: %v", name, err)
-	}
-	a.applyRoleStatus(rd)
-}
-
 func (a *App) refreshRoleStatus(name string) {
 	rd, ok := a.RoleDef(name)
 	if !ok {
@@ -418,52 +409,40 @@ func (a *App) CloseDBs() {
 	}
 }
 
-func (a *App) Access() config.Access {
-	return config.NewAccess(a.Role(), a.Dirs().Roles)
+func (a *App) Access() config.Access { return a.accessIn(a.Dirs()) }
+
+func (a *App) accessIn(d *config.Directives) config.Access {
+	return config.NewAccess(a.Role(), d.Roles)
+}
+
+func visibleNames(names []string, allowed func(string) bool) []string {
+	var out []string
+	for _, n := range names {
+		if allowed(n) {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 func (a *App) VisibleQueries() []string {
-	ac := a.Access()
-	var out []string
-	for _, n := range a.Dirs().QueryNames() {
-		if ac.QueryVisible(n) {
-			out = append(out, n)
-		}
-	}
-	return out
+	d := a.Dirs()
+	return visibleNames(d.QueryNames(), a.accessIn(d).QueryVisible)
 }
 
 func (a *App) VisibleFilters() []string {
-	ac := a.Access()
-	var out []string
-	for _, n := range a.Dirs().FilterNames() {
-		if ac.QueryVisible(n) {
-			out = append(out, n)
-		}
-	}
-	return out
+	d := a.Dirs()
+	return visibleNames(d.FilterNames(), a.accessIn(d).QueryVisible)
 }
 
 func (a *App) VisibleFlights() []string {
-	ac := a.Access()
-	var out []string
-	for _, n := range a.Dirs().FlightNames() {
-		if ac.FlightVisible(n) {
-			out = append(out, n)
-		}
-	}
-	return out
+	d := a.Dirs()
+	return visibleNames(d.FlightNames(), a.accessIn(d).FlightVisible)
 }
 
 func (a *App) VisibleFormatters() []string {
-	ac := a.Access()
-	var out []string
-	for _, n := range a.Dirs().FormatterNames() {
-		if ac.FormatterVisible(n) {
-			out = append(out, n)
-		}
-	}
-	return out
+	d := a.Dirs()
+	return visibleNames(d.FormatterNames(), a.accessIn(d).FormatterVisible)
 }
 
 func (a *App) NotInRoleError(kind, name string) error {

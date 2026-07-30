@@ -6,9 +6,18 @@ import (
 
 func RegisterTheme(parentID, key, displayName string, p theme.Palette) {
 	if key == "" {
-		panic("plugin: RegisterTheme requires key")
+		noteDiagnostic(Diagnostic{
+			PluginID: parentID,
+			Kind:     KindTheme,
+			Message:  "RegisterTheme requires a non-empty key; theme skipped",
+		})
+		return
 	}
-	if _, ok := ByKind(KindTheme, key); ok {
+	if prev, ok := ByKind(KindTheme, key); ok {
+		if prev.Parent != parentID && prev.ID != parentID {
+			noteDiagnosticf(parentID, KindTheme, key,
+				"theme %q is already owned by %q; later theme skipped", key, prev.ID)
+		}
 		return
 	}
 	theme.Register(key, displayName, p)

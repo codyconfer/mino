@@ -245,12 +245,13 @@ func (v *reportView) editorPersist(val any) (string, error) {
 	if fd.Name == "" {
 		return "", errs.New(errs.KindUsage, "name is required to save")
 	}
+	d := v.kit.d.App.Dirs()
 	if fd.Name != v.orig {
-		if _, exists := v.kit.d.App.Dirs().Formatters[fd.Name]; exists {
+		if _, exists := d.Formatters[fd.Name]; exists {
 			return "", errs.Newf(errs.KindUsage, "a report named %s already exists", fd.Name)
 		}
 	}
-	rel := v.kit.d.App.Dirs().Source(config.TypeFormatter, v.orig)
+	rel := d.Source(config.TypeFormatter, v.orig)
 	summary, _, err := v.kit.saveDirective(config.TypeFormatter, rel, fd.Name, fd)
 	if err != nil {
 		return "", err

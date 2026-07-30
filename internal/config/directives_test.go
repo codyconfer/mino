@@ -925,3 +925,186 @@ func TestDuplicateNameErrorNamesBothFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestWhollyMisspelledDocumentInADirectiveLocationErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		dir  string
+		rel  string
+		body string
+		keys []string
+	}{
+		{
+			name: "query with every field misspelled",
+			dir:  DirQueries,
+			rel:  DirQueries + "/prs.yaml",
+			body: "sinal: github.prs\nparmas:\n  repo: munin\n",
+			keys: []string{"sinal"},
+		},
+		{
+			name: "query with type misspelled too",
+			dir:  DirQueries,
+			rel:  DirQueries + "/prs.yaml",
+			body: "tpye: query\nsinal: github.prs\n",
+			keys: []string{"tpye"},
+		},
+		{
+			name: "flight with every field misspelled",
+			dir:  DirFlights,
+			rel:  DirFlights + "/morning.yaml",
+			body: "qeuries: [standup]\n",
+			keys: []string{"qeuries"},
+		},
+		{
+			name: "formatter with every field misspelled",
+			dir:  DirFormatters,
+			rel:  DirFormatters + "/short.yaml",
+			body: "tmeplate: \"{{ .Items }}\"\n",
+			keys: []string{"tmeplate"},
+		},
+		{
+			name: "role at the home root with every field misspelled",
+			dir:  "",
+			rel:  "dev.yaml",
+			body: "qeuries: [prs]\nfilghts: [a]\n",
+			keys: []string{"qeuries"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			if tc.dir != "" {
+				mkdir(t, filepath.Join(home, tc.dir))
+			}
+			write(t, filepath.Join(home, filepath.FromSlash(tc.rel)), tc.body)
+
+			s, err := LoadDirectivesFromFiles(home)
+			if err == nil {
+				t.Fatalf("%s loaded cleanly and vanished: queries=%v flights=%v roles=%v formatters=%v",
+					tc.rel, s.QueryNames(), s.FlightNames(), s.RoleNames(), s.FormatterNames())
+			}
+			full := err.Error() + " " + errs.Hint(err)
+			if !strings.Contains(full, tc.rel) && !strings.Contains(full, filepath.Base(tc.rel)) {
+				t.Errorf("error should name %s, got %q", tc.rel, full)
+			}
+			for _, k := range tc.keys {
+				if !strings.Contains(full, k) {
+					t.Errorf("error should name the unknown key %q, got %q", k, full)
+				}
+			}
+		})
+	}
+}
+
+func TestUnrelatedDocumentOutsideDirectiveLocationsStillLoads(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, "team"))
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, "team", "notes.yaml"), "just: notes\ntopics:\n  - one\n")
+	write(t, filepath.Join(home, "team", "notes.json"), "{\"just\":\"notes\"}\n")
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"), "name: prs\ntype: query\nsignal: github\n")
+
+	s, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatalf("an unrelated file outside the directive directories must still load: %v", err)
+	}
+	if len(s.Queries) != 1 {
+		t.Fatalf("unrelated documents leaked into directives: %v", s.QueryNames())
+	}
+	if got := s.DocCount("team/notes.yaml"); got != 0 {
+		t.Errorf("DocCount(team/notes.yaml) = %d, want 0", got)
+	}
+}
+
+func TestJSONDirectiveRejectsUnknownFields(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "prs.json"),
+		"{\"name\":\"prs\",\"type\":\"query\",\"signal\":\"github.prs\",\"parmas\":{\"repo\":\"munin\"}}\n")
+
+	s, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatalf("a misspelled `params` in JSON loaded cleanly; the query would run unparameterised: %#v", s.Queries["prs"])
+	}
+	full := err.Error() + " " + errs.Hint(err)
+	for _, want := range []string{"prs.json", "parmas"} {
+		if !strings.Contains(full, want) {
+			t.Errorf("error should mention %q, got %q", want, full)
+		}
+	}
+	if !strings.Contains(err.Error(), "unknown field") {
+		t.Errorf("JSON should report unknown fields the way YAML does, got %q", err.Error())
+	}
+}
+
+func TestJSONDirectiveRejectsUnknownFieldsThroughTheStoreBlob(t *testing.T) {
+	blob := []byte(`{"queries/prs.json":"{\"name\":\"prs\",\"type\":\"query\",\"signal\":\"github.prs\",\"parmas\":{\"repo\":\"munin\"}}"}`)
+	if s, err := NewDirectives(blob); err == nil {
+		t.Fatalf("the stored blob accepted a misspelled key: %#v", s.Queries["prs"])
+	}
+}
+
+func TestJSONDirectiveArrayRejectsUnknownFields(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "list.json"),
+		"[{\"name\":\"a\",\"type\":\"query\",\"signal\":\"x\"},{\"name\":\"b\",\"type\":\"query\",\"signal\":\"y\",\"parmas\":{}}]\n")
+
+	if _, err := LoadDirectivesFromFiles(home); err == nil {
+		t.Fatal("a misspelled key inside a JSON array loaded cleanly")
+	}
+}
+
+func TestDocumentIndexIsTheRealDocumentNumber(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "x.yaml"), "null\n---\nname: b\ntype: query\n")
+
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("expected an error for a query with no signal")
+	}
+	if !strings.Contains(err.Error(), "document 2") {
+		t.Errorf("the bad document is the second one, got %q", err.Error())
+	}
+}
+
+func TestSequenceItemIsReportedAsAnItemOfItsDocument(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "y.yaml"),
+		"- {name: a, type: query, signal: x}\n- {name: b, type: query, signal: y}\n- {name: c, type: query}\n")
+
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("expected an error for a query with no signal")
+	}
+	got := err.Error()
+	if !strings.Contains(got, "item 3 of document 1") {
+		t.Errorf("a 3-item sequence in one document should be reported as item 3 of document 1, got %q", got)
+	}
+	if strings.Contains(got, "document 3") {
+		t.Errorf("there is only one document in the file, got %q", got)
+	}
+}
+
+func TestUnknownFieldHintNamesTheFileAndTheKey(t *testing.T) {
+	home := t.TempDir()
+	mkdir(t, filepath.Join(home, DirQueries))
+	write(t, filepath.Join(home, DirQueries, "prs.yaml"),
+		"name: prs\ntype: query\nsignal: github\ndescription: my prs\n")
+
+	_, err := LoadDirectivesFromFiles(home)
+	if err == nil {
+		t.Fatal("an extra key must not be tolerated silently")
+	}
+	hint := errs.Hint(err)
+	for _, want := range []string{"queries/prs.yaml", "description"} {
+		if !strings.Contains(hint, want) {
+			t.Errorf("hint should name %q so the user can act on it, got %q", want, hint)
+		}
+	}
+	if !strings.Contains(hint, "delete") && !strings.Contains(hint, "remove") {
+		t.Errorf("hint should say how to get rid of the key, got %q", hint)
+	}
+}

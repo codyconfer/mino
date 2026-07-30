@@ -61,6 +61,47 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 			hintHas: "munin login github",
 		},
 		{
+			name:   "missing scope whose doc link mentions rate limits",
+			status: http.StatusForbidden,
+			header: http.Header{"X-Ratelimit-Remaining": []string{"4998"}},
+			body: `{"message":"Resource not accessible by personal access token",` +
+				`"documentation_url":"https://docs.github.com/rest/overview/resources#rate limit policy"}`,
+			kind:    errs.KindAuth,
+			hintHas: "munin login github",
+			hintNot: "rate limit reached",
+		},
+		{
+			name:   "saml enforcement with an exhausted quota",
+			status: http.StatusForbidden,
+			header: http.Header{
+				"X-Ratelimit-Remaining": []string{"0"},
+				"X-Ratelimit-Reset":     []string{reset},
+			},
+			body: `{"message":"Resource protected by organization SAML enforcement. ` +
+				`You must grant your OAuth token access to this organization."}`,
+			kind:    errs.KindAuth,
+			hintHas: "SAML",
+		},
+		{
+			name:   "ip allow list",
+			status: http.StatusForbidden,
+			header: http.Header{"X-Ratelimit-Remaining": []string{"4999"}},
+			body: `{"message":"Although you appear to have the correct authorization credentials, ` +
+				`the ` + "`acme`" + ` organization has an IP allow list enabled."}`,
+			kind:    errs.KindAuth,
+			hintHas: "IP allow list",
+			hintNot: "munin login github",
+		},
+		{
+			name:    "secondary rate limit with no rate limit headers",
+			status:  http.StatusForbidden,
+			header:  http.Header{},
+			body:    `{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}`,
+			kind:    errs.KindSignal,
+			hintHas: "rate limit",
+			hintNot: "munin login github",
+		},
+		{
 			name:    "bad credentials",
 			status:  http.StatusUnauthorized,
 			body:    `{"message":"Bad credentials"}`,
@@ -99,6 +140,102 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 			}
 			if c.hintNot != "" && strings.Contains(e.Hint, c.hintNot) {
 				t.Errorf("hint = %q, should not mention %q", e.Hint, c.hintNot)
+			}
+		})
+	}
+}
+
+func TestRateLimitedTrustsHeadersOverBodyProse(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		header http.Header
+		body   string
+		want   bool
+	}{
+		{
+			name:   "429 is always a rate limit",
+			status: http.StatusTooManyRequests,
+			header: http.Header{},
+			body:   `{"message":"Resource not accessible by personal access token"}`,
+			want:   true,
+		},
+		{
+			name:   "403 with an exhausted quota",
+			status: http.StatusForbidden,
+			header: http.Header{"X-Ratelimit-Remaining": []string{"0"}},
+			body:   `{"message":"anything"}`,
+			want:   true,
+		},
+		{
+			name:   "403 with a retry-after",
+			status: http.StatusForbidden,
+			header: http.Header{"Retry-After": []string{"60"}},
+			body:   `{"message":"anything"}`,
+			want:   true,
+		},
+		{
+			name:   "403 with quota left is not a rate limit however the body reads",
+			status: http.StatusForbidden,
+			header: http.Header{"X-Ratelimit-Remaining": []string{"4998"}},
+			body: `{"message":"Resource not accessible by personal access token",` +
+				`"documentation_url":"https://docs.github.com/rest#rate limit policy"}`,
+			want: false,
+		},
+		{
+			name:   "403 with no rate limit headers falls back to the body",
+			status: http.StatusForbidden,
+			header: http.Header{},
+			body:   `{"message":"You have exceeded a secondary rate limit."}`,
+			want:   true,
+		},
+		{
+			name:   "403 with no rate limit headers and no prose",
+			status: http.StatusForbidden,
+			header: http.Header{},
+			body:   `{"message":"Resource not accessible by integration"}`,
+			want:   false,
+		},
+		{
+			name:   "other statuses are never rate limits",
+			status: http.StatusNotFound,
+			header: http.Header{},
+			body:   `{"message":"API rate limit exceeded"}`,
+			want:   false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			resp := &http.Response{StatusCode: c.status, Header: c.header}
+			if got := rateLimited(resp, []byte(c.body)); got != c.want {
+				t.Errorf("rateLimited = %v, want %v (headers are authoritative; body prose only fills the gap)", got, c.want)
+			}
+		})
+	}
+}
+
+func TestPollIntervalHintIsBounded(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{name: "absent", raw: ""},
+		{name: "zero", raw: "0"},
+		{name: "negative", raw: "-30"},
+		{name: "garbage", raw: "soon"},
+		{name: "normal", raw: "60", want: time.Minute},
+		{name: "padded", raw: " 90 ", want: 90 * time.Second},
+		{name: "at the bound", raw: "3600", want: maxRetryAfter},
+		{name: "absurd is capped", raw: "999999999", want: maxRetryAfter},
+		{name: "overflowing is capped", raw: "99999999999999", want: maxRetryAfter},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			hdr := http.Header{}
+			hdr.Set("X-Poll-Interval", c.raw)
+			if got := pollIntervalHint(hdr); got != c.want {
+				t.Errorf("pollIntervalHint(%q) = %s, want %s", c.raw, got, c.want)
 			}
 		})
 	}
@@ -176,14 +313,24 @@ func TestBackoffIntervalGrowsAndCaps(t *testing.T) {
 }
 
 func TestWithJitterStaysInRange(t *testing.T) {
+	const base = time.Minute
+	seen := map[time.Duration]bool{}
 	for range 200 {
-		got := withJitter(time.Minute)
-		if got < time.Minute || got > 75*time.Second {
+		got := withJitter(base)
+		if got < base || got > base+base/4 {
 			t.Fatalf("withJitter(1m) = %s, want within [1m, 1m15s]", got)
 		}
+		seen[got] = true
+	}
+	if len(seen) < 10 {
+		t.Errorf("withJitter(1m) produced %d distinct values over 200 draws, want a spread: a constant "+
+			"result is no jitter at all, so every client retries in lockstep", len(seen))
 	}
 	if got := withJitter(0); got != 0 {
 		t.Errorf("withJitter(0) = %s, want 0", got)
+	}
+	if got := withJitter(-time.Second); got != -time.Second {
+		t.Errorf("withJitter(-1s) = %s, want it passed through", got)
 	}
 }
 

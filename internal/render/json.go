@@ -21,6 +21,7 @@ type wireSection struct {
 func (r *JSONRenderer) Render(w io.Writer, sections []signals.Section) error {
 	wire := make([]wireSection, 0, len(sections))
 	for _, s := range sections {
+		s = signals.CleanSection(s)
 		items := s.Items
 		if items == nil {
 			items = []signals.Item{}
@@ -30,7 +31,7 @@ func (r *JSONRenderer) Render(w io.Writer, sections []signals.Section) error {
 			Title:  s.Title,
 			Items:  items,
 			Meta:   s.Meta,
-			Error:  s.ErrString(),
+			Error:  signals.CleanLine(s.ErrString()),
 		})
 	}
 	enc := json.NewEncoder(w)

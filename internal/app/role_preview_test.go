@@ -1,7 +1,11 @@
 package app
 
 import (
+	"bytes"
 	"errors"
+	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -30,12 +34,12 @@ func previewDirectives() *config.Directives {
 
 func recordRuns(t *testing.T, ran *[]string) {
 	t.Helper()
-	orig := role.Run
-	role.Run = func(_, script string) error {
+	orig := previewHook
+	previewHook = func(_, script string) (string, error) {
 		*ran = append(*ran, script)
-		return nil
+		return "", nil
 	}
-	t.Cleanup(func() { role.Run = orig })
+	t.Cleanup(func() { previewHook = orig })
 }
 
 func TestPreviewRoleRunsHooksAroundBodyThenRestores(t *testing.T) {
@@ -111,15 +115,15 @@ func TestPreviewRoleWithNoActiveRoleReportsNoRestore(t *testing.T) {
 func TestPreviewRoleSurfacesHookErrorsAndStillRestores(t *testing.T) {
 	t.Cleanup(role.ClearStatusChips)
 	var ran []string
-	orig := role.Run
-	role.Run = func(_, script string) error {
+	orig := previewHook
+	previewHook = func(_, script string) (string, error) {
 		ran = append(ran, script)
 		if script == "enter-triage" {
-			return errors.New("boom")
+			return "", errors.New("boom")
 		}
-		return nil
+		return "", nil
 	}
-	t.Cleanup(func() { role.Run = orig })
+	t.Cleanup(func() { previewHook = orig })
 
 	a := &App{Cfg: &config.Config{Home: t.TempDir(), Role: "daily"}, Directives: previewDirectives()}
 	steps := a.PreviewRole(a.Directives.Roles["triage"], 0, func() RolePreviewStep {
@@ -171,5 +175,82 @@ func TestPreviewRoleIsInertInThinMode(t *testing.T) {
 	}
 	if len(ran) != 0 {
 		t.Fatalf("thin mode ran hooks: %v", ran)
+	}
+}
+
+func captureProcessStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	orig := os.Stdout
+	os.Stdout = w
+	done := make(chan string, 1)
+	go func() {
+		var buf bytes.Buffer
+		_, _ = io.Copy(&buf, r)
+		done <- buf.String()
+	}()
+	fn()
+	os.Stdout = orig
+	_ = w.Close()
+	out := <-done
+	_ = r.Close()
+	return out
+}
+
+func TestPreviewRoleKeepsHookOutputOffTheTerminal(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not on PATH")
+	}
+	t.Cleanup(role.ClearStatusChips)
+
+	a := &App{
+		Cfg: &config.Config{Home: t.TempDir(), Role: "daily"},
+		Directives: &config.Directives{Roles: map[string]config.RoleDef{
+			"daily": {Name: "daily", Hooks: config.RoleHooks{
+				Enter: config.RoleShellHooks{Bash: "echo restore-tty-leak"},
+			}},
+		}},
+	}
+	rd := config.RoleDef{Name: "loud", Hooks: config.RoleHooks{
+		Enter: config.RoleShellHooks{Bash: "echo enter-tty-leak"},
+		Exit:  config.RoleShellHooks{Bash: "echo exit-tty-leak"},
+	}}
+
+	var steps []RolePreviewStep
+	leaked := captureProcessStdout(t, func() {
+		steps = a.PreviewRole(rd, 0, func() RolePreviewStep { return RolePreviewStep{Label: "flight: inbox"} })
+	})
+
+	if strings.Contains(leaked, "tty-leak") {
+		t.Fatalf("role dry-run hooks wrote to the process terminal while bubbletea owns it: %q", leaked)
+	}
+	details := make([]string, 0, len(steps))
+	for _, s := range steps {
+		details = append(details, s.Detail)
+	}
+	joined := strings.Join(details, "|")
+	for _, want := range []string{"enter-tty-leak", "exit-tty-leak", "restore-tty-leak"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("hook output %q not captured into the dry-run report: %v", want, details)
+		}
+	}
+}
+
+func TestPreviewHookDoesNotInheritStdin(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not on PATH")
+	}
+	out, err := capturedHook("bash", "if [ -t 0 ]; then echo stdin-is-a-tty; fi; cat; echo done")
+	if err != nil {
+		t.Fatalf("capturedHook: %v", err)
+	}
+	if strings.Contains(out, "stdin-is-a-tty") {
+		t.Fatalf("hook inherited the terminal on stdin: %q", out)
+	}
+	if !strings.Contains(out, "done") {
+		t.Fatalf("hook did not run to completion (stdin never closed?): %q", out)
 	}
 }

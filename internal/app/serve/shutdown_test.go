@@ -14,6 +14,7 @@ import (
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/audit"
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/filter"
 	"github.com/codyconfer/munin/internal/signals"
 )
 
@@ -55,7 +56,7 @@ func TestWatchRecordsAllEventsBeforeRollUp(t *testing.T) {
 		s.watch(ctx, cancel, sources{events: in, join: func() {}}, notifySink{})
 	}()
 
-	const want = 120
+	const want = 400
 	for i := range want {
 		select {
 		case in <- oneItemEvent(i):
@@ -209,5 +210,186 @@ func TestTrackJoinDoesNotHangOnStuckSource(t *testing.T) {
 	case <-joined:
 	case <-time.After(sourceDrainGrace + 5*time.Second):
 		t.Fatal("join hung on a source that never closes its channel")
+	}
+}
+
+func shrinkAuditGraces(t *testing.T, enqueue, drain, abort time.Duration) {
+	t.Helper()
+	oe, od, oa := auditEnqueueGrace, auditDrainGrace, auditAbortGrace
+	auditEnqueueGrace, auditDrainGrace, auditAbortGrace = enqueue, drain, abort
+	t.Cleanup(func() { auditEnqueueGrace, auditDrainGrace, auditAbortGrace = oe, od, oa })
+}
+
+func TestEndSessionBoundsTheAuditDrain(t *testing.T) {
+	home := t.TempDir()
+	s, st := testServer(t, home)
+	shrinkAuditGraces(t, 20*time.Millisecond, 200*time.Millisecond, 100*time.Millisecond)
+
+	_, cancel := context.WithCancel(context.Background())
+	subj := sysdaemon.NewSubject[signals.Event]()
+	flightID := st.StartFlight("serve", "test")
+
+	stuck := make(chan struct{})
+	var stopped atomic.Bool
+	feed := newAuditFeed(4)
+	feed.seen.Store(6)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.endSession(session{
+			cancel:    cancel,
+			src:       sources{join: func() {}},
+			closeSock: func() {},
+			subj:      subj,
+			audited:   stuck,
+			stopAudit: func() { stopped.Store(true) },
+			feed:      feed,
+			flightID:  flightID,
+		})
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("endSession never returned: the audit drain is unbounded, so Ctrl-C hangs on a contended audit DB")
+	}
+	if !stopped.Load() {
+		t.Error("the audit context was never cancelled, so the drain had no way to stop")
+	}
+	if got := feed.missing(); got != 6 {
+		t.Errorf("missing() = %d, want 6 (the abandoned events must be counted, not silently lost)", got)
+	}
+	row, ok, err := st.Entry(flightID)
+	if err != nil || !ok {
+		t.Fatalf("Entry(%d) ok=%v err=%v", flightID, ok, err)
+	}
+	if row.Finished.IsZero() {
+		t.Error("a bounded drain must still roll the flight up")
+	}
+}
+
+func TestAuditFeedCountsDropsWhenTheQueueStaysFull(t *testing.T) {
+	shrinkAuditGraces(t, 20*time.Millisecond, auditDrainGrace, auditAbortGrace)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const (
+		buffer = 2
+		want   = 6
+	)
+	f := newAuditFeed(buffer)
+	in := make(chan signals.Event)
+	out := f.tee(ctx, in)
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		for range out {
+		}
+	}()
+
+	for i := range want {
+		select {
+		case in <- oneItemEvent(i):
+		case <-time.After(5 * time.Second):
+			t.Fatalf("tee stalled on event %d", i)
+		}
+	}
+	close(in)
+	select {
+	case <-drained:
+	case <-time.After(5 * time.Second):
+		t.Fatal("tee never closed its downstream channel")
+	}
+
+	if got := f.seen.Load(); got != want {
+		t.Errorf("seen = %d, want %d", got, want)
+	}
+	if got := f.dropped.Load(); got != want-buffer {
+		t.Errorf("dropped = %d, want %d: the audit path must count what it loses, not drop silently", got, want-buffer)
+	}
+	if got := f.missing(); got != want {
+		t.Errorf("missing = %d, want %d with no audit observer running", got, want)
+	}
+}
+
+func TestAuditFeedBackpressuresRatherThanDropping(t *testing.T) {
+	shrinkAuditGraces(t, 5*time.Second, auditDrainGrace, auditAbortGrace)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const (
+		buffer = 2
+		want   = 20
+	)
+	f := newAuditFeed(buffer)
+	in := make(chan signals.Event)
+	out := f.tee(ctx, in)
+	go func() {
+		for range out {
+		}
+	}()
+	consumed := make(chan struct{})
+	go func() {
+		defer close(consumed)
+		for range f.ch {
+			f.recorded.Add(1)
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	for i := range want {
+		select {
+		case in <- oneItemEvent(i):
+		case <-time.After(10 * time.Second):
+			t.Fatalf("tee stalled on event %d", i)
+		}
+	}
+	close(in)
+	select {
+	case <-consumed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("audit consumer never saw the channel close")
+	}
+
+	if got := f.dropped.Load(); got != 0 {
+		t.Errorf("dropped = %d, want 0: a slow-but-alive audit consumer must get backpressure, not loss", got)
+	}
+	if got := f.recorded.Load(); got != want {
+		t.Errorf("recorded = %d, want %d", got, want)
+	}
+}
+
+func TestApplyFiltersJoinsWithTheSourceWaitGroup(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	in := make(chan signals.Event)
+	out := applyFilters(ctx, &wg, in, []filter.Compiled{{Name: "noop"}})
+	go func() {
+		for range out {
+		}
+	}()
+
+	joined := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(joined)
+	}()
+
+	select {
+	case <-joined:
+		t.Fatal("join() returned while the filter stage was still running: sources stopping does not mean the pipeline flushed")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case <-joined:
+	case <-time.After(5 * time.Second):
+		t.Fatal("join hung on the filter stage")
 	}
 }

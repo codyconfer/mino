@@ -88,8 +88,7 @@ func TestRunScheduledIsolatesBlockingJob(t *testing.T) {
 }
 
 type ackProbe struct {
-	acked    chan ackObs
-	onFireHK func()
+	acked chan ackObs
 }
 
 type ackObs struct {

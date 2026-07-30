@@ -78,11 +78,15 @@ func adcOption(ctx context.Context, scopes []string) (option.ClientOption, error
 	return option.WithTokenSource(creds.TokenSource), nil
 }
 
+func oauthCtx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, oauth2.HTTPClient, HTTPClient())
+}
+
 func googleTokenSource(ctx context.Context, ga GoogleAuth, scopes []string, tok *oauth2.Token) oauth2.TokenSource {
 	if ga.ClientID != "" && ga.ClientSecret != "" {
 		src := &persistingGoogleTokenSource{
 			store: ga.Store,
-			src:   googleConf(ga, scopes).TokenSource(ctx, tok),
+			src:   googleConf(ga, scopes).TokenSource(oauthCtx(ctx), tok),
 			last:  tok.AccessToken,
 		}
 		return oauth2.ReuseTokenSource(tok, src)
@@ -137,7 +141,7 @@ func GoogleLogin(ctx context.Context, ga GoogleAuth, w io.Writer) error {
 		return err
 	}
 	conf.RedirectURL = redirect
-	tok, err := conf.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+	tok, err := conf.Exchange(oauthCtx(ctx), code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return errs.Wrap(errs.KindAuth, err, "exchanging authorization code").
 			WithHint("run `munin login google` again")
@@ -208,14 +212,15 @@ func missingScopes(ctx context.Context, accessToken string, required []string) [
 	return missing
 }
 
+var googleTokenInfoURL = "https://oauth2.googleapis.com/tokeninfo"
+
 func fetchTokenScopes(ctx context.Context, accessToken string) map[string]bool {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://oauth2.googleapis.com/tokeninfo", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, googleTokenInfoURL, nil)
 	if err != nil {
 		return nil
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := HTTPClient().Do(req)
 	if err != nil {
 		return nil
 	}
@@ -223,10 +228,14 @@ func fetchTokenScopes(ctx context.Context, accessToken string) map[string]bool {
 	if resp.StatusCode != http.StatusOK {
 		return nil
 	}
+	body, err := readBounded(resp, "google tokeninfo", maxTokenResponseBytes)
+	if err != nil {
+		return nil
+	}
 	var info struct {
 		Scope string `json:"scope"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+	if err := json.Unmarshal(body, &info); err != nil {
 		return nil
 	}
 	granted := map[string]bool{}

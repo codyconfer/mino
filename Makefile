@@ -1,4 +1,4 @@
-.PHONY: build build-experimental build-nodaemon dev install command run serve daemon test fmt fmt-check vet lint govulncheck check ci package clean icons
+.PHONY: build build-experimental build-nodaemon dev install command run serve daemon test test-race test-shuffle fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
 BIN     ?= $(DIST)/munin
@@ -6,10 +6,13 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X 'github.com/codyconfer/munin/cmd.Version=$(VERSION)'
 INSTALL_DIR ?= $(shell d="$$(go env GOBIN)"; [ -n "$$d" ] || d="$$(go env GOPATH)/bin"; printf '%s' "$$d")
 
-# Runtime + build knobs for the mode targets (command/serve/daemon/run):
-#   ARGS  — forwarded verbatim to munin, e.g. `make command ARGS="fly work -o json"`
-#   RACE  — set to build with the race detector, e.g. `make run RACE=1`
-#   TAGS  — extra build tags, e.g. `make build TAGS=demo`
+# Runtime + build knobs for the mode targets (command/serve/daemon/run) and test:
+#   ARGS    — forwarded verbatim to munin, e.g. `make command ARGS="fly work -o json"`
+#   RACE    — set to build/test with the race detector, e.g. `make run RACE=1`,
+#             `make test RACE=1`
+#   SHUFFLE — set to randomize test order, e.g. `make test SHUFFLE=1`. Catches
+#             tests that depend on execution order (shared package-level state).
+#   TAGS    — extra build tags, e.g. `make build TAGS=demo`
 #
 # TAGS=daemon enables the EXPERIMENTAL OS-service daemon, which is OFF by
 # default. The daemon lives in its own package (github.com/codyconfer/munin/daemon)
@@ -20,9 +23,11 @@ INSTALL_DIR ?= $(shell d="$$(go env GOBIN)"; [ -n "$$d" ] || d="$$(go env GOPATH
 # identical either way — `make daemon` sets the tag for you.
 ARGS ?=
 RACE ?=
+SHUFFLE ?=
 TAGS ?=
 GOFLAGS_TAGS = $(if $(TAGS),-tags "$(TAGS)",)
 GOFLAGS_DEV = $(if $(RACE),-race,) $(GOFLAGS_TAGS)
+GOFLAGS_TEST = $(if $(RACE),-race,) $(if $(SHUFFLE),-shuffle=on,) $(GOFLAGS_TAGS)
 
 # EMAIL_DOMAIN, when set, compiles a locked-down build that only completes
 # onboarding (and thus unlocks munin) if the git signing key has a GitHub-verified
@@ -180,12 +185,24 @@ package:
 clean:
 	rm -rf $(DIST)
 
-# Run the test suite.
+# Run the test suite. Honors RACE=1 (race detector) and SHUFFLE=1 (random test
+# order); `test-race` and `test-shuffle` are the named entrypoints CI uses.
 test:
-	go test $(GOFLAGS_TAGS) ./...
+	go test $(GOFLAGS_TEST) ./...
+
+# Race detector over the whole suite. Slow and CGO-heavy (duckdb), so this is a
+# separate target/job rather than part of `check` — the fast gate stays fast.
+test-race:
+	@$(MAKE) test RACE=1
+
+# Randomized test order. Catches order-dependent tests that share package state.
+test-shuffle:
+	@$(MAKE) test SHUFFLE=1
 
 # Tooling lives in ./tools (separate module) so consumers don't inherit linter deps.
-GO_TOOL = go tool -modfile=tools/go.mod
+# GOWORK=off because -modfile is rejected in workspace mode, so an untracked
+# go.work would otherwise make these targets runnable only in CI.
+GO_TOOL = GOWORK=off go tool -modfile=tools/go.mod
 
 # Format all Go source in place (gofmt + goimports via golangci-lint).
 fmt:

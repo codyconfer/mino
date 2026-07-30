@@ -96,3 +96,28 @@ func TestBuildScheduledUnknownSignal(t *testing.T) {
 		t.Fatal("want an error for a signal with no scheduled builder")
 	}
 }
+
+func TestScheduledBuilderWithoutCapScheduledIsLoud(t *testing.T) {
+	const id = "test.sched.forgotcap"
+	const signal = "schedforgotcap"
+
+	plugin.RegisterSignal(plugin.Descriptor{
+		ID:           id,
+		Kind:         plugin.KindSignal,
+		Signal:       signal,
+		Capabilities: []plugin.Capability{plugin.CapQuery},
+	}, plugin.Builders{
+		Query: func(plugin.BuildContext) (plugin.Query, error) { return testQuery{name: signal}, nil },
+		Scheduled: func(plugin.BuildContext) (plugin.Scheduled, error) {
+			return testScheduled{name: signal}, nil
+		},
+	})
+
+	if !plugin.HasScheduledBuilder(signal) {
+		t.Fatal("Builders.Scheduled was dropped")
+	}
+	if plugin.HasCapability(signal, plugin.CapScheduled) {
+		t.Fatal("test setup: the descriptor must not declare CapScheduled")
+	}
+	findDiagnostic(t, id, "CapScheduled", "never run")
+}

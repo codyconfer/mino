@@ -29,6 +29,11 @@ var (
 	signalRE = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 )
 
+// maxNameLen keeps generated names inside every filesystem's per-component
+// limit (255 on ext4/APFS/NTFS). Without a cap a long-but-valid signal passes
+// validation and only fails at os.WriteFile, after the other files are written.
+const maxNameLen = 64
+
 func Generate(opts GenerateOptions) (GenerateResult, error) {
 	id := strings.TrimSpace(opts.ID)
 	if id == "" {
@@ -36,6 +41,9 @@ func Generate(opts GenerateOptions) (GenerateResult, error) {
 	}
 	if strings.ContainsAny(id, " \t\n/") || strings.HasPrefix(id, ".") || strings.HasSuffix(id, ".") {
 		return GenerateResult{}, fmt.Errorf("scaffold: invalid plugin id %q", id)
+	}
+	if len(id) > maxNameLen {
+		return GenerateResult{}, fmt.Errorf("scaffold: plugin id is %d characters; keep it to %d or fewer", len(id), maxNameLen)
 	}
 	dir := strings.TrimSpace(opts.Dir)
 	if dir == "" {
@@ -53,12 +61,18 @@ func Generate(opts GenerateOptions) (GenerateResult, error) {
 	if !signalRE.MatchString(signal) {
 		return GenerateResult{}, fmt.Errorf("scaffold: invalid signal name %q (want %s)", signal, signalRE)
 	}
+	if len(signal) > maxNameLen {
+		return GenerateResult{}, fmt.Errorf("scaffold: signal name is %d characters; keep it to %d or fewer", len(signal), maxNameLen)
+	}
 	pkg := strings.TrimSpace(opts.Package)
 	if pkg == "" {
 		pkg = sanitizeIdent(signal)
 	}
 	if !identRE.MatchString(pkg) {
 		return GenerateResult{}, fmt.Errorf("scaffold: invalid package name %q", pkg)
+	}
+	if len(pkg) > maxNameLen {
+		return GenerateResult{}, fmt.Errorf("scaffold: package name is %d characters; keep it to %d or fewer", len(pkg), maxNameLen)
 	}
 
 	files := map[string]string{
@@ -81,23 +95,45 @@ func Generate(opts GenerateOptions) (GenerateResult, error) {
 		paths[i] = p
 	}
 
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// Anything this call creates is rolled back if a later write fails, so a
+	// half-written scaffold is never left behind for the user to clean up.
+	var created []string
+	fail := func(err error) (GenerateResult, error) {
+		for i := len(created) - 1; i >= 0; i-- {
+			_ = os.Remove(created[i])
+		}
+		return GenerateResult{}, err
+	}
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return GenerateResult{}, err
+		}
+		created = append(created, dir)
+	} else if err := os.MkdirAll(dir, 0o755); err != nil {
 		return GenerateResult{}, err
 	}
 	var written []string
 	for i, rel := range rels {
 		body := files[rel]
 		path := paths[i]
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return GenerateResult{}, err
+		parent := filepath.Dir(path)
+		if _, err := os.Stat(parent); os.IsNotExist(err) {
+			if err := os.MkdirAll(parent, 0o755); err != nil {
+				return fail(err)
+			}
+			created = append(created, parent)
 		}
-		if _, err := os.Stat(path); err == nil && !opts.Force {
-			return GenerateResult{}, fmt.Errorf("scaffold: %s exists (pass --force to overwrite)", path)
-		} else if err != nil && !os.IsNotExist(err) {
-			return GenerateResult{}, err
+		switch _, err := os.Stat(path); {
+		case err == nil && !opts.Force:
+			return fail(fmt.Errorf("scaffold: %s exists (pass --force to overwrite)", path))
+		case err == nil:
+		case os.IsNotExist(err):
+			created = append(created, path)
+		default:
+			return fail(err)
 		}
 		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-			return GenerateResult{}, err
+			return fail(err)
 		}
 		written = append(written, rel)
 	}

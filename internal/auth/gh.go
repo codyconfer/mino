@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 
@@ -56,18 +55,13 @@ func GHAPIGet(ctx context.Context, store TokenStore, apiURL, path string) ([]byt
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := HTTPClient().Do(req)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindSignal, err, "github: request failed")
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, errs.Newf(errs.KindAuth, "github api %s: %s", resp.Status, strings.TrimSpace(string(body))).
-			WithHint("your GitHub token may be missing or lack scopes; run `munin login github` or set $GITHUB_TOKEN")
-	}
 	if resp.StatusCode >= 300 {
-		return nil, errs.Newf(errs.KindSignal, "github api %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return nil, classifyGitHubStatus(resp, errorExcerpt(resp.Body))
 	}
-	return body, nil
+	return readBounded(resp, "github", maxAPIResponseBytes)
 }

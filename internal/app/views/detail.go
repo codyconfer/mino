@@ -166,7 +166,7 @@ func (v *DetailView) Context() [][2]string {
 		cues = append(cues, [2]string{"detail", "unavailable"})
 	}
 	if v.ref.Meta["cache"] == "stale" {
-		cues = append(cues, [2]string{"cache", "stale " + signals.Clean(v.ref.Meta["age"])})
+		cues = append(cues, [2]string{"cache", "stale " + signals.CleanLine(v.ref.Meta["age"])})
 	}
 	return cues
 }

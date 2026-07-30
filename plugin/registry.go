@@ -20,9 +20,38 @@ type pendingAction struct {
 	serviceOnly  bool
 }
 
+var (
+	checkpointMu    sync.Mutex
+	checkpointOwner string
+	checkpointSeen  uint64
+)
+
+// noteRegistrationCheckpoint records the last contribution the registry was
+// handed. It exists so a host that recovers a panic escaping a plugin's own
+// registration code can name the plugin that was mid-registration.
+func noteRegistrationCheckpoint(ownerID string) {
+	checkpointMu.Lock()
+	checkpointSeen++
+	if ownerID != "" {
+		checkpointOwner = ownerID
+	}
+	checkpointMu.Unlock()
+}
+
+// RegistrationCheckpoint reports the owner id of the most recent contribution
+// offered to the registry and how many contributions have been offered so far.
+// Compare seen across a registration callback to tell whether the plugin named
+// by pluginID was the one that failed.
+func RegistrationCheckpoint() (pluginID string, seen uint64) {
+	checkpointMu.Lock()
+	defer checkpointMu.Unlock()
+	return checkpointOwner, checkpointSeen
+}
+
 func Register(d Descriptor) { registerDescriptor(d) }
 
 func registerDescriptor(d Descriptor) bool {
+	noteRegistrationCheckpoint(OwnerID(d))
 	mu.Lock()
 	err := registerLocked(d)
 	flushPendingActionsLocked()

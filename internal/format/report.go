@@ -58,16 +58,16 @@ func Build(in Input) Report {
 		now = time.Now()
 	}
 	r := Report{
-		Formatter: in.Formatter,
-		Name:      in.Name,
-		Kind:      in.Kind,
-		Role:      in.Role,
+		Formatter: signals.CleanLine(in.Formatter),
+		Name:      signals.CleanLine(in.Name),
+		Kind:      signals.CleanLine(in.Kind),
+		Role:      signals.CleanLine(in.Role),
 		Now:       now,
 	}
 	for _, g := range in.Groups {
-		group := Group{Query: g.Query, Title: g.Title}
+		group := Group{Query: signals.CleanLine(g.Query), Title: signals.CleanLine(g.Title)}
 		for _, s := range g.Sections {
-			sec := buildSection(g.Query, s)
+			sec := buildSection(group.Query, s)
 			group.Sections = append(group.Sections, sec)
 			group.Items = append(group.Items, sec.Items...)
 			group.Count += sec.Count
@@ -84,12 +84,13 @@ func Build(in Input) Report {
 }
 
 func buildSection(query string, s signals.Section) Section {
+	s = signals.CleanSection(s)
 	sec := Section{
 		Query:  query,
 		Signal: s.Signal,
 		Title:  s.Title,
 		Meta:   s.Meta,
-		Err:    s.ErrString(),
+		Err:    signals.CleanLine(s.ErrString()),
 	}
 	for _, it := range s.Items {
 		sec.Items = append(sec.Items, Item{

@@ -73,6 +73,7 @@ func (k *Kit) onStoreTick(m *vkdeck.Model) tea.Cmd {
 }
 
 func (k *Kit) runRoleHookStep(m *vkdeck.Model, settle *app.RoleSettle, i int) tea.Cmd {
+	settle.MarkDone(i)
 	for ; settle != nil && i < len(settle.Steps); i++ {
 		step := settle.Steps[i]
 		cmd, err := step.Command()

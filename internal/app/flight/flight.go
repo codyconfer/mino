@@ -108,12 +108,12 @@ func fetchSections(ctx context.Context, name string, q Query) (sections []signal
 }
 
 func FetchQuery(ctx context.Context, au *audit.Store, role string, timeout time.Duration, q Query, parentID int64) []signals.Section {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	fetchCtx, cancelFetch := context.WithTimeout(ctx, timeout)
+	defer cancelFetch()
 
 	name := signalName(q)
 	started := time.Now()
-	sections, err := fetchSections(ctx, name, q)
+	sections, err := fetchSections(fetchCtx, name, q)
 	if err != nil {
 		sections = errSection(name, err)
 	} else {
@@ -125,7 +125,9 @@ func FetchQuery(ctx context.Context, au *audit.Store, role string, timeout time.
 	if label == "" {
 		label = name
 	}
-	au.RecordQuery(parentID, label, role, started, time.Now(), sections)
+	recordCtx, cancelRecord := context.WithTimeout(ctx, timeout)
+	defer cancelRecord()
+	au.RecordQueryContext(recordCtx, parentID, label, role, started, time.Now(), sections)
 	return sections
 }
 

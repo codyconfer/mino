@@ -15,25 +15,46 @@ type StatusEntry struct {
 }
 
 var (
-	statusMu        sync.RWMutex
-	statusBy        = map[string]StatusFactory{}
+	statusMu sync.RWMutex
+	statusBy = map[string]StatusFactory{}
+
+	enabledMu       sync.RWMutex
 	pluginEnabledFn func(id string) bool
 )
 
 func SetPluginEnabledFunc(fn func(id string) bool) {
+	enabledMu.Lock()
 	pluginEnabledFn = fn
+	enabledMu.Unlock()
+}
+
+// pluginEnabled reports whether the host considers a contribution id active.
+// With no host wired in (plain SDK use, unit tests) everything is enabled.
+func pluginEnabled(id string) bool {
+	enabledMu.RLock()
+	fn := pluginEnabledFn
+	enabledMu.RUnlock()
+	return fn == nil || fn(id)
 }
 
 func RegisterStatusContribution(pluginID string, f StatusFactory) {
 	if pluginID == "" || f == nil {
-		panic("plugin: RegisterStatusContribution requires plugin id and factory")
-	}
-	statusMu.Lock()
-	defer statusMu.Unlock()
-	if _, ok := statusBy[pluginID]; ok {
+		noteDiagnosticf(pluginID, "", "",
+			"RegisterStatusContribution requires a plugin id and a non-nil factory (id %q, factory nil=%v); status contribution skipped",
+			pluginID, f == nil)
 		return
 	}
-	statusBy[pluginID] = f
+	noteRegistrationCheckpoint(pluginID)
+	statusMu.Lock()
+	_, dup := statusBy[pluginID]
+	if !dup {
+		statusBy[pluginID] = f
+	}
+	statusMu.Unlock()
+	if dup {
+		noteDiagnosticf(pluginID, "", "",
+			"a status contribution for %q is already registered; later contribution skipped", pluginID)
+	}
 }
 
 func StatusContributionIDs() []string {
@@ -61,7 +82,7 @@ func CollectStatusEntries(home, role string) []StatusEntry {
 	ids := StatusContributionIDs()
 	out := make([]StatusEntry, 0, len(ids))
 	for _, id := range ids {
-		if pluginEnabledFn != nil && !pluginEnabledFn(id) {
+		if !pluginEnabled(id) {
 			continue
 		}
 		statusMu.RLock()

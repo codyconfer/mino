@@ -2,9 +2,15 @@ package statusstrip
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
+
+	"github.com/codyconfer/sisyphus/sealed"
+	vkglyph "github.com/codyconfer/viewkit/glyph"
 
 	"github.com/codyconfer/munin/internal/app"
+	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/plugin"
@@ -142,4 +148,88 @@ func hasName(names []string, want string) bool {
 		}
 	}
 	return false
+}
+
+type undecodableStore struct{}
+
+func (undecodableStore) Get(context.Context, string) (auth.Credential, bool, error) {
+	return auth.Credential{}, false, fmt.Errorf("read github token: %w", sealed.ErrUndecodable)
+}
+
+func (undecodableStore) Put(context.Context, string, auth.Credential) error { return nil }
+
+func (undecodableStore) Delete(context.Context, string) error { return nil }
+
+func TestProviderSurfacesAnUnreadableCredentialStore(t *testing.T) {
+	testenv.Isolate(t)
+	t.Cleanup(resetChips)
+	resetChips()
+	t.Cleanup(auth.ClearCredentialStoreError)
+	auth.ClearCredentialStoreError()
+
+	a := &app.App{Cfg: &config.Config{}}
+	if hasName(serviceNames(Provider(a)(context.Background()).Services), "credentials") {
+		t.Fatal("credentials chip present with a healthy store")
+	}
+
+	if _, state, _ := auth.ReadCredential(undecodableStore{}, "github"); state != auth.CredUnreadable {
+		t.Fatalf("ReadCredential state = %v, want unreadable", state)
+	}
+
+	info := Provider(a)(context.Background())
+	var chip *deck.ServiceStatus
+	for i := range info.Services {
+		if info.Services[i].ID == "credentials" {
+			chip = &info.Services[i]
+			break
+		}
+	}
+	if chip == nil {
+		t.Fatalf("status strip hides an undecryptable credential store, so munin still says 'not logged in': %v", serviceNames(info.Services))
+	}
+	if chip.Level != deck.StatusBad {
+		t.Errorf("credentials chip level = %v, want bad", chip.Level)
+	}
+	if chip.Detail != auth.CredUnreadable.String() {
+		t.Errorf("credentials chip detail = %q, want %q", chip.Detail, auth.CredUnreadable.String())
+	}
+}
+
+func TestProviderHonoursTheDeckDeadlineForPluginStatus(t *testing.T) {
+	testenv.Isolate(t)
+	t.Cleanup(resetChips)
+	resetChips()
+
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+
+	id := "test.statusstrip.block"
+	if _, ok := plugin.Lookup(id); !ok {
+		plugin.Register(plugin.Descriptor{
+			ID:           id,
+			Kind:         plugin.KindSignal,
+			Signal:       "teststatusstripblock",
+			Capabilities: []plugin.Capability{plugin.CapQuery},
+		})
+	}
+	plugin.RegisterStatusContribution(id, func(_, _ string) vkglyph.StatusContribution {
+		return vkglyph.StatusContribution{
+			Info: func() string { return "blocker" },
+			Status: func() (string, vkglyph.Severity) {
+				<-release
+				return "BLOCKED", vkglyph.SeverityNegative
+			},
+		}
+	})
+
+	const deadline = 150 * time.Millisecond
+	a := &app.App{Cfg: &config.Config{Home: t.TempDir()}}
+	ctx, cancel := context.WithTimeout(context.Background(), deadline)
+	defer cancel()
+
+	start := time.Now()
+	_ = Provider(a)(ctx)
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("status provider took %v with a %v deck deadline: the deadline is being discarded", d, deadline)
+	}
 }

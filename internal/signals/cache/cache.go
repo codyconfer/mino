@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"strings"
 	"sync"
 	"time"
 
@@ -348,4 +349,42 @@ func (s *Store) Clear(ctx context.Context, namespace string) (int64, error) {
 		return 0, errs.Wrap(errs.KindStore, err, "clear cache")
 	}
 	return n, nil
+}
+
+func (s *Store) ClearSignal(ctx context.Context, signal string) (int64, error) {
+	store := s.open(ctx)
+	if store == nil {
+		return 0, errUnavailable
+	}
+	var total int64
+	for _, ns := range s.signalNamespaces(ctx, store, signal) {
+		n, err := store.Clear(ctx, ns)
+		if err != nil {
+			return total, errs.Wrap(errs.KindStore, err, "clear cache")
+		}
+		total += n
+	}
+	return total, nil
+}
+
+func (s *Store) signalNamespaces(ctx context.Context, store *kv.Store, signal string) []string {
+	out := []string{Namespace(signal)}
+	if signal == "" {
+		return out
+	}
+	rows, err := store.Stats(ctx, 0)
+	if err != nil {
+		log.Debugf("cache: listing namespaces failed: %v", err)
+		return out
+	}
+	prefix := signal + ":"
+	for _, r := range rows {
+		if _, isSignal := SignalOf(r.Namespace); isSignal {
+			continue
+		}
+		if strings.HasPrefix(r.Namespace, prefix) {
+			out = append(out, r.Namespace)
+		}
+	}
+	return out
 }

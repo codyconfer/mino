@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strings"
 
 	internalapp "github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/app/onboard"
@@ -44,19 +45,22 @@ func Run(opts Options) (err error) {
 	}
 	applyBuildPolicy(opts)
 	internalapp.SetDefaultsFS(opts.Defaults)
+
+	args := opts.Args
+	if args == nil {
+		args = os.Args[1:]
+	}
+
 	registerPlugins(opts.RegisterPlugins)
-	ReportPluginDiagnostics(os.Stderr)
+	if reportDiagnosticsFor(args) {
+		ReportPluginDiagnostics(os.Stderr)
+	}
 
 	ctx := context.Background()
 	if opts.BeforeRun != nil {
 		if err := opts.BeforeRun(ctx); err != nil {
 			return err
 		}
-	}
-
-	args := opts.Args
-	if args == nil {
-		args = os.Args[1:]
 	}
 
 	defer func() {
@@ -69,16 +73,55 @@ func Run(opts Options) (err error) {
 	return err
 }
 
+// EnvPluginDiagnostics suppresses the stderr plugin-problem report when set to
+// one of 0/off/false/quiet/none. Diagnostics stay available in `munin plugins
+// list`.
+const EnvPluginDiagnostics = "MUNIN_PLUGIN_DIAGNOSTICS"
+
+// registerPlugins is defence in depth: every SDK entry point now skips a bad
+// contribution with a diagnostic instead of panicking, so nothing here should
+// ever fire. A panic raised by a plugin's own registration code still cannot be
+// contained per-contribution from out here (the hook is a single callback), so
+// the diagnostic names the plugin that was mid-registration and says plainly
+// that the rest of registration was dropped. Hosts that want per-plugin
+// containment should wrap each plugin in plugin.Guarded.
 func registerPlugins(fn func()) {
 	if fn == nil {
 		return
 	}
+	_, seenBefore := plugin.RegistrationCheckpoint()
 	defer func() {
-		if r := recover(); r != nil {
-			plugin.NoteDiagnostic("", "", "", fmt.Sprintf("plugin registration panicked: %v", r))
+		r := recover()
+		if r == nil {
+			return
 		}
+		who, seenAfter := plugin.RegistrationCheckpoint()
+		where := "before it registered any contribution"
+		if seenAfter == seenBefore {
+			who = ""
+		} else {
+			where = fmt.Sprintf("while registering %q", who)
+		}
+		plugin.NoteDiagnostic(who, "", "", fmt.Sprintf(
+			"plugin registration panicked %s: %v; registration was truncated, so this plugin's remaining contributions and every later plugin's contributions were skipped",
+			where, r))
 	}()
 	fn()
+}
+
+// reportDiagnosticsFor keeps the stderr report out of output a user cannot act
+// on: shell completion (where stray stderr breaks the UX) and explicit opt-out.
+func reportDiagnosticsFor(args []string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(EnvPluginDiagnostics))) {
+	case "0", "off", "false", "quiet", "none":
+		return false
+	}
+	for _, a := range args {
+		if strings.HasPrefix(a, "__complete") || a == "completion" {
+			return false
+		}
+	}
+	return true
 }
 
 func ReportPluginDiagnostics(w io.Writer) {
