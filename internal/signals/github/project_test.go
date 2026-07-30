@@ -3,8 +3,13 @@ package github
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/codyconfer/munin/internal/signals"
 )
 
 type fakeGraphQL struct {
@@ -65,7 +70,8 @@ func node(typename, title, status, repo string, extra string) string {
 	if status != "" {
 		statusJSON = `{"name":"` + status + `"}`
 	}
-	return `{"__typename":"` + typename + `","title":"` + title + `","url":"https://github.com/` + repo + `/issues/1",` +
+	slug := strings.ReplaceAll(title, " ", "-")
+	return `{"__typename":"` + typename + `","title":"` + title + `","url":"https://github.com/` + repo + `/issues/` + slug + `",` +
 		`"body":"details","createdAt":"` + nodeOpenedAt + `","updatedAt":"2026-07-20T10:00:00Z","state":"OPEN",` +
 		`"repository":{"nameWithOwner":"` + repo + `"},"author":{"login":"reporter"},` +
 		`"assignees":{"nodes":[{"login":"codyconfer"}]},"labels":{"nodes":[{"name":"type/bug"}]},` +
@@ -199,7 +205,8 @@ func TestProjectFetchResolvesViewer(t *testing.T) {
 func TestProjectFetchPagesAndCapsAtMax(t *testing.T) {
 	be := &fakeGraphQL{pages: []string{
 		searchPage(true, "cur1", incomingNode),
-		searchPage(false, "", incomingNode+","+incomingNode),
+		searchPage(false, "", node("Issue", "second report", "Incoming", "acme/escalations", "")+","+
+			node("Issue", "third report", "Incoming", "acme/escalations", "")),
 	}}
 	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 2, nil)
 
@@ -346,5 +353,225 @@ func TestGraphQLURL(t *testing.T) {
 		if got := graphQLURL(in); got != want {
 			t.Errorf("graphQLURL(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+type cursorBackend struct {
+	mu       sync.Mutex
+	pages    map[string]string
+	cursors  []string
+	calls    int
+	peak     int
+	live     int
+	entered  chan string
+	release  chan struct{}
+	together int
+	barrier  chan struct{}
+}
+
+func newCursorBackend(pages map[string]string) *cursorBackend {
+	return &cursorBackend{pages: pages}
+}
+
+func (c *cursorBackend) SearchIssues(context.Context, string, int) ([]byte, error) { return nil, nil }
+
+func (c *cursorBackend) GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error) {
+	after, _ := vars["after"].(string)
+	c.mu.Lock()
+	page, ok := c.pages[after]
+	c.calls++
+	c.cursors = append(c.cursors, after)
+	c.live++
+	c.peak = max(c.peak, c.live)
+	entered, release, barrier := c.entered, c.release, c.barrier
+	if barrier != nil && after != "" && c.live >= c.together {
+		close(c.barrier)
+		c.barrier = nil
+	}
+	c.mu.Unlock()
+	if barrier != nil && after != "" {
+		select {
+		case <-barrier:
+		case <-time.After(2 * time.Second):
+		}
+	}
+	defer func() {
+		c.mu.Lock()
+		c.live--
+		c.mu.Unlock()
+	}()
+	if entered != nil {
+		entered <- after
+		<-release
+	}
+	if !ok {
+		return nil, errors.New("no page for cursor " + after)
+	}
+	return []byte(page), nil
+}
+
+func searchPageOf(count int, hasNext bool, cursor, nodes string) string {
+	next := "false"
+	if hasNext {
+		next = "true"
+	}
+	return `{"data":{"search":{"issueCount":` + strconv.Itoa(count) + `,` +
+		`"pageInfo":{"hasNextPage":` + next + `,"endCursor":"` + cursor + `"},` +
+		`"nodes":[` + nodes + `]}}}`
+}
+
+func incoming(title string) string { return node("Issue", title, "Incoming", "acme/escalations", "") }
+
+func TestProjectFetchBurstsPagesInParallel(t *testing.T) {
+	be := newCursorBackend(map[string]string{
+		"":                searchPageOf(120, true, searchCursor(50), incoming("one")),
+		searchCursor(50):  searchPageOf(120, true, searchCursor(100), incoming("two")),
+		searchCursor(100): searchPageOf(120, false, "", incoming("three")),
+	})
+	be.together, be.barrier = 2, make(chan struct{})
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 30, nil)
+
+	secs, err := sig.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	var titles []string
+	for _, it := range secs[0].Items {
+		titles = append(titles, it.Title)
+	}
+	if strings.Join(titles, ",") != "one,two,three" {
+		t.Fatalf("items = %v, want page order one,two,three", titles)
+	}
+	if be.calls != 3 {
+		t.Errorf("pages fetched = %d, want 3", be.calls)
+	}
+	if be.peak < 2 {
+		t.Errorf("peak concurrent pages = %d, want the tail pages fetched together", be.peak)
+	}
+}
+
+func TestProjectFetchCrawlsPastAnUnderreportedCount(t *testing.T) {
+	be := newCursorBackend(map[string]string{
+		"":               searchPageOf(60, true, searchCursor(50), incoming("one")),
+		searchCursor(50): searchPageOf(60, true, "deep", incoming("two")),
+		"deep":           searchPageOf(60, false, "", incoming("three")),
+	})
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 30, nil)
+
+	secs, err := sig.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(secs[0].Items) != 3 {
+		t.Fatalf("want 3 items, got %d", len(secs[0].Items))
+	}
+	if be.calls != 3 {
+		t.Errorf("pages fetched = %d, want 3", be.calls)
+	}
+}
+
+func TestProjectFetchDropsRepeatsAcrossPages(t *testing.T) {
+	be := newCursorBackend(map[string]string{
+		"":               searchPageOf(80, true, searchCursor(50), incoming("one")+","+incoming("two")),
+		searchCursor(50): searchPageOf(80, false, "", incoming("two")+","+incoming("three")),
+	})
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 30, nil)
+
+	secs, err := sig.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	var titles []string
+	for _, it := range secs[0].Items {
+		titles = append(titles, it.Title)
+	}
+	if strings.Join(titles, ",") != "one,two,three" {
+		t.Fatalf("items = %v, want the repeat dropped", titles)
+	}
+}
+
+func TestProjectFetchSharesAWalkBetweenConcurrentQueries(t *testing.T) {
+	lead := newCursorBackend(map[string]string{"": searchPageOf(10, false, "", incoming("one"))})
+	lead.entered, lead.release = make(chan string), make(chan struct{})
+	follow := newCursorBackend(map[string]string{"": searchPageOf(10, false, "", incoming("one"))})
+
+	spec := ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}
+	leadDone := make(chan []signals.Section, 1)
+	go func() {
+		secs, err := NewProject(spec, lead, 30, nil).Fetch(context.Background())
+		if err != nil {
+			t.Error(err)
+		}
+		leadDone <- secs
+	}()
+	<-lead.entered
+
+	followDone := make(chan []signals.Section, 1)
+	go func() {
+		secs, err := NewProject(spec, follow, 30, nil).Fetch(context.Background())
+		if err != nil {
+			t.Error(err)
+		}
+		followDone <- secs
+	}()
+
+	select {
+	case <-time.After(100 * time.Millisecond):
+	case <-followDone:
+		t.Fatal("follower finished before the leader — walk was not shared")
+	}
+	close(lead.release)
+
+	leadSecs, followSecs := <-leadDone, <-followDone
+	if follow.calls != 0 {
+		t.Errorf("follower ran its own walk (%d pages)", follow.calls)
+	}
+	if len(leadSecs[0].Items) != 1 || len(followSecs[0].Items) != 1 {
+		t.Fatalf("lead=%d follow=%d items, want 1 each", len(leadSecs[0].Items), len(followSecs[0].Items))
+	}
+}
+
+func done(title string) string { return node("Issue", title, "Done", "acme/escalations", "") }
+
+func TestProjectFetchStopsOnceALocalFilterIsSatisfied(t *testing.T) {
+	be := newCursorBackend(map[string]string{
+		"": searchPageOf(1000, true, searchCursor(50),
+			strings.Join([]string{incoming("one"), incoming("two"), incoming("three")}, ",")),
+	})
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 2, nil)
+
+	secs, err := sig.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(secs[0].Items) != 2 {
+		t.Fatalf("items = %d, want 2 (the configured max)", len(secs[0].Items))
+	}
+	if be.calls != 1 {
+		t.Errorf("pages fetched = %d, want 1: the first page already held max items passing status:", be.calls)
+	}
+}
+
+func TestProjectFetchBoundsPagesByTheObservedKeepRate(t *testing.T) {
+	page := func(cursor string, keep string) string {
+		return searchPageOf(1000, true, cursor, strings.Join([]string{keep, done("skip a"), done("skip b")}, ","))
+	}
+	be := newCursorBackend(map[string]string{
+		"":                page(searchCursor(50), incoming("one")),
+		searchCursor(50):  page(searchCursor(100), incoming("two")),
+		searchCursor(100): page(searchCursor(150), incoming("three")),
+	})
+	sig := NewProject(ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}, be, 3, nil)
+
+	secs, err := sig.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(secs[0].Items) != 3 {
+		t.Fatalf("items = %d, want 3", len(secs[0].Items))
+	}
+	if be.calls != 3 {
+		t.Errorf("pages fetched = %d, want 3 projected from one kept item per page, not the full %d-page budget",
+			be.calls, searchMaxPages)
 	}
 }

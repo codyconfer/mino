@@ -59,10 +59,11 @@ arguments via `ARGS="…"`), and a fixed stdin/stdout/stderr contract:
 the interactive front-end (formerly `munin tui`, still accepted as a hidden alias):
 a main menu, run **history**, **query** and **flight** builders that build, run,
 validate, save, and delete in one view each, a **directives** browser for roles,
-**Notes** (notes/tasks/reminders), a **Plugins** enable/disable screen, accounts, an ad-hoc
-read-only **audit query** screen, and **settings**. `munin deck <flight>` jumps
-straight to a flight; `munin settings` opens just the settings screens. When the
-background daemon is installed, its status strip shows whether it is running.
+**Notes** (notes/tasks/reminders, on those same builders), a **Plugins**
+enable/disable screen, accounts, an ad-hoc read-only **audit query** screen, and
+**settings**. `munin deck <flight>` jumps straight to a flight; `munin settings`
+opens just the settings screens. When the background daemon is installed, its
+status strip shows whether it is running.
 
 ### tmux workspace (`munin deck --tmux`)
 
@@ -70,12 +71,12 @@ background daemon is installed, its status strip shows whether it is running.
 split off auxiliary panes on demand. Outside tmux it creates-or-attaches the
 session; inside tmux it uses the current pane. Requires `tmux` on `PATH`.
 
-The deck pane is the **owner**: it holds every DuckDB file and the background
-`serve` process, exactly as it does without `--tmux`. Auxiliary panes are **thin**
-— they open no database at all, so they never contend for DuckDB's exclusive
-per-file lock. An inbox pane reads the owner's `serve.sock`; a popped-out view
-reads a JSON snapshot the owner writes under `<home>/.data/panes/` and re-renders
-whenever the owner rewrites it.
+The deck pane is the **owner**: it runs the background `serve` process, exactly as
+it does without `--tmux`. Auxiliary panes are **thin** — they open no database at
+all, which keeps them cheap to start rather than being a correctness requirement.
+An inbox pane reads the owner's `serve.sock`; a popped-out view reads a JSON
+snapshot the owner writes under `<home>/.data/panes/` and re-renders whenever the
+owner rewrites it.
 
 Panes are opened by hotkey. The targets ship unbound — bind them under
 `keybinds:` in `config.yaml`:
@@ -151,8 +152,8 @@ default path. Try `munin fly demo`, `munin serve notify-smoke`, or
 you're wearing. A role names the flights and queries it surfaces (filters are
 queries, so one `queries:` list covers both); while
 that role is active, lists and the TUI show only those, and a bare `munin fly`
-runs the role's first flight. **Fly → Queries** and **Fly → Flights** both honour
-the active role, so the two lists stay consistent with `munin list`.
+runs the role's first flight. **Directives → Queries** and **Directives → Flights**
+both honour the active role, so the two lists stay consistent with `munin list`.
 
 **No role means everything.** With no active role, every query, filter, and
 flight is listed. That is a first-class position in the role ring, not just the
@@ -202,9 +203,13 @@ munin notes ui                             # Notes/Tasks TUI; Reminders when a s
 `install` / `uninstall` provision or remove unmodified example directives into
 `~/.munin` — they do not download or dynamically load plugin code. The deck
 **Plugins** screen toggles enablement; **Notes** opens the same views as
-`munin notes ui`. Reminders are a **service-only** contribution: the menu entry
-and create hotkey appear only while a live `serve`/`daemon` socket is attached
-(deck's session-owned silent serve counts).
+`munin notes ui` — one screen each for **Notes**, **Tasks**, and **Reminders**,
+each a list of records with **New** first and one builder/editor behind every
+row, on the same scheme as the directive screens (see
+[Build notes, tasks, and reminders the same way](#build-notes-tasks-and-reminders-the-same-way)).
+Reminders are a **service-only** contribution: the menu entry and create hotkey
+appear only while a live `serve`/`daemon` socket is attached (deck's
+session-owned silent serve counts).
 
 ## Realtime: serve & daemon
 
@@ -377,13 +382,16 @@ munin filter list               # saved filters plus plugin filter engines
 
 Every file may be YAML (`.yaml`/`.yml`) or JSON (`.json`) — the two mix freely.
 
-## Build and manage queries and flights without writing YAML
+## Build and manage directives without writing YAML
 
-**Fly → Queries** and **Fly → Flights** are the whole surface for your saved
-query and flight documents, wherever they live: **New** first, then every saved
-document with a one-line summary. There are no sub-screens — picking any entry opens one builder
-view, on a blank document or on that one, and everything happens there by
-keybinding:
+**Directives** is the deck's first menu entry, and it holds one screen per kind of
+document, in order: **Flights**, **Queries**, **Roles**, **Reports**, and
+**History** (which appears once something has been recorded).
+
+Every one of the first four is the whole surface for those saved documents,
+wherever they live: **New** first, then every saved document with a one-line
+summary. There are no sub-screens — picking any entry opens one builder view, on a
+blank document or on that one, and everything happens there by keybinding:
 
 | key | does |
 |---|---|
@@ -391,13 +399,16 @@ keybinding:
 | `ctrl+t` | validate it and show the findings inline |
 | `ctrl+y` | toggle a YAML panel showing exactly what would be saved |
 | `ctrl+s` | save (needs a name) |
+| `ctrl+g` | copy the last run's text (among the directives, reports only — the **Notes** record editors bind it too) |
+| `ctrl+w` | write the last run's text under `<home>/reports` (reports only — the record editors do not bind it) |
 | `ctrl+x` | delete, with a confirmation dialog (saved documents only) |
 | `tab` | move focus between the form and the results |
 | `esc` | back |
 
 Validation runs against what's in the form, not the file on disk, so it catches
-problems in edits you haven't saved yet — an unknown signal, a disabled plugin, a
-filter reference that doesn't resolve, a regex that won't compile.
+problems in edits you haven't saved yet — for a directive, an unknown signal, a
+disabled plugin, a filter reference that doesn't resolve, a regex that won't
+compile.
 
 Results land in a scrollable panel under the form, not on a separate screen, so
 the query that produced them stays in front of you. Focus moves to the results
@@ -411,11 +422,19 @@ collapses to a one-line summary; `tab` expands it again. Below roughly 20 rows
 the deck's own header and footer leave too little for the builder to lay out
 usefully.
 
-Both surfaces share the same shell, so the keys, the results panel, and the
-save/delete behaviour are identical; only the fields differ. A flight takes an
-ordered comma-separated list of query names, checked against your saved queries
-before it will run or save. Roles keep their own screens under
-**Fly → Directives**.
+Every one of these screens shares the same shell — one document type per kind
+behind one editor — so across the directives the keys, the results panel, and the
+save/delete behaviour are identical; only the fields differ. A flight takes
+an ordered comma-separated list of query names, checked against your saved queries
+before it will run or save. **Notes** reuses the same editor through a second,
+plugin-local document type, so it inherits the shell but not every key or
+behaviour, and its lists reload from the record store rather than being menus
+built once from the files on disk.
+
+**History** is the one entry that is not a builder: past runs cannot be edited, so
+selecting one opens its recorded results with `r` to refresh and `ctrl+x` to drop
+the run (with the same confirmation dialog). Deleting removes the run, the queries
+rolled up under it, and their recorded items.
 
 In the query builder `type:` is the first field — `query` or `filter` — and the
 rest of the form follows it: `type: filter` drops `signal`, its params, `extra
@@ -431,7 +450,8 @@ session, so flipping type to compare and back doesn't cost you your input.
 Because a run never leaves the view, tuning a regex and re-running is just
 `tab`, edit, `ctrl+r` — no retyping and no screen changes. Editing a saved document includes
 renaming it: change `name`, save, and the file moves and the old name is dropped
-from the store.
+from the store. A **Notes** record is the exception — it is identified by its row
+id rather than a name, so there is nothing to rename.
 
 What you save is what the form shows: switch a query to `type: filter` and the
 saved document has no `signal:` or `params:`, so it passes the `type: filter`
@@ -465,6 +485,50 @@ Saving writes the YAML file **and** imports the `directives` row into DuckDB, so
 saved query is immediately runnable by name — no `munin apply` or restart. Because
 the store versions every directive file as one row, that import also commits any
 other staged edits sitting anywhere under `~/.munin/`.
+
+## Build notes, tasks, and reminders the same way
+
+**Notes** is a plugin contribution on the deck's main menu — a sibling of
+**Directives**, not one of its screens — and it holds one screen per kind of
+record: **Notes**, **Tasks**, and **Reminders** (the last only while a
+`serve`/`daemon` socket is attached). Each screen is the whole surface for that
+kind: **New** first, then every record with a one-line summary, and picking either
+entry opens one editor — on a blank record or on that one. The `alt+n` / `alt+t` /
+`alt+r` hotkeys open the same builders from anywhere on the deck.
+
+A record is not a file, so the keys do slightly different work:
+
+| key | does |
+|---|---|
+| `ctrl+r` | run the `ntr` signal for the active role — the same fetch a `signal: ntr` query performs. On the **Reminders** editor it runs the reminder job instead, so you see what would fire right now; it never acknowledges anything |
+| `ctrl+t` | validate: check that the due parses, and flag a reminder that would fire immediately (already past due) or never (no due, or already done); for a note it just reports the body it would save |
+| `ctrl+y` | toggle a YAML panel showing the record |
+| `ctrl+s` | save (needs a **title**, not a name) |
+| `ctrl+g` | copy the record, with no prior run needed — a record already is text, where a report has to be rendered first |
+| `ctrl+x` | delete, with the same confirmation dialog (saved records only) |
+| `tab` | move focus between the form and the results |
+| `esc` | back |
+
+`ctrl+w` is deliberately unbound here: a record has no file output.
+
+The rest of the deltas against the directive builders:
+
+- Identity is the row **id**, not a name — the editor of a saved record is titled
+  `edit note #3` — so there is no rename: changing the title changes the title and
+  nothing else. The first `ctrl+s` on a builder turns that same view into the
+  editor of the record it just created, so the next `ctrl+s` updates it instead of
+  saving a second copy.
+- Task `done` is an ordinary editable toggle. Reminder `done` is **read-only in
+  the editor**, and one-way on the list: `reminders.done` is the flag the daemon
+  reads to keep from notifying you twice, so un-doning is not offered.
+- On a list, `enter` edits the row, `x` toggles done (tasks) or marks done
+  (reminders, which then drop off the list of open ones), and `r` refreshes. The
+  list also refreshes itself when you come back from an editor that saved or
+  deleted. It does **not** currently notice a `munin notes add` run by another
+  process — press `r` for that.
+- A multiline note body cannot take a typed newline in the TUI — a pre-existing
+  viewkit form limitation, not a new one. Use `munin notes add <title> <body>` or
+  `munin notes update <id> <title> <body>` when the body needs more than one line.
 
 ## Create a flight config
 
@@ -528,6 +592,15 @@ Within a flight, per-query `formatter:` fields are **ignored** — the flight's
 formatter sees the whole result set, so exactly one template renders a run.
 `munin serve` and the streaming path ignore formatters entirely: a stream never
 has "all the results".
+
+In the deck, formatters and the reports they produce are one screen:
+**Directives → Reports**. `render on` is the first field, so the template and the
+flight it renders over sit together — `ctrl+r` runs that flight and shows the
+rendered report in the results panel, from the draft in the form rather than the
+file on disk, so an edit (or a formatter you have not saved yet) renders as typed.
+`ctrl+g` copies the rendered text, `ctrl+w` writes it to
+`<home>/reports/<name>-<timestamp>.md`, and `ctrl+s`/`ctrl+x` save and delete the
+document itself.
 
 ### The template data model
 
@@ -660,6 +733,18 @@ the convention, but they carry no meaning of their own. Skipped while walking: d
 Every DuckDB file lives under `.data/` so the config dir itself stays readable
 (and diffable) — the loose files are `config.yaml` and whatever directives you put
 beside it.
+
+**Several munin processes can share one home.** DuckDB allows a single read-write
+process per file, so munin holds each database only around the work that needs it
+and releases it in between. A second process asking for a database that is in use
+is handed it within a few milliseconds, which means you can run `munin apply`, or
+anything else, in one terminal while a deck is open in another.
+
+A running deck notices this: it polls a revision marker beside the store roughly
+once a second and, when another process has written it, reloads its directives in
+place. New and changed flights, queries, filters, formatters, and roles appear
+without restarting. Changes to `config.yaml` itself — keybinds, theme, timeouts —
+still need a restart.
 
 **Config directory resolution** (highest wins): `--home`/`--dir` → `$MUNIN_HOME` →
 `home:` in `~/.config/munin/settings.yaml` → `~/.munin`. Bootstrap a fresh

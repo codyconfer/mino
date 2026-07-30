@@ -3,6 +3,7 @@ package ntr
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,6 +146,186 @@ func TestDueTodayCountLocalDay(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("DueTodayCount = %d, want 1 (local day)", n)
+	}
+}
+
+func TestUpdateTaskClearsDueToNull(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(ctx, t.TempDir(), "r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	due := time.Date(2026, 7, 29, 2, 10, 54, 0, time.UTC)
+	task, err := st.CreateTask(ctx, "ship", due)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpdateTask(ctx, task.ID, "shipped", true, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	ts, err := st.ListTasks(ctx, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ts) != 1 {
+		t.Fatalf("tasks = %d, want 1", len(ts))
+	}
+	if !ts[0].Due.IsZero() {
+		t.Errorf("task Due = %v, want zero", ts[0].Due)
+	}
+	if ts[0].Title != "shipped" {
+		t.Errorf("task Title = %q, want %q", ts[0].Title, "shipped")
+	}
+	if !ts[0].Done {
+		t.Error("task Done = false, want true")
+	}
+}
+
+func TestUpdateTaskRoleScoped(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	a, err := Open(ctx, home, "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := a.CreateTask(ctx, "alpha task", time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Close()
+
+	b, err := Open(ctx, home, "bravo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = b.UpdateTask(ctx, task.ID, "hijacked", true, time.Time{})
+	b.Close()
+	if err == nil {
+		t.Fatal("UpdateTask from another role succeeded, want error")
+	}
+	if !strings.Contains(err.Error(), "no longer exists") {
+		t.Fatalf("err = %v, want it to mention no longer exists", err)
+	}
+
+	a, err = Open(ctx, home, "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	ts, err := a.ListTasks(ctx, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ts) != 1 {
+		t.Fatalf("tasks = %d, want 1", len(ts))
+	}
+	if ts[0].Title != "alpha task" || ts[0].Done {
+		t.Fatalf("task = %+v, want unchanged", ts[0])
+	}
+}
+
+func TestUpdateReminderRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(ctx, t.TempDir(), "r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	rem, err := st.CreateReminder(ctx, "ping", time.Now().UTC().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	due := time.Now().UTC().Add(-time.Minute).Truncate(time.Second)
+	if err := st.UpdateReminder(ctx, rem.ID, "pong", due); err != nil {
+		t.Fatal(err)
+	}
+	rs, err := st.ListReminders(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rs) != 1 {
+		t.Fatalf("reminders = %d, want 1", len(rs))
+	}
+	if rs[0].Title != "pong" {
+		t.Errorf("reminder Title = %q, want %q", rs[0].Title, "pong")
+	}
+	if !rs[0].Due.Equal(due) {
+		t.Errorf("reminder Due = %v, want %v", rs[0].Due, due)
+	}
+	dueList, err := st.DueReminders(ctx, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dueList) != 1 || dueList[0].ID != rem.ID {
+		t.Fatalf("DueReminders = %v, want the updated reminder", dueList)
+	}
+}
+
+func TestDeleteReminderRoleScoped(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	a, err := Open(ctx, home, "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rem, err := a.CreateReminder(ctx, "keep me", time.Now().UTC().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Close()
+
+	b, err := Open(ctx, home, "bravo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = b.DeleteReminder(ctx, rem.ID)
+	b.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a, err = Open(ctx, home, "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs, err := a.ListReminders(ctx, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rs) != 1 {
+		t.Fatalf("reminders after wrong-role delete = %d, want 1", len(rs))
+	}
+	if err := a.DeleteReminder(ctx, rem.ID); err != nil {
+		t.Fatal(err)
+	}
+	rs, err = a.ListReminders(ctx, true)
+	a.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rs) != 0 {
+		t.Fatalf("reminders after delete = %d, want 0", len(rs))
+	}
+}
+
+func TestUpdateRejectsMissingRecord(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(ctx, t.TempDir(), "r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	err = st.UpdateTask(ctx, 4242, "ghost", false, time.Time{})
+	if err == nil || !strings.Contains(err.Error(), "no longer exists") {
+		t.Fatalf("UpdateTask err = %v, want no longer exists", err)
+	}
+	err = st.UpdateReminder(ctx, 4243, "ghost", time.Now().UTC())
+	if err == nil || !strings.Contains(err.Error(), "no longer exists") {
+		t.Fatalf("UpdateReminder err = %v, want no longer exists", err)
 	}
 }
 

@@ -30,7 +30,6 @@ func init() {
 	})
 }
 
-// fake counts calls so tests can tell a cache hit from a refetch.
 type fake struct {
 	calls    atomic.Int32
 	title    string
@@ -161,10 +160,10 @@ func TestStaleFallbackOnError(t *testing.T) {
 	f := &fake{title: "warm", err: boom, failFrom: 2}
 	q := s.Wrap(f, cacheableSignal, "", nil)
 
-	fetch(t, q) // populate
+	fetch(t, q)
 	time.Sleep(time.Millisecond)
 
-	secs := fetch(t, q) // TTL expired, inner call fails
+	secs := fetch(t, q)
 	if got := secs[0].Title; got != "warm" {
 		t.Fatalf("stale fetch = %q, want the cached %q", got, "warm")
 	}
@@ -410,7 +409,7 @@ func TestNilStoreIsUsableAsRosterCache(t *testing.T) {
 	if _, ok := s.Get(context.Background(), "ns", "k"); ok {
 		t.Error("nil Get should miss")
 	}
-	s.Put(context.Background(), "ns", "k", "v", time.Now()) // must not panic
+	s.Put(context.Background(), "ns", "k", "v", time.Now())
 	if err := s.Close(); err != nil {
 		t.Errorf("nil Close = %v", err)
 	}

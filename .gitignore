@@ -1,6 +1,9 @@
 .claude/
 *.duckdb
 *.duckdb.wal
+*.duckdb.lock
+*.duckdb.wait
+*.duckdb.gen
 /dist/
 go.work*
 .munin/

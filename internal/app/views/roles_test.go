@@ -41,7 +41,7 @@ func (v *roleView) set(t *testing.T, key, val string) {
 	t.Fatalf("role form has no field %q", key)
 }
 
-func (v *formatterView) set(t *testing.T, key, val string) {
+func (v *reportView) set(t *testing.T, key, val string) {
 	t.Helper()
 	for i := range v.Form().Fields {
 		if v.Form().Fields[i].Key == key {
@@ -49,7 +49,24 @@ func (v *formatterView) set(t *testing.T, key, val string) {
 			return
 		}
 	}
-	t.Fatalf("formatter form has no field %q", key)
+	t.Fatalf("report form has no field %q", key)
+}
+
+func (v *reportView) selectFlight(t *testing.T, name string) {
+	t.Helper()
+	for i := range v.Form().Fields {
+		if v.Form().Fields[i].Key != "flight" {
+			continue
+		}
+		for opt, o := range v.Form().Fields[i].Options {
+			if o == name {
+				v.Form().Fields[i].Selected = opt
+				return
+			}
+		}
+		t.Fatalf("flight %q is not an option: %v", name, v.Form().Fields[i].Options)
+	}
+	t.Fatal("report form has no flight field")
 }
 
 func stubPreview(kit *Kit, order *[]string) {

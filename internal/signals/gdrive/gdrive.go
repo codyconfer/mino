@@ -69,7 +69,7 @@ func (s *gdriveSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 }
 
 func CreateFile(ctx context.Context, ga auth.GoogleAuth, dirRef, name, content, mime string) (signals.Item, error) {
-	svc, err := newService(ctx, ga)
+	svc, err := newWriteService(ctx, ga)
 	if err != nil {
 		return signals.Item{}, err
 	}
@@ -130,12 +130,21 @@ func resolveFolders(ctx context.Context, svc *drive.Service, refs []string) ([]s
 	return ids, nil
 }
 
+var (
+	driveReadScopes  = []string{drive.DriveMetadataReadonlyScope}
+	driveWriteScopes = []string{drive.DriveMetadataReadonlyScope, drive.DriveFileScope}
+)
+
 func newService(ctx context.Context, ga auth.GoogleAuth) (*drive.Service, error) {
-	return auth.GoogleService(ctx, ga, "drive", drive.DriveScope, drive.NewService)
+	return auth.GoogleService(ctx, ga, "drive", driveReadScopes, drive.NewService)
+}
+
+func newWriteService(ctx context.Context, ga auth.GoogleAuth) (*drive.Service, error) {
+	return auth.GoogleService(ctx, ga, "drive", driveWriteScopes, drive.NewService)
 }
 
 func UploadAppData(ctx context.Context, ga auth.GoogleAuth, name string, content []byte, mime string) (signals.Item, error) {
-	svc, err := auth.GoogleService(ctx, ga, "drive", drive.DriveAppdataScope, drive.NewService)
+	svc, err := auth.GoogleService(ctx, ga, "drive", []string{drive.DriveAppdataScope}, drive.NewService)
 	if err != nil {
 		return signals.Item{}, err
 	}
@@ -159,7 +168,7 @@ func PruneAppData(ctx context.Context, ga auth.GoogleAuth, namePrefix string, ke
 	if keep <= 0 {
 		return nil, nil
 	}
-	svc, err := auth.GoogleService(ctx, ga, "drive", drive.DriveAppdataScope, drive.NewService)
+	svc, err := auth.GoogleService(ctx, ga, "drive", []string{drive.DriveAppdataScope}, drive.NewService)
 	if err != nil {
 		return nil, err
 	}

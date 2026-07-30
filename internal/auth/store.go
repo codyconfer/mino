@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"time"
+
+	"github.com/codyconfer/munin/internal/log"
 )
 
 type Credential struct {
@@ -23,7 +25,11 @@ func getCred(store TokenStore, service string) (Credential, bool) {
 		return Credential{}, false
 	}
 	c, ok, err := store.Get(context.Background(), service)
-	if err != nil || !ok {
+	if err != nil {
+		log.Warnf("reading the stored %s credential: %v", service, err)
+		return Credential{}, false
+	}
+	if !ok {
 		return Credential{}, false
 	}
 	return c, true

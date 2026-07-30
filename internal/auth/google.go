@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -19,7 +20,7 @@ var GoogleLoginScopes = []string{
 	"https://www.googleapis.com/auth/calendar.readonly",
 	"https://www.googleapis.com/auth/gmail.readonly",
 	"https://www.googleapis.com/auth/drive.metadata.readonly",
-	"https://www.googleapis.com/auth/drive",
+	"https://www.googleapis.com/auth/drive.file",
 	"https://www.googleapis.com/auth/drive.appdata",
 	"https://www.googleapis.com/auth/tasks",
 	"openid", "email",
@@ -50,8 +51,8 @@ func GoogleClientOption(ctx context.Context, ga GoogleAuth, scopes ...string) (o
 	return nil, adcErr
 }
 
-func GoogleService[T any](ctx context.Context, ga GoogleAuth, name, scope string, newSvc func(context.Context, ...option.ClientOption) (*T, error)) (*T, error) {
-	opt, err := GoogleClientOption(ctx, ga, scope)
+func GoogleService[T any](ctx context.Context, ga GoogleAuth, name string, scopes []string, newSvc func(context.Context, ...option.ClientOption) (*T, error)) (*T, error) {
+	opt, err := GoogleClientOption(ctx, ga, scopes...)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,49 @@ func readGoogleToken(store TokenStore) *oauth2.Token {
 	return &oauth2.Token{AccessToken: c.AccessToken, RefreshToken: c.RefreshToken, Expiry: c.Expiry}
 }
 
+var grantedScopes struct {
+	mu sync.Mutex
+	m  map[string]map[string]bool
+}
+
+func tokenScopes(ctx context.Context, accessToken string) map[string]bool {
+	grantedScopes.mu.Lock()
+	if granted, ok := grantedScopes.m[accessToken]; ok {
+		grantedScopes.mu.Unlock()
+		return granted
+	}
+	grantedScopes.mu.Unlock()
+
+	granted := fetchTokenScopes(ctx, accessToken)
+	if granted == nil {
+		return nil
+	}
+
+	grantedScopes.mu.Lock()
+	defer grantedScopes.mu.Unlock()
+	if grantedScopes.m == nil || len(grantedScopes.m) > 16 {
+		grantedScopes.m = map[string]map[string]bool{}
+	}
+	grantedScopes.m[accessToken] = granted
+	return granted
+}
+
 func missingScopes(ctx context.Context, accessToken string, required []string) []string {
+	granted := tokenScopes(ctx, accessToken)
+	if granted == nil {
+		return nil
+	}
+	var missing []string
+	for _, s := range required {
+		if scopesNotRequiringGrant[s] || granted[s] {
+			continue
+		}
+		missing = append(missing, s)
+	}
+	return missing
+}
+
+func fetchTokenScopes(ctx context.Context, accessToken string) map[string]bool {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		"https://oauth2.googleapis.com/tokeninfo", nil)
 	if err != nil {
@@ -190,14 +233,7 @@ func missingScopes(ctx context.Context, accessToken string, required []string) [
 	for _, s := range strings.Fields(info.Scope) {
 		granted[s] = true
 	}
-	var missing []string
-	for _, s := range required {
-		if scopesNotRequiringGrant[s] || granted[s] {
-			continue
-		}
-		missing = append(missing, s)
-	}
-	return missing
+	return granted
 }
 
 func adcHelp(scopes []string, reason string) error {

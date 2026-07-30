@@ -150,6 +150,9 @@ func (m *Manager) Refresh(id tmux.PaneID, s Snapshot) error {
 }
 
 func (m *Manager) CloseLast() error {
+	if m == nil {
+		return nil
+	}
 	m.prune()
 	m.mu.Lock()
 	if len(m.panes) == 0 {
@@ -163,6 +166,9 @@ func (m *Manager) CloseLast() error {
 }
 
 func (m *Manager) CloseAll() {
+	if m == nil {
+		return
+	}
 	m.mu.Lock()
 	panes := m.panes
 	m.panes = nil
@@ -175,6 +181,9 @@ func (m *Manager) CloseAll() {
 }
 
 func (m *Manager) Count() int {
+	if m == nil {
+		return 0
+	}
 	m.prune()
 	m.mu.Lock()
 	defer m.mu.Unlock()

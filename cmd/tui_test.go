@@ -50,3 +50,34 @@ func collectCmds(msg tea.Msg) []tea.Cmd {
 	}
 	return nil
 }
+
+func TestDeckFlightNameTracksRoleHome(t *testing.T) {
+	orig := shared
+	t.Cleanup(func() { shared = orig })
+
+	for _, tc := range []struct {
+		name string
+		role config.RoleDef
+		want string
+	}{
+		{"home wins over first flight", config.RoleDef{Name: "triage", Home: "triage-check", Flights: []string{"morning", "triage-check"}}, "triage-check"},
+		{"unknown home falls back", config.RoleDef{Name: "triage", Home: "ghost", Flights: []string{"morning"}}, "morning"},
+		{"no home falls back", config.RoleDef{Name: "triage", Flights: []string{"morning"}}, "morning"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			shared = &app.App{
+				Cfg: &config.Config{Home: t.TempDir(), Role: "triage"},
+				Directives: &config.Directives{
+					Flights: map[string]config.Flight{
+						"morning":      {Name: "morning"},
+						"triage-check": {Name: "triage-check"},
+					},
+					Roles: map[string]config.RoleDef{"triage": tc.role},
+				},
+			}
+			if got := deckFlightName(); got != tc.want {
+				t.Errorf("deckFlightName() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

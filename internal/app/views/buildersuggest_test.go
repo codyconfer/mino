@@ -74,7 +74,6 @@ func TestBuilderGithubQueryParamSuggestsSearchTerms(t *testing.T) {
 		t.Fatalf("param.query = %q, want %q", got, "is:open")
 	}
 
-	// Space-delimited, so the next term completes independently.
 	v.typeIn(" author")
 	if !v.Form().AcceptSuggestion() {
 		t.Fatal("accepting the second term failed")
@@ -109,8 +108,6 @@ func TestBuilderRegexFieldsOfferNothing(t *testing.T) {
 	}
 }
 
-// Tab has two jobs in the editor: accept a suggestion when one is showing,
-// otherwise move focus to the results pane. Both must still work.
 func TestTabAcceptsSuggestionThenSwitchesFocus(t *testing.T) {
 	kit := testKit(t)
 	v := builderFor(t, kit)
@@ -129,8 +126,6 @@ func TestTabAcceptsSuggestionThenSwitchesFocus(t *testing.T) {
 		t.Fatal("tab must not also switch panes in the same keystroke")
 	}
 
-	// Nothing left to complete, so tab reverts to its focus meaning. There
-	// are no results yet, so setFocus is a no-op and focus stays on the form.
 	updateBuilder(a, tea.KeyMsg{Type: tea.KeyTab})
 	if v.OnResults() {
 		t.Fatal("with no results, focus stays on the form")

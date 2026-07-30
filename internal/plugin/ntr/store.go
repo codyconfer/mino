@@ -231,6 +231,39 @@ func (s *Store) UpdateNote(ctx context.Context, id int64, title, body string) er
 		title, body, time.Now().UTC(), id, s.role)
 }
 
+func (s *Store) exists(ctx context.Context, table, kind string, id int64) error {
+	res, err := s.db.Query(ctx, fmt.Sprintf(`SELECT 1 FROM %s WHERE id = ? AND role = ?`, table), id, s.role)
+	if err != nil {
+		return err
+	}
+	if len(res.Rows) == 0 {
+		return fmt.Errorf("%s #%d no longer exists", kind, id)
+	}
+	return nil
+}
+
+func (s *Store) UpdateTask(ctx context.Context, id int64, title string, done bool, due time.Time) error {
+	if err := s.exists(ctx, "tasks", "task", id); err != nil {
+		return err
+	}
+	return s.db.Exec(ctx,
+		`UPDATE tasks SET title = ?, done = ?, due = ?, updated_at = ? WHERE id = ? AND role = ?`,
+		title, done, nullTime(due), time.Now().UTC(), id, s.role)
+}
+
+func (s *Store) UpdateReminder(ctx context.Context, id int64, title string, due time.Time) error {
+	if err := s.exists(ctx, "reminders", "reminder", id); err != nil {
+		return err
+	}
+	return s.db.Exec(ctx,
+		`UPDATE reminders SET title = ?, due = ? WHERE id = ? AND role = ?`,
+		title, due.UTC(), id, s.role)
+}
+
+func (s *Store) DeleteReminder(ctx context.Context, id int64) error {
+	return s.db.Exec(ctx, `DELETE FROM reminders WHERE id = ? AND role = ?`, id, s.role)
+}
+
 func nullTime(t time.Time) any {
 	if t.IsZero() {
 		return nil

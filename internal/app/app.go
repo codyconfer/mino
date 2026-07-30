@@ -102,8 +102,6 @@ func Load(opts Options) (*App, error) {
 			return nil, errs.Newf(errs.KindUsage, "--cache-ttl %q is not a valid duration", opts.CacheTTL).
 				WithHint("use a Go duration like 60s, 5m, or 0 to disable")
 		}
-		// An explicit flag beats the config file outright, per-signal entries included —
-		// otherwise `--cache-ttl 0` would still cache anything listed under cache.signals.
 		cfg.Cache.TTL, cfg.Cache.Signals = opts.CacheTTL, nil
 		cfg.Cache.DetailTTL = opts.CacheTTL
 	}
@@ -243,6 +241,17 @@ func (a *App) RefreshDirectives(policy config.ReconcilePolicy) error {
 	a.Directives = d
 	a.applyRoleContexts()
 	return nil
+}
+
+func (a *App) HasStore() bool {
+	return a != nil && a.Mgr != nil
+}
+
+func (a *App) StoreRevision() (string, bool) {
+	if a == nil || a.Mgr == nil {
+		return "", false
+	}
+	return a.Mgr.DB().Revision()
 }
 
 const DefaultSignalTimeout = 30 * time.Second

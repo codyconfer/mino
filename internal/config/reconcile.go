@@ -62,7 +62,11 @@ func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePo
 
 	var mgr *sisyphus.Manager
 	if m, err := OpenStore(context.Background(), home); err != nil {
-		log.Debugf("store DB unavailable: %v; reading from files", err)
+		if sconfig.Exists(DataPath(home, ConfigDB)) {
+			log.Warnf("store DB unavailable: %v; reading from files instead", err)
+		} else {
+			log.Debugf("no store DB yet: %v; reading from files", err)
+		}
 	} else {
 		mgr = m
 	}

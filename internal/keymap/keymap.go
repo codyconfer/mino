@@ -17,29 +17,50 @@ const (
 	Validate        keys.Action = "munin.validate"
 	Preview         keys.Action = "munin.preview"
 	Focus           keys.Action = "munin.focus"
+	Copy            keys.Action = "munin.copy"
+	Write           keys.Action = "munin.write"
 	PluginInstall   keys.Action = "munin.plugin.install"
 	PluginUninstall keys.Action = "munin.plugin.uninstall"
+	Toggle          keys.Action = "munin.toggle"
 )
 
-func RunBinding() keys.Binding {
-	return keys.Binding{Keys: []string{"ctrl+r"}, Action: Run, Glyph: "ctrl+r", Label: "run"}
+func muninBindings() []keys.Binding {
+	return []keys.Binding{
+		{Keys: []string{"ctrl+r"}, Action: Run, Glyph: "ctrl+r", Label: "run"},
+		{Keys: []string{"ctrl+x"}, Action: Delete, Glyph: "ctrl+x", Label: "delete"},
+		{Keys: []string{"ctrl+t"}, Action: Validate, Glyph: "ctrl+t", Label: "validate"},
+		{Keys: []string{"ctrl+y"}, Action: Preview, Glyph: "ctrl+y", Label: "yaml"},
+		{Keys: []string{"tab"}, Action: Focus, Glyph: "tab", Label: "focus"},
+		{Keys: []string{"ctrl+g"}, Action: Copy, Glyph: "ctrl+g", Label: "copy"},
+		{Keys: []string{"ctrl+w"}, Action: Write, Glyph: "ctrl+w", Label: "write"},
+		{Keys: []string{"ctrl+s"}, Action: Save, Glyph: "ctrl+s", Label: "save"},
+		{Keys: []string{"i"}, Action: PluginInstall, Glyph: "i", Label: "install"},
+		{Keys: []string{"u"}, Action: PluginUninstall, Glyph: "u", Label: "uninstall"},
+		{Keys: []string{"x"}, Action: Toggle, Glyph: "x", Label: "done"},
+	}
 }
 
-func DeleteBinding() keys.Binding {
-	return keys.Binding{Keys: []string{"ctrl+x"}, Action: Delete, Glyph: "ctrl+x", Label: "delete"}
+func binding(a keys.Action) keys.Binding {
+	if b := keys.Cur().Binding(a); len(b.Keys) > 0 {
+		return b
+	}
+	for _, b := range muninBindings() {
+		if b.Action == a {
+			return b
+		}
+	}
+	return keys.Binding{Action: a}
 }
 
-func ValidateBinding() keys.Binding {
-	return keys.Binding{Keys: []string{"ctrl+t"}, Action: Validate, Glyph: "ctrl+t", Label: "validate"}
-}
-
-func PreviewBinding() keys.Binding {
-	return keys.Binding{Keys: []string{"ctrl+y"}, Action: Preview, Glyph: "ctrl+y", Label: "yaml"}
-}
-
-func FocusBinding() keys.Binding {
-	return keys.Binding{Keys: []string{"tab"}, Action: Focus, Glyph: "tab", Label: "focus"}
-}
+func RunBinding() keys.Binding      { return binding(Run) }
+func DeleteBinding() keys.Binding   { return binding(Delete) }
+func ValidateBinding() keys.Binding { return binding(Validate) }
+func PreviewBinding() keys.Binding  { return binding(Preview) }
+func FocusBinding() keys.Binding    { return binding(Focus) }
+func CopyBinding() keys.Binding     { return binding(Copy) }
+func WriteBinding() keys.Binding    { return binding(Write) }
+func SaveBinding() keys.Binding     { return binding(Save) }
+func ToggleBinding() keys.Binding   { return binding(Toggle) }
 
 func BuilderBindings() []keys.Binding {
 	return []keys.Binding{
@@ -48,17 +69,16 @@ func BuilderBindings() []keys.Binding {
 		PreviewBinding(),
 		DeleteBinding(),
 		FocusBinding(),
+		CopyBinding(),
+		WriteBinding(),
 	}
 }
 
 func muninScheme() keys.Scheme {
-	return keys.Default().With(
-		keys.Binding{Keys: []string{"ctrl+s"}, Action: Save, Glyph: "ctrl+s", Label: "save"},
-		keys.Binding{Keys: []string{"i"}, Action: PluginInstall, Glyph: "i", Label: "install"},
-		keys.Binding{Keys: []string{"u"}, Action: PluginUninstall, Glyph: "u", Label: "uninstall"},
+	return keys.Default().With(append(muninBindings(),
 		keys.Binding{Keys: []string{"esc", "q"}, Action: keys.Cancel, Glyph: "esc", Label: "back"},
 		keys.Binding{Keys: []string{"ctrl+c"}, Action: keys.Quit, Glyph: "ctrl+c", Label: "quit"},
-	)
+	)...)
 }
 
 func Register() {
@@ -103,8 +123,8 @@ func Plugins() *keys.Map {
 		confirm,
 		sc.Binding(keys.Cancel),
 		sc.Binding(keys.Quit),
-		keys.Binding{Keys: []string{"i"}, Action: PluginInstall, Glyph: "i", Label: "install"},
-		keys.Binding{Keys: []string{"u"}, Action: PluginUninstall, Glyph: "u", Label: "uninstall"},
+		binding(PluginInstall),
+		binding(PluginUninstall),
 	)
 }
 
@@ -152,6 +172,6 @@ func Form(extra ...keys.Binding) *keys.Map {
 		keys.Up, keys.Down, keys.Left, keys.Right,
 		keys.Confirm, keys.Cancel, keys.Erase, keys.PageUp, keys.PageDown,
 	)
-	bs = append(bs, keys.Binding{Keys: []string{"ctrl+s"}, Action: Save, Glyph: "ctrl+s", Label: "save"})
+	bs = append(bs, SaveBinding())
 	return keys.NewMap(append(bs, extra...)...)
 }

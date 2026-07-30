@@ -2,6 +2,7 @@ package views
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -138,17 +139,17 @@ func TestMainMenuIncludesNotesEntry(t *testing.T) {
 	}
 }
 
-func TestMainMenuFlySubmenu(t *testing.T) {
+func TestMainMenuDirectivesSubmenu(t *testing.T) {
 	kit := testKit(t)
 
 	mainLabels := make([]string, 0, len(kit.mainMenuItems()))
 	for _, it := range kit.mainMenuItems() {
 		mainLabels = append(mainLabels, it.Label)
 	}
-	if mainLabels[0] != "Fly" {
-		t.Fatalf("main menu first item = %q, want Fly; got %v", mainLabels[0], mainLabels)
+	if mainLabels[0] != "Directives" {
+		t.Fatalf("main menu first item = %q, want Directives; got %v", mainLabels[0], mainLabels)
 	}
-	for _, banned := range []string{"Take flight", "History", "Directives"} {
+	for _, banned := range []string{"Take flight", "Fly", "History", "Reports"} {
 		for _, l := range mainLabels {
 			if l == banned {
 				t.Fatalf("main menu still has %q: %v", banned, mainLabels)
@@ -156,32 +157,24 @@ func TestMainMenuFlySubmenu(t *testing.T) {
 		}
 	}
 
-	flyLabels := make([]string, 0, len(kit.flyMenuItems()))
-	for _, it := range kit.flyMenuItems() {
-		flyLabels = append(flyLabels, it.Label)
+	labels := make([]string, 0, len(kit.directiveMenuItems()))
+	for _, it := range kit.directiveMenuItems() {
+		labels = append(labels, it.Label)
 	}
-	for _, want := range []string{"Flights", "Roles"} {
-		found := false
-		for _, l := range flyLabels {
-			if l == want {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("fly submenu missing %q: %v", want, flyLabels)
-		}
+	want := []string{"Flights", "Queries", "Roles", "Reports"}
+	if len(labels) != len(want) {
+		t.Fatalf("directives submenu = %v, want %v (History needs an audit store)", labels, want)
 	}
-	for _, l := range flyLabels {
-		if l == "History" {
-			t.Fatalf("fly submenu showed History without audit store: %v", flyLabels)
+	for i, w := range want {
+		if labels[i] != w {
+			t.Fatalf("directives submenu[%d] = %q, want %q (full %v)", i, labels[i], w, labels)
 		}
 	}
 
 	app := deck.New(kit.MainMenu())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
-	if !strings.Contains(app.View(), "Fly") {
-		t.Fatalf("main menu view missing Fly: %q", app.View())
+	if !strings.Contains(app.View(), "Directives") {
+		t.Fatalf("main menu view missing Directives: %q", app.View())
 	}
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
@@ -194,14 +187,14 @@ func TestMainMenuFlySubmenu(t *testing.T) {
 	}
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
-	for _, want := range []string{"Flights", "Roles"} {
+	for _, want := range []string{"Flights", "Roles", "Reports"} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("fly submenu view missing %q: %q", want, got)
+			t.Fatalf("directives submenu view missing %q: %q", want, got)
 		}
 	}
 }
 
-func TestFlySubmenuIncludesHistoryWhenPresent(t *testing.T) {
+func TestDirectivesSubmenuIncludesHistoryWhenPresent(t *testing.T) {
 	st, err := audit.Open(context.Background(), filepath.Join(t.TempDir(), "audit.duckdb"))
 	if err != nil {
 		t.Fatal(err)
@@ -213,17 +206,17 @@ func TestFlySubmenuIncludesHistoryWhenPresent(t *testing.T) {
 	kit := testKit(t)
 	kit.d.App.Audit = st
 
-	flyLabels := make([]string, 0, len(kit.flyMenuItems()))
-	for _, it := range kit.flyMenuItems() {
-		flyLabels = append(flyLabels, it.Label)
+	labels := make([]string, 0, len(kit.directiveMenuItems()))
+	for _, it := range kit.directiveMenuItems() {
+		labels = append(labels, it.Label)
 	}
-	want := []string{"Flights", "History", "Queries", "Formatters", "Reports", "Roles"}
-	if len(flyLabels) != len(want) {
-		t.Fatalf("fly submenu = %v, want %v", flyLabels, want)
+	want := []string{"Flights", "Queries", "Roles", "Reports", "History"}
+	if len(labels) != len(want) {
+		t.Fatalf("directives submenu = %v, want %v", labels, want)
 	}
 	for i, w := range want {
-		if flyLabels[i] != w {
-			t.Fatalf("fly submenu[%d] = %q, want %q (full %v)", i, flyLabels[i], w, flyLabels)
+		if labels[i] != w {
+			t.Fatalf("directives submenu[%d] = %q, want %q (full %v)", i, labels[i], w, labels)
 		}
 	}
 	for _, it := range kit.mainMenuItems() {
@@ -325,7 +318,7 @@ func TestViewsSmoke(t *testing.T) {
 	kit := testKit(t)
 	roots := map[string]vkdeck.View{
 		"main":       kit.MainMenu(),
-		"fly":        kit.Fly(),
+		"directives": kit.Directives(),
 		"tooling":    kit.Tooling(),
 		"queries":    kit.Queries(),
 		"flights":    kit.Flights(),
@@ -333,9 +326,8 @@ func TestViewsSmoke(t *testing.T) {
 		"builder":    kit.QueryBuilder(),
 		"roles":      kit.Roles(),
 		"rolenew":    kit.RoleBuilder(),
-		"formatters": kit.FormatterDirectives(),
-		"fmtnew":     kit.FormatterBuilder(),
-		"reports":    kit.Formatters(),
+		"reports":    kit.Reports(),
+		"reportnew":  kit.ReportBuilder(),
 		"settings":   kit.Settings(),
 		"audit":      kit.AuditQuery(),
 		"ntr":        kit.NTR(),
@@ -361,22 +353,22 @@ func TestViewsSmoke(t *testing.T) {
 	}
 }
 
-func TestFlyMenuOffersRolesAndFormatters(t *testing.T) {
+func TestDirectivesMenuOffersRolesAndReports(t *testing.T) {
 	kit := testKit(t)
-	app := deck.New(kit.Fly())
+	app := deck.New(kit.Directives())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
-	for _, want := range []string{"Roles", "Formatters", "Reports"} {
+	for _, want := range []string{"Flights", "Queries", "Roles", "Reports"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("fly menu missing %q: %q", want, got)
+			t.Errorf("directives menu missing %q: %q", want, got)
 		}
 	}
-	if strings.Contains(got, "Directives") {
-		t.Errorf("fly menu still offers the Directives wrapper: %q", got)
+	if strings.Contains(got, "Formatters") {
+		t.Errorf("directives menu still offers Formatters beside Reports: %q", got)
 	}
 }
 
-func TestFormatterDirectivesListsNewFirstAndScopesToRole(t *testing.T) {
+func TestReportsListNewFirstAndScopesToRole(t *testing.T) {
 	kit := testKit(t)
 	kit.d.App.Directives.Formatters = map[string]config.FormatterDef{
 		"brief":   {Name: "brief", Title: "Brief", Template: "a"},
@@ -387,45 +379,51 @@ func TestFormatterDirectivesListsNewFirstAndScopesToRole(t *testing.T) {
 	}
 
 	kit.d.App.Cfg.Role = ""
-	app := deck.New(kit.FormatterDirectives())
+	app := deck.New(kit.Reports())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
 	newAt, briefAt := strings.Index(body, "New"), strings.Index(body, "brief")
 	if newAt < 0 || briefAt < 0 {
-		t.Fatalf("formatter list missing entries: %q", body)
+		t.Fatalf("report list missing entries: %q", body)
 	}
 	if newAt > briefAt {
-		t.Errorf("New should come before saved formatters:\n%s", body)
+		t.Errorf("New should come before saved reports:\n%s", body)
 	}
 	if !strings.Contains(body, "verbose") {
-		t.Errorf("unscoped list should show every formatter: %q", body)
+		t.Errorf("unscoped list should show every report: %q", body)
 	}
 
 	kit.d.App.Cfg.Role = "triage"
-	scoped := deck.New(kit.FormatterDirectives())
+	scoped := deck.New(kit.Reports())
 	scoped = step(scoped, tea.WindowSizeMsg{Width: 100, Height: 40})
 	if body := scoped.View(); strings.Contains(body, "verbose") {
 		t.Errorf("role triage should hide verbose: %q", body)
 	}
 }
 
-func TestFormatterEditorFields(t *testing.T) {
+func TestReportEditorFields(t *testing.T) {
 	kit := testKit(t)
 	kit.d.App.Directives.Formatters = map[string]config.FormatterDef{
 		"brief": {Name: "brief", Title: "Brief", Template: "line one\nline two"},
 	}
 
-	v, ok := kit.FormatterEditor("brief").(*formatterView)
+	v, ok := kit.ReportEditor("brief").(*reportView)
 	if !ok {
-		t.Fatal("formatter view has the wrong type")
+		t.Fatal("report view has the wrong type")
 	}
 	fields := v.editorFields(map[string]any{
 		"name":     "brief",
 		"title":    "Brief",
 		"template": "line one\nline two",
 	})
-	if len(fields) != 3 {
-		t.Fatalf("formatter fields = %d, want 3: %+v", len(fields), fields)
+	if len(fields) != 4 {
+		t.Fatalf("report fields = %d, want 4: %+v", len(fields), fields)
+	}
+	if fields[0].Key != "flight" || fields[0].Kind != forms.FieldSelect {
+		t.Errorf("first field = %q (%v), want the flight select", fields[0].Key, fields[0].Kind)
+	}
+	if len(fields[0].Options) == 0 || fields[0].Options[0] != reportNoFlight {
+		t.Errorf("flight options = %v, want %q first", fields[0].Options, reportNoFlight)
 	}
 	byKey := map[string]forms.Field{}
 	for _, f := range fields {
@@ -433,7 +431,7 @@ func TestFormatterEditorFields(t *testing.T) {
 	}
 	tmpl, ok := byKey["template"]
 	if !ok {
-		t.Fatalf("formatter form missing template field: %+v", fields)
+		t.Fatalf("report form missing template field: %+v", fields)
 	}
 	if tmpl.Kind != forms.FieldMultiline {
 		t.Errorf("template field kind = %v, want FieldMultiline", tmpl.Kind)
@@ -445,21 +443,21 @@ func TestFormatterEditorFields(t *testing.T) {
 		t.Error("template field has a Suggester; template syntax must not be completed")
 	}
 	if byKey["name"].Text != "brief" || byKey["title"].Text != "Brief" {
-		t.Errorf("formatter name/title = %q/%q, want brief/Brief", byKey["name"].Text, byKey["title"].Text)
+		t.Errorf("report name/title = %q/%q, want brief/Brief", byKey["name"].Text, byKey["title"].Text)
 	}
 }
 
-func TestFormatterEditorRejectsEmptyTemplate(t *testing.T) {
+func TestReportEditorRejectsEmptyTemplate(t *testing.T) {
 	kit := testKit(t)
-	v, ok := kit.FormatterBuilder().(*formatterView)
+	v, ok := kit.ReportBuilder().(*reportView)
 	if !ok {
-		t.Fatal("formatter view has the wrong type")
+		t.Fatal("report view has the wrong type")
 	}
 	v.set(t, "name", "brief")
 	v.set(t, "template", "")
 
 	if _, err := v.editorValue(); err == nil {
-		t.Fatal("a formatter with no template should fail")
+		t.Fatal("a report with no template should fail")
 	}
 
 	app := deck.New(v)
@@ -471,15 +469,15 @@ func TestFormatterEditorRejectsEmptyTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(directives.Formatters) != 0 {
-		t.Fatalf("empty template wrote a formatter: %+v", directives.Formatters)
+		t.Fatalf("empty template wrote a report: %+v", directives.Formatters)
 	}
 }
 
-func TestFormatterEditorSaveWritesTemplate(t *testing.T) {
+func TestReportEditorSaveWritesTemplate(t *testing.T) {
 	kit := testKit(t)
-	v, ok := kit.FormatterBuilder().(*formatterView)
+	v, ok := kit.ReportBuilder().(*reportView)
 	if !ok {
-		t.Fatal("formatter view has the wrong type")
+		t.Fatal("report view has the wrong type")
 	}
 	v.set(t, "template", "line one\nline two")
 	v.set(t, "title", "Brief")
@@ -495,13 +493,13 @@ func TestFormatterEditorSaveWritesTemplate(t *testing.T) {
 	}
 	fd, ok := directives.Formatters["brief"]
 	if !ok {
-		t.Fatalf("formatter not written: %+v (status %q)", directives.Formatters, v.Status())
+		t.Fatalf("report not written: %+v (status %q)", directives.Formatters, v.Status())
 	}
 	if fd.Title != "Brief" {
-		t.Errorf("formatter title = %q, want Brief", fd.Title)
+		t.Errorf("report title = %q, want Brief", fd.Title)
 	}
 	if fd.Template != "line one\nline two" {
-		t.Errorf("formatter template = %q, want both lines", fd.Template)
+		t.Errorf("report template = %q, want both lines", fd.Template)
 	}
 }
 
@@ -524,11 +522,13 @@ func TestHistorySelectShowsFlightResults(t *testing.T) {
 	kit := testKit(t)
 	kit.d.App.Audit = st
 
-	app := deck.New(kit.History())
+	view := kit.History()
+	app := deck.New(view)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	app = settle(app, view.Init())
 	body := app.View()
 	if !strings.Contains(body, "morning") {
-		t.Fatalf("history menu missing run: %q", body)
+		t.Fatalf("history list missing run: %q", body)
 	}
 
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
@@ -569,4 +569,289 @@ func flattenCmds(cmd tea.Cmd) []tea.Cmd {
 func step(a *vkdeck.Model, msg tea.Msg) *vkdeck.Model {
 	m, _ := a.Update(msg)
 	return m.(*vkdeck.Model)
+}
+
+func TestFlightResultsRerunRefetches(t *testing.T) {
+	runs := 0
+	kit := testKit(t)
+	kit.d.FetchFlightAudited = func(name string) []signals.Section {
+		runs++
+		return []signals.Section{{
+			Signal: "github",
+			Title:  name,
+			Items:  []signals.Item{{Kind: "pr", Title: fmt.Sprintf("run-%d", runs), URL: "https://x/1"}},
+		}}
+	}
+
+	view := kit.FlightResults("default")
+	app := deck.New(view)
+	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+	app = settle(app, view.Init())
+	if got := app.View(); !strings.Contains(got, "run-1") {
+		t.Fatalf("initial flight results missing run-1: %q", got)
+	}
+	if got := app.View(); !strings.Contains(got, "rerun") {
+		t.Errorf("flight results footer missing rerun hint: %q", got)
+	}
+
+	app = settle(app, cmdOf(update(app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})))
+	if runs != 2 {
+		t.Fatalf("rerun key ran the flight %d times, want 2", runs)
+	}
+	if got := app.View(); !strings.Contains(got, "run-2") {
+		t.Fatalf("rerun did not refresh results: %q", got)
+	}
+
+	app = settle(app, cmdOf(update(app, vkdeck.ReloadMsg{})))
+	if runs != 3 {
+		t.Fatalf("ReloadMsg ran the flight %d times, want 3", runs)
+	}
+	if got := app.View(); !strings.Contains(got, "run-3") {
+		t.Fatalf("ReloadMsg did not refresh results: %q", got)
+	}
+}
+
+func reportKit(t *testing.T) (*Kit, *int) {
+	t.Helper()
+	kit := testKit(t)
+	renders := 0
+	kit.d.FetchFlightQueries = func(flight string, names []string) []signals.Section {
+		return []signals.Section{{Signal: "github", Title: flight}}
+	}
+	kit.d.RenderReport = func(fd config.FormatterDef, label string, sections []signals.Section) (string, error) {
+		renders++
+		return fmt.Sprintf("%s on %s render %d", fd.Template, label, renders), nil
+	}
+	return kit, &renders
+}
+
+func TestReportEditorRendersDraftOverSelectedFlight(t *testing.T) {
+	kit, renders := reportKit(t)
+	v, ok := kit.ReportBuilder().(*reportView)
+	if !ok {
+		t.Fatal("report view has the wrong type")
+	}
+	v.set(t, "template", "draft-template")
+
+	if _, err := v.renderer(); err == nil {
+		t.Fatal("rendering with no flight selected should fail")
+	}
+
+	v.selectFlight(t, "default")
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+	app = settle(app, cmdOf(update(app, tea.KeyMsg{Type: tea.KeyCtrlR})))
+	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	if *renders != 1 {
+		t.Fatalf("rendered %d times, want 1 (status %q)", *renders, v.Status())
+	}
+	if got := app.View(); !strings.Contains(got, "draft-template on default render 1") {
+		t.Fatalf("results missing the draft render: %q", got)
+	}
+
+	app = settle(app, cmdOf(update(app, vkdeck.ReloadMsg{})))
+	if *renders != 2 {
+		t.Fatalf("ReloadMsg rendered %d times, want 2", *renders)
+	}
+	if got := app.View(); !strings.Contains(got, "render 2") {
+		t.Fatalf("ReloadMsg did not re-render: %q", got)
+	}
+}
+
+func TestReportEditorCopyAndWriteNeedARenderFirst(t *testing.T) {
+	kit, _ := reportKit(t)
+	var copied string
+	var savedFor string
+	kit.d.CopyText = func(text string) error {
+		copied = text
+		return nil
+	}
+	kit.d.SaveReport = func(formatter, text string) (string, error) {
+		savedFor = formatter
+		return filepath.Join(kit.d.App.Cfg.Home, "reports", formatter+".md"), nil
+	}
+
+	v, ok := kit.ReportBuilder().(*reportView)
+	if !ok {
+		t.Fatal("report view has the wrong type")
+	}
+	v.set(t, "template", "draft-template")
+	v.set(t, "name", "weekly")
+	v.selectFlight(t, "default")
+
+	if _, err := v.CopyOutput(); err == nil {
+		t.Error("copy before a render should fail")
+	}
+	if _, err := v.WriteOutput(); err == nil {
+		t.Error("write before a render should fail")
+	}
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+	settle(app, cmdOf(update(app, tea.KeyMsg{Type: tea.KeyCtrlR})))
+
+	summary, err := v.CopyOutput()
+	if err != nil {
+		t.Fatalf("CopyOutput after a render: %v", err)
+	}
+	if !strings.Contains(copied, "draft-template on default") {
+		t.Errorf("copied %q, want the rendered report", copied)
+	}
+	if !strings.Contains(summary, "clipboard") {
+		t.Errorf("copy summary = %q", summary)
+	}
+	if _, err := v.WriteOutput(); err != nil {
+		t.Fatalf("WriteOutput after a render: %v", err)
+	}
+	if savedFor != "weekly" {
+		t.Errorf("saved report under %q, want weekly", savedFor)
+	}
+}
+
+func TestReportEditorCopyKeyIsWired(t *testing.T) {
+	kit, _ := reportKit(t)
+	copies := 0
+	kit.d.CopyText = func(string) error {
+		copies++
+		return nil
+	}
+
+	v, ok := kit.ReportBuilder().(*reportView)
+	if !ok {
+		t.Fatal("report view has the wrong type")
+	}
+	v.set(t, "template", "draft-template")
+	v.selectFlight(t, "default")
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+	if !strings.Contains(app.View(), "ctrl+g") {
+		t.Errorf("report editor footer missing the copy key:\n%s", app.View())
+	}
+	app = settle(app, cmdOf(update(app, tea.KeyMsg{Type: tea.KeyCtrlR})))
+	app = settle(app, cmdOf(update(app, tea.KeyMsg{Type: tea.KeyCtrlG})))
+
+	if copies != 1 {
+		t.Fatalf("ctrl+g copied %d times, want 1 (status %q)", copies, v.Status())
+	}
+	if got := app.View(); !strings.Contains(got, "clipboard") {
+		t.Errorf("copy summary not shown after ctrl+g:\n%s", got)
+	}
+}
+
+func TestQueryBuilderDoesNotOfferCopyOrWrite(t *testing.T) {
+	kit := testKit(t)
+	app := deck.New(kit.QueryBuilder())
+	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+	got := app.View()
+	for _, glyph := range []string{"ctrl+g", "ctrl+w"} {
+		if strings.Contains(got, glyph) {
+			t.Errorf("query builder offers %s but produces no report text:\n%s", glyph, got)
+		}
+	}
+}
+
+func TestHistoryRunDeleteDropsTheRun(t *testing.T) {
+	st, err := audit.Open(context.Background(), filepath.Join(t.TempDir(), "audit.duckdb"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+
+	start := time.Now()
+	fid := st.StartFlight("morning", "triage")
+	st.RecordQuery(fid, "incidents", "triage", start, time.Now(), []signals.Section{{
+		Signal: "github",
+		Title:  "github",
+		Items:  []signals.Item{{Kind: "pr", Title: "drop-me", URL: "https://x/1", Timestamp: start}},
+	}})
+	st.FinishFlight(fid)
+
+	kit := testKit(t)
+	kit.d.App.Audit = st
+	runs, err := st.RecentEntries(10)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("RecentEntries = %v, %v, want one run", runs, err)
+	}
+
+	view := kit.historyRun(runs[0])
+	app := deck.New(view)
+	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+	app = settle(app, view.Init())
+
+	app = step(app, tea.KeyMsg{Type: tea.KeyCtrlX})
+	if got := app.View(); !strings.Contains(got, "delete run #") {
+		t.Fatalf("ctrl+x did not open the confirm dialog: %q", got)
+	}
+	app = step(app, tea.KeyMsg{Type: tea.KeyEsc})
+	if left, err := st.RecentEntries(10); err != nil || len(left) != 1 {
+		t.Fatalf("cancelling deleted the run: %v, %v", left, err)
+	}
+
+	app = step(app, tea.KeyMsg{Type: tea.KeyCtrlX})
+	app = step(app, tea.KeyMsg{Type: tea.KeyLeft})
+	settle(app, cmdOf(update(app, tea.KeyMsg{Type: tea.KeyEnter})))
+
+	left, err := st.RecentEntries(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 0 {
+		t.Fatalf("run survived the delete: %v", left)
+	}
+}
+
+func TestHistoryListShowsEmptyStateAndReloads(t *testing.T) {
+	st, err := audit.Open(context.Background(), filepath.Join(t.TempDir(), "audit.duckdb"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+
+	kit := testKit(t)
+	kit.d.App.Audit = st
+
+	view := kit.History()
+	app := deck.New(view)
+	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
+	app = settle(app, view.Init())
+	if got := app.View(); !strings.Contains(got, "no recorded runs") {
+		t.Fatalf("empty history missing its note: %q", got)
+	}
+
+	fid := st.StartFlight("morning", "triage")
+	st.FinishFlight(fid)
+	app = settle(app, cmdOf(update(app, vkdeck.ReloadMsg{})))
+	if got := app.View(); !strings.Contains(got, "morning") {
+		t.Fatalf("reload did not pick up the new run: %q", got)
+	}
+}
+
+func TestHomeFlightLandsWhileAnotherViewIsOnTop(t *testing.T) {
+	kit := testKit(t)
+	kit.d.FetchHomeFlight = func(name string) []signals.Section {
+		return []signals.Section{{Signal: "github", Title: "from " + name}}
+	}
+	kit.d.App.Directives.Roles = map[string]config.RoleDef{
+		"triage": {Name: "triage", Home: "default", Flights: []string{"default"}},
+	}
+	kit.d.App.Cfg.Role = "triage"
+
+	home := kit.Home()
+	host := deck.New(home)
+	host = step(host, tea.WindowSizeMsg{Width: 120, Height: 40})
+	slow := home.Init()
+
+	host = settle(host, cmdOf(update(host, tea.KeyMsg{Type: tea.KeyEnter})))
+	host = settle(host, slow)
+	host = settle(host, cmdOf(update(host, tea.KeyMsg{Type: tea.KeyEsc})))
+
+	got := host.View()
+	if strings.Contains(got, "loading home flight") {
+		t.Fatalf("home stuck on loading after the flight landed off-screen:\n%s", got)
+	}
+	if !strings.Contains(got, "from default") {
+		t.Fatalf("home missing flight rows:\n%s", got)
+	}
 }

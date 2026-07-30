@@ -16,10 +16,6 @@ import (
 	"github.com/codyconfer/munin/internal/signals/build"
 )
 
-// prompt fills the flags from an interactive form rather than the command
-// line. It is the same field set and the same suggestions the deck's query
-// builder offers, so the two surfaces cannot drift apart. Everything it
-// collects is written back into f, leaving f.query as the single validator.
 func (f *queryBuildFlags) prompt() error {
 	if !term.IsTerminal(os.Stdin.Fd()) {
 		return errs.New(errs.KindUsage, "-i needs a terminal").

@@ -27,7 +27,7 @@ func New(calendarID string, window time.Duration, max int, ga auth.GoogleAuth) s
 func (s *gcalSignal) Name() string { return "calendar" }
 
 func (s *gcalSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
-	svc, err := auth.GoogleService(ctx, s.auth, "calendar", calendar.CalendarReadonlyScope, calendar.NewService)
+	svc, err := auth.GoogleService(ctx, s.auth, "calendar", []string{calendar.CalendarReadonlyScope}, calendar.NewService)
 	if err != nil {
 		return nil, err
 	}

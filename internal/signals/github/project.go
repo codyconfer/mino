@@ -2,12 +2,17 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
+
 	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/signals"
 )
 
@@ -16,8 +21,11 @@ const projectScopeHint = "the read:project scope is required; run `gh auth refre
 const (
 	searchPageSize  = 50
 	searchMaxPages  = 20
+	searchPageBurst = 6
 	statusFieldName = "Status"
 )
+
+var searchWalks singleflight.Group
 
 type ProjectSpec struct {
 	Owner  string
@@ -119,29 +127,168 @@ func (p *projectSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 	search := pf.searchQuery(p.spec.Ref(), viewer)
 	local := pf.local()
 
-	items := make([]signals.Item, 0, p.max)
-	cursor := ""
-	for range searchMaxPages {
+	keeps := func(n searchNode) bool {
+		it, ok := n.toProjectItem(p.spec, roster)
+		return ok && local.keeps(it, viewer)
+	}
+	nodes, err := p.searchNodes(ctx, search, keeps)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]signals.Item, 0, min(p.max, len(nodes)))
+	for _, node := range nodes {
+		it, ok := node.toProjectItem(p.spec, roster)
+		if !ok || !local.keeps(it, viewer) {
+			continue
+		}
+		items = append(items, it.item)
+		if len(items) >= p.max {
+			break
+		}
+	}
+	return []signals.Section{p.section(items)}, nil
+}
+
+func (p *projectSignal) searchNodes(ctx context.Context, search string, keeps func(searchNode) bool) ([]searchNode, error) {
+	key := strings.Join([]string{
+		p.spec.Field,
+		p.spec.Filter,
+		strconv.Itoa(p.max),
+		search,
+	}, "\x00")
+	res, err, shared := searchWalks.Do(key, func() (any, error) {
+		return p.walk(ctx, search, keeps)
+	})
+	if err != nil {
+		return nil, err
+	}
+	nodes, _ := res.([]searchNode)
+	if shared {
+		log.Debugf("github: reused in-flight search walk for %q (%d nodes)", search, len(nodes))
+	}
+	return nodes, nil
+}
+
+func (p *projectSignal) walk(ctx context.Context, search string, keeps func(searchNode) bool) ([]searchNode, error) {
+	first, err := p.page(ctx, search, "")
+	if err != nil {
+		return nil, err
+	}
+	nodes := dedupeNodes(append([]searchNode(nil), first.Nodes...))
+	kept := countKept(nodes, keeps)
+	from, left := first, searchMaxPages-1
+	if kept >= p.max || left <= 0 || !first.PageInfo.HasNextPage || first.PageInfo.EndCursor == "" {
+		return nodes, nil
+	}
+	if burst := p.burstPages(first, kept, left); burst > 0 {
+		got, last, err := p.burst(ctx, search, burst)
+		if err != nil {
+			return nil, err
+		}
+		nodes, from, left = dedupeNodes(append(nodes, got...)), last, left-burst
+		kept = countKept(nodes, keeps)
+	}
+	tail, err := p.crawl(ctx, search, from, left, p.max-kept, keeps)
+	if err != nil {
+		return nil, err
+	}
+	return dedupeNodes(append(nodes, tail...)), nil
+}
+
+func (p *projectSignal) burstPages(first *searchResult, kept, left int) int {
+	if first.PageInfo.EndCursor != searchCursor(searchPageSize) {
+		log.Debugf("github: unrecognised search cursor %q; walking pages one at a time", first.PageInfo.EndCursor)
+		return 0
+	}
+	return min(left, pagesNeeded(p.max-kept, kept), pagesFor(first.IssueCount)-1)
+}
+
+func pagesNeeded(want, kept int) int {
+	if want <= 0 {
+		return 0
+	}
+	if kept <= 0 {
+		return searchPageBurst
+	}
+	return (want + kept - 1) / kept
+}
+
+func countKept(nodes []searchNode, keeps func(searchNode) bool) int {
+	n := 0
+	for _, node := range nodes {
+		if keeps(node) {
+			n++
+		}
+	}
+	return n
+}
+
+func (p *projectSignal) burst(ctx context.Context, search string, pages int) ([]searchNode, *searchResult, error) {
+	results := make([]*searchResult, pages)
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(searchPageBurst)
+	for i := range results {
+		g.Go(func() error {
+			res, err := p.page(gctx, search, searchCursor((i+1)*searchPageSize))
+			if err != nil {
+				return err
+			}
+			results[i] = res
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, nil, err
+	}
+	var out []searchNode
+	for _, res := range results {
+		out = append(out, res.Nodes...)
+	}
+	return out, results[len(results)-1], nil
+}
+
+func (p *projectSignal) crawl(ctx context.Context, search string, from *searchResult, pages, want int, keeps func(searchNode) bool) ([]searchNode, error) {
+	var nodes []searchNode
+	cursor := from.PageInfo.EndCursor
+	for range pages {
+		if want <= 0 || !from.PageInfo.HasNextPage || cursor == "" {
+			break
+		}
 		res, err := p.page(ctx, search, cursor)
 		if err != nil {
 			return nil, err
 		}
-		for _, node := range res.Nodes {
-			it, ok := node.toProjectItem(p.spec, roster)
-			if !ok || !local.keeps(it, viewer) {
+		nodes = append(nodes, res.Nodes...)
+		want -= countKept(res.Nodes, keeps)
+		from, cursor = res, res.PageInfo.EndCursor
+	}
+	return nodes, nil
+}
+
+func pagesFor(items int) int {
+	if items <= 0 {
+		return 1
+	}
+	return (items + searchPageSize - 1) / searchPageSize
+}
+
+func searchCursor(offset int) string {
+	return base64.StdEncoding.EncodeToString([]byte("cursor:" + strconv.Itoa(offset)))
+}
+
+func dedupeNodes(nodes []searchNode) []searchNode {
+	seen := make(map[string]bool, len(nodes))
+	out := nodes[:0]
+	for _, n := range nodes {
+		if n.URL != "" {
+			if seen[n.URL] {
 				continue
 			}
-			items = append(items, it.item)
-			if len(items) >= p.max {
-				return []signals.Section{p.section(items)}, nil
-			}
+			seen[n.URL] = true
 		}
-		if !res.PageInfo.HasNextPage || res.PageInfo.EndCursor == "" {
-			break
-		}
-		cursor = res.PageInfo.EndCursor
+		out = append(out, n)
 	}
-	return []signals.Section{p.section(items)}, nil
+	return out
 }
 
 func (p *projectSignal) section(items []signals.Item) signals.Section {

@@ -20,9 +20,9 @@ func (k *Kit) NTR() vkdeck.View {
 }
 
 func (k *Kit) ntrMenuItem() vkdeck.MenuItem {
-	desc := "notes · tasks"
+	desc := "notes, tasks"
 	if ntr.RemindersUIVisible() {
-		desc = "notes · tasks · reminders"
+		desc = "notes, tasks, reminders"
 	}
 	return vkdeck.MenuItem{
 		Label: "Notes",

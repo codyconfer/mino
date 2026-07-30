@@ -115,7 +115,7 @@ func resolveList(ctx context.Context, svc *tasksapi.Service, ref string) (id, ti
 }
 
 func newService(ctx context.Context, ga auth.GoogleAuth) (*tasksapi.Service, error) {
-	return auth.GoogleService(ctx, ga, "tasks", tasksapi.TasksScope, tasksapi.NewService)
+	return auth.GoogleService(ctx, ga, "tasks", []string{tasksapi.TasksScope}, tasksapi.NewService)
 }
 
 func taskToItem(t *tasksapi.Task, listTitle string) signals.Item {

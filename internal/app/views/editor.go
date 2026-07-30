@@ -3,7 +3,6 @@ package views
 import (
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/layout"
-	"github.com/codyconfer/viewkit/list"
 	"github.com/codyconfer/viewkit/theme"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
@@ -35,7 +34,11 @@ type editorDoc interface {
 }
 
 func newEditorShell(doc editorDoc, seed map[string]any) *editorShell {
-	return vkdeck.NewEditor(&editorAdapter{doc: doc}, editorKeys(), seed)
+	base := &editorAdapter{doc: doc}
+	if out, ok := doc.(editorOutput); ok {
+		return vkdeck.NewEditor(&editorOutputAdapter{editorAdapter: base, out: out}, editorKeys(), seed)
+	}
+	return vkdeck.NewEditor(base, editorKeys(), seed)
 }
 
 func editorKeys() vkdeck.EditorKeys {
@@ -48,27 +51,25 @@ func editorKeys() vkdeck.EditorKeys {
 		Preview:  keymap.Preview,
 		Delete:   keymap.Delete,
 		Focus:    keymap.Focus,
+		Copy:     keymap.Copy,
+		Write:    keymap.Write,
 	}
 }
 
-type sectionResults struct {
-	label    string
-	sections []signals.Section
-}
-
-func (r sectionResults) Items(f layout.Frame) []list.Item {
-	return render.SectionItems(f, r.label, r.sections)
-}
-
-func (r sectionResults) Count() int {
-	n := 0
-	for _, sec := range r.sections {
-		n += len(sec.Items)
-	}
-	return n
+type editorOutput interface {
+	CopyOutput() (string, error)
+	WriteOutput() (string, error)
 }
 
 type editorAdapter struct{ doc editorDoc }
+
+type editorOutputAdapter struct {
+	*editorAdapter
+	out editorOutput
+}
+
+func (a *editorOutputAdapter) CopyOutput() (string, error)  { return a.out.CopyOutput() }
+func (a *editorOutputAdapter) WriteOutput() (string, error) { return a.out.WriteOutput() }
 
 func (a *editorAdapter) Kind() string         { return a.doc.editorKind() }
 func (a *editorAdapter) Title() string        { return a.doc.editorTitle() }
@@ -116,7 +117,7 @@ func (a *editorAdapter) Run() (string, func() vkdeck.Results, error) {
 		return "", nil, err
 	}
 	return label, func() vkdeck.Results {
-		return sectionResults{label: label, sections: fetch()}
+		return render.SectionResults{Label: label, Sections: fetch()}
 	}, nil
 }
 

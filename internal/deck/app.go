@@ -29,6 +29,10 @@ func WithMsgHook(fn func(m *vkdeck.Model, msg tea.Msg) (tea.Cmd, bool)) Option {
 	return Option(vkdeck.WithMsgHook(fn))
 }
 
+func WithInitCmd(cmd tea.Cmd) Option {
+	return Option(vkdeck.WithInitCmd(cmd))
+}
+
 func New(root vkdeck.View, opts ...Option) *vkdeck.Model {
 	return vkdeck.New(root, muninOpts(opts...)...)
 }

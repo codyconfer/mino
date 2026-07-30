@@ -77,9 +77,10 @@ func (s Signal) Fetch(ctx context.Context) ([]signals.Section, error) {
 			kind = "completed"
 		}
 		items = append(items, signals.Item{
-			Kind:  kind,
-			Title: t.Title,
-			Meta:  map[string]string{"id": fmt.Sprint(t.ID), "type": "task"},
+			Kind:      kind,
+			Title:     t.Title,
+			Timestamp: t.Due,
+			Meta:      map[string]string{"id": fmt.Sprint(t.ID), "type": "task"},
 		})
 	}
 	return []signals.Section{{Signal: SignalName, Title: "notes", Items: items}}, nil

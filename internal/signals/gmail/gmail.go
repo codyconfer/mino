@@ -34,7 +34,7 @@ func (g *gmailSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 		max = 15
 	}
 
-	svc, err := auth.GoogleService(ctx, g.auth, "gmail", gmailapi.GmailReadonlyScope, gmailapi.NewService)
+	svc, err := auth.GoogleService(ctx, g.auth, "gmail", []string{gmailapi.GmailReadonlyScope}, gmailapi.NewService)
 	if err != nil {
 		return nil, err
 	}

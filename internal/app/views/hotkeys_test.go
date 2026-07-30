@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/munin/internal/config"
@@ -13,6 +14,7 @@ import (
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/plugin"
 	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/munin/internal/signals"
 	pub "github.com/codyconfer/munin/plugin"
 )
 
@@ -38,8 +40,8 @@ func TestHotkeyOpensNewNoteFromHome(t *testing.T) {
 	}
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
-	if !strings.Contains(got, "new note") {
-		t.Fatalf("alt+n did not open new note form: %q", got)
+	if !strings.Contains(got, "build note") {
+		t.Fatalf("alt+n did not open the note builder: %q", got)
 	}
 }
 
@@ -154,6 +156,97 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 	}
 }
 
+func TestHomeFlightRerunsOnReloadAndRoleCycle(t *testing.T) {
+	t.Cleanup(role.ClearStatusChips)
+	origRun := role.Run
+	role.Run = func(string, string) error { return nil }
+	t.Cleanup(func() { role.Run = origRun })
+
+	var fetched []string
+	kit := testKit(t)
+	kit.d.FetchHomeFlight = func(name string) []signals.Section {
+		fetched = append(fetched, name)
+		return []signals.Section{{Signal: "github", Title: "from " + name}}
+	}
+	kit.d.App.Cfg.Keybinds = config.DefaultKeybinds()
+	kit.d.App.Directives.Flights["weekly-check"] = config.Flight{Name: "weekly-check", Queries: []string{"q1"}}
+	kit.d.App.Directives.Roles = map[string]config.RoleDef{
+		"triage": {Name: "triage", Home: "default", Flights: []string{"default"}},
+		"weekly": {Name: "weekly", Home: "weekly-check", Flights: []string{"weekly-check"}},
+	}
+	kit.d.App.Cfg.Role = ""
+	if err := kit.d.App.ActivateRole("triage"); err != nil {
+		t.Fatal(err)
+	}
+
+	home := kit.Home()
+	host := deck.New(home, deck.WithKeyHook(kit.KeyHook()), deck.WithMsgHook(kit.MsgHook()))
+	host = step(host, tea.WindowSizeMsg{Width: 120, Height: 40})
+	host = settle(host, home.Init())
+	if want := []string{"default"}; !equalStrings(fetched, want) {
+		t.Fatalf("fetched after init = %v, want %v", fetched, want)
+	}
+	if got := host.View(); !strings.Contains(got, "home flight · default") {
+		t.Fatalf("home label after init: %q", got)
+	}
+
+	host = settle(host, cmdOf(update(host, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})))
+	if want := []string{"default", "default"}; !equalStrings(fetched, want) {
+		t.Fatalf("fetched after reload key = %v, want %v", fetched, want)
+	}
+
+	host, cycle := update(host, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}, Alt: true})
+	if kit.d.App.Cfg.Role != "weekly" {
+		t.Fatalf("role after alt+] = %q, want weekly", kit.d.App.Cfg.Role)
+	}
+	host = settle(host, cycle)
+	if want := []string{"default", "default", "weekly-check"}; !equalStrings(fetched, want) {
+		t.Fatalf("fetched after role cycle = %v, want %v", fetched, want)
+	}
+	got := host.View()
+	for _, want := range []string{"home flight · weekly-check", "from weekly-check"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("home after role cycle missing %q\n%s", want, got)
+		}
+	}
+}
+
+func cmdOf(_ *vkdeck.Model, cmd tea.Cmd) tea.Cmd { return cmd }
+
+func settle(a *vkdeck.Model, cmd tea.Cmd) *vkdeck.Model {
+	return settleDepth(a, cmd, 8)
+}
+
+func settleDepth(a *vkdeck.Model, cmd tea.Cmd, depth int) *vkdeck.Model {
+	if depth == 0 {
+		return a
+	}
+	for _, c := range flattenCmds(cmd) {
+		if c == nil {
+			continue
+		}
+		msg := c()
+		if msg == nil {
+			continue
+		}
+		next, more := update(a, msg)
+		a = settleDepth(next, more, depth-1)
+	}
+	return a
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestRemindHotkeyHiddenWithoutService(t *testing.T) {
 	pub.SetServiceAttachedFunc(func() bool { return false })
 	t.Cleanup(func() { pub.SetServiceAttachedFunc(plugin.ServiceAttached) })
@@ -179,8 +272,8 @@ func TestRemindHotkeyHiddenWithoutService(t *testing.T) {
 	}
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
-	if strings.Contains(got, "new reminder") {
-		t.Fatalf("alt+r opened reminder form while detached: %q", got)
+	if strings.Contains(got, "build reminder") {
+		t.Fatalf("alt+r opened the reminder builder while detached: %q", got)
 	}
 }
 
@@ -214,7 +307,7 @@ func TestRemindHotkeyWorksWithService(t *testing.T) {
 	}
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
-	if !strings.Contains(got, "new reminder") {
-		t.Fatalf("alt+r did not open reminder form while attached: %q", got)
+	if !strings.Contains(got, "build reminder") {
+		t.Fatalf("alt+r did not open the reminder builder while attached: %q", got)
 	}
 }

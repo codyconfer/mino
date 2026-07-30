@@ -9,6 +9,7 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/munin/internal/app"
+	"github.com/codyconfer/munin/internal/config"
 	"github.com/codyconfer/munin/internal/keymap"
 	"github.com/codyconfer/munin/internal/log"
 	"github.com/codyconfer/munin/internal/plugin/ntr"
@@ -30,15 +31,35 @@ func (k *Kit) KeyHook() vkdeck.KeyHook {
 
 func (k *Kit) MsgHook() vkdeck.MsgHook {
 	return func(m *vkdeck.Model, msg tea.Msg) (tea.Cmd, bool) {
-		s, ok := msg.(roleLifecycleSettleMsg)
-		if !ok {
-			return nil, false
+		switch t := msg.(type) {
+		case roleLifecycleSettleMsg:
+			if k.d.App == nil || !k.d.App.SettleRoleCycle(t.gen) {
+				return nil, true
+			}
+			return tea.Batch(m.RefreshStatus(), reloadCmd()), true
+		case storeTickMsg:
+			return k.onStoreTick(m), true
 		}
-		if k.d.App == nil || !k.d.App.SettleRoleCycle(s.gen) {
-			return nil, true
-		}
-		return m.RefreshStatus(), true
+		return nil, false
 	}
+}
+
+func (k *Kit) onStoreTick(m *vkdeck.Model) tea.Cmd {
+	if !k.d.App.HasStore() {
+		return nil
+	}
+	if !k.storeChanged() {
+		return StoreTick()
+	}
+	if err := k.d.App.RefreshDirectives(config.ReconcileIgnore); err != nil {
+		log.Warnf("reloading directives after an external change: %v", err)
+		return StoreTick()
+	}
+	return tea.Batch(m.RefreshStatus(), reloadCmd(), StoreTick())
+}
+
+func reloadCmd() tea.Cmd {
+	return func() tea.Msg { return vkdeck.ReloadMsg{} }
 }
 
 func isRoleCycleTarget(target string) bool {
@@ -56,14 +77,14 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 	home, role := k.ntrHomeRole()
 	switch target {
 	case keymap.TargetNoteNew:
-		return m.Push(ntr.NewNoteForm(home, role))
+		return m.Push(ntr.NewNoteBuilder(home, role))
 	case keymap.TargetTaskNew:
-		return m.Push(ntr.NewTaskForm(home, role))
+		return m.Push(ntr.NewTaskBuilder(home, role))
 	case keymap.TargetRemindNew:
 		if !ntr.RemindersUIVisible() {
 			return nil
 		}
-		return m.Push(ntr.NewRemindForm(home, role))
+		return m.Push(ntr.NewRemindBuilder(home, role))
 	case keymap.TargetRoleNext:
 		return k.cycleRoleCmd(1)
 	case keymap.TargetRolePrev:

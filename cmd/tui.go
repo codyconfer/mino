@@ -43,7 +43,7 @@ func newDeckCmd() *cobra.Command {
 			if !term.IsTerminal(os.Stdout.Fd()) {
 				return errs.New(errs.KindUsage, "deck requires an interactive terminal")
 			}
-			name := defaultFlightName()
+			name := deckFlightName()
 			if len(args) == 1 {
 				name = args[0]
 				if _, ok := shared.Directives.Flights[name]; !ok {
@@ -68,6 +68,7 @@ func newDeckCmd() *cobra.Command {
 				deck.WithStatus(statusProvider()),
 				deck.WithKeyHook(kit.KeyHook()),
 				deck.WithMsgHook(kit.MsgHook()),
+				deck.WithInitCmd(views.StoreTick()),
 			}
 			if len(args) == 1 {
 				return deck.Run(kit.FlightResults(name), opts...)
@@ -96,6 +97,15 @@ func launchTmuxDeck(args []string) error {
 	return tmux.Launch(self, argv)
 }
 
+func deckFlightName() string {
+	if rd, ok := shared.Directives.Roles[shared.Cfg.Role]; ok && rd.Home != "" {
+		if _, exists := shared.Directives.Flights[rd.Home]; exists {
+			return rd.Home
+		}
+	}
+	return defaultFlightName()
+}
+
 func deckPanes(useTmux bool, flight string) (*pane.Manager, error) {
 	if !useTmux {
 		return nil, nil
@@ -122,38 +132,14 @@ func buildViewsWithPanes(panes *pane.Manager) *views.Kit {
 		FetchDetail:        fetchItemDetail,
 		Verify:             verifyFindings,
 		ExportDirectives:   exportDirectivesToFiles,
-		FormatFlight:       formatFlightReport,
-		FormatSections:     formatSectionsReport,
+		RenderReport:       renderSectionsReport,
 		CopyText:           clipboard.Copy,
 		SaveReport:         saveReportFile,
 		PreviewRole:        shared.PreviewRole,
 	})
 }
 
-func formatFlightReport(formatter, name string) (string, error) {
-	fd, err := lookupFormatter(formatter)
-	if err != nil {
-		return "", err
-	}
-	fl, ok := shared.Directives.Flights[name]
-	if !ok {
-		return "", errs.Newf(errs.KindUsage, "no flight named %q", name)
-	}
-	if !access().FlightVisible(name) {
-		return "", notInRoleError("flight", name)
-	}
-	queries := flightQueries(name, fl.Queries)
-	fid := shared.Audit.StartFlight(name, shared.Cfg.Role)
-	groups := fetchGroups(context.Background(), queries, fid)
-	shared.Audit.FinishFlight(fid)
-	return renderReport(fd, name, "flight", groups)
-}
-
-func formatSectionsReport(formatter, label string, sections []signals.Section) (string, error) {
-	fd, err := lookupFormatter(formatter)
-	if err != nil {
-		return "", err
-	}
+func renderSectionsReport(fd config.FormatterDef, label string, sections []signals.Section) (string, error) {
 	return renderReport(fd, label, "flight", []flightGroup{{Query: label, Title: label, Sections: sections}})
 }
 

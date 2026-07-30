@@ -61,6 +61,16 @@ func (s *Store) RecordAction(label, role string, started, finished time.Time, se
 	_, _ = s.j.Add(context.Background(), runFor(0, "write", label, role, started, finished, sections), recordsFor(sections))
 }
 
+func (s *Store) Delete(id int64) error {
+	if s == nil {
+		return errs.New(errs.KindStore, "audit is disabled")
+	}
+	if err := s.j.Delete(context.Background(), id); err != nil {
+		return errs.Wrapf(errs.KindStore, err, "deleting run %d", id)
+	}
+	return nil
+}
+
 func runFor(parentID int64, kind, name, role string, started, finished time.Time, sections []signals.Section) journal.Run {
 	count, errText := 0, ""
 	for _, sec := range sections {

@@ -50,7 +50,7 @@ func (h *gcalActive) Stream(ctx context.Context) (<-chan signals.Event, error) {
 		if svc != nil {
 			return nil
 		}
-		s, err := auth.GoogleService(ctx, h.auth, "calendar", calendar.CalendarReadonlyScope, calendar.NewService)
+		s, err := auth.GoogleService(ctx, h.auth, "calendar", []string{calendar.CalendarReadonlyScope}, calendar.NewService)
 		if err != nil {
 			return err
 		}

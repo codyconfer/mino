@@ -50,12 +50,12 @@ backup:
 role: ""
 
 # TUI hotkeys (global on the deck host). Keys are bubbletea strings; targets are
-# an NTR create form, role.next/role.prev, or a flight name (`morning` or
-# `flight:morning`). Defaults use Alt so they do not collide with in-list n/r/t.
+# an NTR builder, role.next/role.prev, or a flight name (`morning` or
+# `flight:morning`). Defaults use Alt so they do not collide with in-list r/x.
 keybinds:
-  alt+n: ntr.note.new      # open new-note form
-  alt+r: ntr.remind.new    # open new-reminder form
-  alt+t: ntr.task.new      # open new-task form
+  alt+n: ntr.note.new      # open a note builder
+  alt+r: ntr.remind.new    # open a reminder builder
+  alt+t: ntr.task.new      # open a task builder
   alt+[: role.prev         # previous role; cycles through "no role" (hooks debounced)
   alt+]: role.next         # next role; cycles through "no role" (hooks debounced)
   # alt+f: morning         # example: jump straight to a flight

@@ -27,7 +27,6 @@ func TestPromptSeedSplitsKnownParamsFromExtras(t *testing.T) {
 	if got := seed[qform.ParamPrefix+"max"]; got != "25" {
 		t.Errorf("param.max = %v, want 25", got)
 	}
-	// gmail declares no `custom` param, so it belongs in the free-form field.
 	if got := seed["extra"]; got != "custom=on" {
 		t.Errorf("extra = %v, want custom=on", got)
 	}
@@ -93,8 +92,6 @@ func TestPromptApplyDropsBlankParams(t *testing.T) {
 	}
 }
 
-// The prompt's field set must match the deck builder's, which is the whole
-// point of routing both through qform.
 func TestPromptFieldsCoverEveryQueryBuildFlag(t *testing.T) {
 	_ = build.KnownSignals()
 	fields := qform.Query(qform.Opts{

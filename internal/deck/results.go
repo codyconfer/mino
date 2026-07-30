@@ -28,6 +28,7 @@ func NewResults(title, root string, ctx [][2]string, load func() []signals.Secti
 			return render.SectionItems(layout.ScreenFrame(width-listIndent), root, sections)
 		},
 	)
+	lst.ReloadHint = "rerun"
 	if onSelect != nil {
 		lst.OnSelect = func(h *vkdeck.Model, key string) tea.Cmd {
 			ref, ok := index[key]

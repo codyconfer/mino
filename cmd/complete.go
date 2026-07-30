@@ -32,8 +32,6 @@ func completeDirs(_ *cobra.Command, _ []string, _ string) ([]string, cobra.Shell
 	return nil, cobra.ShellCompDirectiveFilterDirs
 }
 
-// completeBackupFiles narrows `restore` to what `munin backup` writes, which
-// is a .tar.enc; cobra matches on the final extension only.
 func completeBackupFiles(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	if len(args) != 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
@@ -95,8 +93,6 @@ func completeDetailSignals(cmd *cobra.Command, args []string, toComplete string)
 	return completeFlagValues(suggest.DetailSignals)(cmd, args, toComplete)
 }
 
-// completeActionRun completes `action run <signal> <name>`: the signal first,
-// then the actions that signal actually declares.
 func completeActionRun(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	switch len(args) {
 	case 0:
@@ -107,9 +103,6 @@ func completeActionRun(_ *cobra.Command, args []string, _ string) ([]string, cob
 	return nil, cobra.ShellCompDirectiveNoFileComp
 }
 
-// completeContextSwitch completes `context switch <tool> <name>` from the
-// contexts the plugins report, so the names offered are scoped to the tool
-// already on the line.
 func completeContextSwitch(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	ctxs := plugin.ListContexts(cmd.Context())
 	seen := map[string]bool{}
@@ -130,8 +123,6 @@ func completeContextSwitch(cmd *cobra.Command, args []string, _ string) ([]strin
 	return out, cobra.ShellCompDirectiveNoFileComp
 }
 
-// completeParamAssignments completes `--param k=v` with the keys the signal
-// already named on the command line declares.
 func completeParamAssignments(cmd *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 	signal, _ := cmd.Flags().GetString("signal")
 	if signal == "" {

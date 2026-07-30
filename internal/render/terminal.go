@@ -83,6 +83,23 @@ func SectionItems(f layout.Frame, root string, sections []signals.Section) []lis
 	return items
 }
 
+type SectionResults struct {
+	Label    string
+	Sections []signals.Section
+}
+
+func (r SectionResults) Items(f layout.Frame) []list.Item {
+	return SectionItems(f, r.Label, r.Sections)
+}
+
+func (r SectionResults) Count() int {
+	n := 0
+	for _, sec := range r.Sections {
+		n += len(sec.Items)
+	}
+	return n
+}
+
 func ItemRows(f layout.Frame, items []signals.Item) []list.Item {
 	th := theme.Cur()
 	rows := make([]list.Item, 0, len(items))

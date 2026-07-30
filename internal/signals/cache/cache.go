@@ -16,19 +16,16 @@ import (
 	"github.com/codyconfer/munin/internal/signals"
 )
 
-// staleGrace is how long past its TTL an entry survives so a failed fetch can fall back to it.
 const staleGrace = 24 * time.Hour
 
 type Mode int
 
 const (
-	ModeUse     Mode = iota // read and write
-	ModeRefresh             // skip the read, still write
-	ModeOff                 // do neither
+	ModeUse Mode = iota
+	ModeRefresh
+	ModeOff
 )
 
-// Store caches signal results in a DuckDB kv table. Every method is safe on a nil
-// receiver and every failure degrades to a miss, so callers never have to guard.
 type Store struct {
 	home      string
 	ttl       time.Duration
@@ -42,8 +39,6 @@ type Store struct {
 	opened bool
 }
 
-// New builds a store without touching disk. The kv file is opened on first use, so a
-// run that caches nothing never creates cache.duckdb.
 func New(home string, cfg config.CacheConfig, fingerprint string, mode Mode) *Store {
 	per := map[string]time.Duration{}
 	for name, raw := range cfg.Signals {
@@ -126,9 +121,6 @@ func (s *Store) Reads() bool { return s != nil && s.mode == ModeUse }
 
 func (s *Store) Writes() bool { return s != nil && s.mode != ModeOff }
 
-// TTL reports how long results for a signal stay fresh. Zero means don't cache.
-// An explicit cache.signals entry always wins, so "0" force-disables one signal and
-// any other value force-enables one that doesn't advertise CapCacheable.
 func (s *Store) TTL(signal string) time.Duration {
 	if s == nil {
 		return 0
@@ -142,8 +134,6 @@ func (s *Store) TTL(signal string) time.Duration {
 	return s.ttl
 }
 
-// Wrap decorates a signal with read-through caching, or returns it untouched when
-// this signal isn't cacheable.
 func (s *Store) Wrap(q signals.Signal, signal, role string, params map[string]string) signals.Signal {
 	if s == nil || q == nil || s.mode == ModeOff {
 		return q
@@ -245,16 +235,11 @@ func (s *Store) save(ctx context.Context, ns, key string, p payload, ttl time.Du
 		log.Debugf("cache: encode failed: %v", err)
 		return
 	}
-	// Keep the row past its TTL so a later failure can fall back to it. Freshness is
-	// decided from FetchedAt, so changing cache.ttl takes effect on existing rows.
 	grace := max(ttl, staleGrace)
 	if err := store.Put(ctx, ns, key, string(raw), p.FetchedAt.Add(grace)); err != nil {
 		log.Debugf("cache: write failed: %v", err)
 	}
 }
-
-// Get and Put make Store a github.RosterCache, so the team roster shares this file
-// instead of contending with the daemon over serve.duckdb.
 
 func (s *Store) Get(ctx context.Context, namespace, key string) (string, bool) {
 	store := s.open(ctx)
@@ -291,8 +276,6 @@ type Stat struct {
 	Newest    time.Time
 }
 
-// Stats summarises what is currently cached. Unlike the read path this reports errors,
-// because `munin cache stats` should say so rather than print an empty table.
 func (s *Store) Stats(ctx context.Context) ([]Stat, error) {
 	store := s.open(ctx)
 	if store == nil {
@@ -336,7 +319,6 @@ func (s *Store) Stats(ctx context.Context) ([]Stat, error) {
 	return out, nil
 }
 
-// Clear drops one namespace, or everything when namespace is empty.
 func (s *Store) Clear(ctx context.Context, namespace string) (int64, error) {
 	store := s.open(ctx)
 	if store == nil {

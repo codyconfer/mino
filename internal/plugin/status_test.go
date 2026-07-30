@@ -7,6 +7,7 @@ import (
 )
 
 func TestCollectStatusContributionsRespectsEnable(t *testing.T) {
+	home := t.TempDir()
 	id := "test.status.strip"
 	if _, ok := Lookup(id); !ok {
 		Register(Descriptor{
@@ -35,7 +36,7 @@ func TestCollectStatusContributionsRespectsEnable(t *testing.T) {
 		enableMu.Unlock()
 	})
 
-	got := CollectStatusContributions("", "")
+	got := CollectStatusContributions(home, "")
 	if !contribHasGlyph(got, marker) {
 		t.Fatalf("expected enabled contribution %q in %#v", marker, glyphsOf(got))
 	}
@@ -44,7 +45,7 @@ func TestCollectStatusContributionsRespectsEnable(t *testing.T) {
 	disabled[id] = true
 	enableMu.Unlock()
 
-	got = CollectStatusContributions("", "")
+	got = CollectStatusContributions(home, "")
 	if contribHasGlyph(got, marker) {
 		t.Fatalf("disabled contribution still present: %#v", glyphsOf(got))
 	}

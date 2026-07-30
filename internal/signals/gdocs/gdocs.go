@@ -25,7 +25,7 @@ func New(recent int, ga auth.GoogleAuth) signals.Signal {
 func (s *gdocsSignal) Name() string { return "docs" }
 
 func (s *gdocsSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
-	svc, err := auth.GoogleService(ctx, s.auth, "docs", drive.DriveMetadataReadonlyScope, drive.NewService)
+	svc, err := auth.GoogleService(ctx, s.auth, "docs", []string{drive.DriveMetadataReadonlyScope}, drive.NewService)
 	if err != nil {
 		return nil, err
 	}

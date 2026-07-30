@@ -118,3 +118,38 @@ func TestFormExtraSingleRuneKeysAreNotStripped(t *testing.T) {
 	m := Form(keys.Binding{Keys: []string{"d"}, Action: Delete})
 	assertBound(t, m, "d", Delete)
 }
+
+func TestBuilderBindingsFollowTheActiveScheme(t *testing.T) {
+	useScheme(t, muninScheme().With(
+		keys.Binding{Keys: []string{"ctrl+e"}, Action: Run, Glyph: "ctrl+e", Label: "run"},
+	))
+
+	if got := RunBinding().Keys; len(got) != 1 || got[0] != "ctrl+e" {
+		t.Fatalf("RunBinding().Keys = %v, want the scheme's ctrl+e", got)
+	}
+	m := Form(BuilderBindings()...)
+	assertBound(t, m, "ctrl+e", Run)
+	assertUnbound(t, m, "ctrl+r")
+	assertBound(t, m, "ctrl+t", Validate)
+}
+
+func TestBuilderBindingsFallBackWhenASchemeOmitsThem(t *testing.T) {
+	useScheme(t, keys.Default())
+
+	for _, tc := range []struct {
+		binding keys.Binding
+		key     string
+	}{
+		{RunBinding(), "ctrl+r"},
+		{SaveBinding(), "ctrl+s"},
+		{ValidateBinding(), "ctrl+t"},
+		{DeleteBinding(), "ctrl+x"},
+		{CopyBinding(), "ctrl+g"},
+		{WriteBinding(), "ctrl+w"},
+	} {
+		if len(tc.binding.Keys) == 0 || tc.binding.Keys[0] != tc.key {
+			t.Errorf("%q binding = %v, want the munin default %q so the editor stays usable",
+				tc.binding.Action, tc.binding.Keys, tc.key)
+		}
+	}
+}

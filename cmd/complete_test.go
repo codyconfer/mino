@@ -81,8 +81,6 @@ func TestCompleteActionRunIsPositionAware(t *testing.T) {
 	if !slices.Contains(first, "github") {
 		t.Fatalf("first arg should offer signals, got %v", first)
 	}
-	// The second arg is scoped to the signal already on the line, so an
-	// unknown signal must not fall back to offering every action.
 	if got := names(t, completeActionRun, "not-a-signal"); len(got) != 0 {
 		t.Fatalf("got %v, want none", got)
 	}
