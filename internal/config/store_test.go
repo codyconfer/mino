@@ -172,6 +172,25 @@ func TestSamePath(t *testing.T) {
 		t.Errorf("SamePath(%q/sub, %q) = true, want false", dir, dir)
 	}
 
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{".", "./", "sub/.."} {
+		if !SamePath(rel, dir) {
+			t.Errorf("SamePath(%q, %q) = false: --out takes a relative path, so `munin export config --out .` "+
+				"run from the munin home must still be recognised as the live home", rel, dir)
+		}
+	}
+
 	link := filepath.Join(t.TempDir(), "link")
 	if err := os.Symlink(dir, link); err != nil {
 		t.Skipf("symlinks unavailable here: %v", err)

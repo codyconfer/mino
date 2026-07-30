@@ -244,11 +244,19 @@ func TestSetValuesCreatesConfigWhenAbsent(t *testing.T) {
 func TestSetValuesRejectsScalarParent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(envHome, dir)
-	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("output: terminal\n"), 0o600); err != nil {
+	const src = "output: terminal\n"
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(src), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := SetValues("", map[string]any{"output.mode": "json"}); err == nil {
 		t.Fatal("SetValues silently replaced a scalar setting with a mapping")
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != src {
+		t.Errorf("the refused write still rewrote the config, so the user's value is gone either way:\n%s", raw)
 	}
 }
 

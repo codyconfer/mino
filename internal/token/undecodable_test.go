@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/codyconfer/sisyphus/sealed"
 
 	"github.com/codyconfer/munin/internal/auth"
+	"github.com/codyconfer/munin/internal/errs"
 )
 
 func otherKey() []byte {
@@ -52,6 +54,20 @@ func TestGetReportsUndecodableStore(t *testing.T) {
 	}
 	if !errors.Is(err, sealed.ErrUndecodable) {
 		t.Fatalf("error does not carry sealed.ErrUndecodable: %v", err)
+	}
+	if got := errs.KindOf(err); got != errs.KindAuth {
+		t.Errorf("kind = %v, want %v: a store that cannot be decrypted is an auth failure the user can fix by "+
+			"re-logging in, not a %v the CLI reports as an internal storage fault", got, errs.KindAuth, got)
+	}
+	hint := errs.Hint(err)
+	if hint == "" {
+		t.Fatal("no hint: the only recovery is deleting tokens.duckdb and logging in again, which the user " +
+			"cannot guess from the error text")
+	}
+	for _, want := range []string{"tokens.duckdb", "munin login github"} {
+		if !strings.Contains(hint, want) {
+			t.Errorf("hint = %q, want it to name %q", hint, want)
+		}
 	}
 }
 

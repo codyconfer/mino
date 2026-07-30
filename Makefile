@@ -1,4 +1,4 @@
-.PHONY: build build-experimental build-nodaemon dev install command run serve daemon test test-race test-shuffle fmt fmt-check vet lint govulncheck check ci package clean icons
+.PHONY: build build-experimental build-nodaemon dev install command run serve daemon test test-race test-shuffle prove fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
 BIN     ?= $(DIST)/munin
@@ -198,6 +198,17 @@ test-race:
 # Randomized test order. Catches order-dependent tests that share package state.
 test-shuffle:
 	@$(MAKE) test SHUFFLE=1
+
+# Show that a test fails when the code it guards is reverted or mutated. A test
+# that passes against the pre-fix source guards nothing, and a green suite full
+# of those is the failure mode this repo has already hit once. Never uses
+# `git stash` — that would take a co-worker's uncommitted work with it.
+#
+#   make prove ARGS="--rev HEAD~1 --run TestFoo ./internal/pkg/ internal/pkg/a.go"
+#
+# Run `tools/prove --help` for the mutation and file-drop modes.
+prove:
+	@tools/prove $(ARGS)
 
 # Tooling lives in ./tools (separate module) so consumers don't inherit linter deps.
 # GOWORK=off because -modfile is rejected in workspace mode, so an untracked
