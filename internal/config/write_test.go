@@ -202,7 +202,7 @@ func TestSetValuesCreatesConfigWhenAbsent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(envHome, dir)
 
-	path, err := SetValues("", map[string]any{"google.oauth_client_id": "abc"})
+	path, err := SetValues("", map[string]any{"plugins.google.oauth_client_id": "abc"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,16 +228,20 @@ func TestSetValuesCreatesConfigWhenAbsent(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &got); err != nil {
 		t.Fatalf("the created config is not valid YAML: %v (%q)", err, raw)
 	}
-	g, ok := got["google"].(map[string]any)
+	plugins, ok := got["plugins"].(map[string]any)
+	if !ok {
+		t.Fatalf("value not nested under plugins: %#v", got)
+	}
+	g, ok := plugins["google"].(map[string]any)
 	if !ok || g["oauth_client_id"] != "abc" {
-		t.Fatalf("value not nested under google: %#v", got)
+		t.Fatalf("value not nested under plugins.google: %#v", plugins)
 	}
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("the config SetValues created does not load back: %v\n%s", err, raw)
 	}
-	if cfg.Google.OAuthClientID != "abc" {
-		t.Errorf("Load() = %q, want the value SetValues wrote", cfg.Google.OAuthClientID)
+	if got := cfg.PluginSettings("google")["oauth_client_id"]; got != "abc" {
+		t.Errorf("Load() = %#v, want the value SetValues wrote", got)
 	}
 }
 

@@ -112,13 +112,19 @@ seeds.
 | Query | Signal | Plugin id | Notes |
 |---|---|---|---|
 | `ntr-list` | `ntr` | `munin.ntr` | Notes/tasks; reminders are service-only (UI + Scheduled delivery via `munin serve ntr` / daemon) |
+| `today` / `unread-mail` / `recent-docs` | calendar/gmail/docs | `external.*` | Moved to [`external/plugins/examples`](../external/plugins/examples/) with their signals |
+| `slack-standup` | `slack` | `external.slack` | Moved to `external/plugins/examples` |
+| `notify-smoke` | `demo` | `external.demo` | Moved to `external/plugins/examples`; synthetic notify toasts |
 | `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`munin-plugins-external`); C-0 offline auth/context |
 | `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; current kube context |
 | `*-context` | gooseai/pi/opencode/ollama | `external.*` | Overlay-only Lane C2 stubs |
 | `scaffold-ping` | `scaffold` | `scaffold.example` | ADR-14 template; generate with `munin plugins scaffold` (not linked into the default binary) |
 
-External plugin YAML under `examples/` is reference material for the overlay
-binary (`../munin-overlay-template`). Stock `munin` does not register `external.*`.
+External plugin YAML under `examples/` is reference material for an overlay
+binary. Stock `munin` does not register `external.*`. The Google, Slack, and demo
+directives live beside their plugins in
+[`external/plugins/examples`](../external/plugins/examples/), built by
+`make build-overlay`.
 
 ```sh
 munin plugins scaffold team.example --dir ./plugins/example
@@ -136,4 +142,5 @@ carry `github.com` URLs); opt in with `munin fly demo` / `munin serve demo` /
 `make run ARGS=demo` — it is not the default flight. Queries `demo` and
 `demo-reviews` apply filter `demo` (drops `meta.author` bot matches). Role
 `demo` scopes visibility to that flight/queries/filter (`munin --role demo …`).
-Synthetic toast spam lives separately in flight `notify-smoke` (`signal: demo`).
+Synthetic toast spam lives separately in flight `notify-smoke` (`signal: demo`),
+which ships with the demo plugin in `external/plugins/examples`.

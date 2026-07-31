@@ -41,6 +41,22 @@ jobs:
       - name: make test
         run: make test TAGS="${{ matrix.tags }}"
 
+  overlay:
+    name: overlay module
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: make build-overlay
+        run: make build-overlay
+      - name: make test-overlay
+        run: make test-overlay
+
   # Race detector. Its own job, not a flag on `build`: race builds are slow and
   # CGO-heavy here (duckdb), and the fast signal is worth keeping. Default tags
   # only — one race configuration is enough, no need to multiply the tag matrix.

@@ -45,6 +45,7 @@ func TestPluginsCoversAllKinds(t *testing.T) {
 			},
 		})
 		plugin.RegisterContext(probeID, contextProbe{})
+		plugin.RegisterFilterEngine(probeID, "contextprobe-filter", func(items []signals.Item) []signals.Item { return items })
 	}
 
 	seen := map[plugin.Kind]bool{}

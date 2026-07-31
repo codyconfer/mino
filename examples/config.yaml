@@ -25,7 +25,6 @@ cache:
   # "0" turns it off. Signals reading local state (ntr) are never cached.
   # signals:
   #   github: 5m            # slow API, cache harder
-  #   calendar: 30s         # time-sensitive
 
 # Audit trail: every flight/query run and each applied config is recorded to an
 # embedded DuckDB database (default <home>/audit.duckdb) with timestamps, for
@@ -37,11 +36,12 @@ audit:
 # `munin backup` creates an AES-256-GCM encrypted tar of the DuckDB databases.
 # The key is escrowed in a secret manager: secret_backend "auto" tries Bitwarden
 # (bw), then 1Password (op), then the OS keyring. destination "local" writes to
-# the current directory; "gdrive" uploads to the app's private Drive folder.
+# the current directory; any other value names a plugin-contributed destination
+# ("gdrive" comes from the external Drive plugin).
 backup:
   secret_backend: auto      # auto | bitwarden | 1password | keyring
   secret_name: munin-backup-key
-  destination: local        # local | gdrive
+  destination: local        # local, or a plugin destination such as gdrive
   keep: 0                   # retain newest N backups (0 = unlimited)
 
 # Active role. A role names the flights, queries, and filters that appear in
@@ -85,46 +85,37 @@ github:
   # oauth_client_id: Iv1.xxxxxxxxxxxx
   # oauth_scopes: "repo read:org"             # scopes requested by `munin login github`
 
-# OAuth fallbacks for when the signal CLI is unavailable. Each needs an app's
-# client credentials; run `munin login <service>` to authorize and cache a token.
-google:
-  # Desktop-app OAuth client; fallback for gcloud ADC (`munin login google`).
-  # oauth_client_id: xxxx.apps.googleusercontent.com
-  # oauth_client_secret: xxxx
-
-calendar:
-  calendar_id: primary
-  window: 24h
-  max: 50                   # events to list
-
-gmail:
-  query: "is:unread in:inbox"
-  max: 15
-
-docs:
-  recent: 10
-
-# Google Drive — read+write. Reads list `folders` (or recent files when empty);
-# `munin drive add` creates a file ONLY in `dir`. Every other directory is
-# read-only, enforced by munin regardless of the OAuth grant.
-drive:
-  dir: "Inbox"              # the single writable folder (name or id)
-  # folders: ["Inbox", "Projects"]   # restrict reads (empty = recent files)
-  # recent: 20
-
-# Google Tasks — munin's one read+write signal. Reads cover `lists` (or all
-# lists when empty); `munin tasks add` creates tasks ONLY in `list`. Every other
-# list is read-only, enforced by munin regardless of the OAuth grant.
-tasks:
-  list: "My Tasks"          # the single writable list (name or id)
-  # lists: ["My Tasks", "Work"]   # restrict reads (empty = all lists)
-  # show_completed: false
-  max: 100                  # tasks to list per list
-
-slack:
-  token_env: SLACK_TOKEN
-  limit: 50                 # messages to fetch per channel
-  # Fallback when no token env var is set: `munin login slack` (browser OAuth).
-  # oauth_client_id: "123.456"
-  # oauth_client_secret: xxxx
-  # user_scopes: channels:history,channels:read,groups:history,groups:read
+# Plugin settings. Every non-stock signal reads its knobs from this section,
+# namespaced by plugin: `plugins.<namespace>.<key>`. Stock munin ships GitHub and
+# NTR only; the Google and Slack signals live in external/plugins and are
+# registered by an overlay binary (see external/plugins/README.md).
+# Override any leaf from the environment: MUNIN_PLUGINS_CALENDAR_MAX=20.
+# plugins:
+#   google:
+#     # Desktop-app OAuth client; fallback for gcloud ADC (`munin login google`).
+#     oauth_client_id: xxxx.apps.googleusercontent.com
+#     oauth_client_secret: xxxx
+#   calendar:
+#     calendar_id: primary
+#     window: 24h
+#     max: 50
+#   gmail:
+#     query: "is:unread in:inbox"
+#     max: 15
+#   docs:
+#     recent: 10
+#   drive:
+#     dir: "Inbox"            # the single writable folder (name or id)
+#     folders: ["Inbox", "Projects"]
+#     recent: 20
+#   tasks:
+#     list: "My Tasks"        # the single writable list (name or id)
+#     lists: ["My Tasks", "Work"]
+#     show_completed: false
+#     max: 100
+#   slack:
+#     token_env: SLACK_TOKEN
+#     limit: 50
+#     oauth_client_id: "123.456"
+#     oauth_client_secret: xxxx
+#     user_scopes: channels:history,channels:read,groups:history,groups:read

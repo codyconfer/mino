@@ -168,9 +168,11 @@ context with `munin role` (which prints `(none)` when no role is active).
 ## Plugins & notes
 
 Plugins are **compile-time linked** Go packages — there is no runtime `.so` /
-`plugin.Open` loading. Stock munin registers built-in signals plus Notes /
-Tasks / Reminders (`munin.ntr`). Team distributions add more in a separate
-**overlay** binary.
+`plugin.Open` loading. Stock munin registers **GitHub** plus Notes / Tasks /
+Reminders (`munin.ntr`) — nothing else. Google (Calendar / Gmail / Docs / Drive /
+Tasks), Slack, and the demo signal are plugins in this repo's
+[`external/plugins`](../external/plugins/) module; team distributions add more in
+their own **overlay** binary.
 
 **Public SDK.** Overlay code imports
 [`github.com/codyconfer/munin/plugin`](../plugin/) (and the thin
@@ -180,16 +182,29 @@ that belong only to serve/daemon mode with `plugin.WithServiceOnly()` (or
 `Descriptor.ServiceOnly`); interactive UI lists hide them unless a live
 serve/daemon socket is attached.
 
-**Overlay layout** (sibling checkouts of this repo):
+**Overlay layout.** In-repo, `external/plugins/` is its own Go module built only
+against the public SDK, with `overlay/main.go` as a reference host:
 
 ```text
-../munin-plugins-external/   # external.* packages (gcx, kubectl, …)
-../munin-overlay-template/   # thin binary: RegisterPlugins → externals.Register
+external/plugins/            # calendar, gmail, docs, drive, tasks, slack, demo, google login
+external/plugins/overlay/    # thin binary: RegisterPlugins → plugins.Register
+../munin-plugins-external/   # other external.* packages (gcx, kubectl, …)
+../munin-overlay-template/   # thin binary for those siblings
 ```
 
-Stock `munin` does not register `external.*`. Build the overlay with
-`cd ../munin-overlay-template && make build`. See
-[`internal/plugin/external/README.md`](../internal/plugin/external/README.md) and
+```sh
+cd external/plugins && go build ./... && go run ./overlay calendar query
+# or from the repo root: make build-overlay · make test-overlay
+```
+
+Stock `munin` registers none of these. Beyond signals, a plugin can contribute a
+**login provider** (`plugin.RegisterLoginProvider`, so `munin login google` works
+again), **query params** (`plugin.RegisterQueryParams`), a **backup destination**
+(`plugin.RegisterBackupDestination`, which is where `backup.destination: gdrive`
+comes from), CLI **commands** (`cmd.RegisterCommand` + `cmd.SignalCmd`), filter
+engines, views, themes, and status chips. Each reads its own settings from
+`plugins.<namespace>.<key>` in `config.yaml` through `plugin.Host.Settings`. See
+[`external/plugins/README.md`](../external/plugins/README.md) and
 [`examples/README.md`](../examples/README.md).
 
 ```sh
@@ -248,9 +263,11 @@ manually started foreground `serve` is never killed by deck exit.
 
 Only **Slack** is a true websocket (Socket Mode); **GitHub**, **Calendar**, and
 **Tasks** have no client websocket, so they're polled at `--interval`; signals with
-no realtime support are skipped. Slack Socket Mode needs an app-level `xapp-` token
-+ a bot `xoxb-` token (env-var names configurable via `slack.app_token_env` /
-`slack.bot_token_env`); without them Slack is skipped.
+no realtime support are skipped. Slack and Calendar/Tasks come from the
+[`external/plugins`](../external/plugins/) overlay, so a stock binary polls GitHub
+and nothing else. Slack Socket Mode needs an app-level `xapp-` token + a bot
+`xoxb-` token (env-var names configurable via `plugins.slack.app_token_env` /
+`plugins.slack.bot_token_env`); without them Slack is skipped.
 
 Desktop/notification icons are embedded (raven, dark + light — pick with `--theme`)
 and overridable by dropping `~/.munin/icons/<state>.png`. Realtime defaults live
@@ -279,7 +296,10 @@ rules:
 ```
 
 A **query** (`~/.munin/queries/slack-standup.yaml`) bundles a signal, its params,
-and the filters to apply — a saved filter set by name, or an inline rule:
+and the filters to apply — a saved filter set by name, or an inline rule. The
+examples below use `signal: slack`, which comes from the
+[`external/plugins`](../external/plugins/) overlay; a stock binary has `github`,
+`ntr`, and whatever plugins its host registers:
 
 ```yaml
 name: slack-standup
@@ -443,7 +463,9 @@ params`, and `filters` entirely, because a filter document cannot have them.
 line, since a document without one does not load.
 
 Within a query, picking a signal with `←/→` swaps the param fields to match, so
-you get `query` and `project` for `github` but `channel` and `limit` for `slack`.
+you get `query` and `project` for `github` but `channel` and `limit` for `slack` —
+the param sets come from `plugin.RegisterQueryParams`, so a plugin's signal gets
+the same treatment as a stock one.
 Values you typed into fields that later get hidden are remembered for the
 session, so flipping type to compare and back doesn't cost you your input.
 
@@ -798,6 +820,36 @@ a flag; overrides are never persisted.
 `$MUNIN_THEME`) selects a viewkit theme (default `retro-dark`); `munin verify`
 validates the key.
 
+**Plugin settings** live under `plugins:`, namespaced per plugin — stock munin's own
+knobs (`github:`, `cache:`, `daemon:`, `backup:`, `audit:`) stay at the top level, and
+everything a plugin reads goes under `plugins.<namespace>.<key>`, reached through
+`plugin.Host.Settings`:
+
+```yaml
+plugins:
+  google:
+    oauth_client_id: xxxx.apps.googleusercontent.com
+    oauth_client_secret: xxxx
+  calendar:
+    calendar_id: primary
+    window: 24h
+    max: 50
+  drive:
+    dir: Inbox              # the single writable folder
+  tasks:
+    list: My Tasks          # the single writable list
+  slack:
+    token_env: SLACK_TOKEN
+    limit: 50
+```
+
+Leaves take `MUNIN_*` env overrides like any other key
+(`MUNIN_PLUGINS_CALENDAR_MAX=20`). Signals that used to read a top-level section —
+`calendar:`, `gmail:`, `docs:`, `drive:`, `tasks:`, `slack:`, `google:` — now read
+these namespaces instead, because they ship in
+[`external/plugins`](../external/plugins/) rather than the stock binary; move those
+sections under `plugins:` when you build the overlay.
+
 **Realtime defaults** for `serve`/`daemon` live under `daemon:` in `config.yaml`
 (`interval`, `bell`, `desktop`, `tray`, `theme`); command flags override them
 where exposed (`tray` is config-only on the installed daemon). Editing config in
@@ -881,16 +933,20 @@ options instead of failing opaquely.
 
 | Signal | Primary | Fallbacks |
 |---|---|---|
-| **GitHub** | `gh` CLI (`gh auth login`) | `$GITHUB_TOKEN` / `$GH_TOKEN` → `munin login github` (device flow) |
-| **Calendar / Gmail / Docs / Drive / Tasks** | `gcloud` ADC | `munin login google` (browser OAuth) |
-| **Slack** | `$SLACK_TOKEN` (xoxp-…) | `munin login slack` (browser OAuth) |
+| **GitHub** (stock) | `gh` CLI (`gh auth login`) | `$GITHUB_TOKEN` / `$GH_TOKEN` → `munin login github` (device flow) |
+| **Calendar / Gmail / Docs / Drive / Tasks** (overlay) | `gcloud` ADC | `munin login google` (browser OAuth) |
+| **Slack** (overlay) | `$SLACK_TOKEN` (xoxp-…) | `munin login slack` (browser OAuth) |
 
-`munin login <github|google|slack>` runs the service's OAuth flow and caches a
-token in the DuckDB credential store (`.data/tokens.duckdb`, one row per service);
-later runs use the signal's direct API client. Each needs its OAuth app
-credentials in config (`*.oauth_client_id` / `_secret`); GitHub uses the device
-flow (no secret), Google and Slack use a localhost browser-redirect flow, and
-Google tokens auto-refresh.
+`munin login <provider>` runs that provider's OAuth flow and caches a token in the
+DuckDB credential store (`.data/tokens.duckdb`, one row per service); later runs
+use the signal's direct API client. Stock munin ships the `github` provider only;
+`google` and `slack` are contributed by the overlay plugins through
+`plugin.RegisterLoginProvider`, along with the signal aliases (`munin login
+calendar` → Google). Each needs its OAuth app credentials in config — GitHub under
+`github.oauth_client_id`, contributed providers under
+`plugins.<namespace>.oauth_client_id` / `_secret`. GitHub uses the device flow (no
+secret), Google and Slack use a localhost browser-redirect flow, and Google tokens
+auto-refresh.
 
 - **GitHub Enterprise** — set `github.api_url` (e.g.
   `https://ghe.example.com/api/v3`) so the REST fallback targets your instance.
@@ -912,7 +968,7 @@ cache:
   detail_ttl: 5m        # per-item details (see `munin show`); "0" disables
   signals:
     github: 5m          # per-signal override; MUNIN_CACHE_SIGNALS_GITHUB
-    calendar: 30s
+    calendar: 30s       # works for overlay signals too
 ```
 
 Item details — the body, checks, reviews and comments behind `munin show` and the
@@ -978,8 +1034,11 @@ munin restore <file>         # decrypt + write the databases back into <home>/.d
 ```
 
 `backup.keep: N` retains only the newest N backups (`0` = keep all).
-`backup.destination: gdrive` uploads the encrypted file to the app's private
-Google Drive `appDataFolder` instead of the current directory. `munin restore`
+`backup.destination` accepts `local` (the current directory) or the name of a
+plugin-contributed destination: with the overlay's Drive plugin registered,
+`gdrive` uploads the encrypted file to the app's private Google Drive
+`appDataFolder`. An unknown destination names the ones actually registered.
+`munin restore`
 doesn't depend on opening `.data/config.duckdb`, so it recovers even a corrupted config
 DB.
 
@@ -1012,7 +1071,7 @@ DB.
 | `munin clean` | Archive the config file, `logs/`, and every directive file into `.archive/<timestamp>/`. |
 | `munin nuke [--yes]` | Delete the config directory and DuckDB (run `munin install` to recreate defaults). |
 | `munin role` | Show the active role and defined roles. |
-| `munin login <service>` | OAuth login for github/google/slack. |
+| `munin login <service>` | OAuth login for github, plus any provider a plugin contributes (google/slack with the overlay). |
 | `munin list [queries\|filters\|flights\|roles\|formatters]` | List what the active role can see (`--all` to ignore the role). |
 | `munin filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
 | `munin query build --signal <name>` | Compose and run an ad-hoc query; `--save <name>` keeps it, `--dry-run` just prints it. |
@@ -1040,13 +1099,17 @@ DB.
 
 | Signal | Command(s) | Access | Write restrictions |
 |---|---|---|---|
-| GitHub | `github query` | Read-only | — |
-| Google Calendar | `calendar query` (`cal`) | Read-only | — |
-| Gmail | `gmail query` | Read-only | — |
-| Google Docs | `docs query` | Read-only | — |
-| Google Drive | `drive query`, `drive add` | **Read + write** | Creates a file **only** in the configured `drive.dir`; a write to any other folder is rejected *before* the API call. Reads any folder. Uses the full `drive` OAuth scope (folder discovery + create). |
-| Google Tasks | `tasks query`, `tasks add` | **Read + write** | Creates a task **only** in the configured `tasks.list`; a write to any other list is rejected *before* the API call. Reads any list. |
-| Slack | `slack query --channel <name>` | Read-only | — |
+| Signal | Ships in | Command(s) | Access | Write restrictions |
+|---|---|---|---|---|
+| GitHub | stock | `github query` | Read-only | — |
+| Notes / Tasks / Reminders | stock | `munin notes` | **Read + write** | Local DuckDB store under `<home>/.data`. |
+| Google Calendar | overlay | `calendar query` (`cal`) | Read-only | — |
+| Gmail | overlay | `gmail query` | Read-only | — |
+| Google Docs | overlay | `docs query` | Read-only | — |
+| Google Drive | overlay | `drive query`, `drive add` | **Read + write** | Creates a file **only** in the configured `plugins.drive.dir`; a write to any other folder is rejected *before* the API call. Reads any folder. Uses the full `drive` OAuth scope (folder discovery + create). |
+| Google Tasks | overlay | `tasks query`, `tasks add` | **Read + write** | Creates a task **only** in the configured `plugins.tasks.list`; a write to any other list is rejected *before* the API call. Reads any list. |
+| Slack | overlay | `slack query --channel <name>` | Read-only | — |
+| Demo | overlay | `query demo` | Read-only | Synthetic items for smoke-testing notifications. |
 
 ### GitHub project boards
 

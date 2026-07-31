@@ -3,6 +3,7 @@ package statusstrip
 import (
 	"context"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -39,18 +40,55 @@ func TestProviderIncludesRoleStatusChips(t *testing.T) {
 	}
 }
 
+func registerAcmeProvider(t *testing.T) {
+	t.Helper()
+	plugin.ResetLoginProviders()
+	t.Cleanup(plugin.ResetLoginProviders)
+	const id = "external.acme"
+	if _, ok := plugin.Lookup(id); !ok {
+		plugin.Register(plugin.Descriptor{
+			ID:           id,
+			Kind:         plugin.KindSignal,
+			Signal:       "acmedocs",
+			Capabilities: []plugin.Capability{plugin.CapQuery},
+		})
+	}
+	plugin.RegisterLoginProvider(plugin.LoginProvider{
+		PluginID: id,
+		Key:      "acme",
+		Label:    "Acme",
+		Signals:  []string{"acmedocs"},
+		Authed:   func(plugin.Host) bool { return true },
+		Login:    func(context.Context, plugin.Host, map[string]string, io.Writer) error { return nil },
+	})
+}
+
+func TestProviderChipsFollowContributedLoginProviders(t *testing.T) {
+	testenv.Isolate(t)
+	plugin.RegisterBuiltins()
+	plugin.LoadEnabled()
+	registerAcmeProvider(t)
+
+	a := &app.App{Cfg: &config.Config{}}
+	names := serviceNames(Provider(a)(context.Background()).Services)
+	if !hasName(names, "acme") {
+		t.Fatalf("contributed login provider missing from status chips: %v", names)
+	}
+}
+
 func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
 	testenv.Isolate(t)
 	plugin.RegisterBuiltins()
 	plugin.LoadEnabled()
+	registerAcmeProvider(t)
 
-	for _, id := range []string{"munin.github", "munin.slack", "munin.gmail"} {
+	for _, id := range []string{"munin.github", "external.acme"} {
 		if err := plugin.SetEnabled(id, false); err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Cleanup(func() {
-		for _, id := range []string{"munin.github", "munin.slack", "munin.gmail"} {
+		for _, id := range []string{"munin.github", "external.acme"} {
 			_ = plugin.SetEnabled(id, true)
 		}
 	})
@@ -62,26 +100,10 @@ func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
 		t.Fatalf("disabled github still set identity %q", info.GitHubUser)
 	}
 	names := serviceNames(info.Services)
-	for _, wantGone := range []string{"github", "slack", "gmail", "calendar", "docs", "drive", "tasks"} {
+	for _, wantGone := range []string{"github", "acme"} {
 		if hasName(names, wantGone) {
-			t.Fatalf("disabled/collapsed %q still in status chips: %v", wantGone, names)
+			t.Fatalf("disabled %q still in status chips: %v", wantGone, names)
 		}
-	}
-	var google *deck.ServiceStatus
-	for i := range info.Services {
-		if info.Services[i].Name == "google" {
-			google = &info.Services[i]
-			break
-		}
-	}
-	if google == nil {
-		t.Fatalf("expected collapsed google chip, got %v", names)
-	}
-	if google.ID != "google" {
-		t.Fatalf("google chip ID = %q, want google", google.ID)
-	}
-	if google.Detail != "" {
-		t.Fatalf("google detail = %q, want logo-only chip (no detail)", google.Detail)
 	}
 }
 

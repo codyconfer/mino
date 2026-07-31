@@ -6,6 +6,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/munin/internal/app"
+	"github.com/codyconfer/munin/internal/pluginhost"
+	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/munin/plugin"
 )
 
 const AnnoLaunchLoading = "munin_launch_loading"
@@ -32,6 +35,42 @@ func registered() []*cobra.Command {
 }
 
 func App() *app.App { return shared }
+
+func Host() plugin.Host { return pluginhost.New(shared.Cfg, shared.Tokens) }
+
+func SignalCmd(name, short string) *cobra.Command { return sourceCmd(name, short) }
+
+func QueryCmd(name, short string, bind func(*cobra.Command, *map[string]string)) *cobra.Command {
+	parent := &cobra.Command{Use: name, Short: short}
+	params := map[string]string{}
+	var ff filterFlags
+	query := &cobra.Command{
+		Use:   "query",
+		Short: "Fetch " + name + " now, with optional filters",
+		Args:  cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error {
+			return runSignal(c, name, params, &ff)
+		},
+	}
+	if bind != nil {
+		bind(query, &params)
+	}
+	ff.bind(query)
+	parent.AddCommand(query)
+	return parent
+}
+
+func EmitSections(c *cobra.Command, root string, sections []plugin.Section) error {
+	return emit(c.OutOrStdout(), root, sections)
+}
+
+func RecordAction(label string, started, finished time.Time, sections []plugin.Section) {
+	shared.Audit.RecordAction(label, shared.Role(), started, finished, sections)
+}
+
+func ResolveWriteTarget(what, setting, configured, requested string) (string, error) {
+	return build.ResolveWriteTarget(what, setting, configured, requested)
+}
 
 func ResolveFlight(args []string) (string, error) { return resolveServeFlight(args) }
 

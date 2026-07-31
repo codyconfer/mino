@@ -21,8 +21,8 @@ func TestFlightTreeStructure(t *testing.T) {
 	}
 	rows := FlightTree(layout.NewFrame(80), "flight", secs)
 
-	if len(rows) == 0 || !strings.Contains(rows[0].Lines[0], "flight  (3)") {
-		t.Fatalf("first row should be the trunk with 3 branches, got %+v", rows[0])
+	if len(rows) == 0 || !strings.Contains(rows[0].Lines[0], "flight") {
+		t.Fatalf("first row should be the trunk, got %+v", rows[0])
 	}
 
 	var selectable, empty, errBranch bool

@@ -3,12 +3,9 @@ package cmd
 import (
 	"context"
 
-	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/signals"
 	"github.com/codyconfer/munin/internal/signals/build"
 )
-
-func googleAuth() auth.GoogleAuth { return build.GoogleAuth(shared.Cfg, shared.Tokens) }
 
 type errSignal struct {
 	name string

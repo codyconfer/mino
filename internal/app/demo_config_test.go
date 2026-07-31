@@ -25,8 +25,6 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 		"queries/no-bots.yaml",
 		"demo.yaml",
 		"flights/demo.yaml",
-		"queries/notify-smoke.yaml",
-		"flights/notify-smoke.yaml",
 	} {
 		if _, ok := got[want]; !ok {
 			t.Fatalf("missing seed %s", want)
@@ -45,8 +43,9 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 		!strings.Contains(got["queries/demo-reviews.yaml"], "review-requested:@me") {
 		t.Fatalf("demo-reviews query = %q", got["queries/demo-reviews.yaml"])
 	}
-	if !strings.Contains(got["queries/notify-smoke.yaml"], "signal: demo") {
-		t.Fatalf("notify-smoke should keep synthetic demo: %q", got["queries/notify-smoke.yaml"])
+	if _, ok := got["queries/notify-smoke.yaml"]; ok {
+		t.Fatalf("notify-smoke seeds the synthetic demo signal, which stock munin no longer registers: %q",
+			got["queries/notify-smoke.yaml"])
 	}
 	if !strings.Contains(got["flights/demo.yaml"], "demo-reviews") {
 		t.Fatalf("demo flight = %q", got["flights/demo.yaml"])
@@ -132,8 +131,7 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 		!access.QueryVisible("demo-reviews") || !access.QueryVisible("no-bots") {
 		t.Fatalf("demo role should expose demo flight/queries/filter")
 	}
-	if access.FlightVisible("default") || access.QueryVisible("my-open-prs") ||
-		access.QueryVisible("notify-smoke") {
+	if access.FlightVisible("default") || access.QueryVisible("my-open-prs") {
 		t.Fatalf("demo role should hide non-demo directives")
 	}
 }

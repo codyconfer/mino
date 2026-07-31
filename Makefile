@@ -1,4 +1,4 @@
-.PHONY: build build-experimental build-nodaemon dev install command run serve daemon test test-race test-shuffle prove fmt fmt-check vet lint govulncheck check ci package clean icons
+.PHONY: build build-experimental build-nodaemon build-overlay dev install command run serve daemon test test-race test-shuffle test-overlay prove fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
 BIN     ?= $(DIST)/munin
@@ -99,6 +99,17 @@ build-experimental:
 build-nodaemon:
 	go build -tags nodaemon ./...
 	go vet -tags nodaemon ./...
+
+# Build and vet the external plugin overlay module (external/plugins): the Google,
+# Slack, and demo signals, built only against the public SDK. Stock munin does not
+# link them, so nothing else in this gate would catch a break in that module.
+build-overlay:
+	cd external/plugins && go build ./... && go vet ./...
+
+# Test the overlay module. Separate target because it is a separate module, so
+# `go test ./...` from the root never reaches it.
+test-overlay:
+	cd external/plugins && go test $(GOFLAGS_TEST) ./...
 
 # Build a dev binary to $(BIN) honoring RACE/TAGS/EMAIL_DOMAIN/ALL_OR_NOTHING_AUTH.
 # Phony so it always rebuilds (go build is incremental) before a mode target runs.
@@ -218,10 +229,12 @@ GO_TOOL = GOWORK=off go tool -modfile=tools/go.mod
 # Format all Go source in place (gofmt + goimports via golangci-lint).
 fmt:
 	$(GO_TOOL) golangci-lint fmt
+	cd external/plugins && GOWORK=off go tool -modfile=../../tools/go.mod golangci-lint fmt
 
 # Verify all Go source is formatted; fail (showing the diff) if not.
 fmt-check:
 	$(GO_TOOL) golangci-lint fmt --diff
+	cd external/plugins && GOWORK=off go tool -modfile=../../tools/go.mod golangci-lint fmt --diff
 
 # go vet: the standard toolchain analyzers.
 vet:
@@ -230,13 +243,14 @@ vet:
 # golangci-lint: aggregate static analysis (govet, staticcheck, errcheck, ...).
 lint:
 	$(GO_TOOL) golangci-lint run
+	cd external/plugins && GOWORK=off go tool -modfile=../../tools/go.mod golangci-lint run
 
 # govulncheck: report known vulnerabilities in dependencies and reachable code.
 govulncheck:
 	$(GO_TOOL) govulncheck ./...
 
 # Full gate: build, format check, lint, vulncheck, test.
-check: build build-experimental build-nodaemon fmt-check lint govulncheck test
+check: build build-experimental build-nodaemon build-overlay fmt-check lint govulncheck test test-overlay
 
 # CI entrypoint: identical to the full gate.
 ci: check

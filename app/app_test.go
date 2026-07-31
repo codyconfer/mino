@@ -58,11 +58,9 @@ func TestListDefaultsEmbedded(t *testing.T) {
 		"queries/my-open-prs.yaml",
 		"queries/demo.yaml",
 		"queries/demo-reviews.yaml",
-		"queries/notify-smoke.yaml",
 		"queries/no-bots.yaml",
 		"flights/default.yaml",
 		"flights/demo.yaml",
-		"flights/notify-smoke.yaml",
 		"demo.yaml",
 	} {
 		if !seen[want] {

@@ -1,6 +1,8 @@
 package loginflow
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,9 +11,38 @@ import (
 
 	"github.com/codyconfer/munin/internal/app"
 	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/munin/internal/plugin"
 )
 
+func registerFakeGoogle(t *testing.T) {
+	t.Helper()
+	plugin.ResetLoginProviders()
+	t.Cleanup(plugin.ResetLoginProviders)
+	plugin.RegisterLoginProvider(plugin.LoginProvider{
+		PluginID: "external.google",
+		Key:      "google",
+		Label:    "Google",
+		Signals:  []string{"calendar", "gmail", "docs", "drive", "tasks"},
+		Fields: []plugin.LoginField{
+			{Key: "plugins.google.oauth_client_id", Label: "OAuth client id", Value: setting("oauth_client_id")},
+			{Key: "plugins.google.oauth_client_secret", Label: "OAuth client secret", Secret: true, Value: setting("oauth_client_secret")},
+		},
+		Authed: func(plugin.Host) bool { return false },
+		Login:  func(context.Context, plugin.Host, map[string]string, io.Writer) error { return nil },
+	})
+}
+
+func setting(key string) func(plugin.Host) string {
+	return func(h plugin.Host) string {
+		if h == nil {
+			return ""
+		}
+		return plugin.Setting(h.Settings("google"), key, "")
+	}
+}
+
 func TestResolveAliases(t *testing.T) {
+	registerFakeGoogle(t)
 	cases := map[string]string{
 		"github":   "github",
 		"google":   "google",
@@ -20,7 +51,6 @@ func TestResolveAliases(t *testing.T) {
 		"docs":     "google",
 		"drive":    "google",
 		"tasks":    "google",
-		"slack":    "slack",
 	}
 	for name, want := range cases {
 		p, ok := Resolve(name)
@@ -37,18 +67,27 @@ func TestResolveAliases(t *testing.T) {
 	}
 }
 
-func TestMissing(t *testing.T) {
+func TestContributedProviderIsNotResolvedWhenUnregistered(t *testing.T) {
+	plugin.ResetLoginProviders()
+	t.Cleanup(plugin.ResetLoginProviders)
+	if _, ok := Resolve("google"); ok {
+		t.Error("google resolves without a plugin: stock munin no longer ships the Google signals")
+	}
+}
+
+func TestMissingReadsContributedFieldsFromPluginSettings(t *testing.T) {
+	registerFakeGoogle(t)
 	cfg := config.Defaults()
-	cfg.Google.OAuthClientID = "id-only"
+	cfg.Plugins = map[string]map[string]any{"google": {"oauth_client_id": "id-only"}}
 	a := &app.App{Cfg: cfg}
 
 	p, _ := Resolve("google")
 	miss := p.Missing(a)
-	if len(miss) != 1 || miss[0].Key != "google.oauth_client_secret" {
+	if len(miss) != 1 || miss[0].Key != "plugins.google.oauth_client_secret" {
 		t.Fatalf("expected only client secret missing, got %#v", miss)
 	}
 
-	cfg.Google.OAuthClientSecret = "secret"
+	cfg.Plugins["google"]["oauth_client_secret"] = "secret"
 	if m := p.Missing(a); len(m) != 0 {
 		t.Fatalf("expected nothing missing, got %#v", m)
 	}
@@ -61,8 +100,8 @@ func TestPersistCredentials(t *testing.T) {
 	a := &app.App{Cfg: cfg}
 
 	if err := PersistCredentials(a, map[string]string{
-		"google.oauth_client_id":     "abc",
-		"google.oauth_client_secret": "xyz",
+		"plugins.google.oauth_client_id":     "abc",
+		"plugins.google.oauth_client_secret": "xyz",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -75,8 +114,12 @@ func TestPersistCredentials(t *testing.T) {
 	if err := yaml.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
-	g, ok := got["google"].(map[string]any)
+	plugins, ok := got["plugins"].(map[string]any)
+	if !ok {
+		t.Fatalf("credentials not written under plugins: %#v", got)
+	}
+	g, ok := plugins["google"].(map[string]any)
 	if !ok || g["oauth_client_id"] != "abc" || g["oauth_client_secret"] != "xyz" {
-		t.Fatalf("credentials not written: %#v", got["google"])
+		t.Fatalf("credentials not written: %#v", plugins["google"])
 	}
 }

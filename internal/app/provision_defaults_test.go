@@ -57,8 +57,6 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 		"queries/no-bots.yaml",
 		"flights/demo.yaml",
 		"demo.yaml",
-		"queries/notify-smoke.yaml",
-		"flights/notify-smoke.yaml",
 		"flights/default.yaml",
 		"queries/my-open-prs.yaml",
 	} {
@@ -87,12 +85,8 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 		!strings.Contains(got["demo.yaml"], "no-bots") {
 		t.Fatalf("demo role = %q", got["demo.yaml"])
 	}
-	if !strings.Contains(got["queries/notify-smoke.yaml"], "signal: demo") {
-		t.Fatalf("notify-smoke = %q", got["queries/notify-smoke.yaml"])
-	}
-	if strings.Contains(got["flights/default.yaml"], "demo") ||
-		strings.Contains(got["flights/default.yaml"], "notify-smoke") {
-		t.Fatalf("default flight must not reference demo/notify-smoke: %q", got["flights/default.yaml"])
+	if strings.Contains(got["flights/default.yaml"], "demo") {
+		t.Fatalf("default flight must not reference demo: %q", got["flights/default.yaml"])
 	}
 }
 

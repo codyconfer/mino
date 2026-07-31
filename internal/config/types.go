@@ -1,5 +1,10 @@
 package config
 
+import (
+	"os"
+	"strings"
+)
+
 type Config struct {
 	Home     string            `koanf:"-"`
 	Output   string            `koanf:"output"`
@@ -9,15 +14,42 @@ type Config struct {
 	Audit    AuditConfig       `koanf:"audit"`
 	Backup   BackupConfig      `koanf:"backup"`
 	GitHub   GitHubConfig      `koanf:"github"`
-	Google   GoogleConfig      `koanf:"google"`
-	Cal      CalendarConfig    `koanf:"calendar"`
-	Gmail    GmailConfig       `koanf:"gmail"`
-	Docs     DocsConfig        `koanf:"docs"`
-	Drive    DriveConfig       `koanf:"drive"`
-	Tasks    TasksConfig       `koanf:"tasks"`
-	Slack    SlackConfig       `koanf:"slack"`
 	Daemon   DaemonConfig      `koanf:"daemon"`
 	Cache    CacheConfig       `koanf:"cache"`
+
+	Plugins map[string]map[string]any `koanf:"plugins"`
+}
+
+func (c *Config) PluginSettings(namespace string) map[string]any {
+	if c == nil || namespace == "" {
+		return nil
+	}
+	section := c.Plugins[namespace]
+	out := make(map[string]any, len(section))
+	for key, value := range section {
+		out[settingKey(key)] = value
+	}
+	overlayPluginEnv(namespace, out)
+	return out
+}
+
+func settingKey(key string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(key)), ".", "_")
+}
+
+func overlayPluginEnv(namespace string, out map[string]any) {
+	prefix := envPrefix + "PLUGINS_" + strings.ToUpper(settingKey(namespace)) + "_"
+	for _, entry := range os.Environ() {
+		name, value, ok := strings.Cut(entry, "=")
+		if !ok || !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		key := settingKey(strings.TrimPrefix(name, prefix))
+		if key == "" {
+			continue
+		}
+		out[key] = value
+	}
 }
 
 type CacheConfig struct {
@@ -32,24 +64,6 @@ type DaemonConfig struct {
 	Desktop  bool   `koanf:"desktop"`
 	Tray     bool   `koanf:"tray"`
 	Theme    string `koanf:"theme"`
-}
-
-type DriveConfig struct {
-	Dir     string   `koanf:"dir"`
-	Folders []string `koanf:"folders"`
-	Recent  int      `koanf:"recent"`
-}
-
-type TasksConfig struct {
-	List          string   `koanf:"list"`
-	Lists         []string `koanf:"lists"`
-	ShowCompleted bool     `koanf:"show_completed"`
-	Max           int      `koanf:"max"`
-}
-
-type GoogleConfig struct {
-	OAuthClientID     string `koanf:"oauth_client_id"`
-	OAuthClientSecret string `koanf:"oauth_client_secret"`
 }
 
 type AuditConfig struct {
@@ -70,31 +84,6 @@ type GitHubConfig struct {
 	OAuthScopes   string   `koanf:"oauth_scopes"`
 	APIURL        string   `koanf:"api_url"`
 	Max           int      `koanf:"max"`
-}
-
-type CalendarConfig struct {
-	CalendarID string `koanf:"calendar_id"`
-	Window     string `koanf:"window"`
-	Max        int    `koanf:"max"`
-}
-
-type GmailConfig struct {
-	Query string `koanf:"query"`
-	Max   int    `koanf:"max"`
-}
-
-type DocsConfig struct {
-	Recent int `koanf:"recent"`
-}
-
-type SlackConfig struct {
-	TokenEnv          string `koanf:"token_env"`
-	AppTokenEnv       string `koanf:"app_token_env"`
-	BotTokenEnv       string `koanf:"bot_token_env"`
-	OAuthClientID     string `koanf:"oauth_client_id"`
-	OAuthClientSecret string `koanf:"oauth_client_secret"`
-	UserScopes        string `koanf:"user_scopes"`
-	Limit             int    `koanf:"limit"`
 }
 
 type RoleDef struct {

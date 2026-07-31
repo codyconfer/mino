@@ -78,7 +78,7 @@ func TestCompleteActionRunIsPositionAware(t *testing.T) {
 	_ = build.KnownSignals()
 
 	first := names(t, completeActionRun)
-	if !slices.Contains(first, "tasks") {
+	if !slices.Contains(first, "ntr") {
 		t.Fatalf("first arg should offer action-capable signals, got %v", first)
 	}
 	if slices.Contains(first, "github") {
@@ -101,12 +101,12 @@ func TestCompleteParamAssignmentsFollowsTheSignalFlag(t *testing.T) {
 	if got, _ := completeParamAssignments(c, nil, ""); len(got) != 0 {
 		t.Fatalf("without --signal there is nothing to offer, got %v", got)
 	}
-	if err := c.Flags().Set("signal", "gmail"); err != nil {
+	if err := c.Flags().Set("signal", "github"); err != nil {
 		t.Fatal(err)
 	}
 	got, directive := completeParamAssignments(c, nil, "")
-	if !slices.Contains(got, "query=") || !slices.Contains(got, "max=") {
-		t.Fatalf("got %v, want gmail's params as key= pairs", got)
+	if !slices.Contains(got, "query=") || !slices.Contains(got, "project=") {
+		t.Fatalf("got %v, want github's params as key= pairs", got)
 	}
 	if directive&cobra.ShellCompDirectiveNoSpace == 0 {
 		t.Error("a key= pair must not get a trailing space; the value follows it")

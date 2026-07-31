@@ -37,6 +37,10 @@ func (p Provider) Missing(a *app.App) []CredField {
 }
 
 func Providers() []Provider {
+	return append(coreProviders(), registered()...)
+}
+
+func coreProviders() []Provider {
 	return []Provider{
 		{
 			Key:   "github",
@@ -48,38 +52,6 @@ func Providers() []Provider {
 			Login: func(ctx context.Context, a *app.App, creds map[string]string, w io.Writer) error {
 				id := eff(creds, "github.oauth_client_id", a.Cfg.GitHub.OAuthClientID)
 				return auth.LoginGitHub(ctx, a.Tokens, id, a.Cfg.GitHub.OAuthScopes, w)
-			},
-		},
-		{
-			Key:     "google",
-			Label:   "Google",
-			Signals: []string{"calendar", "gmail", "docs", "drive", "tasks"},
-			Fields: []CredField{
-				{Key: "google.oauth_client_id", Label: "OAuth client id", Cur: func(a *app.App) string { return a.Cfg.Google.OAuthClientID }},
-				{Key: "google.oauth_client_secret", Label: "OAuth client secret", Secret: true, Cur: func(a *app.App) string { return a.Cfg.Google.OAuthClientSecret }},
-			},
-			Authed: func(a *app.App) bool { return auth.GoogleAuthed(a.Tokens) },
-			Login: func(ctx context.Context, a *app.App, creds map[string]string, w io.Writer) error {
-				return auth.GoogleLogin(ctx, auth.GoogleAuth{
-					Store:        a.Tokens,
-					ClientID:     eff(creds, "google.oauth_client_id", a.Cfg.Google.OAuthClientID),
-					ClientSecret: eff(creds, "google.oauth_client_secret", a.Cfg.Google.OAuthClientSecret),
-				}, w)
-			},
-		},
-		{
-			Key:   "slack",
-			Label: "Slack",
-			Fields: []CredField{
-				{Key: "slack.oauth_client_id", Label: "OAuth client id", Cur: func(a *app.App) string { return a.Cfg.Slack.OAuthClientID }},
-				{Key: "slack.oauth_client_secret", Label: "OAuth client secret", Secret: true, Cur: func(a *app.App) string { return a.Cfg.Slack.OAuthClientSecret }},
-			},
-			Authed: func(a *app.App) bool { _, err := auth.SlackToken(a.Tokens, a.Cfg.Slack.TokenEnv); return err == nil },
-			Login: func(ctx context.Context, a *app.App, creds map[string]string, w io.Writer) error {
-				return auth.LoginSlack(ctx, a.Tokens,
-					eff(creds, "slack.oauth_client_id", a.Cfg.Slack.OAuthClientID),
-					eff(creds, "slack.oauth_client_secret", a.Cfg.Slack.OAuthClientSecret),
-					a.Cfg.Slack.UserScopes, w)
 			},
 		},
 	}

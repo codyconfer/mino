@@ -1,26 +1,35 @@
-# External plugins graduated (M6)
+# External plugins
 
-Lane C / C2 packages (`gcx`, `kubectl`, `gooseai`, `pi`, `opencode`, `ollama`,
-and the shared `stub` helper) no longer ship in the stock munin binary.
+Nothing here ships in the stock munin binary.
 
-**Local overlay layout (siblings of this repo):**
+**In-repo overlay module** — the Google (Calendar, Gmail, Docs, Drive, Tasks),
+Slack, and demo signals:
+
+```text
+external/plugins/            public-SDK plugin packages + tests
+external/plugins/overlay/    thin binary: RegisterPlugins → plugins.Register
+```
+
+```sh
+make build-overlay
+make test-overlay
+cd external/plugins && go run ./overlay calendar query
+```
+
+**Sibling overlay repos** — Lane C / C2 packages (`gcx`, `kubectl`, `gooseai`,
+`pi`, `opencode`, `ollama`, and the shared `stub` helper):
 
 ```text
 ../munin-plugins-external/     public-SDK plugin packages + tests
 ../munin-overlay-template/     thin binary: RegisterPlugins → externals.Register
 ```
 
-Build stock munin without externals:
+Build stock munin without either:
 
 ```sh
 make build
 go test ./...
 ```
 
-Build with externals:
-
-```sh
-cd ../munin-overlay-template && make build
-```
-
-See [`docs/m6-distribution-kit.md`](../../../docs/m6-distribution-kit.md).
+See [`external/plugins/README.md`](../../../external/plugins/README.md) and
+[`docs/readme.md`](../../../docs/readme.md#plugins--notes).

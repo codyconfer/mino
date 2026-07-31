@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -107,34 +106,6 @@ func TestGHAPIGetGivesUpOnASilentServer(t *testing.T) {
 	}
 }
 
-func TestPostFormGivesUpOnASilentServer(t *testing.T) {
-	withShortTimeout(t, 200*time.Millisecond)
-	srv := silentServer(t)
-
-	err := withinDeadline(t, "postForm", func() error {
-		var out struct{}
-		return postForm(context.Background(), nil, srv.URL, url.Values{}, &out)
-	})
-	if err == nil {
-		t.Fatal("want a timeout error from a token endpoint that never responds")
-	}
-}
-
-func TestFetchTokenScopesGivesUpOnASilentServer(t *testing.T) {
-	withShortTimeout(t, 200*time.Millisecond)
-	srv := silentServer(t)
-	prev := googleTokenInfoURL
-	googleTokenInfoURL = srv.URL
-	t.Cleanup(func() { googleTokenInfoURL = prev })
-
-	withinDeadline(t, "fetchTokenScopes", func() error {
-		if got := fetchTokenScopes(context.Background(), "tok"); got != nil {
-			t.Errorf("scopes = %v, want nil on timeout", got)
-		}
-		return nil
-	})
-}
-
 func TestGHAPIGetBoundsAnEndlessBody(t *testing.T) {
 	noGHOnPath(t)
 	srv := endlessServer(t, http.StatusOK)
@@ -154,25 +125,6 @@ func TestGHAPIGetBoundsAnEndlessBody(t *testing.T) {
 		t.Fatal("want an oversize-body error")
 	}
 	if !strings.Contains(err.Error(), "exceeds") {
-		t.Fatalf("error = %v, want the size limit named", err)
-	}
-}
-
-func TestPostFormBoundsAnEndlessBody(t *testing.T) {
-	srv := endlessServer(t, http.StatusOK)
-
-	done := make(chan error, 1)
-	go func() {
-		var out struct{}
-		done <- postForm(context.Background(), nil, srv.URL, url.Values{}, &out)
-	}()
-	var err error
-	select {
-	case err = <-done:
-	case <-time.After(20 * time.Second):
-		t.Fatal("postForm never stopped reading: the body read is unbounded")
-	}
-	if err == nil || !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("error = %v, want the size limit named", err)
 	}
 }

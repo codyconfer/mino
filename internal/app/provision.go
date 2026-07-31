@@ -51,10 +51,6 @@ filters: [no-bots]
 params:
   query: "is:open is:pr review-requested:@me"
 `
-	sampleNotifySmokeQueryYAML = `name: notify-smoke
-type: query
-signal: demo
-`
 	sampleFilterYAML = `name: no-bots
 type: filter
 rules:
@@ -68,10 +64,6 @@ queries: [my-open-prs]
 	sampleDemoFlightYAML = `name: demo
 type: flight
 queries: [demo, demo-reviews]
-`
-	sampleNotifySmokeFlightYAML = `name: notify-smoke
-type: flight
-queries: [notify-smoke]
 `
 	sampleDemoRoleYAML = `name: demo
 type: role
@@ -108,11 +100,9 @@ func installSpec(home string, force bool) lifecycle.InstallSpec {
 		{RelPath: path.Join(config.DirQueries, "my-open-prs.yaml"), Content: []byte(sampleQueryYAML)},
 		{RelPath: path.Join(config.DirQueries, "demo.yaml"), Content: []byte(sampleDemoQueryYAML)},
 		{RelPath: path.Join(config.DirQueries, "demo-reviews.yaml"), Content: []byte(sampleDemoReviewsQueryYAML)},
-		{RelPath: path.Join(config.DirQueries, "notify-smoke.yaml"), Content: []byte(sampleNotifySmokeQueryYAML)},
 		{RelPath: path.Join(config.DirQueries, "no-bots.yaml"), Content: []byte(sampleFilterYAML)},
 		{RelPath: path.Join(config.DirFlights, "default.yaml"), Content: []byte(sampleFlightYAML)},
 		{RelPath: path.Join(config.DirFlights, "demo.yaml"), Content: []byte(sampleDemoFlightYAML)},
-		{RelPath: path.Join(config.DirFlights, "notify-smoke.yaml"), Content: []byte(sampleNotifySmokeFlightYAML)},
 		{RelPath: path.Join(config.DirFormatters, "standup.yaml"), Content: []byte(sampleFormatterYAML)},
 		{RelPath: "demo.yaml", Content: []byte(sampleDemoRoleYAML)},
 	}

@@ -156,7 +156,15 @@ func TestLoginRunStepEscCancelsTheLogin(t *testing.T) {
 
 func TestLoginFlowMasksClientSecret(t *testing.T) {
 	kit := testKit(t)
-	p, _ := loginflow.Resolve("google")
+	p := loginflow.Provider{
+		Key:   "acme",
+		Label: "Acme",
+		Fields: []loginflow.CredField{
+			{Key: "plugins.acme.oauth_client_id", Label: "OAuth client id", Cur: func(*app.App) string { return "" }},
+			{Key: "plugins.acme.oauth_client_secret", Label: "OAuth client secret", Secret: true, Cur: func(*app.App) string { return "" }},
+		},
+		Authed: func(*app.App) bool { return false },
+	}
 	v := kit.loginFlow(p).(*loginFlowView)
 	a := deck.New(v)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})

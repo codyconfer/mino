@@ -96,7 +96,7 @@ func TestLoginRefusalIsInertWithoutATokenStore(t *testing.T) {
 	t.Cleanup(func() { shared = orig })
 	shared = &app.App{Cfg: &config.Config{Home: t.TempDir()}, Directives: &config.Directives{}}
 
-	p, err := loginflow.ResolveOrErr("google")
+	p, err := loginflow.ResolveOrErr("github")
 	if err != nil {
 		t.Fatal(err)
 	}

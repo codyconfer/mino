@@ -46,15 +46,15 @@ func TestSignalsWithDetailGetAShowSubcommand(t *testing.T) {
 		t.Error("github advertises CapDetail so it should expose `github show`")
 	}
 
-	if plugin.HasCapability("gmail", plugin.CapDetail) {
-		t.Skip("gmail now supports details; pick another detail-less signal")
+	if plugin.HasCapability("ntr", plugin.CapDetail) {
+		t.Skip("ntr now supports details; pick another detail-less signal")
 	}
-	gmail := findCmd(root, "gmail")
-	if gmail == nil {
-		t.Fatal("missing gmail command")
+	ntr := findCmd(root, "notes")
+	if ntr == nil {
+		t.Fatal("missing notes command")
 	}
-	if findCmd(gmail, "show") != nil {
-		t.Error("gmail does not advertise CapDetail so it should not expose `show`")
+	if findCmd(ntr, "show") != nil {
+		t.Error("ntr does not advertise CapDetail so it should not expose `show`")
 	}
 }
 

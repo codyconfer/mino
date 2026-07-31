@@ -10,6 +10,7 @@ import (
 	"github.com/codyconfer/munin/internal/auth"
 	"github.com/codyconfer/munin/internal/deck"
 	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/munin/internal/pluginhost"
 	gh "github.com/codyconfer/munin/internal/signals/github"
 )
 
@@ -37,33 +38,8 @@ func Provider(a *app.App) deck.StatusFunc {
 			}
 		}
 
-		if plugin.SignalEnabled("slack") {
-			slackLevel := deck.StatusMuted
-			if _, err := auth.SlackToken(a.Tokens, ""); err == nil {
-				slackLevel = deck.StatusOK
-			}
-			info.Services = append(info.Services, deck.ServiceStatus{Name: "slack", Level: slackLevel})
-		}
+		info.Services = append(info.Services, providerStatuses(a)...)
 
-		googleSignals := []string{"calendar", "gmail", "docs", "drive", "tasks"}
-		anyGoogle := false
-		for _, name := range googleSignals {
-			if plugin.SignalEnabled(name) {
-				anyGoogle = true
-				break
-			}
-		}
-		if anyGoogle {
-			googleLevel := deck.StatusMuted
-			if auth.GoogleAuthed(a.Tokens) {
-				googleLevel = deck.StatusOK
-			}
-			info.Services = append(info.Services, deck.ServiceStatus{
-				ID:    "google",
-				Name:  "google",
-				Level: googleLevel,
-			})
-		}
 		if svc, ok := credentialStoreChip(); ok {
 			info.Services = append(info.Services, svc)
 		}
@@ -143,6 +119,35 @@ func signingVerified(st onboard.Status) bool {
 	for _, r := range st.Results {
 		if r.Step == onboard.StepGPGGitHub || r.Step == onboard.StepSSHGitHub {
 			return r.OK
+		}
+	}
+	return false
+}
+
+func providerStatuses(a *app.App) []deck.ServiceStatus {
+	host := pluginhost.New(a.Cfg, a.Tokens)
+	var out []deck.ServiceStatus
+	for _, p := range plugin.LoginProviders() {
+		if !providerEnabled(p) {
+			continue
+		}
+		level := deck.StatusMuted
+		if p.Authed != nil && p.Authed(host) {
+			level = deck.StatusOK
+		}
+		out = append(out, deck.ServiceStatus{ID: p.Key, Name: p.Key, Level: level})
+	}
+	return out
+}
+
+func providerEnabled(p plugin.LoginProvider) bool {
+	names := p.Signals
+	if len(names) == 0 {
+		names = []string{p.Key}
+	}
+	for _, name := range names {
+		if plugin.SignalEnabled(name) {
+			return true
 		}
 	}
 	return false

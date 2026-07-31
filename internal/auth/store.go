@@ -10,20 +10,12 @@ import (
 
 	"github.com/codyconfer/munin/internal/errs"
 	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/munin/plugin"
 )
 
-type Credential struct {
-	AccessToken  string
-	RefreshToken string
-	Scope        string
-	Expiry       time.Time
-}
+type Credential = plugin.Credential
 
-type TokenStore interface {
-	Get(ctx context.Context, service string) (Credential, bool, error)
-	Put(ctx context.Context, service string, c Credential) error
-	Delete(ctx context.Context, service string) error
-}
+type TokenStore = plugin.CredentialStore
 
 type CredentialState int
 

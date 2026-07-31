@@ -3,12 +3,13 @@
 [![CI](https://github.com/codyconfer/munin/actions/workflows/ci.yml/badge.svg)](https://github.com/codyconfer/munin/actions/workflows/ci.yml)
 
 Munin is a command-line assistant for the signals you check at the start of — and
-throughout — an SRE shift, pulling **GitHub**, **Google** (Calendar / Gmail / Docs /
-Drive / Tasks), and **Slack** into one consistently formatted view. Query a single
-signal ad-hoc, save reusable **queries** and **filters** and recall them by name, or
-send Munin on a named **flight** that fetches a whole set concurrently. Results print
-as terminal panels or JSON — or through a **formatter**, a template that turns a run
-into a report you can paste.
+throughout — an SRE shift. Stock Munin ships **GitHub** plus **notes / tasks /
+reminders**; **Google** (Calendar / Gmail / Docs / Drive / Tasks), **Slack**, and the
+demo signal live in [`external/plugins`](external/plugins/) and are linked by an
+overlay binary. Query a single signal ad-hoc, save reusable **queries** and
+**filters** and recall them by name, or send Munin on a named **flight** that fetches
+a whole set concurrently. Results print as terminal panels or JSON — or through a
+**formatter**, a template that turns a run into a report you can paste.
 
 ## Getting started
 
@@ -26,7 +27,7 @@ munin install                 # create ~/.munin with defaults
 munin onboard                 # one-time: GitHub auth + a GitHub-verified GPG key
 munin fly                     # run the default flight
 munin github query            # ad-hoc: your open PRs + review requests
-munin fly morning -o json | jq .
+munin fly default -o json | jq .
 ```
 
 On first use Munin guides you through onboarding — GitHub auth plus a GitHub-verified
@@ -65,7 +66,7 @@ Four modes over the same engine:
 | `munin history` | List past runs |
 | `munin config` | Show the active config |
 | `munin role` | Show the active and defined roles |
-| `munin login <service>` | OAuth login for github/google/slack |
+| `munin login <service>` | OAuth login for github, plus any provider a plugin contributes |
 | `munin install` | Create the config directory with defaults |
 | `munin onboard` | One-time setup gate |
 

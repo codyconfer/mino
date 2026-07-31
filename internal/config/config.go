@@ -93,12 +93,6 @@ func Defaults() *Config {
 		Audit:    AuditConfig{Enabled: true},
 		Backup:   BackupConfig{SecretBackend: "auto", SecretName: "munin-backup-key", Destination: "local"},
 		GitHub:   GitHubConfig{OAuthScopes: "repo read:org", Max: 30},
-		Cal:      CalendarConfig{CalendarID: "primary", Window: "24h", Max: 50},
-		Gmail:    GmailConfig{Query: "is:unread in:inbox", Max: 15},
-		Docs:     DocsConfig{Recent: 10},
-		Drive:    DriveConfig{Recent: 20},
-		Tasks:    TasksConfig{Max: 100},
-		Slack:    SlackConfig{TokenEnv: "SLACK_TOKEN", AppTokenEnv: "SLACK_APP_TOKEN", BotTokenEnv: "SLACK_BOT_TOKEN", Limit: 50},
 		Daemon:   DaemonConfig{Interval: "60s", Bell: true, Theme: "dark"},
 		Cache:    CacheConfig{TTL: "60s"},
 	}

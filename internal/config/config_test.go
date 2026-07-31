@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/codyconfer/munin/internal/testenv"
@@ -20,11 +21,8 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.Audit.Enabled {
 		t.Error("audit should default on")
 	}
-	if cfg.Slack.TokenEnv != "SLACK_TOKEN" || cfg.Cal.CalendarID != "primary" {
-		t.Errorf("signal param defaults wrong: %+v %+v", cfg.Slack, cfg.Cal)
-	}
-	if cfg.Gmail.Max != 15 || cfg.Docs.Recent != 10 {
-		t.Errorf("numeric defaults wrong: gmail.max=%d docs.recent=%d", cfg.Gmail.Max, cfg.Docs.Recent)
+	if len(cfg.Plugins) != 0 {
+		t.Errorf("plugin settings should default empty, got %#v", cfg.Plugins)
 	}
 	if cfg.Role != "" {
 		t.Errorf("role should default empty, got %q", cfg.Role)
@@ -67,9 +65,10 @@ func TestLoadFileOverrides(t *testing.T) {
 	write(t, filepath.Join(dir, "config.yaml"), `
 output: json
 role: triage
-gmail:
-  query: "is:starred"
-  max: 3
+plugins:
+  gmail:
+    query: "is:starred"
+    max: 3
 `)
 	cfg, err := Load(dir)
 	if err != nil {
@@ -81,11 +80,12 @@ gmail:
 	if cfg.Role != "triage" {
 		t.Errorf("role = %q, want triage", cfg.Role)
 	}
-	if cfg.Gmail.Query != "is:starred" || cfg.Gmail.Max != 3 {
-		t.Errorf("gmail overrides not applied: %+v", cfg.Gmail)
+	gmail := cfg.PluginSettings("gmail")
+	if gmail["query"] != "is:starred" {
+		t.Errorf("plugin settings not applied: %#v", gmail)
 	}
-	if cfg.Docs.Recent != 10 {
-		t.Errorf("docs should retain its default (10), got %d", cfg.Docs.Recent)
+	if len(cfg.PluginSettings("docs")) != 0 {
+		t.Errorf("unconfigured plugin sections should stay empty, got %#v", cfg.PluginSettings("docs"))
 	}
 	if cfg.Keybinds["alt+n"] != "ntr.note.new" {
 		t.Errorf("omitted keybinds should keep defaults, got %#v", cfg.Keybinds)
@@ -97,7 +97,7 @@ func TestLoadConfigJSON(t *testing.T) {
 	write(t, filepath.Join(dir, "config.json"), `{
 	  "output": "json",
 	  "role": "oncall",
-	  "gmail": { "query": "is:starred", "max": 3 }
+	  "plugins": { "gmail": { "query": "is:starred", "max": 3 } }
 	}`)
 	cfg, err := Load(dir)
 	if err != nil {
@@ -109,8 +109,8 @@ func TestLoadConfigJSON(t *testing.T) {
 	if cfg.Role != "oncall" {
 		t.Errorf("json role = %q, want oncall", cfg.Role)
 	}
-	if cfg.Gmail.Max != 3 {
-		t.Errorf("json gmail.max = %d, want 3", cfg.Gmail.Max)
+	if got := cfg.PluginSettings("gmail")["max"]; got != float64(3) && got != 3 {
+		t.Errorf("json plugins.gmail.max = %#v, want 3", got)
 	}
 }
 
@@ -320,5 +320,39 @@ func write(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPluginSettingsEnvOverridesFileLeaves(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "config.yaml"), `
+plugins:
+  slack:
+    token_env: FROM_FILE
+    limit: 7
+`)
+	t.Setenv("MUNIN_PLUGINS_SLACK_TOKEN_ENV", "FROM_ENV")
+	t.Setenv("MUNIN_PLUGINS_CALENDAR_MAX", "20")
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	slack := cfg.PluginSettings("slack")
+	if slack["token_env"] != "FROM_ENV" {
+		t.Errorf("token_env = %#v, want the env override to win over the file", slack["token_env"])
+	}
+	if slack["limit"] != 7 {
+		t.Errorf("limit = %#v, want the file value 7 kept", slack["limit"])
+	}
+	for key := range slack {
+		if strings.Contains(key, ".") {
+			t.Errorf("settings carry a dotted key %q: multi-word leaves must land as snake_case", key)
+		}
+	}
+
+	if got := cfg.PluginSettings("calendar")["max"]; got != "20" {
+		t.Errorf("calendar.max = %#v, want the env override for a namespace absent from the file", got)
 	}
 }

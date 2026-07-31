@@ -18,7 +18,7 @@ func newBackupCmd() *cobra.Command {
 			"otherwise the OS keyring).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return backup.Run(cmd.Context(), cmd.OutOrStdout(), shared.Cfg, closeDBs, googleAuth(), out)
+			return backup.Run(cmd.Context(), cmd.OutOrStdout(), shared.Cfg, closeDBs, shared.Tokens, out)
 		},
 	}
 	c.Flags().StringVar(&out, "out", ".", "output directory for a local backup")

@@ -139,12 +139,6 @@ func newRootCmd() *cobra.Command {
 		newNotesCmd(),
 		newVersionCmd(),
 		newGithubCmd(),
-		newCalendarCmd(),
-		newGmailCmd(),
-		newDocsCmd(),
-		newDriveCmd(),
-		newTasksCmd(),
-		newSlackCmd(),
 		newServeCmd(),
 		newPaneCmd(),
 	)

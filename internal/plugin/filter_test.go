@@ -87,26 +87,6 @@ func TestRegisterFilterEngineCompileAndApply(t *testing.T) {
 	}
 }
 
-func TestDemoNoLoremEngine(t *testing.T) {
-	RegisterBuiltins()
-	if !HasFilterEngine("demo-no-lorem") {
-		t.Fatal("demo-no-lorem should be an engine")
-	}
-	c, err := filter.Compile(filter.Filter{Name: "demo-no-lorem"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := c.Apply([]signals.Item{
-		{Title: "real", Body: "ship it"},
-		{Title: "Lorem noise", Body: "ok"},
-		{Title: "body", Body: "ipsum dolor"},
-		{Title: "", Body: "untitled"},
-	})
-	if len(got) != 1 || got[0].Title != "real" {
-		t.Fatalf("demo-no-lorem = %+v", got)
-	}
-}
-
 func TestCompanionEnableInheritsParent(t *testing.T) {
 	testenv.Isolate(t)
 	id := "test.kinds.enable"

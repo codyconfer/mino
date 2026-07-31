@@ -9,16 +9,6 @@ import (
 
 const defaultGitHubOAuthScope = "repo read:org"
 
-func LoginSlack(ctx context.Context, store TokenStore, clientID, clientSecret, userScopes string, w io.Writer) error {
-	sa := SlackAuth{
-		Store:        store,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		UserScopes:   userScopes,
-	}
-	return SlackLogin(ctx, sa, w)
-}
-
 func LoginGitHub(ctx context.Context, store TokenStore, clientID, scopes string, w io.Writer) error {
 	if clientID == "" {
 		return errs.New(errs.KindConfig, "github.oauth_client_id is not set").

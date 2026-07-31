@@ -23,7 +23,7 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 	}
 	rows := make([]tree.Row, 0, len(sections)+1)
 	rows = append(rows, tree.Row{Lines: []string{
-		th.Title.Render(glyph.Lead(c.Trunk) + label + fmt.Sprintf("  (%d)", len(sections))),
+		th.Title.Render(glyph.Lead(c.Trunk) + label),
 	}})
 
 	for i, s := range sections {

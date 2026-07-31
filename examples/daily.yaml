@@ -1,10 +1,10 @@
 name: daily
 type: role
 # `home` is the flight the TUI home screen loads on open (leave unset for menu only).
-home: morning
+home: default
 # A bare `munin --role daily fly` runs the first flight listed here.
-flights: [default, morning, ntr, demo]
-queries: [my-open-prs, today, unread-mail, recent-docs, slack-standup, ntr-list, demo, demo-reviews, no-bots]
+flights: [default, ntr, demo]
+queries: [my-open-prs, ntr-list, demo, demo-reviews, no-bots]
 # Formatters this role can see. A role listing none sees none.
 formatters: [standup]
 # Per-tool context bindings applied on role activation.
