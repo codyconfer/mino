@@ -66,6 +66,11 @@ func newRootCmd() *cobra.Command {
 			if skipsAppLoad(cmd) {
 				return nil
 			}
+			if cmd.Name() == "deck" && term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(os.Stdout.Fd()) {
+				if err := installDeckExamples(cmd); err != nil {
+					return err
+				}
+			}
 			policy, err := reconcilePolicyFor(cmd)
 			if err != nil {
 				return err

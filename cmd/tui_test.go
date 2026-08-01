@@ -1,16 +1,72 @@
 package cmd
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/deck"
 )
+
+func TestInstallDeckExamplesRunsInstallAfterConfirmation(t *testing.T) {
+	home := t.TempDir()
+	origHome, origConfig := flagHome, flagConfigFile
+	origConfirm, origInstall := confirmDeckInstall, installDeckHome
+	t.Cleanup(func() {
+		flagHome, flagConfigFile = origHome, origConfig
+		confirmDeckInstall, installDeckHome = origConfirm, origInstall
+	})
+	flagHome, flagConfigFile = home, ""
+
+	var prompt vkdeck.ConfirmSpec
+	confirmDeckInstall = func(spec vkdeck.ConfirmSpec) (bool, error) {
+		prompt = spec
+		return true, nil
+	}
+	var out bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetErr(&out)
+	if err := installDeckExamples(cmd); err != nil {
+		t.Fatal(err)
+	}
+	if prompt.YesLabel != "Install" || !strings.Contains(prompt.Message, home) {
+		t.Fatalf("prompt = %+v", prompt)
+	}
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); err != nil {
+		t.Fatalf("install did not create config.yaml: %v", err)
+	}
+	if !strings.Contains(out.String(), home) {
+		t.Fatalf("install output = %q", out.String())
+	}
+}
+
+func TestInstallDeckExamplesLeavesEmptyHomeWhenDeclined(t *testing.T) {
+	home := t.TempDir()
+	origHome, origConfig := flagHome, flagConfigFile
+	origConfirm := confirmDeckInstall
+	t.Cleanup(func() {
+		flagHome, flagConfigFile = origHome, origConfig
+		confirmDeckInstall = origConfirm
+	})
+	flagHome, flagConfigFile = home, ""
+	confirmDeckInstall = func(vkdeck.ConfirmSpec) (bool, error) { return false, nil }
+
+	if err := installDeckExamples(&cobra.Command{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("declined install created config.yaml: %v", err)
+	}
+}
 
 func TestBuildViewsHistorySelectable(t *testing.T) {
 	shared = &app.App{

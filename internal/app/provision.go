@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -136,6 +137,46 @@ func ConfigExists(home string) bool {
 		}
 	}
 	return false
+}
+
+// NeedsInstall reports whether the home has no file-backed or stored config.
+// It is deliberately conservative: an unreadable store is treated as
+// potentially populated so startup can handle and report it normally.
+func NeedsInstall(home string) (bool, error) {
+	if ConfigExists(home) {
+		return false, nil
+	}
+	directives, err := config.DirectiveFiles(home)
+	if err != nil {
+		return false, err
+	}
+	if len(directives) > 0 {
+		return false, nil
+	}
+
+	dbPath := filepath.Join(home, config.DirData, config.ConfigDB)
+	if _, err := os.Stat(dbPath); err != nil {
+		if os.IsNotExist(err) {
+			return true, nil
+		}
+		return false, errs.Wrap(errs.KindConfig, err, "inspect config store")
+	}
+
+	mgr, err := config.OpenStore(context.Background(), home)
+	if err != nil {
+		return false, nil
+	}
+	defer mgr.Close()
+	for _, name := range []string{config.ConfigDirective, config.DirectivesDirective} {
+		cur, ok, err := mgr.Current(context.Background(), name)
+		if err != nil {
+			return false, errs.Wrap(errs.KindStore, err, "inspect config store")
+		}
+		if ok && strings.TrimSpace(cur.Content) != "" {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func installSpec(home string, force bool) lifecycle.InstallSpec {

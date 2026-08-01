@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -10,9 +11,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/viewkit/clipboard"
+	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
+	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/pane"
 	"github.com/codyconfer/mino/internal/app/statusstrip"
 	"github.com/codyconfer/mino/internal/app/verify"
@@ -24,6 +27,40 @@ import (
 	"github.com/codyconfer/mino/internal/signals/build"
 	"github.com/codyconfer/mino/internal/tmux"
 )
+
+var (
+	confirmDeckInstall = deck.Confirm
+	installDeckHome    = app.Install
+)
+
+func installDeckExamples(cmd *cobra.Command) error {
+	if flagConfigFile != "" {
+		return nil
+	}
+	home, err := config.Home(flagHome)
+	if err != nil {
+		return err
+	}
+	needed, err := app.NeedsInstall(home)
+	if err != nil || !needed {
+		return err
+	}
+	ok, err := confirmDeckInstall(vkdeck.ConfirmSpec{
+		Title:    "Install example config?",
+		Message:  fmt.Sprintf("No config or directives were found in %s. Run mino install now to generate the example config, queries, flights, and role?", home),
+		YesLabel: "Install",
+		NoLabel:  "Continue empty",
+	})
+	if err != nil || !ok {
+		return err
+	}
+	created, err := installDeckHome(home, false)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(cmd.ErrOrStderr(), Scope().Success(fmt.Sprintf("installed %d example files and stores in %s", len(created), home)))
+	return nil
+}
 
 func newDeckCmd() *cobra.Command {
 	var useTmux bool

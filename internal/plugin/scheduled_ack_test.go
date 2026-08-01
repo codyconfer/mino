@@ -12,7 +12,7 @@ import (
 )
 
 func TestRunScheduledAcksOnlyAfterOnFire(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	home := t.TempDir()
 	st, err := ntr.Open(ctx, home, "r")
@@ -27,12 +27,14 @@ func TestRunScheduledAcksOnlyAfterOnFire(t *testing.T) {
 
 	job := ntr.ReminderJob{Home: home, Role: "r", Now: time.Now}
 	failOnce := true
+	failed := make(chan struct{})
 	delivered := make(chan struct{})
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- plugin.RunScheduled(ctx, []plugin.Scheduled{job}, func(string, []signals.Section) error {
 			if failOnce {
 				failOnce = false
+				close(failed)
 				return errors.New("notify sink busy")
 			}
 			select {
@@ -45,7 +47,11 @@ func TestRunScheduledAcksOnlyAfterOnFire(t *testing.T) {
 		})
 	}()
 
-	time.Sleep(200 * time.Millisecond)
+	select {
+	case <-failed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("schedule did not reach the first onFire attempt")
+	}
 	st, err = ntr.Open(context.Background(), home, "r")
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +64,7 @@ func TestRunScheduledAcksOnlyAfterOnFire(t *testing.T) {
 
 	select {
 	case <-delivered:
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("schedule did not recover after onFire success")
 	}
 	<-errCh

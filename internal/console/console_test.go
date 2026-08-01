@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestTitleCleansAndJoinsMetadata(t *testing.T) {
@@ -26,7 +28,11 @@ func TestSetWritesTitleAndWorkingDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, "\x1b]7;file://") || !strings.Contains(got, cwd) {
+	host, _ := os.Hostname()
+	if host == "" {
+		host = "localhost"
+	}
+	if !strings.Contains(got, ansi.NotifyWorkingDirectory(host, cwd)) {
 		t.Errorf("missing working-directory metadata: %q", got)
 	}
 }

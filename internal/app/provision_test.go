@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -14,6 +15,99 @@ import (
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/testenv"
 )
+
+func TestNeedsInstallRecognizesEmptyConfigSources(t *testing.T) {
+	t.Run("missing home", func(t *testing.T) {
+		home := filepath.Join(t.TempDir(), "missing")
+		got, err := NeedsInstall(home)
+		if err != nil || !got {
+			t.Fatalf("NeedsInstall = %v, %v; want true, nil", got, err)
+		}
+	})
+
+	t.Run("empty home", func(t *testing.T) {
+		got, err := NeedsInstall(t.TempDir())
+		if err != nil || !got {
+			t.Fatalf("NeedsInstall = %v, %v; want true, nil", got, err)
+		}
+	})
+
+	t.Run("empty config store", func(t *testing.T) {
+		home := t.TempDir()
+		mgr, err := config.OpenStore(context.Background(), home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := mgr.Close(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := NeedsInstall(home)
+		if err != nil || !got {
+			t.Fatalf("NeedsInstall = %v, %v; want true, nil", got, err)
+		}
+	})
+}
+
+func TestNeedsInstallPreservesExistingConfigSources(t *testing.T) {
+	t.Run("config file", func(t *testing.T) {
+		home := t.TempDir()
+		if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("output: terminal\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := NeedsInstall(home)
+		if err != nil || got {
+			t.Fatalf("NeedsInstall = %v, %v; want false, nil", got, err)
+		}
+	})
+
+	t.Run("directive file", func(t *testing.T) {
+		home := t.TempDir()
+		if err := os.WriteFile(filepath.Join(home, "work.yaml"), []byte("name: work\ntype: query\nsignal: github\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := NeedsInstall(home)
+		if err != nil || got {
+			t.Fatalf("NeedsInstall = %v, %v; want false, nil", got, err)
+		}
+	})
+
+	t.Run("stored config", func(t *testing.T) {
+		home := t.TempDir()
+		mgr, err := config.OpenStore(context.Background(), home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := mgr.Import(context.Background(), config.ConfigDirective, []byte("output: terminal\n"), "yaml"); err != nil {
+			t.Fatal(err)
+		}
+		if err := mgr.Close(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := NeedsInstall(home)
+		if err != nil || got {
+			t.Fatalf("NeedsInstall = %v, %v; want false, nil", got, err)
+		}
+	})
+
+	t.Run("stored directives", func(t *testing.T) {
+		home := t.TempDir()
+		mgr, err := config.OpenStore(context.Background(), home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blob := []byte(`{"work.yaml":"name: work\\ntype: query\\nsignal: github\\n"}`)
+		if err := mgr.Import(context.Background(), config.DirectivesDirective, blob, "collection"); err != nil {
+			t.Fatal(err)
+		}
+		if err := mgr.Close(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := NeedsInstall(home)
+		if err != nil || got {
+			t.Fatalf("NeedsInstall = %v, %v; want false, nil", got, err)
+		}
+	})
+}
 
 func TestInstallPermissions(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "mino")
