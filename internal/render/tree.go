@@ -39,6 +39,10 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 }
 
 func SectionRows(f layout.Frame, sections []signals.Section) []tree.Row {
+	return sectionRows(f, sections, -1)
+}
+
+func sectionRows(f layout.Frame, sections []signals.Section, frame int) []tree.Row {
 	th := f.Theme()
 	it := newItemTheme(f.Glyphs(), th)
 	c := tree.ConnectorsIn(f.Glyphs(), th)
@@ -46,7 +50,7 @@ func SectionRows(f layout.Frame, sections []signals.Section) []tree.Row {
 	rows := make([]tree.Row, 0, len(sections))
 	for i, s := range sections {
 		rows = append(rows, tree.Row{Lines: []string{sectionHead(f.Glyphs(), th, i, s)}})
-		rows = append(rows, sectionLeaves(f, it, c, "", s)...)
+		rows = append(rows, sectionLeavesFrame(f, it, c, "", s, frame)...)
 	}
 	return rows
 }
@@ -116,6 +120,10 @@ func sectionCount(s signals.Section) string {
 }
 
 func sectionLeaves(f layout.Frame, t itemTheme, c tree.Connectors, spad string, s signals.Section) []tree.Row {
+	return sectionLeavesFrame(f, t, c, spad, s, -1)
+}
+
+func sectionLeavesFrame(f layout.Frame, t itemTheme, c tree.Connectors, spad string, s signals.Section, frame int) []tree.Row {
 	th := t.th
 	switch {
 	case s.Err != nil:
@@ -135,7 +143,7 @@ func sectionLeaves(f layout.Frame, t itemTheme, c tree.Connectors, spad string, 
 		lf := f.WithWidth(f.Width - c.Indent(spad))
 		rows := make([]tree.Row, 0, len(s.Items))
 		for j, it := range s.Items {
-			row := tree.Leaf(c, spad, j == len(s.Items)-1, itemLinesIn(lf, t, it), it.URL)
+			row := tree.Leaf(c, spad, j == len(s.Items)-1, itemLinesInFrame(lf, t, it, frame), it.URL)
 			row.Payload = ItemRef{Signal: s.Signal, Item: it, Meta: s.Meta}
 			rows = append(rows, row)
 		}

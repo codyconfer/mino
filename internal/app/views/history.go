@@ -84,7 +84,7 @@ func entryStatus(r audit.AuditRow) string {
 }
 
 type historyRunView struct {
-	*vkdeck.ItemList
+	*deck.Results
 
 	kit     *Kit
 	row     audit.AuditRow
@@ -112,22 +112,22 @@ func (k *Kit) historyRun(r audit.AuditRow) vkdeck.View {
 		return secs
 	}, k.openDetail)
 	return &historyRunView{
-		ItemList: lst,
-		kit:      k,
-		row:      r,
-		ctx:      ctx,
-		del:      k.scope().Keys.MapFor(keymap.Delete),
+		Results: lst,
+		kit:     k,
+		row:     r,
+		ctx:     ctx,
+		del:     k.scope().Keys.MapFor(keymap.Delete),
 	}
 }
 
 func (v *historyRunView) Hints(scope *ui.Scope) []keys.Hint {
-	return append(v.ItemList.Hints(scope), v.del.Hint(keymap.Delete))
+	return append(v.Results.Hints(scope), v.del.Hint(keymap.Delete))
 }
 
 func (v *historyRunView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
-		return v.ItemList.Update(a, msg)
+		return v.Results.Update(a, msg)
 	}
 	if v.confirm != nil {
 		return v.answer(a, key)
@@ -136,7 +136,7 @@ func (v *historyRunView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		v.ask()
 		return nil
 	}
-	return v.ItemList.Update(a, msg)
+	return v.Results.Update(a, msg)
 }
 
 func (v *historyRunView) ask() {
@@ -176,7 +176,7 @@ func (v *historyRunView) remove(a *vkdeck.Model) tea.Cmd {
 }
 
 func (v *historyRunView) Body(f layout.Frame) string {
-	body := v.ItemList.Body(f)
+	body := v.Results.Body(f)
 	if v.confirm == nil {
 		return body
 	}

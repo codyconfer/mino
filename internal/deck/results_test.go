@@ -25,13 +25,13 @@ func resultSections() []signals.Section {
 	}}
 }
 
-func loadedResults(t *testing.T, onSelect SelectFunc) (*vkdeck.Model, *vkdeck.ItemList) {
+func loadedResults(t *testing.T, onSelect SelectFunc) (*vkdeck.Model, *Results) {
 	t.Helper()
 	lst := NewResults("flight: morning", nil,
 		func() []signals.Section { return resultSections() }, onSelect)
 	app := New(lst)
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
-	if cmd := lst.Init(); cmd != nil {
+	if cmd := lst.ItemList.Init(); cmd != nil {
 		app = drive(app, cmd())
 	}
 	return app, lst
@@ -112,6 +112,40 @@ func TestResultsHintsAdvertiseDetailsWhenSelectable(t *testing.T) {
 	}
 	if !labels["open"] {
 		t.Errorf("hints = %v, want confirm to still read as open", plain.Hints(ui.Default()))
+	}
+}
+
+func TestResultsAnimateInProgressWorkflow(t *testing.T) {
+	sections := []signals.Section{{
+		Signal: "github",
+		Title:  "Workflows",
+		Items: []signals.Item{{
+			Kind:  "workflow",
+			Title: "CI #42",
+			URL:   "https://github.com/acme/tools/actions/runs/42",
+			Meta:  map[string]string{"status": "in_progress"},
+		}},
+	}}
+	lst := NewResults("workflows", nil, func() []signals.Section { return sections }, nil)
+	app := New(lst)
+	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	app = drive(app, lst.ItemList.Init()())
+
+	first := ansi.Strip(app.View())
+	if cmd := lst.Update(app, resultsAnimationMsg{generation: lst.generation}); cmd == nil {
+		t.Fatal("in-progress workflow did not continue the animation tick")
+	}
+	second := ansi.Strip(app.View())
+	if first == second {
+		t.Fatalf("workflow spinner stayed frozen:\n%s", second)
+	}
+}
+
+func TestResultsAnimationWaitsForLoad(t *testing.T) {
+	lst := NewResults("workflows", nil, nil, nil)
+	lst.generation = 1
+	if cmd := lst.Update(New(lst), resultsAnimationMsg{generation: 1}); cmd == nil {
+		t.Fatal("animation tick stopped before results loaded")
 	}
 }
 

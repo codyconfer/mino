@@ -576,7 +576,11 @@ func flattenCmds(cmd tea.Cmd) []tea.Cmd {
 	}
 	msg := cmd()
 	if batch, ok := msg.(tea.BatchMsg); ok {
-		return batch
+		var out []tea.Cmd
+		for _, child := range batch {
+			out = append(out, flattenCmds(child)...)
+		}
+		return out
 	}
 	return []tea.Cmd{func() tea.Msg { return msg }}
 }

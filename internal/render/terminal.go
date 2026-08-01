@@ -75,7 +75,11 @@ func Panels(f layout.Frame, root string, sections []signals.Section) string {
 }
 
 func SectionItems(f layout.Frame, sections []signals.Section) []list.Item {
-	rows := SectionRows(f, sections)
+	return SectionItemsFrame(f, sections, -1)
+}
+
+func SectionItemsFrame(f layout.Frame, sections []signals.Section, frame int) []list.Item {
+	rows := sectionRows(f, sections, frame)
 	items := make([]list.Item, 0, len(rows))
 	for _, r := range rows {
 		it := r.Item()
@@ -229,10 +233,14 @@ func itemLines(f layout.Frame, th theme.Theme, it signals.Item) []string {
 }
 
 func itemLinesIn(f layout.Frame, t itemTheme, it signals.Item) []string {
+	return itemLinesInFrame(f, t, it, -1)
+}
+
+func itemLinesInFrame(f layout.Frame, t itemTheme, it signals.Item, frame int) []string {
 	it = signals.CleanItem(it)
 
 	th := t.th
-	head := t.itemIcon(it, -1) + th.Val.Render(it.Title)
+	head := t.itemIcon(it, frame) + th.Val.Render(it.Title)
 	if it.Subtitle != "" {
 		head += "  " + th.Dim.Render(it.Subtitle)
 	}
@@ -279,4 +287,15 @@ func workflowInProgress(it signals.Item) bool {
 		status = normalize(it.Meta["state"])
 	}
 	return status == "in progress"
+}
+
+func SectionsHaveInProgress(sections []signals.Section) bool {
+	for _, section := range sections {
+		for _, item := range section.Items {
+			if workflowInProgress(item) {
+				return true
+			}
+		}
+	}
+	return false
 }
