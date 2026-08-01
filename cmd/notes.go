@@ -52,7 +52,7 @@ func newNotesListCmd() *cobra.Command {
 		Short: "List notes",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			home, role := notesHomeRole()
-			return ntr.CLINotesList(cmd.Context(), cmd.OutOrStdout(), home, role)
+			return ntr.CLINotesList(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role)
 		},
 	}
 }
@@ -68,7 +68,7 @@ func newNotesAddCmd() *cobra.Command {
 				body = args[1]
 			}
 			home, role := notesHomeRole()
-			return ntr.CLINotesAdd(cmd.Context(), cmd.OutOrStdout(), home, role, args[0], body)
+			return ntr.CLINotesAdd(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], body)
 		},
 	}
 }
@@ -84,7 +84,7 @@ func newNotesUpdateCmd() *cobra.Command {
 				body = args[2]
 			}
 			home, role := notesHomeRole()
-			return ntr.CLINotesUpdate(cmd.Context(), cmd.OutOrStdout(), home, role, args[0], args[1], body)
+			return ntr.CLINotesUpdate(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], args[1], body)
 		},
 	}
 }
@@ -96,7 +96,7 @@ func newNotesRMCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			home, role := notesHomeRole()
-			return ntr.CLINotesRM(cmd.Context(), cmd.OutOrStdout(), home, role, args[0])
+			return ntr.CLINotesRM(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
 		},
 	}
 }
@@ -109,7 +109,7 @@ func newNotesTasksCmd() *cobra.Command {
 			Short: "List open tasks",
 			RunE: func(cmd *cobra.Command, _ []string) error {
 				home, role := notesHomeRole()
-				return ntr.CLITasksList(cmd.Context(), cmd.OutOrStdout(), home, role)
+				return ntr.CLITasksList(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role)
 			},
 		},
 		&cobra.Command{
@@ -118,7 +118,7 @@ func newNotesTasksCmd() *cobra.Command {
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				home, role := notesHomeRole()
-				return ntr.CLITasksAdd(cmd.Context(), cmd.OutOrStdout(), home, role, args[0])
+				return ntr.CLITasksAdd(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
 			},
 		},
 		&cobra.Command{
@@ -127,7 +127,7 @@ func newNotesTasksCmd() *cobra.Command {
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				home, role := notesHomeRole()
-				return ntr.CLITasksDone(cmd.Context(), cmd.OutOrStdout(), home, role, args[0])
+				return ntr.CLITasksDone(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
 			},
 		},
 		&cobra.Command{
@@ -136,7 +136,7 @@ func newNotesTasksCmd() *cobra.Command {
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				home, role := notesHomeRole()
-				return ntr.CLITasksUndo(cmd.Context(), cmd.OutOrStdout(), home, role, args[0])
+				return ntr.CLITasksUndo(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
 			},
 		},
 		&cobra.Command{
@@ -145,7 +145,7 @@ func newNotesTasksCmd() *cobra.Command {
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				home, role := notesHomeRole()
-				return ntr.CLITasksRM(cmd.Context(), cmd.OutOrStdout(), home, role, args[0])
+				return ntr.CLITasksRM(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
 			},
 		},
 	)
@@ -161,7 +161,7 @@ func newNotesRemindCmd() *cobra.Command {
 			Args:  cobra.NoArgs,
 			RunE: func(cmd *cobra.Command, _ []string) error {
 				home, role := notesHomeRole()
-				return ntr.CLIRemindList(cmd.Context(), cmd.OutOrStdout(), home, role)
+				return ntr.CLIRemindList(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role)
 			},
 		},
 		&cobra.Command{
@@ -170,7 +170,7 @@ func newNotesRemindCmd() *cobra.Command {
 			Args:  cobra.ExactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				home, role := notesHomeRole()
-				return ntr.CLIRemindAdd(cmd.Context(), cmd.OutOrStdout(), home, role, args[0], args[1])
+				return ntr.CLIRemindAdd(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], args[1])
 			},
 		},
 		&cobra.Command{
@@ -179,7 +179,7 @@ func newNotesRemindCmd() *cobra.Command {
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				home, role := notesHomeRole()
-				return ntr.CLIRemindDone(cmd.Context(), cmd.OutOrStdout(), home, role, args[0])
+				return ntr.CLIRemindDone(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
 			},
 		},
 	)
@@ -193,7 +193,7 @@ func newNotesCatchUpCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			home, role := notesHomeRole()
-			return ntr.CLICatchUp(cmd.Context(), cmd.OutOrStdout(), home, role)
+			return ntr.CLICatchUp(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role)
 		},
 	}
 }

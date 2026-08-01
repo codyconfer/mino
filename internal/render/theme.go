@@ -28,8 +28,8 @@ func init() {
 	plugin.RegisterTheme("", DefaultThemeKey, "Mino", minoPalette)
 }
 
-func InstallDefaultTheme() {
-	if t, ok := theme.Named(DefaultThemeKey); ok {
-		theme.Use(t)
-	}
+// DefaultTheme returns mino's own theme from the registry.
+func DefaultTheme() theme.Theme {
+	t, _ := theme.Named(DefaultThemeKey)
+	return t
 }

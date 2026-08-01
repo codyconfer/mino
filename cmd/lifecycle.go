@@ -13,7 +13,6 @@ import (
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/errs"
-	"github.com/codyconfer/mino/internal/render"
 )
 
 var lifecycleHome string
@@ -41,7 +40,7 @@ func newInstallCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), render.Success(fmt.Sprintf("installed mino in %s:", lifecycleHome)))
+			fmt.Fprintln(cmd.OutOrStdout(), Scope().Success(fmt.Sprintf("installed mino in %s:", lifecycleHome)))
 			for _, p := range created {
 				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", p)
 			}
@@ -60,7 +59,7 @@ func newCleanCmd() *cobra.Command {
 		Annotations:       map[string]string{annoSkipOnboarding: "true"},
 		PersistentPreRunE: lifecyclePreRun,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return app.Clean(cmd.OutOrStdout(), lifecycleHome)
+			return app.Clean(cmd.OutOrStdout(), Scope(), lifecycleHome)
 		},
 	}
 	return c
@@ -102,5 +101,5 @@ func runNuke(cmd *cobra.Command, home string, yes bool) error {
 			return errs.New(errs.KindUsage, "aborted")
 		}
 	}
-	return app.Nuke(cmd.OutOrStdout(), home)
+	return app.Nuke(cmd.OutOrStdout(), Scope(), home)
 }

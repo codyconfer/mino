@@ -21,7 +21,7 @@ func newSettingsCmd() *cobra.Command {
 			if !term.IsTerminal(os.Stdout.Fd()) {
 				return errs.New(errs.KindUsage, "settings requires an interactive terminal")
 			}
-			return deck.Run(buildViews().Settings(), deck.WithStatus(statusProvider()))
+			return deck.Run(buildViews().Settings(), deck.WithScope(Scope()), deck.WithStatus(Scope(), statusProvider()))
 		},
 	}
 }

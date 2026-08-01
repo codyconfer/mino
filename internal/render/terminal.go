@@ -10,6 +10,7 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 	"github.com/codyconfer/viewkit/timefmt"
 	"github.com/codyconfer/viewkit/tree"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render/glyph"
@@ -43,19 +44,19 @@ func treeString(rows []tree.Row) string {
 	return strings.Join(lines, "\n")
 }
 
-func sectionGlyph(s signals.Section) string {
+func sectionGlyph(g glyph.Set, s signals.Section) string {
 	n := strings.ToLower(s.Signal + " " + s.Title)
 	switch {
 	case strings.Contains(n, "github"):
-		return glyph.GitHub()
+		return g.GitHub()
 	case strings.Contains(n, "slack"):
-		return glyph.Slack()
+		return g.Slack()
 	case strings.Contains(n, "cal"), strings.Contains(n, "gmail"), strings.Contains(n, "mail"),
 		strings.Contains(n, "doc"), strings.Contains(n, "drive"), strings.Contains(n, "task"),
 		strings.Contains(n, "google"):
-		return glyph.Google()
+		return g.Google()
 	}
-	return glyph.Bullet()
+	return g.Bullet()
 }
 
 const DefaultRoot = "results"
@@ -115,7 +116,7 @@ func (r SectionResults) Errored() int {
 }
 
 func ItemRows(f layout.Frame, items []signals.Item) []list.Item {
-	th := theme.Cur()
+	th := f.Theme()
 	rows := make([]list.Item, 0, len(items))
 	for _, it := range items {
 		rows = append(rows, list.Item{
@@ -127,13 +128,11 @@ func ItemRows(f layout.Frame, items []signals.Item) []list.Item {
 	return rows
 }
 
-func Success(msg string) string { return theme.Success(msg) }
+// Success renders a success-colored check followed by msg in scope s.
+func Success(s *ui.Scope, msg string) string { return s.Success(msg) }
 
-func Bullet(msg string) string { return theme.Bullet(msg) }
-
-func LoadingPanel(title, status string) string {
-	return TitledBox(layout.DocumentFrame(), false, title, theme.Cur().Dim.Render(status))
-}
+// Bullet renders an accent-colored bullet followed by msg in scope s.
+func Bullet(s *ui.Scope, msg string) string { return s.Bullet(msg) }
 
 func lastCommentTime(it signals.Item) (time.Time, bool) {
 	t, err := time.Parse(time.RFC3339, it.Meta["last_comment_at"])
@@ -157,9 +156,9 @@ func lastCommentChip(th theme.Theme, it signals.Item) string {
 	}
 	switch it.Meta["last_comment_team"] {
 	case "true":
-		return theme.SeverityStyle(glyph.KindPositive).Render(chip)
+		return th.SeverityStyle(glyph.KindPositive).Render(chip)
 	case "false":
-		return theme.SeverityStyle(glyph.KindWarning).Render(chip)
+		return th.SeverityStyle(glyph.KindWarning).Render(chip)
 	default:
 		return th.Dim.Render(chip)
 	}
@@ -168,7 +167,8 @@ func lastCommentChip(th theme.Theme, it signals.Item) string {
 func itemLines(f layout.Frame, th theme.Theme, it signals.Item) []string {
 	it = signals.CleanItem(it)
 
-	icon := theme.SeverityStyle(glyph.ClassifyItem(it)).Render(glyph.Lead(glyph.ForItem(it)))
+	sev := glyph.ClassifyItem(it)
+	icon := th.SeverityStyle(sev).Render(glyph.Lead(glyph.ForIn(f.Glyphs(), sev)))
 	head := icon + th.Val.Render(it.Title)
 	if it.Subtitle != "" {
 		head += "  " + th.Dim.Render(it.Subtitle)

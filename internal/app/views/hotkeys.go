@@ -112,14 +112,14 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 	home, role := k.ntrHomeRole()
 	switch target {
 	case keymap.TargetNoteNew:
-		return m.Push(ntr.NewNoteBuilder(home, role))
+		return m.Push(ntr.NewNoteBuilder(home, role, modelScope(m).Keys))
 	case keymap.TargetTaskNew:
-		return m.Push(ntr.NewTaskBuilder(home, role))
+		return m.Push(ntr.NewTaskBuilder(home, role, modelScope(m).Keys))
 	case keymap.TargetRemindNew:
 		if !ntr.RemindersUIVisible() {
 			return nil
 		}
-		return m.Push(ntr.NewRemindBuilder(home, role))
+		return m.Push(ntr.NewRemindBuilder(home, role, modelScope(m).Keys))
 	case keymap.TargetRoleNext:
 		return k.cycleRoleCmd(1)
 	case keymap.TargetRolePrev:

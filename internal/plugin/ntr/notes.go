@@ -7,6 +7,7 @@ import (
 
 	"github.com/codyconfer/viewkit/clipboard"
 	"github.com/codyconfer/viewkit/forms"
+	"github.com/codyconfer/viewkit/keys"
 )
 
 type noteView struct {
@@ -23,7 +24,7 @@ func noteRecord(n Note) record {
 	return record{Kind: kindNote, ID: n.ID, Title: n.Title, Body: n.Body}
 }
 
-func newNoteView(home, role string, base record, dirty func()) *noteView {
+func newNoteView(home, role string, base record, dirty func(), sc keys.Scheme) *noteView {
 	v := &noteView{base: base}
 	v.recordCore = recordCore{
 		home:  home,
@@ -37,7 +38,7 @@ func newNoteView(home, role string, base record, dirty func()) *noteView {
 	v.editorShell = newRecordEditor(v, map[string]any{
 		"title": base.Title,
 		"body":  base.Body,
-	})
+	}, sc)
 	return v
 }
 

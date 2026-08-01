@@ -45,7 +45,7 @@ func newPaneInboxCmd() *cobra.Command {
 				return errs.Newf(errs.KindUsage, "no mino serve provider at %s", serveServer().SocketPath()).
 					WithHint("this pane is opened by `mino deck --tmux`; start the deck first")
 			}
-			return deck.Run(views.WithOwnerWatch(views.NewServeView(flight, events), pane.OwnerWatch()))
+			return deck.Run(views.WithOwnerWatch(views.NewServeView(flight, events), pane.OwnerWatch()), deck.WithScope(Scope()))
 		},
 	}
 }
@@ -59,7 +59,7 @@ func newPaneViewCmd() *cobra.Command {
 			if err := requirePaneTTY(); err != nil {
 				return err
 			}
-			return deck.Run(views.WithOwnerWatch(views.NewSnapshotView(args[0]), pane.OwnerWatch()))
+			return deck.Run(views.WithOwnerWatch(views.NewSnapshotView(args[0]), pane.OwnerWatch()), deck.WithScope(Scope()))
 		},
 	}
 }

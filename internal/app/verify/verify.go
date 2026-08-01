@@ -11,6 +11,7 @@ import (
 
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 	"gopkg.in/yaml.v3"
 
 	"github.com/codyconfer/sisyphus/redact"
@@ -24,7 +25,6 @@ import (
 	"github.com/codyconfer/mino/internal/format"
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/render"
-	"github.com/codyconfer/mino/internal/render/glyph"
 	"github.com/codyconfer/mino/internal/signals/build"
 	gh "github.com/codyconfer/mino/internal/signals/github"
 )
@@ -65,7 +65,7 @@ func Targets() []string {
 	return append(out, TargetAll)
 }
 
-func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *config.Directives, tokens auth.TokenStore, target string) error {
+func Run(ctx context.Context, w io.Writer, scope *ui.Scope, cfg *config.Config, directives *config.Directives, tokens auth.TokenStore, target string) error {
 	if target == "" {
 		target = TargetAll
 	}
@@ -75,7 +75,7 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, directives *confi
 			WithHint("valid targets: %s", strings.Join(Targets(), ", "))
 	}
 
-	sty := render.NewReportStyles(w)
+	sty := render.NewReportStyles(w, scope)
 	problems := 0
 	for _, s := range secs {
 		if target != TargetAll && target != s.Key {
@@ -519,12 +519,12 @@ func Onboarding(ctx context.Context, tokens auth.TokenStore, apiURLRaw string) [
 func printFinding(w io.Writer, sty render.ReportStyles, f Finding) int {
 	switch {
 	case f.OK:
-		fmt.Fprintf(w, "  %s %s\n", sty.OK.Render(glyph.Check()), sty.Name.Render(f.Name))
+		fmt.Fprintf(w, "  %s %s\n", sty.OK.Render(sty.Glyphs.Check()), sty.Name.Render(f.Name))
 		return 0
 	case f.Warn:
-		fmt.Fprintf(w, "  %s %s  %s\n", sty.Warn.Render(glyph.Warn()), sty.Name.Render(f.Name), sty.Warn.Render(f.Msg))
+		fmt.Fprintf(w, "  %s %s  %s\n", sty.Warn.Render(sty.Glyphs.Warn()), sty.Name.Render(f.Name), sty.Warn.Render(f.Msg))
 	default:
-		fmt.Fprintf(w, "  %s %s  %s\n", sty.Err.Render(glyph.Cross()), sty.Name.Render(f.Name), sty.Err.Render(f.Msg))
+		fmt.Fprintf(w, "  %s %s  %s\n", sty.Err.Render(sty.Glyphs.Cross()), sty.Name.Render(f.Name), sty.Err.Render(f.Msg))
 	}
 	if f.Snippet != "" {
 		for _, line := range strings.Split(strings.TrimRight(redact.Line(f.Snippet), "\n"), "\n") {

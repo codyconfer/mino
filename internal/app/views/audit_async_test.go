@@ -9,6 +9,7 @@ import (
 
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
+	"github.com/codyconfer/viewkit/ui"
 )
 
 func TestAuditSlowQueryDoesNotBlockUpdate(t *testing.T) {
@@ -45,10 +46,10 @@ func TestAuditSlowQueryDoesNotBlockUpdate(t *testing.T) {
 	if !me.running {
 		t.Fatal("the view does not report a running query, so no progress can be drawn")
 	}
-	if body := me.Body(120, 20); !strings.Contains(body, "running") {
+	if body := me.Body(layout.Frame{Width: 120, Height: 20}); !strings.Contains(body, "running") {
 		t.Fatalf("body draws no running state:\n%s", body)
 	}
-	if got := me.Context(); len(got) < 2 || got[1] != (keys.Hint{Key: "state", Label: "running"}) {
+	if got := me.Context(ui.Default()); len(got) < 2 || got[1] != (keys.Hint{Key: "state", Label: "running"}) {
 		t.Errorf("context does not advertise the run: %v", got)
 	}
 

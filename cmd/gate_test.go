@@ -10,6 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/loginflow"
 	"github.com/codyconfer/mino/internal/config"
@@ -23,7 +25,7 @@ func TestGuidedAuthKeepsPromptsAndStatusOffStdout(t *testing.T) {
 	origLogin, origOnboard := guidedLoginCLI, guidedOnboard
 	t.Cleanup(func() { guidedLoginCLI, guidedOnboard = origLogin, origOnboard })
 
-	guidedLoginCLI = func(_ context.Context, _ *app.App, _ loginflow.Provider, _ io.Reader, out, errOut io.Writer) error {
+	guidedLoginCLI = func(_ context.Context, _ *app.App, _ *ui.Scope, _ loginflow.Provider, _ io.Reader, out, errOut io.Writer) error {
 		fmt.Fprintf(out, "  OAuth client id: ")
 		fmt.Fprintln(errOut, "GitHub authorized — token cached.")
 		return nil

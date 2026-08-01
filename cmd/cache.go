@@ -9,10 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/viewkit/theme"
-
 	"github.com/codyconfer/mino/internal/app/suggest"
-	"github.com/codyconfer/mino/internal/render/glyph"
 	"github.com/codyconfer/mino/internal/signals/cache"
 )
 
@@ -65,8 +62,9 @@ func cacheStats(cmd *cobra.Command) error {
 		fmt.Fprintln(w, "cache is empty")
 		return nil
 	}
-	th := theme.Cur()
-	marker := th.Accent.Render(glyph.Bullet())
+	sc := Scope()
+	th := sc.Theme
+	marker := th.Accent.Render(sc.Glyphs.Bullet())
 	now := time.Now()
 	for _, s := range stats {
 		detail := fmt.Sprintf("%d %s, %d fresh", s.Entries, plural(s.Entries, "entry", "entries"), s.Fresh)

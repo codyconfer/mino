@@ -14,6 +14,7 @@ import (
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/deck"
@@ -29,7 +30,7 @@ func settingsLabels(kit *Kit) []string {
 }
 
 func setvRender(v vkdeck.View) string {
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	return app.View()
 }
@@ -59,7 +60,7 @@ func setvWantKeys(t *testing.T, v vkdeck.View, want ...string) {
 }
 
 func setvStack(kit *Kit, form vkdeck.View) *vkdeck.Model {
-	app := deck.New(kit.Settings())
+	app := newTestApp(kit.Settings())
 	_ = app.Push(form)
 	return app
 }
@@ -78,15 +79,6 @@ func setvBreakConfigDir(t *testing.T) {
 	t.Setenv("AppData", blocker)
 	t.Setenv("HOME", blocker)
 	t.Setenv("USERPROFILE", blocker)
-}
-
-func setvKeepAppearance(t *testing.T) {
-	t.Helper()
-	th, sc := theme.Cur(), keys.Cur()
-	t.Cleanup(func() {
-		theme.Use(th)
-		keys.Use(sc)
-	})
 }
 
 func hasLabel(labels []string, want string) bool {
@@ -134,7 +126,7 @@ func TestSettingsMenuNamingAndExportAlwaysPresent(t *testing.T) {
 		}
 	}
 
-	app := deck.New(kit.Settings())
+	app := newTestApp(kit.Settings())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
 	if !strings.Contains(strings.ToUpper(body), "SETTINGS") {
@@ -152,7 +144,7 @@ func TestSettingsStatusBarFormTogglesVisibility(t *testing.T) {
 		{Name: "github", Severity: vkglyph.SeverityPositive},
 		{Name: "slack", Severity: vkglyph.SeverityPositive},
 	}}
-	app := deck.New(kit.setvStatusBarView(), deck.WithStatus(func(context.Context) deck.StatusInfo {
+	app := newTestApp(kit.setvStatusBarView(), deck.WithStatus(nil, func(context.Context) deck.StatusInfo {
 		return info
 	}))
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
@@ -209,7 +201,7 @@ func TestSettingsEditConfigWritesHome(t *testing.T) {
 		t.Fatalf("write config: %v", err)
 	}
 
-	app := deck.New(kit.setvEditConfigView())
+	app := newTestApp(kit.setvEditConfigView())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlS})
@@ -232,7 +224,7 @@ func TestSettingsEditConfigWritesHome(t *testing.T) {
 
 func TestSettingsOpenConfigInEditorRequiresFileAndEditor(t *testing.T) {
 	kit := testKit(t)
-	app := deck.New(kit.Settings())
+	app := newTestApp(kit.Settings())
 
 	var open func(*vkdeck.Model) tea.Cmd
 	for _, it := range kit.settingsMenuItems() {
@@ -260,7 +252,7 @@ func TestSettingsOpenConfigInEditorRequiresFileAndEditor(t *testing.T) {
 	}
 	t.Setenv("VISUAL", "")
 	t.Setenv("EDITOR", "")
-	app = deck.New(kit.Settings())
+	app = newTestApp(kit.Settings())
 	_ = open(app)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got = app.View()
@@ -269,7 +261,7 @@ func TestSettingsOpenConfigInEditorRequiresFileAndEditor(t *testing.T) {
 	}
 
 	t.Setenv("EDITOR", "true")
-	app = deck.New(kit.Settings())
+	app = newTestApp(kit.Settings())
 	_ = open(app)
 	if title := app.Top().Title(); title != "open config" {
 		t.Fatalf("Top title = %q, want open config editor view", title)
@@ -282,7 +274,7 @@ func TestSettingsImportExportRequireConfirmation(t *testing.T) {
 		t.Fatalf("write config: %v", err)
 	}
 
-	app := deck.New(kit.Settings())
+	app := newTestApp(kit.Settings())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
@@ -335,12 +327,12 @@ func TestSetvEditConfigFormFields(t *testing.T) {
 	if got := v.Title(); got != "edit config" {
 		t.Errorf("title = %q, want edit config", got)
 	}
-	if got := v.Hints(); len(got) != 3 || got[2].Key != "ctrl+s" {
+	if got := v.Hints(ui.Default()); len(got) != 3 || got[2].Key != "ctrl+s" {
 		t.Errorf("hints = %v, want explicit field/change/ctrl+s legend", got)
 	}
-	for _, h := range v.Hints() {
+	for _, h := range v.Hints(ui.Default()) {
 		if strings.ContainsAny(h.Key, "jk") {
-			t.Errorf("hints advertise unbound single-char keys: %v", v.Hints())
+			t.Errorf("hints advertise unbound single-char keys: %v", v.Hints(ui.Default()))
 		}
 	}
 }
@@ -410,7 +402,6 @@ func TestSetvAppearanceFormFields(t *testing.T) {
 }
 
 func TestSetvSaveAppearancePersistsValues(t *testing.T) {
-	setvKeepAppearance(t)
 	kit := testKit(t)
 
 	themeKeys, keyKeys := theme.Keys(), keys.Keys()
@@ -437,7 +428,6 @@ func TestSetvSaveAppearancePersistsValues(t *testing.T) {
 }
 
 func TestSetvSaveAppearanceError(t *testing.T) {
-	setvKeepAppearance(t)
 	kit := testKit(t)
 	app := setvStack(kit, kit.setvAppearanceView())
 	setvBreakConfigDir(t)
@@ -460,7 +450,7 @@ func TestSetvStatusBarFormFields(t *testing.T) {
 	if body := setvRender(v); !strings.Contains(strings.ToUpper(body), "SHOW = VISIBLE CHIP") {
 		t.Fatalf("panel caption lost: %q", body)
 	}
-	if got := v.Hints(); len(got) != 3 || got[1].Label != "show/hide" {
+	if got := v.Hints(ui.Default()); len(got) != 3 || got[1].Label != "show/hide" {
 		t.Errorf("hints = %v, want show/hide legend", got)
 	}
 }

@@ -64,7 +64,7 @@ func applyFromAnotherProcess(t *testing.T, kit *Kit) {
 func TestStoreTickReloadsAfterExternalApply(t *testing.T) {
 	kit := storeKit(t)
 	hook := kit.MsgHook()
-	m := vkdeck.New(vkdeck.NewMenu("root", nil))
+	m := newTestApp(vkdeck.NewMenu("root", nil))
 
 	if _, handled := hook(m, storeTickMsg{}); !handled {
 		t.Fatal("store tick was not handled")
@@ -101,7 +101,7 @@ func TestHistoryProbeRunsOffTheUpdateGoroutine(t *testing.T) {
 	}
 
 	hook := kit.MsgHook()
-	m := vkdeck.New(vkdeck.NewMenu("root", nil))
+	m := newTestApp(vkdeck.NewMenu("root", nil))
 	cmd, handled := hook(m, storeTickMsg{})
 	if !handled || cmd == nil {
 		t.Fatalf("tick handled=%v cmd=%v", handled, cmd != nil)
@@ -142,7 +142,7 @@ func TestStoreTickRearmsWithoutAConfigStore(t *testing.T) {
 		t.Fatal("fixture unexpectedly opened a config store")
 	}
 	hook := kit.MsgHook()
-	m := vkdeck.New(vkdeck.NewMenu("root", nil))
+	m := newTestApp(vkdeck.NewMenu("root", nil))
 
 	cmd, handled := hook(m, storeTickMsg{})
 	if !handled {
@@ -159,7 +159,7 @@ func TestStoreTickRearmsWithoutAConfigStore(t *testing.T) {
 func TestStoreTickRearmsWhenUnchanged(t *testing.T) {
 	kit := storeKit(t)
 	hook := kit.MsgHook()
-	m := vkdeck.New(vkdeck.NewMenu("root", nil))
+	m := newTestApp(vkdeck.NewMenu("root", nil))
 
 	for i := range 2 {
 		cmd, handled := hook(m, storeTickMsg{})
@@ -180,7 +180,7 @@ func TestStoreTickRearmsWhenUnchanged(t *testing.T) {
 func TestStoreTickSettlesAfterReload(t *testing.T) {
 	kit := storeKit(t)
 	hook := kit.MsgHook()
-	m := vkdeck.New(vkdeck.NewMenu("root", nil))
+	m := newTestApp(vkdeck.NewMenu("root", nil))
 
 	hook(m, storeTickMsg{})
 	applyFromAnotherProcess(t, kit)

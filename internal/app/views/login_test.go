@@ -10,11 +10,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/codyconfer/viewkit/layout"
+
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/loginflow"
-	"github.com/codyconfer/mino/internal/deck"
 )
 
 var loginAnsi = regexp.MustCompile("\x1b\\[[0-9;]*m")
@@ -26,7 +27,7 @@ func TestLoginMenuSmoke(t *testing.T) {
 			t.Fatalf("login menu panicked: %v", r)
 		}
 	}()
-	a := deck.New(kit.Login())
+	a := newTestApp(kit.Login())
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	_ = a.View()
 	a = step(a, tea.KeyMsg{Type: tea.KeyEnter})
@@ -38,7 +39,7 @@ func TestLoginMenuSmoke(t *testing.T) {
 func TestLoginAlreadyAuthedStaysOnLoginWithToast(t *testing.T) {
 	kit := testKit(t)
 	page := kit.Login().(*loginPage)
-	a := deck.New(page)
+	a := newTestApp(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	a = step(a, loginAlreadyAuthedMsg{label: "GitHub"})
 
@@ -68,7 +69,7 @@ func TestLoginFlowAlreadyAuthedRedirects(t *testing.T) {
 	}
 	flow := kit.loginFlow(p).(*loginFlowView)
 
-	a := deck.New(page)
+	a := newTestApp(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	_ = a.Push(flow)
 	if a.Top().Title() != "accounts: github" {
@@ -131,7 +132,7 @@ func TestLoginRunStepEscCancelsTheLogin(t *testing.T) {
 		t.Fatalf("step = %d, want the device-flow run step", v.step)
 	}
 
-	a := deck.New(vkdeck.NewMenu("accounts", nil))
+	a := newTestApp(vkdeck.NewMenu("accounts", nil))
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	_ = a.Push(v)
 
@@ -166,14 +167,14 @@ func TestLoginFlowMasksClientSecret(t *testing.T) {
 		Authed: func(*app.App) bool { return false },
 	}
 	v := kit.loginFlow(p).(*loginFlowView)
-	a := deck.New(v)
+	a := newTestApp(v)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	a = step(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("id-123")})
 	a = step(a, tea.KeyMsg{Type: tea.KeyDown})
 	step(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("sekret")})
 
-	body := loginAnsi.ReplaceAllString(v.Body(100, 40), "")
+	body := loginAnsi.ReplaceAllString(v.Body(layout.Frame{Width: 100, Height: 40}), "")
 	if strings.Contains(body, "sekret") {
 		t.Errorf("client secret leaked in form body:\n%s", body)
 	}

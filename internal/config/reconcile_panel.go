@@ -14,6 +14,7 @@ import (
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/render/glyph"
 )
@@ -60,8 +61,7 @@ func reconcileChoiceFor(line string) reconcileChoice {
 	return choiceUnknown
 }
 
-func reconcilePromptLine() string {
-	th := theme.Cur()
+func reconcilePromptLine(th theme.Theme) string {
 	keys := make([]string, 0, len(reconcileChoices))
 	for _, c := range reconcileChoices {
 		keys = append(keys, c.key)
@@ -70,8 +70,8 @@ func reconcilePromptLine() string {
 		th.Dim.Render(" · enter = use this session: ")
 }
 
-func discardConfirmBatchLine(home string, recs []sisyphus.Reconciliation) string {
-	th := theme.Cur()
+func discardConfirmBatchLine(sc *ui.Scope, home string, recs []sisyphus.Reconciliation) string {
+	th := sc.Theme
 	targets := make([]string, 0, len(recs))
 	for _, rec := range recs {
 		if rec.Name == ConfigDirective {
@@ -80,21 +80,21 @@ func discardConfirmBatchLine(home string, recs []sisyphus.Reconciliation) string
 		}
 		targets = append(targets, filepath.Join(home, rec.Name))
 	}
-	return th.Cant.Render("  "+glyph.Pad(glyph.Warn())+"delete ") + th.Val.Render(strings.Join(targets, ", ")) +
+	return th.Cant.Render("  "+glyph.Pad(sc.Glyphs.Warn())+"delete ") + th.Val.Render(strings.Join(targets, ", ")) +
 		th.Cant.Render(" from disk?") + th.Dim.Render(" [y/N] · enter = no: ")
 }
 
-func renderReconcileNotice(msg string) string {
-	return theme.Cur().Dim.Render("  " + glyph.Pad(glyph.Bullet()) + msg)
+func renderReconcileNotice(sc *ui.Scope, msg string) string {
+	return sc.Theme.Dim.Render("  " + glyph.Pad(sc.Glyphs.Bullet()) + msg)
 }
 
-func renderReconcilePanel(w io.Writer, rec sisyphus.Reconciliation) string {
-	return renderReconcileBatchPanel(w, []sisyphus.Reconciliation{rec})
+func renderReconcilePanel(sc *ui.Scope, w io.Writer, rec sisyphus.Reconciliation) string {
+	return renderReconcileBatchPanel(sc, w, []sisyphus.Reconciliation{rec})
 }
 
-func renderReconcileBatchPanel(w io.Writer, recs []sisyphus.Reconciliation) string {
-	f := layout.FrameFor(w)
-	th := theme.Cur()
+func renderReconcileBatchPanel(sc *ui.Scope, w io.Writer, recs []sisyphus.Reconciliation) string {
+	f := layout.FrameFor(w).WithUI(sc)
+	th := sc.Theme
 
 	names := make([]string, len(recs))
 	for i, rec := range recs {
@@ -108,7 +108,7 @@ func renderReconcileBatchPanel(w io.Writer, recs []sisyphus.Reconciliation) stri
 	for _, rec := range recs {
 		lines = append(lines, f.Row(rec.Name, th.Val.Render(stagedSummary(rec))))
 		lines = append(lines, f.Row("", th.Dim.Render(storedSummary(rec))))
-		if changed := changedSummary(rec, budget); changed != "" {
+		if changed := changedSummary(th, rec, budget); changed != "" {
 			lines = append(lines, f.Row("", changed))
 		}
 	}
@@ -126,7 +126,7 @@ func renderReconcileBatchPanel(w io.Writer, recs []sisyphus.Reconciliation) stri
 			th.Dim.Render(c.desc))
 	}
 
-	return f.TitledBoxIcon(glyph.Lead(glyph.Warn()), "new config changes staged", lines...)
+	return f.TitledBoxIcon(glyph.Lead(sc.Glyphs.Warn()), "new config changes staged", lines...)
 }
 
 func stagedSummary(rec sisyphus.Reconciliation) string {
@@ -193,12 +193,11 @@ func changeEntries(rec sisyphus.Reconciliation) []changeEntry {
 	return entries
 }
 
-func changedSummary(rec sisyphus.Reconciliation, budget int) string {
+func changedSummary(th theme.Theme, rec sisyphus.Reconciliation, budget int) string {
 	entries := changeEntries(rec)
 	if len(entries) == 0 {
 		return ""
 	}
-	th := theme.Cur()
 	warn := lipgloss.NewStyle().Foreground(th.NotifWarning.GetForeground())
 	var shown []string
 	used := 0

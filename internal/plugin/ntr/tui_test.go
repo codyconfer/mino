@@ -73,9 +73,9 @@ func TestBuildersTitle(t *testing.T) {
 		view vkdeck.View
 		want string
 	}{
-		{"note", NewNoteBuilder(home, "r"), "build note"},
-		{"task", NewTaskBuilder(home, "r"), "build task"},
-		{"reminder", NewRemindBuilder(home, "r"), "build reminder"},
+		{"note", NewNoteBuilder(home, "r", testScheme()), "build note"},
+		{"task", NewTaskBuilder(home, "r", testScheme()), "build task"},
+		{"reminder", NewRemindBuilder(home, "r", testScheme()), "build reminder"},
 	}
 	for _, c := range cases {
 		if got := c.view.Title(); got != c.want {

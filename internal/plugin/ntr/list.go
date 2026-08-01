@@ -10,8 +10,8 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/list"
-	"github.com/codyconfer/viewkit/theme"
 	"github.com/codyconfer/viewkit/timefmt"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/keymap"
 	"github.com/codyconfer/mino/internal/render/glyph"
@@ -78,11 +78,11 @@ type recordSet struct {
 type recordList struct {
 	*vkdeck.ItemList
 
-	home   string
-	role   string
-	kind   string
-	toggle *keys.Map
-	stale  bool
+	home      string
+	role      string
+	kind      string
+	canToggle bool
+	stale     bool
 }
 
 func newRecordList(home, role, kind string) *recordList {
@@ -99,20 +99,18 @@ func newRecordList(home, role, kind string) *recordList {
 	})
 	v.OnOpen = func(string) error { return nil }
 	v.OnSelect = func(h *vkdeck.Model, it list.Item) tea.Cmd { return v.open(h, it) }
-	if kind != kindNote {
-		v.toggle = keys.MapFor(keymap.Toggle)
-	}
+	v.canToggle = kind != kindNote
 	return v
 }
 
-func (v *recordList) Hints() []keys.Hint {
-	nav := recordListKeys()
+func (v *recordList) Hints(scope *ui.Scope) []keys.Hint {
+	nav := recordListKeys(scope.Keys)
 	hints := []keys.Hint{
 		nav.HintLabeled(keys.Up, "row"),
 		nav.HintLabeled(keys.Confirm, "edit"),
 	}
-	if v.toggle != nil {
-		hints = append(hints, v.toggle.HintLabeled(keymap.Toggle, recordToggleLabel(v.kind)))
+	if v.canToggle {
+		hints = append(hints, scope.Keys.MapFor(keymap.Toggle).HintLabeled(keymap.Toggle, recordToggleLabel(v.kind)))
 	}
 	return append(hints,
 		nav.HintLabeled(keys.PageUp, "page"),
@@ -130,8 +128,8 @@ func (v *recordList) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		}
 		return cmd
 	case tea.KeyMsg:
-		if v.toggle != nil {
-			if act, ok := v.toggle.Action(m.String()); ok && act == keymap.Toggle {
+		if v.canToggle {
+			if act, ok := h.UI().Keys.MapFor(keymap.Toggle).Action(m.String()); ok && act == keymap.Toggle {
 				return v.setDone(h)
 			}
 		}
@@ -141,23 +139,23 @@ func (v *recordList) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 
 func (v *recordList) open(h *vkdeck.Model, it list.Item) tea.Cmd {
 	if it.Key == recordNewKey {
-		return h.Push(v.build(record{Kind: v.kind}))
+		return h.Push(v.build(h.UI().Keys, record{Kind: v.kind}))
 	}
 	rec, ok := it.Payload.(record)
 	if !ok {
 		return nil
 	}
-	return h.Push(v.build(rec))
+	return h.Push(v.build(h.UI().Keys, rec))
 }
 
-func (v *recordList) build(rec record) vkdeck.View {
+func (v *recordList) build(sc keys.Scheme, rec record) vkdeck.View {
 	switch v.kind {
 	case kindTask:
-		return newTaskView(v.home, v.role, rec, v.markStale)
+		return newTaskView(v.home, v.role, rec, v.markStale, sc)
 	case kindReminder:
-		return newRemindView(v.home, v.role, rec, v.markStale)
+		return newRemindView(v.home, v.role, rec, v.markStale, sc)
 	default:
-		return newNoteView(v.home, v.role, rec, v.markStale)
+		return newNoteView(v.home, v.role, rec, v.markStale, sc)
 	}
 }
 
@@ -177,15 +175,14 @@ func (v *recordList) setDone(h *vkdeck.Model) tea.Cmd {
 		return st.SetTaskDone(ctx, rec.ID, !rec.Done)
 	})
 	if err != nil {
-		return h.Push(vkdeck.NewMessage("failed", err.Error(), v.Context()))
+		return h.Push(vkdeck.NewMessage("failed", err.Error(), v.Context(h.UI())))
 	}
 	return v.Reload()
 }
 
 func (v *recordList) markStale() { v.stale = true }
 
-func recordListKeys() *keys.Map {
-	sc := keys.Cur()
+func recordListKeys(sc keys.Scheme) *keys.Map {
 	return keys.NewMap(
 		sc.Binding(keys.Up),
 		sc.Binding(keys.Down),
@@ -204,11 +201,13 @@ func recordToggleLabel(kind string) string {
 	return "toggle"
 }
 
+// recordRows runs from ItemList Bind, which only carries width; the frame
+// built here has no scope, so its theme falls back to the process default.
 func recordRows(width int, kind string, recs []record, err error) []list.Item {
-	th := theme.Cur()
 	f := layout.ScreenFrame(max(width-recordIndent, 1))
+	th := f.Theme()
 	items := []list.Item{{
-		Block:      f.Spread(theme.Icon(glyph.Builder(), recordHue(kind))+th.Val.Render("New"), th.Dim.Render(recordNewDesc(kind))),
+		Block:      f.Spread(th.Icon(glyph.Builder(), recordHue(kind))+th.Val.Render("New"), th.Dim.Render(recordNewDesc(kind))),
 		Key:        recordNewKey,
 		Selectable: true,
 	}}

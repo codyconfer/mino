@@ -87,7 +87,7 @@ func (kit *Kit) newReportView(orig string, base config.FormatterDef) *reportView
 		"name":     base.Name,
 		"title":    base.Title,
 		"template": base.Template,
-	})
+	}, kit.scope().Keys)
 	return v
 }
 

@@ -8,7 +8,9 @@ import (
 	"github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/plugin"
 )
@@ -28,9 +30,9 @@ type guardView struct{}
 func (guardView) Title() string                       { return "guard" }
 func (guardView) Init() tea.Cmd                       { return nil }
 func (guardView) Update(*deck.Model, tea.Msg) tea.Cmd { return nil }
-func (guardView) Body(int, int) string                { return "body" }
-func (guardView) Hints() []keys.Hint                  { return nil }
-func (guardView) Context() []keys.Hint                { return nil }
+func (guardView) Body(layout.Frame) string            { return "body" }
+func (guardView) Hints(*ui.Scope) []keys.Hint         { return nil }
+func (guardView) Context(*ui.Scope) []keys.Hint       { return nil }
 
 func TestRegisterThemeWithoutKeyIsDiagnosticNotPanic(t *testing.T) {
 	const id = "guard.theme.nokey"

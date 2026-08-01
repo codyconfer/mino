@@ -92,7 +92,7 @@ func runOnboardTo(cmd *cobra.Command, w io.Writer, statusOnly bool) error {
 	if err != nil {
 		return err
 	}
-	return onboard.RunCLI(cmd.Context(), shared.Tokens, apiURL, w, statusOnly,
+	return onboard.RunCLI(cmd.Context(), shared.Tokens, apiURL, w, Scope(), statusOnly,
 		func(title, message, yes, no string) (bool, error) {
 			return deck.Confirm(vkdeck.ConfirmSpec{Title: title, Message: message, YesLabel: yes, NoLabel: no})
 		})

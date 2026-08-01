@@ -6,7 +6,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/plugin"
 )
 
@@ -18,7 +17,7 @@ func TestPluginsPageShowsADiagnosticForAnUnregisteredPlugin(t *testing.T) {
 		"duplicate view id, so this contribution was skipped")
 
 	kit := testKit(t)
-	a := deck.New(kit.Plugins())
+	a := newTestApp(kit.Plugins())
 	a = step(a, tea.WindowSizeMsg{Width: 120, Height: 40})
 	body := pluginsAnsi.ReplaceAllString(a.View(), "")
 

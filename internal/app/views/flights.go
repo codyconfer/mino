@@ -73,7 +73,7 @@ func (kit *Kit) newFlightView(orig string, base config.Flight) *flightView {
 	v.editorShell = newEditorShell(v, map[string]any{
 		"name":    base.Name,
 		"queries": strings.Join(base.Queries, ", "),
-	})
+	}, kit.scope().Keys)
 	return v
 }
 

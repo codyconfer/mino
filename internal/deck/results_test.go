@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/render"
 	"github.com/codyconfer/mino/internal/signals"
@@ -94,23 +95,23 @@ func TestResultsOpenGoesToTheBrowserHook(t *testing.T) {
 func TestResultsHintsAdvertiseDetailsWhenSelectable(t *testing.T) {
 	_, withSelect := loadedResults(t, func(*vkdeck.Model, render.ItemRef) tea.Cmd { return nil })
 	labels := map[string]bool{}
-	for _, h := range withSelect.Hints() {
+	for _, h := range withSelect.Hints(ui.Default()) {
 		labels[h.Label] = true
 	}
 	if !labels["details"] || !labels["open"] {
-		t.Errorf("hints = %v, want both details and open", withSelect.Hints())
+		t.Errorf("hints = %v, want both details and open", withSelect.Hints(ui.Default()))
 	}
 
 	_, plain := loadedResults(t, nil)
 	labels = map[string]bool{}
-	for _, h := range plain.Hints() {
+	for _, h := range plain.Hints(ui.Default()) {
 		labels[h.Label] = true
 	}
 	if labels["details"] {
-		t.Errorf("hints = %v, should not promise details without an OnSelect", plain.Hints())
+		t.Errorf("hints = %v, should not promise details without an OnSelect", plain.Hints(ui.Default()))
 	}
 	if !labels["open"] {
-		t.Errorf("hints = %v, want confirm to still read as open", plain.Hints())
+		t.Errorf("hints = %v, want confirm to still read as open", plain.Hints(ui.Default()))
 	}
 }
 

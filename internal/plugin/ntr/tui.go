@@ -5,6 +5,8 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/layout"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/render/glyph"
@@ -77,21 +79,21 @@ func RemindersUIVisible() bool {
 	return plugin.ViewUIVisible("ntr.reminders")
 }
 
-func NewNoteBuilder(home, role string) vkdeck.View {
-	return newNoteView(home, role, record{Kind: kindNote}, nil)
+func NewNoteBuilder(home, role string, sc keys.Scheme) vkdeck.View {
+	return newNoteView(home, role, record{Kind: kindNote}, nil, sc)
 }
 
-func NewTaskBuilder(home, role string) vkdeck.View {
-	return newTaskView(home, role, record{Kind: kindTask}, nil)
+func NewTaskBuilder(home, role string, sc keys.Scheme) vkdeck.View {
+	return newTaskView(home, role, record{Kind: kindTask}, nil, sc)
 }
 
-func NewRemindBuilder(home, role string) vkdeck.View {
-	return newRemindView(home, role, record{Kind: kindReminder}, nil)
+func NewRemindBuilder(home, role string, sc keys.Scheme) vkdeck.View {
+	return newRemindView(home, role, record{Kind: kindReminder}, nil, sc)
 }
 
 func (v *HomeView) Title() string                             { return v.menu.Title() }
 func (v *HomeView) Init() tea.Cmd                             { return v.menu.Init() }
 func (v *HomeView) Update(h *vkdeck.Model, m tea.Msg) tea.Cmd { return v.menu.Update(h, m) }
-func (v *HomeView) Body(w, ht int) string                     { return v.menu.Body(w, ht) }
-func (v *HomeView) Hints() []keys.Hint                        { return v.menu.Hints() }
-func (v *HomeView) Context() []keys.Hint                      { return v.menu.Context() }
+func (v *HomeView) Body(f layout.Frame) string                { return v.menu.Body(f) }
+func (v *HomeView) Hints(scope *ui.Scope) []keys.Hint         { return v.menu.Hints(scope) }
+func (v *HomeView) Context(scope *ui.Scope) []keys.Hint       { return v.menu.Context(scope) }

@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/deck"
 )
@@ -140,7 +141,7 @@ func seedReminder(t *testing.T, home, role, title string, due time.Time) Reminde
 
 func TestNoteEditorFields(t *testing.T) {
 	home := t.TempDir()
-	v := newNoteView(home, "sre", record{Kind: kindNote}, nil)
+	v := newNoteView(home, "sre", record{Kind: kindNote}, nil, testScheme())
 	if got := v.Title(); got != "build note" {
 		t.Errorf("fresh note title = %q, want build note", got)
 	}
@@ -162,7 +163,7 @@ func TestNoteEditorFields(t *testing.T) {
 		t.Errorf("note seeds = %q/%q, want idea and both body lines", fields[0].Text, fields[1].Text)
 	}
 
-	saved := newNoteView(home, "sre", record{Kind: kindNote, ID: 12, Title: "idea", Body: "the body"}, nil)
+	saved := newNoteView(home, "sre", record{Kind: kindNote, ID: 12, Title: "idea", Body: "the body"}, nil, testScheme())
 	if got := saved.Title(); got != "edit note #12" {
 		t.Errorf("saved note title = %q, want edit note #12", got)
 	}
@@ -176,7 +177,7 @@ func TestNoteEditorFields(t *testing.T) {
 
 func TestTaskEditorFields(t *testing.T) {
 	home := t.TempDir()
-	v := newTaskView(home, "sre", record{Kind: kindTask}, nil)
+	v := newTaskView(home, "sre", record{Kind: kindTask}, nil, testScheme())
 	if got := v.Title(); got != "build task" {
 		t.Errorf("fresh task title = %q, want build task", got)
 	}
@@ -205,7 +206,7 @@ func TestTaskEditorFields(t *testing.T) {
 	}
 
 	due := recordNow(t).Add(2 * time.Hour)
-	saved := newTaskView(home, "sre", record{Kind: kindTask, ID: 3, Title: "ship it", Due: due, Done: true}, nil)
+	saved := newTaskView(home, "sre", record{Kind: kindTask, ID: 3, Title: "ship it", Due: due, Done: true}, nil, testScheme())
 	if got := saved.Title(); got != "edit task #3" {
 		t.Errorf("saved task title = %q, want edit task #3", got)
 	}
@@ -219,7 +220,7 @@ func TestTaskEditorFields(t *testing.T) {
 
 func TestRemindEditorFields(t *testing.T) {
 	home := t.TempDir()
-	v := newRemindView(home, "sre", record{Kind: kindReminder}, nil)
+	v := newRemindView(home, "sre", record{Kind: kindReminder}, nil, testScheme())
 	if got := v.Title(); got != "build reminder" {
 		t.Errorf("fresh reminder title = %q, want build reminder", got)
 	}
@@ -242,7 +243,7 @@ func TestRemindEditorFields(t *testing.T) {
 	}
 
 	due := recordNow(t).Add(2 * time.Hour)
-	saved := newRemindView(home, "sre", record{Kind: kindReminder, ID: 8, Title: "ping", Due: due, Done: true}, nil)
+	saved := newRemindView(home, "sre", record{Kind: kindReminder, ID: 8, Title: "ping", Due: due, Done: true}, nil, testScheme())
 	if got := saved.Title(); got != "edit reminder #8" {
 		t.Errorf("saved reminder title = %q, want edit reminder #8", got)
 	}
@@ -250,19 +251,19 @@ func TestRemindEditorFields(t *testing.T) {
 		t.Errorf("saved reminder due field = %q, want %q", got, due.UTC().Format(time.RFC3339))
 	}
 	found := false
-	for _, c := range saved.Context() {
+	for _, c := range saved.Context(ui.Default()) {
 		if c.Key == "done" && c.Label == "yes" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("done reminder context = %v, want a done=yes cue", saved.Context())
+		t.Errorf("done reminder context = %v, want a done=yes cue", saved.Context(ui.Default()))
 	}
 }
 
 func TestNotePersistCreatesThenUpdatesInPlace(t *testing.T) {
 	home := t.TempDir()
-	v := newNoteView(home, "r", record{Kind: kindNote}, nil)
+	v := newNoteView(home, "r", record{Kind: kindNote}, nil, testScheme())
 
 	setField(t, v.Form(), "title", " first ")
 	setField(t, v.Form(), "body", "body one")
@@ -298,7 +299,7 @@ func TestNotePersistCreatesThenUpdatesInPlace(t *testing.T) {
 func TestTaskPersistRoundTripsDoneAndDue(t *testing.T) {
 	home := t.TempDir()
 	now := recordNow(t)
-	v := newTaskView(home, "r", record{Kind: kindTask}, nil)
+	v := newTaskView(home, "r", record{Kind: kindTask}, nil, testScheme())
 	v.now = func() time.Time { return now }
 
 	setField(t, v.Form(), "title", " ship it ")
@@ -342,7 +343,7 @@ func TestTaskPersistRoundTripsDoneAndDue(t *testing.T) {
 func TestRemindPersistParsesDue(t *testing.T) {
 	home := t.TempDir()
 	now := recordNow(t)
-	v := newRemindView(home, "r", record{Kind: kindReminder}, nil)
+	v := newRemindView(home, "r", record{Kind: kindReminder}, nil, testScheme())
 	v.now = func() time.Time { return now }
 
 	setField(t, v.Form(), "title", "ping")
@@ -379,9 +380,9 @@ func TestPersistRejectsBlankTitle(t *testing.T) {
 			Persist() (string, error)
 		}
 	}{
-		{"note", newNoteView(home, "r", record{Kind: kindNote}, nil)},
-		{"task", newTaskView(home, "r", record{Kind: kindTask}, nil)},
-		{"reminder", newRemindView(home, "r", record{Kind: kindReminder}, nil)},
+		{"note", newNoteView(home, "r", record{Kind: kindNote}, nil, testScheme())},
+		{"task", newTaskView(home, "r", record{Kind: kindTask}, nil, testScheme())},
+		{"reminder", newRemindView(home, "r", record{Kind: kindReminder}, nil, testScheme())},
 	}
 	for _, c := range cases {
 		setField(t, c.view.Form(), "title", "   ")
@@ -407,7 +408,7 @@ func TestPersistRejectsBlankTitle(t *testing.T) {
 
 func TestRemindPersistRejectsBlankDue(t *testing.T) {
 	home := t.TempDir()
-	v := newRemindView(home, "r", record{Kind: kindReminder}, nil)
+	v := newRemindView(home, "r", record{Kind: kindReminder}, nil, testScheme())
 	setField(t, v.Form(), "title", "ping")
 	setField(t, v.Form(), "due", "")
 
@@ -425,8 +426,8 @@ func TestRemindPersistRejectsBlankDue(t *testing.T) {
 
 func TestEditorFooterOmitsWrite(t *testing.T) {
 	home := t.TempDir()
-	fresh := newNoteView(home, "r", record{Kind: kindNote}, nil)
-	hints := fresh.Hints()
+	fresh := newNoteView(home, "r", record{Kind: kindNote}, nil, testScheme())
+	hints := fresh.Hints(ui.Default())
 	for _, want := range []string{"ctrl+r", "ctrl+t", "ctrl+y", "ctrl+s", "ctrl+g"} {
 		if !hasHint(hints, want) {
 			t.Errorf("note builder hints missing %s: %v", want, hints)
@@ -443,9 +444,9 @@ func TestEditorFooterOmitsWrite(t *testing.T) {
 	}
 
 	n := seedNote(t, home, "r", "idea", "the body")
-	saved := newNoteView(home, "r", noteRecord(n), nil)
-	if !hasHint(saved.Hints(), "ctrl+x") {
-		t.Errorf("saved note hints missing ctrl+x: %v", saved.Hints())
+	saved := newNoteView(home, "r", noteRecord(n), nil, testScheme())
+	if !hasHint(saved.Hints(ui.Default()), "ctrl+x") {
+		t.Errorf("saved note hints missing ctrl+x: %v", saved.Hints(ui.Default()))
 	}
 
 	app := deck.New(saved)
@@ -454,20 +455,20 @@ func TestEditorFooterOmitsWrite(t *testing.T) {
 	if saved.Running() {
 		t.Fatalf("run never landed (status %q)", saved.Status())
 	}
-	if !hasHint(saved.Hints(), "tab") {
-		t.Errorf("hints missing tab after a successful run: %v", saved.Hints())
+	if !hasHint(saved.Hints(ui.Default()), "tab") {
+		t.Errorf("hints missing tab after a successful run: %v", saved.Hints(ui.Default()))
 	}
 	step(app, tea.KeyMsg{Type: tea.KeyTab})
 	if saved.OnResults() {
 		t.Fatal("tab did not return focus to the form")
 	}
-	if !hasHint(saved.Hints(), "tab") {
-		t.Errorf("form hints missing tab while results are loaded: %v", saved.Hints())
+	if !hasHint(saved.Hints(ui.Default()), "tab") {
+		t.Errorf("form hints missing tab while results are loaded: %v", saved.Hints(ui.Default()))
 	}
 }
 
 func TestEditorDeleteHiddenForNewRecord(t *testing.T) {
-	v := newNoteView(t.TempDir(), "r", record{Kind: kindNote}, nil)
+	v := newNoteView(t.TempDir(), "r", record{Kind: kindNote}, nil, testScheme())
 	if got := v.SavedName(); got != "" {
 		t.Fatalf("SavedName = %q, want empty for a builder", got)
 	}
@@ -487,7 +488,7 @@ func TestEditorDeleteHiddenForNewRecord(t *testing.T) {
 func TestEditorDeleteRemovesRecord(t *testing.T) {
 	home := t.TempDir()
 	n := seedNote(t, home, "r", "drop me", "")
-	v := newNoteView(home, "r", noteRecord(n), nil)
+	v := newNoteView(home, "r", noteRecord(n), nil, testScheme())
 	if want := "note #" + strconv.FormatInt(n.ID, 10); v.SavedName() != want {
 		t.Fatalf("SavedName = %q, want %q", v.SavedName(), want)
 	}
@@ -513,7 +514,7 @@ func TestEditorDeleteRemovesRecord(t *testing.T) {
 func TestEditorCopyKeyIsWired(t *testing.T) {
 	home := t.TempDir()
 	rec := record{Kind: kindNote, ID: 4, Title: "idea", Body: "the body"}
-	v := newNoteView(home, "r", rec, nil)
+	v := newNoteView(home, "r", rec, nil, testScheme())
 	copies := 0
 	payload := ""
 	v.copy = func(text string) error {
@@ -543,7 +544,7 @@ func TestEditorCopyKeyIsWired(t *testing.T) {
 func TestEditorValidateSurfacesCheckLines(t *testing.T) {
 	home := t.TempDir()
 	now := recordNow(t)
-	v := newTaskView(home, "r", record{Kind: kindTask, Title: "ship it"}, nil)
+	v := newTaskView(home, "r", record{Kind: kindTask, Title: "ship it"}, nil, testScheme())
 	v.now = func() time.Time { return now }
 
 	app := deck.New(v)

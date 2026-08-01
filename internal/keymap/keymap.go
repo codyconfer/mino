@@ -8,6 +8,11 @@ import (
 	"github.com/codyconfer/mino/internal/config"
 )
 
+// Register adds mino's scheme to the keys registry.
+func Register() {
+	keys.Register(DefaultSchemeKey, "Mino", minoScheme())
+}
+
 const DefaultSchemeKey = "mino"
 
 const (
@@ -40,8 +45,8 @@ func minoBindings() []keys.Binding {
 	}
 }
 
-func BuilderBindings() []keys.Binding {
-	sc := keys.Cur()
+// BuilderBindings returns sc's bindings for the query-builder actions.
+func BuilderBindings(sc keys.Scheme) []keys.Binding {
 	actions := []keys.Action{Run, Validate, Preview, Delete, Focus, Copy, Write}
 	out := make([]keys.Binding, 0, len(actions))
 	for _, a := range actions {
@@ -57,40 +62,28 @@ func minoScheme() keys.Scheme {
 	)...)
 }
 
-func Register() {
-	keys.Register(DefaultSchemeKey, "Mino", minoScheme())
-}
-
-// UseNamed activates the registered scheme for key, grafting mino's app
-// bindings onto it so every action keymap defines stays reachable.
-func UseNamed(key string) bool {
-	sc, ok := keys.Named(key)
-	if !ok {
-		return false
+// SchemeFor returns the registered scheme for key grafted with mino's app
+// bindings, falling back to mino's own scheme for unknown keys.
+func SchemeFor(key string) keys.Scheme {
+	if sc, ok := keys.Named(key); ok {
+		return sc.WithDefaults(minoBindings()...)
 	}
-	keys.Use(sc.WithDefaults(minoBindings()...))
-	return true
+	return minoScheme()
 }
 
-func Install() {
-	Register()
-	keys.Use(minoScheme())
-	key := os.Getenv("MINO_KEYS")
-	if key == "" {
-		key = config.LoadGlobalSettings().Keys
+// SchemeKey returns the effective key-scheme key: MINO_KEYS over settings.
+func SchemeKey() string {
+	if key := os.Getenv("MINO_KEYS"); key != "" {
+		return key
 	}
-	if key == "" || key == DefaultSchemeKey {
-		return
-	}
-	UseNamed(key)
+	return config.LoadGlobalSettings().Keys
 }
 
-func Menu() *keys.Map {
-	return keys.MapFor(keys.Up, keys.Down, keys.Confirm, keys.Cancel, keys.Quit)
+func Menu(sc keys.Scheme) *keys.Map {
+	return sc.MapFor(keys.Up, keys.Down, keys.Confirm, keys.Cancel, keys.Quit)
 }
 
-func Plugins() *keys.Map {
-	sc := keys.Cur()
+func Plugins(sc keys.Scheme) *keys.Map {
 	confirm := sc.Binding(keys.Confirm)
 	confirm.Keys = append(append([]string{}, confirm.Keys...), "d")
 	confirm.Glyph = "enter/d"
@@ -106,20 +99,19 @@ func Plugins() *keys.Map {
 	)
 }
 
-func Detail() *keys.Map {
-	return keys.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Open, keys.Cancel, keys.Quit)
+func Detail(sc keys.Scheme) *keys.Map {
+	return sc.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Open, keys.Cancel, keys.Quit)
 }
 
-func ItemList() *keys.Map {
-	return keys.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Confirm, keys.Open, keys.Cancel, keys.Quit)
+func ItemList(sc keys.Scheme) *keys.Map {
+	return sc.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Confirm, keys.Open, keys.Cancel, keys.Quit)
 }
 
-func ConfirmMap() *keys.Map {
-	return keys.MapFor(keys.Left, keys.Right, keys.Confirm, keys.Cancel)
+func ConfirmMap(sc keys.Scheme) *keys.Map {
+	return sc.MapFor(keys.Left, keys.Right, keys.Confirm, keys.Cancel)
 }
 
-func Form(extra ...keys.Binding) *keys.Map {
-	sc := keys.Cur()
+func Form(sc keys.Scheme, extra ...keys.Binding) *keys.Map {
 	bs := sc.EditorBindings(
 		keys.Complete, keys.CompleteNext, keys.CompletePrev,
 		keys.Up, keys.Down, keys.Left, keys.Right,

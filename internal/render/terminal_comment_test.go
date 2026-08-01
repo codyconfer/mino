@@ -21,7 +21,7 @@ func ago(d time.Duration) string { return time.Now().Add(-d).Format(time.RFC3339
 
 func TestLastCommentChip(t *testing.T) {
 	glyph.SetMode(glyph.ModeNone)
-	th := theme.Cur()
+	th := theme.Default()
 	threeDaysAgo := ago(72 * time.Hour)
 
 	cases := []struct {
@@ -78,7 +78,7 @@ func TestLastCommentChipUsesSeverityTones(t *testing.T) {
 	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
 
 	glyph.SetMode(glyph.ModeNone)
-	th := theme.Cur()
+	th := theme.Default()
 	threeDaysAgo := ago(72 * time.Hour)
 
 	team := lastCommentChip(th, signals.Item{Meta: map[string]string{"last_comment_by": "alice", "last_comment_team": "true", "last_comment_at": threeDaysAgo}})
@@ -91,10 +91,10 @@ func TestLastCommentChipUsesSeverityTones(t *testing.T) {
 	if external == unknown {
 		t.Error("external and no-team chips carry the same text, so their tones must differ")
 	}
-	if want := theme.SeverityStyle(glyph.KindPositive).Render(chipPrefix() + "@alice ·team ·3d ago"); team != want {
+	if want := th.SeverityStyle(glyph.KindPositive).Render(chipPrefix() + "@alice ·team ·3d ago"); team != want {
 		t.Errorf("team chip = %q, want %q", team, want)
 	}
-	if want := theme.SeverityStyle(glyph.KindWarning).Render(chipPrefix() + "@alice ·3d ago"); external != want {
+	if want := th.SeverityStyle(glyph.KindWarning).Render(chipPrefix() + "@alice ·3d ago"); external != want {
 		t.Errorf("external chip = %q, want %q", external, want)
 	}
 	if want := th.Dim.Render(chipPrefix() + "@alice ·3d ago"); unknown != want {
@@ -115,7 +115,7 @@ func TestItemLinesIncludesLastCommentChip(t *testing.T) {
 			"last_comment_at":   ago(72 * time.Hour),
 		},
 	}
-	lines := itemLines(layout.NewFrame(80), theme.Cur(), it)
+	lines := itemLines(layout.NewFrame(80), theme.Default(), it)
 	if len(lines) == 0 {
 		t.Fatal("no lines rendered")
 	}
@@ -139,7 +139,7 @@ func TestItemLinesKeepsTimestampWithoutCommentAge(t *testing.T) {
 		Timestamp: time.Now().Add(-5 * time.Hour),
 		Meta:      map[string]string{"last_comment_by": "alice", "last_comment_team": "true"},
 	}
-	lines := itemLines(layout.NewFrame(80), theme.Cur(), it)
+	lines := itemLines(layout.NewFrame(80), theme.Default(), it)
 	if len(lines) == 0 {
 		t.Fatal("no lines rendered")
 	}

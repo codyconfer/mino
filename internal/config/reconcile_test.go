@@ -72,7 +72,7 @@ func TestLoadConfigAndDirectivesBatchFlow(t *testing.T) {
 	}
 	load := func(policy ReconcilePolicy) (*Config, *Directives) {
 		t.Helper()
-		cfg, dirs, mgr, err := LoadConfigAndDirectives(home, "", policy, false, strings.NewReader(""), io.Discard)
+		cfg, dirs, mgr, err := LoadConfigAndDirectives(home, "", policy, false, strings.NewReader(""), io.Discard, nil)
 		if err != nil {
 			t.Fatalf("LoadConfigAndDirectives: %v", err)
 		}

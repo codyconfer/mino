@@ -71,7 +71,7 @@ func newDaemonCmd() *cobra.Command {
 					return errs.Wrap(errs.KindInternal, err, "starting service")
 				}
 				cmd.StopLoading()
-				fmt.Fprintln(w, render.Success(fmt.Sprintf("installed and started mino daemon (%s) watching flight %q", svc.Platform(), name)))
+				fmt.Fprintln(w, render.Success(cmd.Scope(), fmt.Sprintf("installed and started mino daemon (%s) watching flight %q", svc.Platform(), name)))
 				return nil
 			}
 			if st != service.StateRunning {
@@ -79,7 +79,7 @@ func newDaemonCmd() *cobra.Command {
 					return errs.Wrap(errs.KindInternal, err, "starting service")
 				}
 				cmd.StopLoading()
-				fmt.Fprintln(w, render.Success(fmt.Sprintf("started mino daemon watching flight %q", name)))
+				fmt.Fprintln(w, render.Success(cmd.Scope(), fmt.Sprintf("started mino daemon watching flight %q", name)))
 				return nil
 			}
 			cmd.StopLoading()
@@ -175,7 +175,7 @@ func newDaemonControlCmds() []*cobra.Command {
 			if err := svc.Install(); err != nil {
 				return errs.Wrap(errs.KindInternal, err, "installing service")
 			}
-			fmt.Fprintln(c.OutOrStdout(), render.Success(fmt.Sprintf("installed mino service (%s) to watch flight %q", svc.Platform(), name)))
+			fmt.Fprintln(c.OutOrStdout(), render.Success(cmd.Scope(), fmt.Sprintf("installed mino service (%s) to watch flight %q", svc.Platform(), name)))
 			fmt.Fprintln(c.OutOrStdout(), "start it with: mino daemon start")
 			return nil
 		},

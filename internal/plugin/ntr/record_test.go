@@ -133,7 +133,7 @@ func TestRecordCheckNeverEmpty(t *testing.T) {
 		{Kind: kindReminder, ID: 3, Title: "ping", Due: now.Add(time.Hour)},
 	}
 	for _, rec := range recs {
-		lines := rec.check(now)
+		lines := rec.check(testTheme(), now)
 		if len(lines) == 0 {
 			t.Fatalf("check(%+v) returned no lines", rec)
 		}
@@ -146,7 +146,7 @@ func TestRecordCheckNeverEmpty(t *testing.T) {
 func TestRecordCheckReminderRules(t *testing.T) {
 	now := recordNow(t)
 
-	noDue := record{Kind: kindReminder, Title: "ping"}.check(now)
+	noDue := record{Kind: kindReminder, Title: "ping"}.check(testTheme(), now)
 	joined := strings.Join(noDue, "\n")
 	if !strings.Contains(joined, "no due") || !strings.Contains(joined, "never fires") {
 		t.Errorf("no-due reminder check = %q", joined)
@@ -155,7 +155,7 @@ func TestRecordCheckReminderRules(t *testing.T) {
 		t.Errorf("no-due reminder should fail: %q", joined)
 	}
 
-	past := record{Kind: kindReminder, Title: "ping", Due: now.Add(-2 * time.Hour)}.check(now)
+	past := record{Kind: kindReminder, Title: "ping", Due: now.Add(-2 * time.Hour)}.check(testTheme(), now)
 	joined = strings.Join(past, "\n")
 	if !strings.Contains(joined, "2h ago") {
 		t.Errorf("past reminder check missing relative time: %q", joined)
@@ -164,7 +164,7 @@ func TestRecordCheckReminderRules(t *testing.T) {
 		t.Errorf("past reminder should warn: %q", joined)
 	}
 
-	done := record{Kind: kindReminder, Title: "ping", Due: now.Add(2 * time.Hour), Done: true}.check(now)
+	done := record{Kind: kindReminder, Title: "ping", Due: now.Add(2 * time.Hour), Done: true}.check(testTheme(), now)
 	joined = strings.Join(done, "\n")
 	if !strings.Contains(joined, "already done") || !strings.Contains(joined, "will not fire") {
 		t.Errorf("done reminder check = %q", joined)
@@ -173,7 +173,7 @@ func TestRecordCheckReminderRules(t *testing.T) {
 		t.Errorf("done reminder should warn: %q", joined)
 	}
 
-	future := record{Kind: kindReminder, Title: "ping", Due: now.Add(2 * time.Hour)}.check(now)
+	future := record{Kind: kindReminder, Title: "ping", Due: now.Add(2 * time.Hour)}.check(testTheme(), now)
 	joined = strings.Join(future, "\n")
 	if !strings.Contains(joined, "fires 2026-07-29 18:00Z") || !strings.Contains(joined, "in 2h") {
 		t.Errorf("future reminder check = %q", joined)
@@ -186,7 +186,7 @@ func TestRecordCheckReminderRules(t *testing.T) {
 func TestRecordCheckTaskDueOptional(t *testing.T) {
 	now := recordNow(t)
 
-	noDue := strings.Join(record{Kind: kindTask, Title: "someday"}.check(now), "\n")
+	noDue := strings.Join(record{Kind: kindTask, Title: "someday"}.check(testTheme(), now), "\n")
 	if !strings.Contains(noDue, "looks good") {
 		t.Errorf("task without due should pass: %q", noDue)
 	}
@@ -194,7 +194,7 @@ func TestRecordCheckTaskDueOptional(t *testing.T) {
 		t.Errorf("task without due check = %q", noDue)
 	}
 
-	withDue := strings.Join(record{Kind: kindTask, Title: "ship", Due: now.Add(2 * time.Hour)}.check(now), "\n")
+	withDue := strings.Join(record{Kind: kindTask, Title: "ship", Due: now.Add(2 * time.Hour)}.check(testTheme(), now), "\n")
 	if !strings.Contains(withDue, "due 2026-07-29 18:00Z") || !strings.Contains(withDue, "in 2h") {
 		t.Errorf("task with due check = %q", withDue)
 	}
@@ -202,7 +202,7 @@ func TestRecordCheckTaskDueOptional(t *testing.T) {
 
 func TestRecordCheckNoteIgnoresDue(t *testing.T) {
 	now := recordNow(t)
-	lines := strings.Join(record{Kind: kindNote, Title: "idea", Due: now.Add(-time.Hour)}.check(now), "\n")
+	lines := strings.Join(record{Kind: kindNote, Title: "idea", Due: now.Add(-time.Hour)}.check(testTheme(), now), "\n")
 	if strings.Contains(lines, "due") {
 		t.Errorf("note check should say nothing about due: %q", lines)
 	}

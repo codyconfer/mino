@@ -11,7 +11,7 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
-	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
@@ -51,10 +51,10 @@ func (k *Kit) Login() vkdeck.View {
 	return page
 }
 
-func (p *loginPage) Title() string        { return p.menu.Title() }
-func (p *loginPage) Context() []keys.Hint { return p.menu.Context() }
-func (p *loginPage) Hints() []keys.Hint   { return p.menu.Hints() }
-func (p *loginPage) Init() tea.Cmd        { return p.menu.Init() }
+func (p *loginPage) Title() string                       { return p.menu.Title() }
+func (p *loginPage) Context(scope *ui.Scope) []keys.Hint { return p.menu.Context(scope) }
+func (p *loginPage) Hints(scope *ui.Scope) []keys.Hint   { return p.menu.Hints(scope) }
+func (p *loginPage) Init() tea.Cmd                       { return p.menu.Init() }
 
 func (p *loginPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	if cmd, handled := p.toast.Update(msg); handled {
@@ -66,8 +66,8 @@ func (p *loginPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	return p.menu.Update(a, msg)
 }
 
-func (p *loginPage) Body(width, height int) string {
-	return p.toast.Body(p.menu.Body(width, height), width)
+func (p *loginPage) Body(f layout.Frame) string {
+	return p.toast.Body(f, p.menu.Body(f))
 }
 
 func (k *Kit) loginStatus(p loginflow.Provider) string {
@@ -112,7 +112,7 @@ type loginFlowView struct {
 func (k *Kit) loginFlow(p loginflow.Provider) vkdeck.View {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = theme.Cur().Accent
+	sp.Style = k.scope().Theme.Accent
 
 	v := &loginFlowView{kit: k, prov: p, creds: map[string]string{}, spin: sp}
 
@@ -134,10 +134,10 @@ func (k *Kit) loginFlow(p loginflow.Provider) vkdeck.View {
 	return v
 }
 
-func (v *loginFlowView) Title() string        { return "accounts: " + strings.ToLower(v.prov.Label) }
-func (v *loginFlowView) Context() []keys.Hint { return v.kit.menuCtx() }
+func (v *loginFlowView) Title() string                       { return "accounts: " + strings.ToLower(v.prov.Label) }
+func (v *loginFlowView) Context(scope *ui.Scope) []keys.Hint { return v.kit.menuCtx() }
 
-func (v *loginFlowView) Hints() []keys.Hint {
+func (v *loginFlowView) Hints(scope *ui.Scope) []keys.Hint {
 	switch v.step {
 	case loginStepForm:
 		return []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "ctrl+s", Label: "continue"}, {Key: "esc", Label: "cancel"}}
@@ -234,7 +234,7 @@ func (v *loginFlowView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 func (v *loginFlowView) handleKey(a *vkdeck.Model, key tea.KeyMsg) tea.Cmd {
 	switch v.step {
 	case loginStepForm:
-		act, ok := keymap.Form().Action(key.String())
+		act, ok := keymap.Form(modelScope(a).Keys).Action(key.String())
 		if !ok {
 			if key.String() == " " {
 				v.form.Insert(" ")
@@ -252,12 +252,12 @@ func (v *loginFlowView) handleKey(a *vkdeck.Model, key tea.KeyMsg) tea.Cmd {
 			v.form.Handle(act)
 		}
 	case loginStepRun:
-		if act, ok := keymap.Menu().Action(key.String()); ok && act == keys.Cancel {
+		if act, ok := keymap.Menu(modelScope(a).Keys).Action(key.String()); ok && act == keys.Cancel {
 			v.stop()
 			return a.Pop()
 		}
 	case loginStepDone:
-		if act, ok := keymap.Menu().Action(key.String()); ok && (act == keys.Cancel || act == keys.Confirm) {
+		if act, ok := keymap.Menu(modelScope(a).Keys).Action(key.String()); ok && (act == keys.Cancel || act == keys.Confirm) {
 			return a.Pop()
 		}
 	}
@@ -269,21 +269,22 @@ func (v *loginFlowView) submit(a *vkdeck.Model) tea.Cmd {
 		s, _ := val.(string)
 		s = strings.TrimSpace(s)
 		if s == "" {
-			return a.Push(vkdeck.NewMessage("accounts", theme.Cur().Cant.Render(key+" is required"), v.kit.menuCtx()))
+			return a.Push(vkdeck.NewMessage("accounts", modelScope(a).Theme.Cant.Render(key+" is required"), v.kit.menuCtx()))
 		}
 		v.creds[key] = s
 	}
 	if err := loginflow.PersistCredentials(v.kit.d.App, v.creds); err != nil {
-		return a.Push(vkdeck.NewMessage("accounts", theme.Cur().Cant.Render(err.Error()), v.kit.menuCtx()))
+		return a.Push(vkdeck.NewMessage("accounts", modelScope(a).Theme.Cant.Render(err.Error()), v.kit.menuCtx()))
 	}
 	v.step = loginStepRun
 	return v.start()
 }
 
-func (v *loginFlowView) Body(width, _ int) string {
-	f := layout.ScreenFrame(width)
+func (v *loginFlowView) Body(frame layout.Frame) string {
+	width := frame.Width
+	f := frame.Screen()
 	title := "ACCOUNTS · " + v.prov.Label
-	th := theme.Cur()
+	th := frame.Theme()
 
 	if v.prov.Authed(v.kit.d.App) {
 		return render.TitledBox(f, true, title, th.Dim.Render("already authorized — returning to accounts…"))
@@ -292,7 +293,7 @@ func (v *loginFlowView) Body(width, _ int) string {
 	switch v.step {
 	case loginStepForm:
 		intro := th.Dim.Render("OAuth client credentials not found — enter them to continue.")
-		return intro + "\n\n" + v.form.Render(layout.NewFrame(width), title)
+		return intro + "\n\n" + v.form.Render(frame.WithWidth(width), title)
 	case loginStepDone:
 		var rows []string
 		if v.log != "" {
@@ -302,7 +303,7 @@ func (v *loginFlowView) Body(width, _ int) string {
 		if v.err != nil {
 			rows = append(rows, th.Cant.Render(v.err.Error()))
 		} else {
-			rows = append(rows, render.Success(v.prov.Label+" authorized — token cached."))
+			rows = append(rows, render.Success(frame.UI, v.prov.Label+" authorized — token cached."))
 		}
 		return render.TitledBox(f, true, title, rows...)
 	default:

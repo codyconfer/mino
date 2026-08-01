@@ -28,8 +28,14 @@ import (
 
 func TestMain(m *testing.M) {
 	keymap.Register()
-	keymap.UseNamed(keymap.DefaultSchemeKey)
 	os.Exit(m.Run())
+}
+
+// newTestApp builds a deck model carrying mino's scope, as cmd does in
+// production via app.BuildScope.
+func newTestApp(root vkdeck.View, opts ...deck.Option) *vkdeck.Model {
+	scope := app.BuildScope("", keymap.DefaultSchemeKey)
+	return deck.New(root, append([]deck.Option{deck.WithScope(scope)}, opts...)...)
 }
 
 func testKit(t *testing.T) *Kit {
@@ -47,6 +53,7 @@ func testKit(t *testing.T) *Kit {
 	}
 	return New(Deps{
 		App:                &app.App{Cfg: cfg, Directives: directives},
+		Scope:              app.BuildScope("", keymap.DefaultSchemeKey),
 		FetchQuery:         func(string) []signals.Section { return nil },
 		FetchFlightAudited: func(string) []signals.Section { return nil },
 		FetchFlightQueries: func(string, []string) []signals.Section { return nil },
@@ -118,7 +125,7 @@ func TestMainMenuIncludesNotesEntry(t *testing.T) {
 		t.Fatalf("main menu missing Notes entry: %v", labels)
 	}
 
-	app := deck.New(kit.MainMenu())
+	app := newTestApp(kit.MainMenu())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
 	if !strings.Contains(body, "Notes") {
@@ -179,7 +186,7 @@ func TestMainMenuDirectivesSubmenu(t *testing.T) {
 		}
 	}
 
-	app := deck.New(kit.MainMenu())
+	app := newTestApp(kit.MainMenu())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	if !strings.Contains(app.View(), "Directives") {
 		t.Fatalf("main menu view missing Directives: %q", app.View())
@@ -278,7 +285,7 @@ func TestMainMenuToolingSubmenu(t *testing.T) {
 		}
 	}
 
-	app := deck.New(kit.MainMenu())
+	app := newTestApp(kit.MainMenu())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	if !strings.Contains(app.View(), "Tooling") {
 		t.Fatalf("main menu view missing Tooling: %q", app.View())
@@ -309,7 +316,7 @@ func TestNTRHomeShowsRemindersWhenServiceAttached(t *testing.T) {
 	t.Cleanup(func() { pub.SetServiceAttachedFunc(plugin.ServiceAttached) })
 
 	kit := testKit(t)
-	app := deck.New(kit.NTR())
+	app := newTestApp(kit.NTR())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
 	for _, want := range []string{"Notes", "Tasks", "Reminders"} {
@@ -348,7 +355,7 @@ func TestViewsSmoke(t *testing.T) {
 					t.Fatalf("view %q panicked: %v", name, r)
 				}
 			}()
-			app := deck.New(root)
+			app := newTestApp(root)
 			app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 			_ = app.View()
 			app = step(app, tea.KeyMsg{Type: tea.KeyDown})
@@ -363,7 +370,7 @@ func TestViewsSmoke(t *testing.T) {
 
 func TestDirectivesMenuOffersRolesAndReports(t *testing.T) {
 	kit := testKit(t)
-	app := deck.New(kit.Directives())
+	app := newTestApp(kit.Directives())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
 	for _, want := range []string{"Flights", "Queries", "Roles", "Reports"} {
@@ -387,7 +394,7 @@ func TestReportsListNewFirstAndScopesToRole(t *testing.T) {
 	}
 
 	kit.d.App.Cfg.Role = ""
-	app := deck.New(kit.Reports())
+	app := newTestApp(kit.Reports())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
 	newAt, briefAt := strings.Index(body, "New"), strings.Index(body, "brief")
@@ -402,7 +409,7 @@ func TestReportsListNewFirstAndScopesToRole(t *testing.T) {
 	}
 
 	kit.d.App.Cfg.Role = "triage"
-	scoped := deck.New(kit.Reports())
+	scoped := newTestApp(kit.Reports())
 	scoped = step(scoped, tea.WindowSizeMsg{Width: 100, Height: 40})
 	if body := scoped.View(); strings.Contains(body, "verbose") {
 		t.Errorf("role triage should hide verbose: %q", body)
@@ -468,7 +475,7 @@ func TestReportEditorRejectsEmptyTemplate(t *testing.T) {
 		t.Fatal("a report with no template should fail")
 	}
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -491,7 +498,7 @@ func TestReportEditorSaveWritesTemplate(t *testing.T) {
 	v.set(t, "title", "Brief")
 	v.set(t, "name", "brief")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -531,7 +538,7 @@ func TestHistorySelectShowsFlightResults(t *testing.T) {
 	kit.d.App.Audit = st
 
 	view := kit.History()
-	app := deck.New(view)
+	app := newTestApp(view)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app = settle(app, view.Init())
 	body := app.View()
@@ -592,7 +599,7 @@ func TestFlightResultsRerunRefetches(t *testing.T) {
 	}
 
 	view := kit.FlightResults("default")
-	app := deck.New(view)
+	app := newTestApp(view)
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
 	app = settle(app, view.Init())
 	if got := app.View(); !strings.Contains(got, "run-1") {
@@ -646,7 +653,7 @@ func TestReportEditorRendersDraftOverSelectedFlight(t *testing.T) {
 	}
 
 	v.selectFlight(t, "default")
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
 	app = settle(app, cmdOf(update(app, tea.KeyMsg{Type: tea.KeyCtrlR})))
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
@@ -695,7 +702,7 @@ func TestReportEditorCopyAndWriteNeedARenderFirst(t *testing.T) {
 		t.Error("write before a render should fail")
 	}
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
 	settle(app, cmdOf(update(app, tea.KeyMsg{Type: tea.KeyCtrlR})))
 
@@ -732,7 +739,7 @@ func TestReportEditorCopyKeyIsWired(t *testing.T) {
 	v.set(t, "template", "draft-template")
 	v.selectFlight(t, "default")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
 	if !strings.Contains(app.View(), "ctrl+g") {
 		t.Errorf("report editor footer missing the copy key:\n%s", app.View())
@@ -750,7 +757,7 @@ func TestReportEditorCopyKeyIsWired(t *testing.T) {
 
 func TestQueryBuilderDoesNotOfferCopyOrWrite(t *testing.T) {
 	kit := testKit(t)
-	app := deck.New(kit.QueryBuilder())
+	app := newTestApp(kit.QueryBuilder())
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
 	got := app.View()
 	for _, glyph := range []string{"ctrl+g", "ctrl+w"} {
@@ -784,7 +791,7 @@ func TestHistoryRunDeleteDropsTheRun(t *testing.T) {
 	}
 
 	view := kit.historyRun(runs[0])
-	app := deck.New(view)
+	app := newTestApp(view)
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
 	app = settle(app, view.Init())
 
@@ -821,7 +828,7 @@ func TestHistoryListShowsEmptyStateAndReloads(t *testing.T) {
 	kit.d.App.Audit = st
 
 	view := kit.History()
-	app := deck.New(view)
+	app := newTestApp(view)
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
 	app = settle(app, view.Init())
 	if got := app.View(); !strings.Contains(got, "no recorded runs") {
@@ -847,7 +854,7 @@ func TestHomeFlightLandsWhileAnotherViewIsOnTop(t *testing.T) {
 	kit.d.App.Cfg.Role = "triage"
 
 	home := kit.Home()
-	host := deck.New(home)
+	host := newTestApp(home)
 	host = step(host, tea.WindowSizeMsg{Width: 120, Height: 40})
 	slow := home.Init()
 

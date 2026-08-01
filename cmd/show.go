@@ -58,6 +58,6 @@ func runShow(cmd *cobra.Command, url, signalName string) error {
 	it.Kind = d.Kind
 	it.Title = d.Title
 	ref := render.ItemRef{Signal: signalName, Item: it}
-	_, err = fmt.Fprintln(w, render.DetailPanel(layout.FrameFor(w), ref, &d))
+	_, err = fmt.Fprintln(w, render.DetailPanel(layout.FrameFor(w).WithUI(Scope()), ref, &d))
 	return err
 }

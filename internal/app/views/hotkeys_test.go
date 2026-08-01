@@ -22,7 +22,7 @@ func TestHotkeyOpensNewNoteFromHome(t *testing.T) {
 	kit := testKit(t)
 	kit.d.App.Cfg.Keybinds = config.DefaultKeybinds()
 
-	app := deck.New(kit.Home(), deck.WithKeyHook(kit.KeyHook()))
+	app := newTestApp(kit.Home(), deck.WithKeyHook(kit.KeyHook()))
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
 	if !strings.Contains(body, "alt+n") {
@@ -49,7 +49,7 @@ func TestHotkeyOpensFlight(t *testing.T) {
 	kit := testKit(t)
 	kit.d.App.Cfg.Keybinds = map[string]string{"alt+f": "default"}
 
-	app := deck.New(kit.Home(), deck.WithKeyHook(kit.KeyHook()))
+	app := newTestApp(kit.Home(), deck.WithKeyHook(kit.KeyHook()))
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}, Alt: true})
 	if cmd != nil {
@@ -120,7 +120,7 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 	}
 	calls = nil
 
-	host := deck.New(kit.Home(), deck.WithKeyHook(kit.KeyHook()), deck.WithMsgHook(kit.MsgHook()))
+	host := newTestApp(kit.Home(), deck.WithKeyHook(kit.KeyHook()), deck.WithMsgHook(kit.MsgHook()))
 	host = step(host, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := host.View()
 	if !strings.Contains(body, "alt+]") || !strings.Contains(body, "next role") {
@@ -216,7 +216,7 @@ func TestHomeFlightRerunsOnReloadAndRoleCycle(t *testing.T) {
 	}
 
 	home := kit.Home()
-	host := deck.New(home, deck.WithKeyHook(kit.KeyHook()), deck.WithMsgHook(kit.MsgHook()))
+	host := newTestApp(home, deck.WithKeyHook(kit.KeyHook()), deck.WithMsgHook(kit.MsgHook()))
 	host = step(host, tea.WindowSizeMsg{Width: 120, Height: 40})
 	host = settle(host, home.Init())
 	if want := []string{"default"}; !equalStrings(fetched, want) {
@@ -295,7 +295,7 @@ func TestRemindHotkeyHiddenWithoutService(t *testing.T) {
 		}
 	}
 
-	app := deck.New(kit.Home(), deck.WithKeyHook(kit.KeyHook()))
+	app := newTestApp(kit.Home(), deck.WithKeyHook(kit.KeyHook()))
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}, Alt: true})
 	if cmd != nil {
@@ -330,7 +330,7 @@ func TestRemindHotkeyWorksWithService(t *testing.T) {
 		t.Fatalf("reminder hint missing while attached: %v", kit.hotkeyHints())
 	}
 
-	app := deck.New(kit.Home(), deck.WithKeyHook(kit.KeyHook()))
+	app := newTestApp(kit.Home(), deck.WithKeyHook(kit.KeyHook()))
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}, Alt: true})
 	if cmd != nil {

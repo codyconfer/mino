@@ -11,7 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/codyconfer/viewkit/clipboard"
-	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
@@ -270,10 +269,11 @@ func listFormatters(cmd *cobra.Command) error {
 		fmt.Fprintln(out, "no formatters visible (check --role, or add a YAML file with a `template:` under ~/.mino/formatters)")
 		return nil
 	}
+	th := Scope().Theme
 	for _, n := range names {
 		fd := shared.Directives.Formatters[n]
 		lines := len(strings.Split(strings.TrimRight(fd.Template, "\n"), "\n"))
-		fmt.Fprintf(out, "%-24s %d line(s)  %s\n", n, lines, theme.Cur().Dim.Render(fd.Title))
+		fmt.Fprintf(out, "%-24s %d line(s)  %s\n", n, lines, th.Dim.Render(fd.Title))
 	}
 	return nil
 }

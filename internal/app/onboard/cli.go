@@ -8,11 +8,12 @@ import (
 
 	"github.com/charmbracelet/x/term"
 
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render"
-	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 type ConfirmFunc func(title, message, yes, no string) (bool, error)
@@ -34,8 +35,8 @@ func Reset(w io.Writer) error {
 	return nil
 }
 
-func RunCLI(ctx context.Context, tokens auth.TokenStore, apiURL string, w io.Writer, statusOnly bool, confirm ConfirmFunc) error {
-	sty := render.NewReportStyles(w)
+func RunCLI(ctx context.Context, tokens auth.TokenStore, apiURL string, w io.Writer, scope *ui.Scope, statusOnly bool, confirm ConfirmFunc) error {
+	sty := render.NewReportStyles(w, scope)
 	interactive := !statusOnly && term.IsTerminal(os.Stdout.Fd())
 	for {
 		st := Check(ctx, tokens, apiURL)
@@ -79,16 +80,16 @@ func RunCLI(ctx context.Context, tokens auth.TokenStore, apiURL string, w io.Wri
 func PrintStatus(w io.Writer, sty render.ReportStyles, st Status) {
 	fmt.Fprintln(w, sty.Title.Render("Onboarding"))
 	for _, r := range st.Results {
-		mark := sty.OK.Render(glyph.Check())
+		mark := sty.OK.Render(sty.Glyphs.Check())
 		if !r.OK {
-			mark = sty.Err.Render(glyph.Cross())
+			mark = sty.Err.Render(sty.Glyphs.Cross())
 		}
 		fmt.Fprintf(w, "  %s %s\n", mark, sty.Name.Render(r.Title))
 		if r.Detail != "" {
 			fmt.Fprintf(w, "      %s\n", sty.Dim.Render(r.Detail))
 		}
 		for _, f := range r.Fix {
-			fmt.Fprintf(w, "      %s %s\n", sty.Fix.Render(glyph.Arrow()), f)
+			fmt.Fprintf(w, "      %s %s\n", sty.Fix.Render(sty.Glyphs.Arrow()), f)
 		}
 	}
 	fmt.Fprintln(w)

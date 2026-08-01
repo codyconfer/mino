@@ -10,7 +10,7 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
-	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
@@ -180,11 +180,11 @@ func (p *pluginsPage) selected() (pluginRow, bool) {
 	return row, true
 }
 
-func (p *pluginsPage) Title() string        { return "plugins" }
-func (p *pluginsPage) Context() []keys.Hint { return p.kit.menuCtx() }
-func (p *pluginsPage) Init() tea.Cmd        { return nil }
+func (p *pluginsPage) Title() string                       { return "plugins" }
+func (p *pluginsPage) Context(scope *ui.Scope) []keys.Hint { return p.kit.menuCtx() }
+func (p *pluginsPage) Init() tea.Cmd                       { return nil }
 
-func (p *pluginsPage) Hints() []keys.Hint {
+func (p *pluginsPage) Hints(scope *ui.Scope) []keys.Hint {
 	if p.confirm != nil {
 		return []keys.Hint{{Key: "←/→", Label: "choose"}, {Key: "enter", Label: "confirm"}}
 	}
@@ -204,29 +204,29 @@ func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		return cmd
 	}
 	if key, ok := msg.(tea.KeyMsg); ok && p.confirm != nil {
-		return p.answer(key)
+		return p.answer(a, key)
 	}
 	switch m := msg.(type) {
 	case pluginsToggledMsg:
 		if m.err != nil {
-			return a.Push(vkdeck.NewMessage("plugins", theme.Cur().Cant.Render(m.err.Error()), p.kit.menuCtx()))
+			return a.Push(vkdeck.NewMessage("plugins", modelScope(a).Theme.Cant.Render(m.err.Error()), p.kit.menuCtx()))
 		}
 		p.reload()
 		return p.toast.Push(mnotify.PluginToggled(m.id, m.on))
 	case pluginsInstalledMsg:
 		if m.err != nil {
-			return a.Push(vkdeck.NewMessage("plugins", theme.Cur().Cant.Render(m.err.Error()), p.kit.menuCtx()))
+			return a.Push(vkdeck.NewMessage("plugins", modelScope(a).Theme.Cant.Render(m.err.Error()), p.kit.menuCtx()))
 		}
 		p.reload()
 		return p.toast.Push(mnotify.PluginInstalled(m.id, m.written, m.skipped))
 	case pluginsUninstalledMsg:
 		if m.err != nil {
-			return a.Push(vkdeck.NewMessage("plugins", theme.Cur().Cant.Render(m.err.Error()), p.kit.menuCtx()))
+			return a.Push(vkdeck.NewMessage("plugins", modelScope(a).Theme.Cant.Render(m.err.Error()), p.kit.menuCtx()))
 		}
 		p.reload()
 		return p.toast.Push(mnotify.PluginUninstalled(m.id, m.removed, m.kept))
 	case tea.KeyMsg:
-		act, ok := keymap.Plugins().Action(m.String())
+		act, ok := keymap.Plugins(modelScope(a).Keys).Action(m.String())
 		if !ok {
 			return nil
 		}
@@ -275,8 +275,8 @@ func (p *pluginsPage) ask(id string) {
 	}
 }
 
-func (p *pluginsPage) answer(key tea.KeyMsg) tea.Cmd {
-	act, ok := keymap.ConfirmMap().Action(key.String())
+func (p *pluginsPage) answer(a *vkdeck.Model, key tea.KeyMsg) tea.Cmd {
+	act, ok := keymap.ConfirmMap(modelScope(a).Keys).Action(key.String())
 	if !ok {
 		return nil
 	}
@@ -314,7 +314,7 @@ func (k *Kit) pluginsInstallPicker() vkdeck.View {
 	app := k.d.App
 	cands, err := plugin.ListInstallCandidates(home)
 	if err != nil {
-		return vkdeck.NewMessage("install plugin", theme.Cur().Cant.Render(err.Error()), k.menuCtx())
+		return vkdeck.NewMessage("install plugin", k.scope().Theme.Cant.Render(err.Error()), k.menuCtx())
 	}
 	var items []vkdeck.MenuItem
 	for _, c := range cands {
@@ -325,7 +325,7 @@ func (k *Kit) pluginsInstallPicker() vkdeck.View {
 				Desc:  c.Desc,
 				OnSelect: func(a *vkdeck.Model) tea.Cmd {
 					return a.Push(vkdeck.NewMessage("install plugin",
-						theme.Cur().Cant.Render(c.Label+": "+c.Reason), k.menuCtx()))
+						modelScope(a).Theme.Cant.Render(c.Label+": "+c.Reason), k.menuCtx()))
 				},
 			})
 			continue
@@ -358,12 +358,14 @@ func (k *Kit) pluginsInstallPicker() vkdeck.View {
 	return vkdeck.NewMenu("install plugin", ctx, items...)
 }
 
-func (p *pluginsPage) Body(width, _ int) string {
-	th := theme.Cur()
-	f := layout.ScreenFrame(width)
+func (p *pluginsPage) Body(f layout.Frame) string {
+	th := f.Theme()
+	outer := f
+	width := f.Width
+	f = f.Screen()
 	if len(p.rows) == 0 {
 		body := f.TitledBox(strings.ToUpper(p.Title()), th.Dim.Render("(no managed plugins — press i to install)"))
-		return p.overlay(p.toast.Body(body, width), width)
+		return p.overlay(p.toast.Body(outer, body), width)
 	}
 	lines := make([]string, 0, len(p.rows))
 	for i, row := range p.rows {
@@ -382,7 +384,7 @@ func (p *pluginsPage) Body(width, _ int) string {
 			if row.enabled {
 				icon = glyph.Check()
 			}
-			line = cursor + theme.Icon(icon, row.hue) + label
+			line = cursor + th.Icon(icon, row.hue) + label
 		}
 		if row.desc != "" {
 			line = f.Spread(line, th.Dim.Render(row.desc))
@@ -393,7 +395,7 @@ func (p *pluginsPage) Body(width, _ int) string {
 		}
 	}
 	body := f.TitledBox(strings.ToUpper(p.Title()), lines...)
-	return p.overlay(p.toast.Body(body, width), width)
+	return p.overlay(p.toast.Body(outer, body), width)
 }
 
 func (p *pluginsPage) overlay(body string, width int) string {

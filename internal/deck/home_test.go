@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -35,7 +36,7 @@ func TestHomeMenuOnly(t *testing.T) {
 	if strings.Contains(view, "home flight") {
 		t.Error("menu-only home should not render a flight panel")
 	}
-	for _, h := range home.Hints() {
+	for _, h := range home.Hints(ui.Default()) {
 		if h.Key == "tab" {
 			t.Error("menu-only home should not offer a tab/focus hint")
 		}
@@ -75,13 +76,13 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 		t.Fatalf("after tab focus on menu, want flight")
 	}
 	sawMenuHint := false
-	for _, h := range home.Hints() {
+	for _, h := range home.Hints(ui.Default()) {
 		if strings.HasPrefix(h.Key, "tab") && h.Label == "menu" {
 			sawMenuHint = true
 		}
 	}
 	if !sawMenuHint {
-		t.Errorf("flight-focused hints missing tab→menu: %v", home.Hints())
+		t.Errorf("flight-focused hints missing tab→menu: %v", home.Hints(ui.Default()))
 	}
 
 	drive(app, tea.KeyMsg{Type: tea.KeyTab})

@@ -9,6 +9,8 @@ import (
 
 	"github.com/codyconfer/sisyphus/kv"
 
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/render"
@@ -21,7 +23,7 @@ func openCLI(ctx context.Context, home, role string) (*Store, error) {
 	return Open(ctx, home, role)
 }
 
-func CLINotesList(ctx context.Context, w io.Writer, home, role string) error {
+func CLINotesList(ctx context.Context, w io.Writer, scope *ui.Scope, home, role string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
 		return err
@@ -37,7 +39,7 @@ func CLINotesList(ctx context.Context, w io.Writer, home, role string) error {
 	return nil
 }
 
-func CLINotesAdd(ctx context.Context, w io.Writer, home, role, title, body string) error {
+func CLINotesAdd(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, title, body string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
 		return err
@@ -47,11 +49,11 @@ func CLINotesAdd(ctx context.Context, w io.Writer, home, role, title, body strin
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success(fmt.Sprintf("note %d created", n.ID)))
+	fmt.Fprintln(w, render.Success(scope, fmt.Sprintf("note %d created", n.ID)))
 	return nil
 }
 
-func CLINotesUpdate(ctx context.Context, w io.Writer, home, role, idStr, title, body string) error {
+func CLINotesUpdate(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, idStr, title, body string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return err
@@ -64,11 +66,11 @@ func CLINotesUpdate(ctx context.Context, w io.Writer, home, role, idStr, title, 
 	if err := st.UpdateNote(ctx, id, title, body); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success(fmt.Sprintf("note %d updated", id)))
+	fmt.Fprintln(w, render.Success(scope, fmt.Sprintf("note %d updated", id)))
 	return nil
 }
 
-func CLINotesRM(ctx context.Context, w io.Writer, home, role, idStr string) error {
+func CLINotesRM(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return err
@@ -81,11 +83,11 @@ func CLINotesRM(ctx context.Context, w io.Writer, home, role, idStr string) erro
 	if err := st.DeleteNote(ctx, id); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success("deleted"))
+	fmt.Fprintln(w, render.Success(scope, "deleted"))
 	return nil
 }
 
-func CLITasksList(ctx context.Context, w io.Writer, home, role string) error {
+func CLITasksList(ctx context.Context, w io.Writer, scope *ui.Scope, home, role string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
 		return err
@@ -101,7 +103,7 @@ func CLITasksList(ctx context.Context, w io.Writer, home, role string) error {
 	return nil
 }
 
-func CLITasksAdd(ctx context.Context, w io.Writer, home, role, title string) error {
+func CLITasksAdd(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, title string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
 		return err
@@ -111,11 +113,11 @@ func CLITasksAdd(ctx context.Context, w io.Writer, home, role, title string) err
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success(fmt.Sprintf("task %d created", t.ID)))
+	fmt.Fprintln(w, render.Success(scope, fmt.Sprintf("task %d created", t.ID)))
 	return nil
 }
 
-func CLITasksDone(ctx context.Context, w io.Writer, home, role, idStr string) error {
+func CLITasksDone(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return err
@@ -128,11 +130,11 @@ func CLITasksDone(ctx context.Context, w io.Writer, home, role, idStr string) er
 	if err := st.SetTaskDone(ctx, id, true); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success("done"))
+	fmt.Fprintln(w, render.Success(scope, "done"))
 	return nil
 }
 
-func CLITasksUndo(ctx context.Context, w io.Writer, home, role, idStr string) error {
+func CLITasksUndo(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return err
@@ -145,11 +147,11 @@ func CLITasksUndo(ctx context.Context, w io.Writer, home, role, idStr string) er
 	if err := st.SetTaskDone(ctx, id, false); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success("reopened"))
+	fmt.Fprintln(w, render.Success(scope, "reopened"))
 	return nil
 }
 
-func CLITasksRM(ctx context.Context, w io.Writer, home, role, idStr string) error {
+func CLITasksRM(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return err
@@ -162,11 +164,11 @@ func CLITasksRM(ctx context.Context, w io.Writer, home, role, idStr string) erro
 	if err := st.DeleteTask(ctx, id); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success("deleted"))
+	fmt.Fprintln(w, render.Success(scope, "deleted"))
 	return nil
 }
 
-func CLIRemindList(ctx context.Context, w io.Writer, home, role string) error {
+func CLIRemindList(ctx context.Context, w io.Writer, scope *ui.Scope, home, role string) error {
 	st, err := openCLI(ctx, home, role)
 	if err != nil {
 		return err
@@ -182,7 +184,7 @@ func CLIRemindList(ctx context.Context, w io.Writer, home, role string) error {
 	return nil
 }
 
-func CLIRemindAdd(ctx context.Context, w io.Writer, home, role, title, dur string) error {
+func CLIRemindAdd(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, title, dur string) error {
 	d, err := time.ParseDuration(dur)
 	if err != nil {
 		return err
@@ -196,11 +198,11 @@ func CLIRemindAdd(ctx context.Context, w io.Writer, home, role, title, dur strin
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success(fmt.Sprintf("reminder %d at %s", r.ID, r.Due.Format(time.RFC3339))))
+	fmt.Fprintln(w, render.Success(scope, fmt.Sprintf("reminder %d at %s", r.ID, r.Due.Format(time.RFC3339))))
 	return nil
 }
 
-func CLIRemindDone(ctx context.Context, w io.Writer, home, role, idStr string) error {
+func CLIRemindDone(ctx context.Context, w io.Writer, scope *ui.Scope, home, role, idStr string) error {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return err
@@ -213,11 +215,11 @@ func CLIRemindDone(ctx context.Context, w io.Writer, home, role, idStr string) e
 	if err := st.MarkReminderDone(ctx, id); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success("done"))
+	fmt.Fprintln(w, render.Success(scope, "done"))
 	return nil
 }
 
-func CLICatchUp(ctx context.Context, w io.Writer, home, role string) error {
+func CLICatchUp(ctx context.Context, w io.Writer, scope *ui.Scope, home, role string) error {
 	if role == "" {
 		role = "default"
 	}

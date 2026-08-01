@@ -11,15 +11,30 @@ linters:
     - misspell
     - unconvert
     - bodyclose
+    - forbidigo
   settings:
     errcheck:
       exclude-functions:
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
+    forbidigo:
+      forbid:
+        - pattern: '^theme\.Cur$'
+          msg: read the theme from the scoped ui.Scope / layout.Frame instead
+        - pattern: '^keys\.Cur$'
+          msg: read the scheme from the scoped ui.Scope / deck Model instead
+        - pattern: '^glyph\.CurrentMode$'
+          msg: use a scoped glyph.Set instead of the process mode
   exclusions:
     generated: lax
     rules:
+      # Tests may pin/restore the process glyph mode — the one deliberate
+      # global residue (plugin nullary contract).
+      - path: _test\.go
+        linters:
+          - forbidigo
+        text: 'glyph\.CurrentMode'
       # Closing/rolling back in defer or error paths is idiomatic; the error is
       # not actionable, so don't flag unchecked Close/Rollback.
       - linters:
@@ -33,7 +48,6 @@ linters:
       # idiom; staticcheck doesn't treat t.Fatal as terminating here.
       - path: _test\.go
         text: "SA5011"
-
 formatters:
   enable:
     - gofmt

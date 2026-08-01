@@ -11,7 +11,6 @@ import (
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/filter"
-	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func buildQuery(name string) (query, error) {
@@ -125,21 +124,22 @@ func listQueries(cmd *cobra.Command) error {
 		fmt.Fprintln(cmd.OutOrStdout(), "no saved queries visible (check --role, or add YAML files under ~/.mino/queries)")
 		return nil
 	}
-	marker := theme.Cur().Accent.Render(glyph.Bullet())
+	sc := Scope()
+	marker := sc.Theme.Accent.Render(sc.Glyphs.Bullet())
 	for _, n := range names {
 		q := shared.Directives.Queries[n]
-		line := fmt.Sprintf("%s %-24s %s", marker, n, querySummary(q))
+		line := fmt.Sprintf("%s %-24s %s", marker, n, querySummary(sc.Theme, q))
 		if q.Title != "" {
-			line += "  " + theme.Cur().Dim.Render(q.Title)
+			line += "  " + sc.Theme.Dim.Render(q.Title)
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), line)
 	}
 	return nil
 }
 
-func querySummary(q config.Query) string {
+func querySummary(th theme.Theme, q config.Query) string {
 	if !q.Runnable() {
-		return theme.Cur().Dim.Render("filter-only")
+		return th.Dim.Render("filter-only")
 	}
 	if q.HasRules() {
 		return fmt.Sprintf("signal=%s +rules", q.Signal)

@@ -12,14 +12,18 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
+	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/suggest"
 	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/log"
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/render"
 )
@@ -90,7 +94,7 @@ func (k *Kit) setvFinish(a *vkdeck.Model, pops int, title, body string) tea.Cmd 
 }
 
 func (k *Kit) setvRed(title, msg string) vkdeck.View {
-	return vkdeck.NewMessage(title, theme.Cur().Cant.Render(msg), k.setvCtx())
+	return vkdeck.NewMessage(title, k.scope().Theme.Cant.Render(msg), k.setvCtx())
 }
 
 func (k *Kit) setvEditConfigView() vkdeck.View {
@@ -111,7 +115,7 @@ func (k *Kit) setvEditConfigView() vkdeck.View {
 	return vkdeck.NewFormView(vkdeck.FormSpec{
 		Title:       "edit config",
 		Fields:      fields,
-		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
+		Keys:        vkdeck.FormKeys{Map: keymap.Form(k.scope().Keys), Save: keymap.Save},
 		ContextFunc: k.setvCtx,
 		Hints:       []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "←/→", Label: "change"}, {Key: "ctrl+s", Label: "save"}},
 		OnSubmit:    k.setvSaveConfig,
@@ -158,7 +162,7 @@ func (k *Kit) setvAppearanceView() vkdeck.View {
 			{Key: "theme", Label: "theme", Kind: forms.FieldSelect, Options: forms.SelectFirst(theme.Keys(), th)},
 			{Key: "keys", Label: "keys", Kind: forms.FieldSelect, Options: forms.SelectFirst(keys.Keys(), ky)},
 		},
-		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
+		Keys:        vkdeck.FormKeys{Map: keymap.Form(k.scope().Keys), Save: keymap.Save},
 		ContextFunc: k.setvCtx,
 		Hints:       []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "←/→", Label: "change"}, {Key: "ctrl+s", Label: "save"}},
 		OnSubmit:    k.setvSaveAppearance,
@@ -172,14 +176,14 @@ func (k *Kit) setvSaveAppearance(a *vkdeck.Model, vals map[string]any) tea.Cmd {
 	if err := config.SaveGlobalSettings(gs); err != nil {
 		return a.Push(k.setvRed("appearance", err.Error()))
 	}
-	if t, ok := theme.Named(gs.Theme); ok {
-		theme.Use(t)
-	}
-	keymap.UseNamed(gs.Keys)
+	newScope := app.BuildScope(gs.Theme, gs.Keys)
+	k.d.Scope = newScope
+	log.SetTheme(newScope.Theme)
+	errs.SetTheme(newScope.Theme)
 	body := "theme: " + theme.DisplayName(gs.Theme) + "\nkeys:  " + keys.DisplayName(gs.Keys)
 	pop := a.Pop()
 	push := a.Push(vkdeck.NewMessage("appearance", body, k.setvCtx()))
-	return tea.Batch(pop, push)
+	return tea.Batch(pop, push, a.SetScope(newScope))
 }
 
 type statusBarEntry struct{ id, label string }
@@ -233,7 +237,7 @@ func (k *Kit) setvStatusBarView() vkdeck.View {
 		Title:       "status bar",
 		PanelTitle:  "status bar (show = visible chip)",
 		Fields:      fields,
-		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
+		Keys:        vkdeck.FormKeys{Map: keymap.Form(k.scope().Keys), Save: keymap.Save},
 		ContextFunc: k.setvCtx,
 		Hints:       []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "←/→", Label: "show/hide"}, {Key: "ctrl+s", Label: "save"}},
 		OnSubmit: func(a *vkdeck.Model, vals map[string]any) tea.Cmd {
@@ -374,9 +378,9 @@ type setvEditorDoneMsg struct {
 	path string
 }
 
-func (v *setvEditorView) Title() string        { return "open config" }
-func (v *setvEditorView) Context() []keys.Hint { return v.k.setvCtx() }
-func (v *setvEditorView) Hints() []keys.Hint   { return nil }
+func (v *setvEditorView) Title() string                       { return "open config" }
+func (v *setvEditorView) Context(scope *ui.Scope) []keys.Hint { return v.k.setvCtx() }
+func (v *setvEditorView) Hints(scope *ui.Scope) []keys.Hint   { return nil }
 
 func (v *setvEditorView) Init() tea.Cmd {
 	return tea.ExecProcess(v.cmd, func(err error) tea.Msg {
@@ -384,9 +388,9 @@ func (v *setvEditorView) Init() tea.Cmd {
 	})
 }
 
-func (v *setvEditorView) Body(width, _ int) string {
-	f := layout.NewFrame(width)
-	return f.TitledBox("OPEN CONFIG", theme.Cur().Dim.Render("opening "+v.path+" in $EDITOR…"))
+func (v *setvEditorView) Body(f layout.Frame) string {
+	f = f.WithWidth(f.Width)
+	return f.TitledBox("OPEN CONFIG", f.Theme().Dim.Render("opening "+v.path+" in $EDITOR…"))
 }
 
 func (v *setvEditorView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {

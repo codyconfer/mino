@@ -8,11 +8,8 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/viewkit/theme"
-
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render"
-	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 const defaultFlight = "default"
@@ -104,7 +101,8 @@ func listFlights(cmd *cobra.Command) error {
 		return nil
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), "available flights:")
-	marker := theme.Cur().Accent.Render(glyph.Flight())
+	sc := Scope()
+	marker := sc.Theme.Accent.Render(sc.Glyphs.Diamond())
 	for _, n := range names {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %-16s %s\n", marker, n, strings.Join(shared.Directives.Flights[n].Queries, ", "))
 	}

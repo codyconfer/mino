@@ -12,9 +12,9 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/config"
-	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/filter"
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -249,7 +249,7 @@ func TestBuilderRunUsesFetchAdhoc(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, c := range flattenCmds(cmd) {
@@ -274,7 +274,7 @@ func TestBuilderSaveWritesQueryFile(t *testing.T) {
 	v.set(t, "param.query", "is:open is:pr")
 	v.set(t, "name", "built-prs")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -310,7 +310,7 @@ func TestBuilderSaveRequiresAName(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -327,7 +327,7 @@ func TestQueriesMenuListsSavedDocsAndNewEntry(t *testing.T) {
 	kit := testKit(t)
 	menu := kit.Queries()
 
-	app := deck.New(menu)
+	app := newTestApp(menu)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
 	for _, want := range []string{"q1", "f1", "New"} {
@@ -345,7 +345,7 @@ func TestQueriesMenuListsSavedDocsAndNewEntry(t *testing.T) {
 
 func TestRolesMenuPutsNewFirstAndOpensTheEditor(t *testing.T) {
 	kit := testKit(t)
-	app := deck.New(kit.Roles())
+	app := newTestApp(kit.Roles())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
 	newAt, roleAt := strings.Index(body, "New"), strings.Index(body, "triage")
@@ -502,7 +502,7 @@ func TestBuilderRunRefusesFilterOnlyDoc(t *testing.T) {
 	v := builderFor(t, kit)
 	v.set(t, "exclude", "bot$")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 
@@ -521,7 +521,7 @@ func TestBuilderSaveRejectsNameCollision(t *testing.T) {
 	v.set(t, "param.query", "is:open")
 	v.set(t, "name", "q1")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -563,7 +563,7 @@ func TestQueriesListPutsNewFirstAndOpensTheEditor(t *testing.T) {
 		"only": {Name: "only", Signal: "github", Params: map[string]string{"query": "is:open"}},
 	}
 
-	listed := deck.New(kit.Queries())
+	listed := newTestApp(kit.Queries())
 	listed = step(listed, tea.WindowSizeMsg{Width: 100, Height: 40})
 	rendered := listed.View()
 	newAt, queryAt := strings.Index(rendered, "New"), strings.Index(rendered, "only")
@@ -574,7 +574,7 @@ func TestQueriesListPutsNewFirstAndOpensTheEditor(t *testing.T) {
 		t.Errorf("New should come before saved queries:\n%s", rendered)
 	}
 
-	app := deck.New(kit.Queries())
+	app := newTestApp(kit.Queries())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
@@ -603,7 +603,7 @@ func TestBuilderHintsOmitDeleteForUnsavedAndDoNotDuplicateBack(t *testing.T) {
 	kit := testKit(t)
 
 	fresh := builderFor(t, kit)
-	for _, h := range fresh.Hints() {
+	for _, h := range fresh.Hints(ui.Default()) {
 		if h.Label == "delete" {
 			t.Error("an unsaved builder should not advertise delete")
 		}
@@ -614,7 +614,7 @@ func TestBuilderHintsOmitDeleteForUnsavedAndDoNotDuplicateBack(t *testing.T) {
 
 	saved, _ := kit.QueryEditor("q1").(*builderView)
 	found := false
-	for _, h := range saved.Hints() {
+	for _, h := range saved.Hints(ui.Default()) {
 		if h.Label == "delete" {
 			found = true
 		}
@@ -630,7 +630,7 @@ func TestBuilderYAMLPreviewToggles(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open is:pr")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	if strings.Contains(app.View(), "params:") {
 		t.Fatal("yaml preview showing before it was toggled on")
@@ -656,7 +656,7 @@ func TestBuilderValidateReportsInline(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app = step(app, tea.KeyMsg{Type: tea.KeyCtrlT})
 
@@ -675,7 +675,7 @@ func TestBuilderValidateCatchesProblemsInUnsavedEdits(t *testing.T) {
 	v.set(t, "param.query", "is:open")
 	v.set(t, "exclude", "(")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlT})
 
@@ -694,7 +694,7 @@ func TestBuilderDeleteAsksThenRemoves(t *testing.T) {
 	path := filepath.Join(kit.d.App.Cfg.Home, config.DirQueries, "doomed.yaml")
 
 	v, _ := kit.QueryEditor("doomed").(*builderView)
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	app = step(app, tea.KeyMsg{Type: tea.KeyCtrlX})
@@ -735,7 +735,7 @@ func TestBuilderDeleteAsksThenRemoves(t *testing.T) {
 
 func TestBuilderDeleteRefusesUnsavedQuery(t *testing.T) {
 	v := builderFor(t, testKit(t))
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlX})
 
@@ -774,7 +774,7 @@ func TestBuilderKeepsFocusAndDraftWhenCyclingSignals(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open is:pr")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	typeBefore := v.Value("type")
@@ -820,7 +820,7 @@ func TestBuilderRestoresParamsWhenSignalCyclesBack(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open is:pr")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	v.focus(t, "signal")
@@ -952,7 +952,7 @@ func TestBuilderFilterSaveWarnsBeforeDroppingRememberedSignalAndParams(t *testin
 	v.set(t, "exclude", "(?i)bot$")
 	v.set(t, "name", "warned-filter")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	path := filepath.Join(kit.d.App.Cfg.Home, config.DirQueries, "warned-filter.yaml")
 
@@ -984,7 +984,7 @@ func TestBuilderFilterSaveWithoutARememberedSignalNeedsNoAck(t *testing.T) {
 	v.set(t, "exclude", "(?i)bot$")
 	v.set(t, "name", "clean-filter")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -1003,7 +1003,7 @@ func TestBuilderSavedFilterMatchesWhatTheFormShows(t *testing.T) {
 	v.set(t, "exclude", "(?i)bot$")
 	v.set(t, "name", "saved-filter")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
@@ -1043,7 +1043,7 @@ func builderWithResults(t *testing.T, kit *Kit, items ...string) (*builderView, 
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 44})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, c := range flattenCmds(cmd) {
@@ -1087,7 +1087,7 @@ func TestBuilderRunFetchesOffTheUpdateLoop(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 44})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 
@@ -1120,7 +1120,7 @@ func TestBuilderTabMovesFocusBetweenFormAndResults(t *testing.T) {
 	if !v.OnResults() {
 		t.Fatal("focus should land on the results after a run")
 	}
-	hints := hintLabels(v.Hints())
+	hints := hintLabels(v.Hints(ui.Default()))
 	if !strings.Contains(hints, "open") || !strings.Contains(hints, "page") {
 		t.Errorf("result-focused hints = %q, want scroll/open hints", hints)
 	}
@@ -1129,7 +1129,7 @@ func TestBuilderTabMovesFocusBetweenFormAndResults(t *testing.T) {
 	if v.OnResults() {
 		t.Fatal("tab did not return focus to the form")
 	}
-	if hints := hintLabels(v.Hints()); !strings.Contains(hints, "field") {
+	if hints := hintLabels(v.Hints(ui.Default())); !strings.Contains(hints, "field") {
 		t.Errorf("form-focused hints = %q, want field navigation", hints)
 	}
 
@@ -1189,7 +1189,7 @@ func TestBuilderErrorRunShowsTheErrorNotNoItems(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 44})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, c := range flattenCmds(cmd) {
@@ -1247,7 +1247,7 @@ func TestBuilderKeepsFullFormWhenThereIsRoom(t *testing.T) {
 	v.selectSignal(t, "github")
 	v.set(t, "param.query", "is:open")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 60})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, c := range flattenCmds(cmd) {
@@ -1283,7 +1283,7 @@ func TestBuilderCollapsesFormWhenResultsNeedRoom(t *testing.T) {
 	v.set(t, "param.query", "is:open")
 	v.set(t, "name", "shortform")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 26})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, c := range flattenCmds(cmd) {
@@ -1343,7 +1343,7 @@ func TestBuilderNeverOverflowsTheTerminal(t *testing.T) {
 	v.set(t, "param.query", "is:open")
 	v.set(t, "name", "overflow-probe")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, c := range flattenCmds(cmd) {
@@ -1368,7 +1368,7 @@ func TestBuilderWindowsTheFormAroundTheFocusedField(t *testing.T) {
 	v := builderFor(t, kit)
 	v.selectSignal(t, "github")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 26})
 
 	clipped := app.View()

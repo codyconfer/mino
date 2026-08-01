@@ -86,7 +86,7 @@ func (kit *Kit) newRoleView(orig string, base config.RoleDef) *roleView {
 		"flights":    strings.Join(base.Flights, ", "),
 		"queries":    strings.Join(base.Queries, ", "),
 		"formatters": strings.Join(base.Formatters, ", "),
-	})
+	}, kit.scope().Keys)
 	return v
 }
 

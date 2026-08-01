@@ -106,6 +106,7 @@ func fetchGroupsLoading(ctx context.Context, status io.Writer, fd config.Formatt
 	sp := render.StartLoading(render.LoadingOptions{
 		Writer:  status,
 		Message: "running " + strconv.Itoa(len(queries)) + " quer" + plural(len(queries), "y", "ies") + " for " + fd.Display(),
+		UI:      Scope(),
 	})
 	groups := fetchGroups(ctx, queries, parentID)
 	sp.Stop()

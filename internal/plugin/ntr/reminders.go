@@ -26,7 +26,7 @@ func remindRecord(r Reminder) record {
 	return record{Kind: kindReminder, ID: r.ID, Title: r.Title, Due: r.Due, Done: r.Done}
 }
 
-func newRemindView(home, role string, base record, dirty func()) *remindView {
+func newRemindView(home, role string, base record, dirty func(), sc keys.Scheme) *remindView {
 	v := &remindView{base: base}
 	v.recordCore = recordCore{
 		home:  home,
@@ -44,7 +44,7 @@ func newRemindView(home, role string, base record, dirty func()) *remindView {
 	v.editorShell = newRecordEditor(v, map[string]any{
 		"title": base.Title,
 		"due":   due,
-	})
+	}, sc)
 	return v
 }
 
@@ -55,8 +55,8 @@ func (v *remindView) Title() string {
 	return "edit " + v.label()
 }
 
-func (v *remindView) Context() []keys.Hint {
-	ctx := v.recordCore.Context()
+func (v *remindView) docCtx() []keys.Hint {
+	ctx := v.recordCore.docCtx()
 	if v.base.Done {
 		return append(ctx, keys.Hint{Key: "done", Label: "yes"})
 	}

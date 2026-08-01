@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/config"
 )
@@ -38,7 +40,7 @@ func TestRunCLIKeepsCredentialPromptsOffStdout(t *testing.T) {
 	}
 
 	var out, errOut bytes.Buffer
-	if err := RunCLI(context.Background(), a, p, strings.NewReader("Iv1.typed\n"), &out, &errOut); err != nil {
+	if err := RunCLI(context.Background(), a, ui.Default(), p, strings.NewReader("Iv1.typed\n"), &out, &errOut); err != nil {
 		t.Fatalf("RunCLI = %v", err)
 	}
 	if loginWriter != io.Writer(&errOut) {

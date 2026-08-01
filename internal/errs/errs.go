@@ -4,10 +4,23 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/theme"
 )
+
+var injected atomic.Pointer[theme.Theme]
+
+// SetTheme pins Render's styles to t instead of the theme global.
+func SetTheme(t theme.Theme) { injected.Store(&t) }
+
+func cur() theme.Theme {
+	if p := injected.Load(); p != nil {
+		return *p
+	}
+	return theme.Default()
+}
 
 type Kind string
 
@@ -81,7 +94,7 @@ func Render(err error) string {
 	if err == nil {
 		return ""
 	}
-	th := theme.Cur()
+	th := cur()
 	mark := th.Cant.Bold(true).Render(glyph.Cross())
 	var b strings.Builder
 	var e *Error

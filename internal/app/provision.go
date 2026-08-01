@@ -13,6 +13,8 @@ import (
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/sisyphus/lifecycle"
 
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/audit"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
@@ -211,7 +213,7 @@ func Install(home string, force bool) ([]string, error) {
 	return created, nil
 }
 
-func Clean(w io.Writer, home string) error {
+func Clean(w io.Writer, scope *ui.Scope, home string) error {
 	entries := []string{
 		"config.yaml", "config.yml", "config.json",
 		config.DirQueries, config.DirFlights, config.DirFormatters, config.DirLogs, config.DirReports,
@@ -229,11 +231,11 @@ func Clean(w io.Writer, home string) error {
 		fmt.Fprintln(w, "nothing to clean (no config/query/filter files present)")
 		return nil
 	}
-	fmt.Fprintln(w, render.Success(fmt.Sprintf("archived %s to %s", strings.Join(moved, ", "), dest)))
+	fmt.Fprintln(w, render.Success(scope, fmt.Sprintf("archived %s to %s", strings.Join(moved, ", "), dest)))
 	return nil
 }
 
-func Nuke(w io.Writer, home string) error {
+func Nuke(w io.Writer, scope *ui.Scope, home string) error {
 	if home == "" {
 		return errs.New(errs.KindConfig, "empty home directory")
 	}
@@ -243,7 +245,7 @@ func Nuke(w io.Writer, home string) error {
 	if err := clearGlobalHomeIfMatches(home); err != nil {
 		return err
 	}
-	fmt.Fprintln(w, render.Success(fmt.Sprintf("nuked %s", home)))
+	fmt.Fprintln(w, render.Success(scope, fmt.Sprintf("nuked %s", home)))
 	fmt.Fprintln(w, "run `mino install` to recreate defaults in ~/.mino (or pass --home/--dir)")
 	return nil
 }

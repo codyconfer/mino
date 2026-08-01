@@ -3,7 +3,6 @@ package views
 import (
 	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/layout"
-	"github.com/codyconfer/viewkit/theme"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
@@ -34,18 +33,18 @@ type editorDoc interface {
 	editorRemove() (string, error)
 }
 
-func newEditorShell(doc editorDoc, seed map[string]any) *editorShell {
+func newEditorShell(doc editorDoc, seed map[string]any, sc keys.Scheme) *editorShell {
 	base := &editorAdapter{doc: doc}
 	if out, ok := doc.(editorOutput); ok {
-		return vkdeck.NewEditor(&editorOutputAdapter{editorAdapter: base, out: out}, editorKeys(), seed)
+		return vkdeck.NewEditor(&editorOutputAdapter{editorAdapter: base, out: out}, editorKeys(sc), seed)
 	}
-	return vkdeck.NewEditor(base, editorKeys(), seed)
+	return vkdeck.NewEditor(base, editorKeys(sc), seed)
 }
 
-func editorKeys() vkdeck.EditorKeys {
+func editorKeys(sc keys.Scheme) vkdeck.EditorKeys {
 	return vkdeck.EditorKeys{
-		Map:      keymap.Form(keymap.BuilderBindings()...),
-		Confirm:  keymap.ConfirmMap(),
+		Map:      keymap.Form(sc, keymap.BuilderBindings(sc)...),
+		Confirm:  keymap.ConfirmMap(sc),
 		Run:      keymap.Run,
 		Save:     keymap.Save,
 		Validate: keymap.Validate,
@@ -84,30 +83,31 @@ func (a *editorAdapter) Fields(prev map[string]any) []forms.Field {
 	return a.doc.editorFields(prev)
 }
 
-func (a *editorAdapter) PreviewLines() []string {
+func (a *editorAdapter) PreviewLines(fr layout.Frame) []string {
 	val, err := a.doc.editorValue()
 	if err != nil {
-		return []string{theme.Cur().Cant.Render(err.Error())}
+		return []string{fr.Theme().Cant.Render(err.Error())}
 	}
 	data, err := yaml.Marshal(val)
 	if err != nil {
-		return []string{theme.Cur().Cant.Render(err.Error())}
+		return []string{fr.Theme().Cant.Render(err.Error())}
 	}
 	return layout.Lines(string(data))
 }
 
-func (a *editorAdapter) ValidateLines() ([]string, error) {
+func (a *editorAdapter) ValidateLines(fr layout.Frame) ([]string, error) {
 	val, err := a.doc.editorValue()
 	if err != nil {
 		return nil, err
 	}
+	th := fr.Theme()
 	f := a.doc.editorVerify(val)
-	lines := []string{directiveFindingLine(f)}
+	lines := []string{directiveFindingLine(th, f)}
 	if f.Msg != "" {
-		lines = append(lines, "    "+theme.Cur().Dim.Render(f.Msg))
+		lines = append(lines, "    "+th.Dim.Render(f.Msg))
 	}
 	if f.OK && !f.Warn && f.Msg == "" {
-		lines = append(lines, "    "+theme.Cur().Dim.Render("no problems found"))
+		lines = append(lines, "    "+th.Dim.Render("no problems found"))
 	}
 	return lines, nil
 }

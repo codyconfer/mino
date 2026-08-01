@@ -114,7 +114,7 @@ func (r record) preview() recordYAML {
 	return out
 }
 
-func (r record) check(now time.Time) []string {
+func (r record) check(th theme.Theme, now time.Time) []string {
 	ok, warn := true, false
 	var details []string
 	switch r.Kind {
@@ -152,10 +152,9 @@ func (r record) check(now time.Time) []string {
 	if len(details) == 0 {
 		details = append(details, "no problems found")
 	}
-	lines := []string{recordFindingLine(ok && !warn, warn, r.checkName(ok, warn))}
-	dim := theme.Cur().Dim
+	lines := []string{recordFindingLine(th, ok && !warn, warn, r.checkName(ok, warn))}
 	for _, d := range details {
-		lines = append(lines, "    "+dim.Render(d))
+		lines = append(lines, "    "+th.Dim.Render(d))
 	}
 	return lines
 }
@@ -175,8 +174,7 @@ func (r record) checkName(ok, warn bool) string {
 	}
 }
 
-func recordFindingLine(ok, warn bool, name string) string {
-	th := theme.Cur()
+func recordFindingLine(th theme.Theme, ok, warn bool, name string) string {
 	var mark string
 	switch {
 	case ok:

@@ -7,7 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/plugin"
 )
@@ -89,9 +91,9 @@ type stubDeckView struct{}
 func (stubDeckView) Title() string                       { return "stub" }
 func (stubDeckView) Init() tea.Cmd                       { return nil }
 func (stubDeckView) Update(*deck.Model, tea.Msg) tea.Cmd { return nil }
-func (stubDeckView) Body(int, int) string                { return "body" }
-func (stubDeckView) Hints() []keys.Hint                  { return nil }
-func (stubDeckView) Context() []keys.Hint                { return nil }
+func (stubDeckView) Body(layout.Frame) string            { return "body" }
+func (stubDeckView) Hints(*ui.Scope) []keys.Hint         { return nil }
+func (stubDeckView) Context(*ui.Scope) []keys.Hint       { return nil }
 
 func TestRegisterViewLinksKindView(t *testing.T) {
 	id := "test.kinds.view"

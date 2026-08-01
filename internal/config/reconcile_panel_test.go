@@ -12,6 +12,7 @@ import (
 	"github.com/codyconfer/sisyphus"
 	"github.com/codyconfer/sisyphus/configdb"
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/render/glyph"
 )
@@ -72,7 +73,7 @@ func TestChangedSummary(t *testing.T) {
 			})),
 		},
 	}
-	got := changedSummary(rec, 200)
+	got := changedSummary(theme.Default(), rec, 200)
 	for _, want := range []string{"+team/gh/added", "queries/edited", "-team/removed"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("changedSummary = %q, missing %q", got, want)
@@ -81,7 +82,7 @@ func TestChangedSummary(t *testing.T) {
 	if strings.Contains(got, "kept") {
 		t.Errorf("changedSummary = %q, should not list unchanged files", got)
 	}
-	th := theme.Cur()
+	th := theme.Default()
 	warn := lipgloss.NewStyle().Foreground(th.NotifWarning.GetForeground())
 	if !strings.Contains(got, th.Can.Render("+team/gh/added")) {
 		t.Errorf("added file should be green (Can):\n%s", got)
@@ -105,7 +106,7 @@ func TestChangedSummaryTruncates(t *testing.T) {
 		FileContent: collectionBlob(t, staged),
 		DB:          configdb.Snapshot{Hash: "0123456789abcdef", Format: "collection", Content: string(collectionBlob(t, map[string]string{}))},
 	}
-	got := changedSummary(rec, 24)
+	got := changedSummary(theme.Default(), rec, 24)
 	if !strings.Contains(got, "more") {
 		t.Errorf("changedSummary = %q, want a truncation marker", got)
 	}
@@ -123,7 +124,7 @@ func TestRenderReconcilePanelMentionsEveryChoice(t *testing.T) {
 			At:      time.Date(2026, 7, 24, 13, 52, 0, 0, time.UTC),
 		},
 	}
-	out := renderReconcilePanel(os.Stderr, rec)
+	out := renderReconcilePanel(ui.Default(), os.Stderr, rec)
 	for _, want := range []string{"new config changes staged", "apply changes", "use this session", "ignore staged", "discard changes", "open in editor", "one choice applies to all"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("panel missing %q:\n%s", want, out)
@@ -157,7 +158,7 @@ func TestRenderReconcileBatchPanelListsAllDirectives(t *testing.T) {
 			},
 		},
 	}
-	out := renderReconcileBatchPanel(os.Stderr, recs)
+	out := renderReconcileBatchPanel(ui.Default(), os.Stderr, recs)
 	for _, want := range []string{"config, directives", "queries/a", "team/b", "write all staged files"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("batch panel missing %q:\n%s", want, out)

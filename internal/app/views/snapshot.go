@@ -10,7 +10,7 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
-	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/app/pane"
 	"github.com/codyconfer/mino/internal/keymap"
@@ -66,7 +66,7 @@ func (v *SnapshotView) pollCmd() tea.Cmd {
 	return tea.Tick(snapshotPollInterval, func(time.Time) tea.Msg { return snapshotPollMsg{} })
 }
 
-func (v *SnapshotView) Update(_ *vkdeck.Model, msg tea.Msg) tea.Cmd {
+func (v *SnapshotView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch t := msg.(type) {
 	case snapshotLoadedMsg:
 		v.loadErr = t.err
@@ -85,13 +85,13 @@ func (v *SnapshotView) Update(_ *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		}
 		return v.pollCmd()
 	case tea.KeyMsg:
-		return v.handleKey(t)
+		return v.handleKey(a, t)
 	}
 	return nil
 }
 
-func (v *SnapshotView) handleKey(k tea.KeyMsg) tea.Cmd {
-	act, ok := keymap.ItemList().Action(k.String())
+func (v *SnapshotView) handleKey(a *vkdeck.Model, k tea.KeyMsg) tea.Cmd {
+	act, ok := keymap.ItemList(modelScope(a).Keys).Action(k.String())
 	if !ok {
 		return nil
 	}
@@ -127,8 +127,8 @@ func (v *SnapshotView) url() string {
 	return ""
 }
 
-func (v *SnapshotView) render(width int) string {
-	th := theme.Cur()
+func (v *SnapshotView) render(f layout.Frame) string {
+	th := f.Theme()
 	if v.loadErr != nil {
 		return th.Cant.Render(fmt.Sprintf("snapshot unavailable: %v", v.loadErr))
 	}
@@ -137,7 +137,7 @@ func (v *SnapshotView) render(width int) string {
 		if v.snap.Detail == nil {
 			return th.Dim.Render("no detail in snapshot")
 		}
-		return render.DetailPanel(layout.ScreenFrame(width), v.ref(), v.snap.Detail)
+		return render.DetailPanel(f.Screen(), v.ref(), v.snap.Detail)
 	default:
 		if len(v.snap.Sections) == 0 {
 			return th.Dim.Render("no results in snapshot")
@@ -146,12 +146,12 @@ func (v *SnapshotView) render(width int) string {
 	}
 }
 
-func (v *SnapshotView) Body(width, height int) string {
-	return v.scroll.View(v.render(width), height)
+func (v *SnapshotView) Body(f layout.Frame) string {
+	return v.scroll.View(f, v.render(f), f.Height)
 }
 
-func (v *SnapshotView) Hints() []keys.Hint {
-	km := keymap.ItemList()
+func (v *SnapshotView) Hints(scope *ui.Scope) []keys.Hint {
+	km := keymap.ItemList(scope.Keys)
 	hints := []keys.Hint{km.HintLabeled(keys.Up, "scroll"), km.HintLabeled(keys.PageUp, "page")}
 	if v.url() != "" {
 		hints = append(hints, km.HintLabeled(keys.Open, "open"))
@@ -159,7 +159,7 @@ func (v *SnapshotView) Hints() []keys.Hint {
 	return hints
 }
 
-func (v *SnapshotView) Context() []keys.Hint {
+func (v *SnapshotView) Context(scope *ui.Scope) []keys.Hint {
 	var cues []keys.Hint
 	if v.snap.Origin != "" {
 		cues = append(cues, keys.Hint{Key: "from", Label: v.snap.Origin})

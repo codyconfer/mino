@@ -34,7 +34,7 @@ func newHistoryCmd() *cobra.Command {
 			if err != nil {
 				return errs.Newf(errs.KindUsage, "invalid run id %q", args[0])
 			}
-			return audit.PrintEntry(cmd.OutOrStdout(), shared.Audit, id)
+			return audit.PrintEntry(cmd.OutOrStdout(), shared.Audit, id, Scope().Glyphs)
 		},
 	})
 	return c

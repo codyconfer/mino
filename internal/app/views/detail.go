@@ -7,7 +7,7 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
-	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/app/pane"
 	"github.com/codyconfer/mino/internal/keymap"
@@ -61,7 +61,7 @@ func (v *DetailView) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 }
 
 func (v *DetailView) handleKey(h *vkdeck.Model, m tea.KeyMsg) tea.Cmd {
-	act, ok := keymap.Detail().Action(m.String())
+	act, ok := keymap.Detail(modelScope(h).Keys).Action(m.String())
 	if !ok {
 		return nil
 	}
@@ -99,17 +99,18 @@ func openURL(url string) tea.Cmd {
 	}
 }
 
-func (v *DetailView) Body(width, height int) string {
-	f := layout.ScreenFrame(width)
+func (v *DetailView) Body(f layout.Frame) string {
+	height := f.Height
+	f = f.Screen()
 	body := render.DetailPanel(f, v.ref, v.detail)
 	if v.err != nil {
-		body = theme.Cur().Cant.Render(signals.Clean(v.err.Error())) + "\n" + body
+		body = f.Theme().Cant.Render(signals.Clean(v.err.Error())) + "\n" + body
 	}
-	return v.scroll.View(body, height)
+	return v.scroll.View(f, body, height)
 }
 
-func (v *DetailView) Hints() []keys.Hint {
-	km := keymap.Detail()
+func (v *DetailView) Hints(scope *ui.Scope) []keys.Hint {
+	km := keymap.Detail(scope.Keys)
 	hints := []keys.Hint{
 		km.HintLabeled(keys.Up, "scroll"),
 		km.HintLabeled(keys.PageUp, "page"),
@@ -136,7 +137,7 @@ func (v *DetailView) PaneSnapshot() (pane.Snapshot, bool) {
 	}, true
 }
 
-func (v *DetailView) Context() []keys.Hint {
+func (v *DetailView) Context(scope *ui.Scope) []keys.Hint {
 	var cues []keys.Hint
 	if scope := render.ItemScope(v.ref.Item); scope != "" {
 		cues = append(cues, keys.Hint{Key: "repo", Label: scope})

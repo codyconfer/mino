@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/testenv"
@@ -84,7 +86,7 @@ func TestNukeRemovesHomeWithoutReinstall(t *testing.T) {
 	}
 
 	var buf strings.Builder
-	if err := Nuke(&buf, home); err != nil {
+	if err := Nuke(&buf, ui.Default(), home); err != nil {
 		t.Fatalf("Nuke: %v", err)
 	}
 	if _, err := os.Stat(home); !os.IsNotExist(err) {

@@ -8,15 +8,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/keymap"
 	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func TestMain(m *testing.M) {
 	keymap.Register()
-	keymap.UseNamed(keymap.DefaultSchemeKey)
 	os.Exit(m.Run())
 }
+
+func testScheme() keys.Scheme { return keymap.SchemeFor(keymap.DefaultSchemeKey) }
+
+// testScope carries mino's scheme, as the cmd layer provides in production.
+func testScope() *ui.Scope {
+	s := ui.Default()
+	s.Keys = testScheme()
+	return s
+}
+
+func testTheme() theme.Theme { return theme.Default() }
 
 func TestStoreCRUDAndReminders(t *testing.T) {
 	ctx := context.Background()

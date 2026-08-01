@@ -7,7 +7,6 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/list"
-	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/mino/internal/render"
 	"github.com/codyconfer/mino/internal/signals"
@@ -41,12 +40,12 @@ func NewHome(title string, ctx []keys.Hint, items []vkdeck.MenuItem, flightName 
 		return load(name)
 	}
 	spec.SideBind = func(width int, fetched any) []list.Item {
-		th := theme.Cur()
+		f := layout.ScreenFrame(width - listIndent)
 		sections, _ := fetched.([]signals.Section)
 		if len(sections) == 0 {
-			return []list.Item{{Block: th.Dim.Render("nothing to show")}}
+			return []list.Item{{Block: f.Theme().Dim.Render("nothing to show")}}
 		}
-		return render.SectionItems(layout.ScreenFrame(width-listIndent), sections)
+		return render.SectionItems(f, sections)
 	}
 	if onSelect != nil {
 		spec.OnSelect = func(h *vkdeck.Model, it list.Item) tea.Cmd {

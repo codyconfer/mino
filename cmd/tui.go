@@ -64,7 +64,8 @@ func newDeckCmd() *cobra.Command {
 			kit := buildViewsFor(cmd.Context(), panes)
 			stopLaunchLoading()
 			opts := []deck.Option{
-				deck.WithStatus(statusProvider()),
+				deck.WithScope(Scope()),
+				deck.WithStatus(Scope(), statusProvider()),
 				deck.WithKeyHook(kit.KeyHook()),
 				deck.WithMsgHook(kit.MsgHook()),
 				deck.WithInitCmd(views.StoreTick()),
@@ -127,6 +128,7 @@ func buildViewsFor(ctx context.Context, panes *pane.Manager) *views.Kit {
 	return views.New(views.Deps{
 		App:   shared,
 		Panes: panes,
+		Scope: Scope(),
 		FetchQuery: func(name string) []signals.Section {
 			return fetchQuerySections(ctx, name)
 		},

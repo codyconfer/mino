@@ -25,7 +25,7 @@ func PrintRecent(w io.Writer, s *Store, limit int) error {
 	return nil
 }
 
-func PrintEntry(w io.Writer, s *Store, id int64) error {
+func PrintEntry(w io.Writer, s *Store, id int64, g glyph.Set) error {
 	run, ok, err := s.Entry(id)
 	if err != nil {
 		return err
@@ -43,11 +43,11 @@ func PrintEntry(w io.Writer, s *Store, id int64) error {
 		for _, ch := range children {
 			fmt.Fprintln(w)
 			printRow(w, ch)
-			printItems(w, s, ch.ID)
+			printItems(w, s, ch.ID, g)
 		}
 		return nil
 	}
-	printItems(w, s, id)
+	printItems(w, s, id, g)
 	return nil
 }
 
@@ -60,7 +60,7 @@ func printRow(w io.Writer, r AuditRow) {
 		r.ID, r.Started.Format("2006-01-02 15:04:05"), r.Kind, r.Name, dash(r.Role), status(r), dur)
 }
 
-func printItems(w io.Writer, s *Store, runID int64) {
+func printItems(w io.Writer, s *Store, runID int64, g glyph.Set) {
 	items, err := s.Items(runID)
 	if err != nil || len(items) == 0 {
 		return
@@ -70,7 +70,7 @@ func printItems(w io.Writer, s *Store, runID int64) {
 		if !it.Ts.IsZero() {
 			when = "  " + it.Ts.Format("2006-01-02 15:04")
 		}
-		fmt.Fprintf(w, "    %s %s  %s%s\n", glyph.Bullet(), it.Title, dash(it.Subtitle), when)
+		fmt.Fprintf(w, "    %s %s  %s%s\n", g.Bullet(), it.Title, dash(it.Subtitle), when)
 		if it.URL != "" {
 			fmt.Fprintf(w, "      %s\n", it.URL)
 		}

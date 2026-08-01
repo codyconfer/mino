@@ -11,7 +11,7 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/list"
-	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/audit"
 	"github.com/codyconfer/mino/internal/deck"
@@ -54,8 +54,11 @@ func (k *Kit) recentRuns() []audit.AuditRow {
 	return runs
 }
 
+// historyItems runs from ItemList Bind, which only carries width; the frame
+// built here has no scope, so its theme falls back to the process default.
 func historyItems(width int, runs []audit.AuditRow) []list.Item {
-	th := theme.Cur()
+	f := layout.ScreenFrame(width)
+	th := f.Theme()
 	if len(runs) == 0 {
 		return []list.Item{{Block: th.Dim.Render("no recorded runs")}}
 	}
@@ -64,7 +67,7 @@ func historyItems(width int, runs []audit.AuditRow) []list.Item {
 		label := th.Val.Render(fmt.Sprintf("#%-4d %-6s %s", r.ID, r.Kind, r.Name))
 		meta := th.Dim.Render(r.Started.Format("01-02 15:04") + "  " + entryStatus(r))
 		items = append(items, list.Item{
-			Block:      layout.StackTight(label, layout.ScreenFrame(width).Fit(meta)),
+			Block:      layout.StackTight(label, f.Fit(meta)),
 			Key:        strconv.FormatInt(r.ID, 10),
 			Selectable: true,
 			Payload:    r,
@@ -113,12 +116,12 @@ func (k *Kit) historyRun(r audit.AuditRow) vkdeck.View {
 		kit:      k,
 		row:      r,
 		ctx:      ctx,
-		del:      keys.MapFor(keymap.Delete),
+		del:      k.scope().Keys.MapFor(keymap.Delete),
 	}
 }
 
-func (v *historyRunView) Hints() []keys.Hint {
-	return append(v.ItemList.Hints(), v.del.Hint(keymap.Delete))
+func (v *historyRunView) Hints(scope *ui.Scope) []keys.Hint {
+	return append(v.ItemList.Hints(scope), v.del.Hint(keymap.Delete))
 }
 
 func (v *historyRunView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
@@ -146,7 +149,7 @@ func (v *historyRunView) ask() {
 }
 
 func (v *historyRunView) answer(a *vkdeck.Model, key tea.KeyMsg) tea.Cmd {
-	act, ok := keymap.ConfirmMap().Action(key.String())
+	act, ok := keymap.ConfirmMap(modelScope(a).Keys).Action(key.String())
 	if !ok {
 		return nil
 	}
@@ -172,10 +175,10 @@ func (v *historyRunView) remove(a *vkdeck.Model) tea.Cmd {
 	return tea.Sequence(a.Pop(), reloadCmd())
 }
 
-func (v *historyRunView) Body(width, height int) string {
-	body := v.ItemList.Body(width, height)
+func (v *historyRunView) Body(f layout.Frame) string {
+	body := v.ItemList.Body(f)
 	if v.confirm == nil {
 		return body
 	}
-	return v.confirm.Overlay(body, layout.NewFrame(layout.DialogWidth(width)))
+	return v.confirm.Overlay(body, f.WithWidth(layout.DialogWidth(f.Width)))
 }

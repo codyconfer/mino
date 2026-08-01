@@ -12,7 +12,6 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/mino/internal/config"
-	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/signals"
 )
 
@@ -46,7 +45,7 @@ func TestFlightsListPutsNewFirstAndOpensTheEditor(t *testing.T) {
 	kit := testKit(t)
 	kit.d.App.Cfg.Role = ""
 
-	app := deck.New(kit.Flights())
+	app := newTestApp(kit.Flights())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
 	newAt, flightAt := strings.Index(body, "New"), strings.Index(body, "default")
@@ -108,7 +107,7 @@ func TestFlightEditorRunsThroughFetchFlightQueries(t *testing.T) {
 	}
 
 	v := flightFor(t, kit, "default")
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, c := range flattenCmds(cmd) {
@@ -132,7 +131,7 @@ func TestFlightEditorSaveWritesFlightFile(t *testing.T) {
 	v.set(t, "queries", "q1")
 	v.set(t, "name", "built-flight")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -167,7 +166,7 @@ func TestFlightEditorSaveRejectsCollisionAndMissingName(t *testing.T) {
 
 	v := flightFor(t, kit, "")
 	v.set(t, "queries", "q1")
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if !strings.Contains(v.Status(), "name is required") {
@@ -177,7 +176,7 @@ func TestFlightEditorSaveRejectsCollisionAndMissingName(t *testing.T) {
 	v = flightFor(t, kit, "")
 	v.set(t, "queries", "q1")
 	v.set(t, "name", "default")
-	app = deck.New(v)
+	app = newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if !strings.Contains(v.Status(), "already exists") {
@@ -195,7 +194,7 @@ func TestFlightEditorValidateAndDelete(t *testing.T) {
 	path := filepath.Join(kit.d.App.Cfg.Home, config.DirFlights, "doomed.yaml")
 
 	v := flightFor(t, kit, "doomed")
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	app = step(app, tea.KeyMsg{Type: tea.KeyCtrlT})
@@ -223,7 +222,7 @@ func TestFlightEditorYAMLPreview(t *testing.T) {
 	kit := testKit(t)
 	v := flightFor(t, kit, "default")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	if strings.Contains(app.View(), "queries:") {
 		t.Fatal("yaml preview showing before it was toggled on")
@@ -249,7 +248,7 @@ func TestQueriesAndFlightsBothFilterByRole(t *testing.T) {
 	kit.d.App.Cfg.Role = "triage"
 
 	render := func(v vkdeck.View) string {
-		app := deck.New(v)
+		app := newTestApp(v)
 		app = step(app, tea.WindowSizeMsg{Width: 100, Height: 44})
 		return app.View()
 	}
@@ -283,7 +282,7 @@ func TestNoRoleShowsEverythingOnBothSurfaces(t *testing.T) {
 	kit.d.App.Cfg.Role = ""
 
 	render := func(v vkdeck.View) string {
-		app := deck.New(v)
+		app := newTestApp(v)
 		app = step(app, tea.WindowSizeMsg{Width: 100, Height: 44})
 		return app.View()
 	}

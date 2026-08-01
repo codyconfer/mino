@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/codyconfer/sisyphus"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/audit"
 	"github.com/codyconfer/mino/internal/auth"
@@ -159,6 +160,8 @@ type Options struct {
 	Completion  bool
 	In          io.Reader
 	Out         io.Writer
+	// UI scopes any rendering done while loading (reconcile prompts).
+	UI *ui.Scope
 }
 
 func Load(opts Options) (*App, error) {
@@ -216,7 +219,7 @@ func loadConfig(opts Options) (*config.Config, *config.Directives, *sisyphus.Con
 		cfg, directives, err := config.LoadConfigAndDirectivesFromFiles(opts.Home, opts.ConfigFile)
 		return cfg, directives, nil, err
 	}
-	return config.LoadConfigAndDirectives(opts.Home, opts.ConfigFile, opts.Reconcile, opts.Interactive, opts.In, opts.Out)
+	return config.LoadConfigAndDirectives(opts.Home, opts.ConfigFile, opts.Reconcile, opts.Interactive, opts.In, opts.Out, opts.UI)
 }
 
 func (a *App) Thin() bool { return a != nil && a.thin }

@@ -12,7 +12,6 @@ import (
 	"github.com/codyconfer/mino/internal/app/onboard"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/log"
-	"github.com/codyconfer/mino/internal/render/glyph"
 	gh "github.com/codyconfer/mino/internal/signals/github"
 )
 
@@ -111,7 +110,7 @@ func cliGuidedAuth(cmd *cobra.Command) error {
 		return errs.New(errs.KindInternal, "github login provider unavailable")
 	}
 	status := cmd.ErrOrStderr()
-	if err := guidedLoginCLI(cmd.Context(), shared, p, cmd.InOrStdin(), status, status); err != nil {
+	if err := guidedLoginCLI(cmd.Context(), shared, Scope(), p, cmd.InOrStdin(), status, status); err != nil {
 		return err
 	}
 	shared.ResetGitHubAuth()
@@ -119,5 +118,5 @@ func cliGuidedAuth(cmd *cobra.Command) error {
 }
 
 func gateWarn(cmd *cobra.Command, msg string) {
-	fmt.Fprintf(cmd.ErrOrStderr(), "%s %s\n", glyph.Warn(), msg)
+	fmt.Fprintf(cmd.ErrOrStderr(), "%s %s\n", Scope().Glyphs.Warn(), msg)
 }

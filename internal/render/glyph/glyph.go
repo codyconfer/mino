@@ -10,6 +10,9 @@ import (
 
 type Mode = vk.Mode
 
+// Set is viewkit's scoped glyph set.
+type Set = vk.Set
+
 const (
 	ModeNerd    = vk.ModeNerd
 	ModeUnicode = vk.ModeUnicode
@@ -68,12 +71,24 @@ func init() {
 	vk.Register("plugins", plugins)
 	vk.Register("builder", builder)
 	vk.Register("reply", reply)
+	vk.Register("mino.brand", brand)
+	vk.Register("mino.signing.ok", signingOK)
+	vk.Register("mino.signing.bad", signingBad)
 }
 
 func Brand() string      { return brand.String() }
 func SigningOK() string  { return signingOK.String() }
 func SigningBad() string { return signingBad.String() }
 func Login() string      { return login.String() }
+
+// BrandIn renders mino's brand mark in the given glyph set.
+func BrandIn(s vk.Set) string { return s.Resolve("mino.brand") }
+
+// SigningOKIn renders the verified-signing mark in the given glyph set.
+func SigningOKIn(s vk.Set) string { return s.Resolve("mino.signing.ok") }
+
+// SigningBadIn renders the unverified-signing mark in the given glyph set.
+func SigningBadIn(s vk.Set) string { return s.Resolve("mino.signing.bad") }
 
 func ForTool(name string) string { return vk.ResolveID(name) }
 
@@ -95,3 +110,6 @@ func ClassifyItem(it signals.Item) Kind { return signals.ClassifyItem(it) }
 func ForItem(it signals.Item) string { return vk.GlyphFor(signals.ClassifyItem(it)) }
 
 func For(sev Kind) string { return vk.GlyphFor(sev) }
+
+// ForIn renders the severity mark for sev in the given glyph set.
+func ForIn(s vk.Set, sev Kind) string { return s.GlyphFor(sev) }

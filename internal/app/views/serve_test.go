@@ -7,9 +7,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/codyconfer/viewkit/layout"
+
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/signals"
 )
 
@@ -28,7 +29,7 @@ func serveEventFor(url string) signals.Event {
 func TestServeViewKeepsTheCursorWhenNewEventsLand(t *testing.T) {
 	ch := make(chan signals.Event)
 	v := NewServeView("watch", ch)
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 30})
 
 	_ = v.Update(app, serveEventMsg{serveEventFor("https://example.test/demo/1")})
@@ -57,7 +58,7 @@ func TestServeViewKeepsTheCursorWhenNewEventsLand(t *testing.T) {
 func TestServeViewRendersAndPrunes(t *testing.T) {
 	ch := make(chan signals.Event)
 	v := NewServeView("watch", ch)
-	app := deck.New(v)
+	app := newTestApp(v)
 	m, _ := app.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	app = m.(*vkdeck.Model)
 
@@ -91,7 +92,7 @@ func TestServeViewRendersAndPrunes(t *testing.T) {
 	if ref.Item.URL != "https://example.test/demo/1" {
 		t.Fatalf("selected wrong ref: %+v", ref)
 	}
-	body := v.Body(100, 30)
+	body := v.Body(layout.Frame{Width: 100, Height: 30})
 	if body == "" {
 		t.Fatal("body with a live notification should render")
 	}
@@ -109,7 +110,7 @@ func TestServeViewRendersAndPrunes(t *testing.T) {
 	if v.Update(app, serveClosedMsg{}); !v.closed {
 		t.Fatal("serveClosedMsg should mark the view closed")
 	}
-	if body := v.Body(100, 30); body == "" {
+	if body := v.Body(layout.Frame{Width: 100, Height: 30}); body == "" {
 		t.Fatal("closed empty inbox should still render")
 	}
 }

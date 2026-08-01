@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/codyconfer/viewkit/glyph"
+	"github.com/codyconfer/viewkit/ui"
 
-	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/render"
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -59,7 +59,7 @@ func TestDetailViewTitleAndContext(t *testing.T) {
 		t.Errorf("Title = %q, want %q", got, "pr #412")
 	}
 	cues := map[string]string{}
-	for _, c := range v.Context() {
+	for _, c := range v.Context(ui.Default()) {
 		cues[c.Key] = c.Label
 	}
 	if cues["repo"] != "acme/tools" {
@@ -72,7 +72,7 @@ func TestDetailViewRendersLocalBeforeEnrichment(t *testing.T) {
 	v := detailView(t, func(string, signals.Item) (*signals.ItemDetail, error) {
 		return enrichedTestDetail(), nil
 	})
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	out := ansi.Strip(app.View())
@@ -89,7 +89,7 @@ func TestDetailViewShowsLoadingCueThenEnriches(t *testing.T) {
 	v := detailView(t, func(string, signals.Item) (*signals.ItemDetail, error) {
 		return enrichedTestDetail(), nil
 	})
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	cmd := v.Init()
@@ -117,7 +117,7 @@ func TestDetailViewKeepsLocalFrameOnFetchError(t *testing.T) {
 	v := detailView(t, func(string, signals.Item) (*signals.ItemDetail, error) {
 		return nil, errors.New("network down")
 	})
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app = step(app, v.Init()())
 
@@ -143,7 +143,7 @@ func TestDetailViewOpenAndCancel(t *testing.T) {
 		return nil
 	}
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	_, cmd := app.Update(detailKey("o"))
@@ -163,19 +163,19 @@ func TestDetailViewOpenAndCancel(t *testing.T) {
 func TestDetailViewHintsMatchItsBindings(t *testing.T) {
 	v := detailView(t, nil)
 	labels := map[string]bool{}
-	for _, h := range v.Hints() {
+	for _, h := range v.Hints(ui.Default()) {
 		labels[h.Label] = true
 	}
 	for _, want := range []string{"scroll", "page", "open"} {
 		if !labels[want] {
-			t.Errorf("hints %v missing %q", v.Hints(), want)
+			t.Errorf("hints %v missing %q", v.Hints(ui.Default()), want)
 		}
 	}
 
 	noURL := detailTestRef()
 	noURL.Item.URL = ""
 	bare := &DetailView{ref: noURL}
-	for _, h := range bare.Hints() {
+	for _, h := range bare.Hints(ui.Default()) {
 		if h.Label == "open" {
 			t.Error("an item without a URL should not advertise open")
 		}
@@ -188,7 +188,7 @@ func TestDetailViewScrolls(t *testing.T) {
 	ref.Item.Body = strings.Repeat("a long paragraph of body text\n", 80)
 	v := &DetailView{ref: ref}
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 20})
 	_ = app.View()
 

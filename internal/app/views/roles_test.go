@@ -11,7 +11,6 @@ import (
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/config"
-	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/signals"
 )
 
@@ -140,7 +139,7 @@ func TestRoleEditorPreservesContextsHooksAndStatus(t *testing.T) {
 	v := roleFor(t, kit, "triage")
 	v.set(t, "queries", "q1")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -193,7 +192,7 @@ func TestRoleEditorSaveRejectsCollisionAndMissingName(t *testing.T) {
 
 	v := roleFor(t, kit, "")
 	v.set(t, "flights", "default")
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if !strings.Contains(v.Status(), "name is required") {
@@ -203,7 +202,7 @@ func TestRoleEditorSaveRejectsCollisionAndMissingName(t *testing.T) {
 	v = roleFor(t, kit, "")
 	v.set(t, "flights", "default")
 	v.set(t, "name", "triage")
-	app = deck.New(v)
+	app = newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if !strings.Contains(v.Status(), "already exists") {
@@ -222,7 +221,7 @@ func TestRoleEditorRenameRewritesTheOriginalFile(t *testing.T) {
 	v := roleFor(t, kit, "triage")
 	v.set(t, "name", "sifting")
 
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	step(app, tea.KeyMsg{Type: tea.KeyCtrlS})
 
@@ -256,7 +255,7 @@ func TestRoleEditorDryRunReportsStepsAroundTheFlight(t *testing.T) {
 	}
 
 	v := roleFor(t, kit, "triage")
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
 	for _, c := range flattenCmds(cmd) {
@@ -309,7 +308,7 @@ func TestRoleEditorValidateAndDelete(t *testing.T) {
 	path := filepath.Join(kit.d.App.Cfg.Home, "doomed.yaml")
 
 	v := roleFor(t, kit, "doomed")
-	app := deck.New(v)
+	app := newTestApp(v)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	app = step(app, tea.KeyMsg{Type: tea.KeyCtrlT})

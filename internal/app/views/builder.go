@@ -100,7 +100,7 @@ func (kit *Kit) newBuilder(orig string, base config.Query) *builderView {
 	v := &builderView{kit: kit, signals: kit.builderSignals(), orig: orig, base: base}
 	v.sigIdx = forms.SelectIndex(v.signals, base.Signal)
 	v.typeIdx = forms.SelectIndex(builderTypes, string(base.Type))
-	v.editorShell = newEditorShell(v, v.seed())
+	v.editorShell = newEditorShell(v, v.seed(), kit.scope().Keys)
 	return v
 }
 

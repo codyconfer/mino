@@ -8,10 +8,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/plugin"
-	"github.com/codyconfer/mino/internal/render/glyph"
 	"github.com/codyconfer/mino/internal/signals/build"
 )
 
@@ -79,38 +79,39 @@ func scopedNames(all bool, names []string, visible func(string) bool) []string {
 	return out
 }
 
-func listHeading(w io.Writer, title string) {
-	fmt.Fprintln(w, theme.Cur().Accent.Render(title))
+func listHeading(w io.Writer, th theme.Theme, title string) {
+	fmt.Fprintln(w, th.Accent.Render(title))
 }
 
-func listLine(w io.Writer, name, detail string) {
-	line := fmt.Sprintf("  %s %-24s", theme.Cur().Accent.Render(glyph.Bullet()), name)
+func listLine(w io.Writer, sc *ui.Scope, name, detail string) {
+	line := fmt.Sprintf("  %s %-24s", sc.Theme.Accent.Render(sc.Glyphs.Bullet()), name)
 	if detail != "" {
 		line += " " + detail
 	}
 	fmt.Fprintln(w, line)
 }
 
-func listEmpty(w io.Writer, msg string) {
-	fmt.Fprintln(w, "  "+theme.Cur().Dim.Render(msg))
+func listEmpty(w io.Writer, th theme.Theme, msg string) {
+	fmt.Fprintln(w, "  "+th.Dim.Render(msg))
 }
 
-func listScopeNote(all bool) string {
+func listScopeNote(th theme.Theme, all bool) string {
 	r := shared.Cfg.Role
 	switch {
 	case r == "":
 		return ""
 	case all:
-		return theme.Cur().Dim.Render(" (all, ignoring role " + r + ")")
+		return th.Dim.Render(" (all, ignoring role " + r + ")")
 	}
-	return theme.Cur().Dim.Render(" (role: " + r + ")")
+	return th.Dim.Render(" (role: " + r + ")")
 }
 
 func listQueriesSection(w io.Writer, all bool) {
+	sc := Scope()
 	names := scopedNames(all, shared.Directives.RunnableNames(), access().QueryVisible)
-	listHeading(w, "queries"+listScopeNote(all))
+	listHeading(w, sc.Theme, "queries"+listScopeNote(sc.Theme, all))
 	if len(names) == 0 {
-		listEmpty(w, "none (add a YAML file with a `signal:` under ~/.mino/queries)")
+		listEmpty(w, sc.Theme, "none (add a YAML file with a `signal:` under ~/.mino/queries)")
 		return
 	}
 	for _, n := range names {
@@ -120,23 +121,24 @@ func listQueriesSection(w io.Writer, all bool) {
 			detail += " +rules"
 		}
 		if q.Title != "" {
-			detail += "  " + theme.Cur().Dim.Render(q.Title)
+			detail += "  " + sc.Theme.Dim.Render(q.Title)
 		}
-		listLine(w, n, detail)
+		listLine(w, sc, n, detail)
 	}
 }
 
 func listFiltersSection(w io.Writer, all bool) {
+	sc := Scope()
 	names := scopedNames(all, shared.Directives.FilterNames(), access().QueryVisible)
-	listHeading(w, "filters"+listScopeNote(all))
+	listHeading(w, sc.Theme, "filters"+listScopeNote(sc.Theme, all))
 	seen := map[string]bool{}
 	for _, n := range names {
 		f, _ := shared.Directives.Filter(n)
 		detail := fmt.Sprintf("%d rule(s) %d alias(es)", len(f.Rules), len(f.Aliases))
 		if shared.Directives.Queries[n].Runnable() {
-			detail += " " + theme.Cur().Dim.Render("(also a query)")
+			detail += " " + sc.Theme.Dim.Render("(also a query)")
 		}
-		listLine(w, n, detail)
+		listLine(w, sc, n, detail)
 		seen[n] = true
 	}
 	var plugins int
@@ -150,33 +152,35 @@ func listFiltersSection(w io.Writer, all bool) {
 		}
 		f, _ := plugin.LookupFilter(n)
 		detail := fmt.Sprintf("%d rule(s) %d alias(es) %s", len(f.Rules), len(f.Aliases),
-			theme.Cur().Dim.Render("(plugin "+kind+")"))
-		listLine(w, n, detail)
+			sc.Theme.Dim.Render("(plugin "+kind+")"))
+		listLine(w, sc, n, detail)
 		plugins++
 	}
 	if len(names) == 0 && plugins == 0 {
-		listEmpty(w, "none (add `rules:` to a YAML file under ~/.mino/queries)")
+		listEmpty(w, sc.Theme, "none (add `rules:` to a YAML file under ~/.mino/queries)")
 	}
 }
 
 func listFlightsSection(w io.Writer, all bool) {
+	sc := Scope()
 	names := scopedNames(all, shared.Directives.FlightNames(), access().FlightVisible)
-	listHeading(w, "flights"+listScopeNote(all))
+	listHeading(w, sc.Theme, "flights"+listScopeNote(sc.Theme, all))
 	if len(names) == 0 {
-		listEmpty(w, "none (add a YAML file under ~/.mino/flights)")
+		listEmpty(w, sc.Theme, "none (add a YAML file under ~/.mino/flights)")
 		return
 	}
 	for _, n := range names {
 		fl := shared.Directives.Flights[n]
-		listLine(w, n, fmt.Sprintf("%d quer%s", len(fl.Queries), plural(len(fl.Queries), "y", "ies")))
+		listLine(w, sc, n, fmt.Sprintf("%d quer%s", len(fl.Queries), plural(len(fl.Queries), "y", "ies")))
 	}
 }
 
 func listFormattersSection(w io.Writer, all bool) {
+	sc := Scope()
 	names := scopedNames(all, shared.Directives.FormatterNames(), access().FormatterVisible)
-	listHeading(w, "formatters"+listScopeNote(all))
+	listHeading(w, sc.Theme, "formatters"+listScopeNote(sc.Theme, all))
 	if len(names) == 0 {
-		listEmpty(w, "none (add a YAML file with a `template:` under ~/.mino/formatters)")
+		listEmpty(w, sc.Theme, "none (add a YAML file with a `template:` under ~/.mino/formatters)")
 		return
 	}
 	for _, n := range names {
@@ -184,17 +188,18 @@ func listFormattersSection(w io.Writer, all bool) {
 		lines := len(strings.Split(strings.TrimRight(fd.Template, "\n"), "\n"))
 		detail := fmt.Sprintf("%d line(s)", lines)
 		if fd.Title != "" {
-			detail += "  " + theme.Cur().Dim.Render(fd.Title)
+			detail += "  " + sc.Theme.Dim.Render(fd.Title)
 		}
-		listLine(w, n, detail)
+		listLine(w, sc, n, detail)
 	}
 }
 
 func listRolesSection(w io.Writer) {
+	sc := Scope()
 	names := shared.Directives.RoleNames()
-	listHeading(w, "roles")
+	listHeading(w, sc.Theme, "roles")
 	if len(names) == 0 {
-		listEmpty(w, "none (add a <name>.yaml at the top of ~/.mino)")
+		listEmpty(w, sc.Theme, "none (add a <name>.yaml at the top of ~/.mino)")
 		return
 	}
 	for _, n := range names {
@@ -205,9 +210,9 @@ func listRolesSection(w io.Writer) {
 			detail += fmt.Sprintf(" %d formatter(s)", len(rd.Formatters))
 		}
 		if n == shared.Cfg.Role {
-			detail += " " + theme.Cur().Can.Render("(active)")
+			detail += " " + sc.Theme.Can.Render("(active)")
 		}
-		listLine(w, n, detail)
+		listLine(w, sc, n, detail)
 	}
 }
 

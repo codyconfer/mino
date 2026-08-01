@@ -7,6 +7,7 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/pane"
@@ -23,6 +24,9 @@ type Finding = verify.Finding
 type Deps struct {
 	App   *app.App
 	Panes *pane.Manager
+	// Scope is the deck's rendering context; nil falls back to the built-in
+	// defaults. Updated in place when the settings view swaps appearance.
+	Scope *ui.Scope
 
 	FetchQuery         func(name string) []signals.Section
 	FetchFlightAudited func(name string) []signals.Section
@@ -51,6 +55,22 @@ type Kit struct {
 }
 
 func New(d Deps) *Kit { return &Kit{d: d} }
+
+// scope returns the kit's rendering scope, defaulting to the built-ins.
+func (k *Kit) scope() *ui.Scope {
+	if k.d.Scope != nil {
+		return k.d.Scope
+	}
+	return ui.Default()
+}
+
+// modelScope returns a's rendering scope, tolerating nil models in tests.
+func modelScope(a *vkdeck.Model) *ui.Scope {
+	if s := a.UI(); s != nil {
+		return s
+	}
+	return ui.Default()
+}
 
 func (k *Kit) menuCtx() []keys.Hint {
 	if role := k.d.App.Role(); role != "" {

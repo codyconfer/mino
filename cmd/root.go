@@ -6,8 +6,11 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/log"
 )
 
@@ -39,6 +42,17 @@ func reconcilePolicyFor(cmd *cobra.Command) (config.ReconcilePolicy, error) {
 }
 
 var shared *app.App
+
+var uiScope *ui.Scope
+
+// Scope returns the CLI's rendering scope, defaulting to the process globals
+// until PersistentPreRunE has built it.
+func Scope() *ui.Scope {
+	if uiScope == nil {
+		return ui.Default()
+	}
+	return uiScope
+}
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
@@ -77,12 +91,16 @@ func newRootCmd() *cobra.Command {
 				Interactive: term.IsTerminal(os.Stdin.Fd()),
 				In:          os.Stdin,
 				Out:         os.Stderr,
+				UI:          Scope(),
 			})
 			if err != nil {
 				stopLaunchLoading()
 				return err
 			}
 			shared = a
+			uiScope = app.BuildScope(app.ThemeKey(), app.KeysKey())
+			log.SetTheme(uiScope.Theme)
+			errs.SetTheme(uiScope.Theme)
 			if completing {
 				return nil
 			}

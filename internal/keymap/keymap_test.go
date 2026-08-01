@@ -6,13 +6,6 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 )
 
-func useScheme(t *testing.T, sc keys.Scheme) {
-	t.Helper()
-	prev := keys.Cur()
-	keys.Use(sc)
-	t.Cleanup(func() { keys.Use(prev) })
-}
-
 func assertBound(t *testing.T, m *keys.Map, key string, want keys.Action) {
 	t.Helper()
 	got, ok := m.Action(key)
@@ -29,8 +22,7 @@ func assertUnbound(t *testing.T, m *keys.Map, key string) {
 }
 
 func TestFormDefaultSchemeKeepsOnlyMultiRuneKeys(t *testing.T) {
-	useScheme(t, keys.Default().WithDefaults(minoBindings()...))
-	m := Form()
+	m := Form(keys.Default().WithDefaults(minoBindings()...))
 
 	bound := map[string]keys.Action{
 		"up":        keys.Up,
@@ -68,8 +60,7 @@ func TestFormDefaultSchemeKeepsOnlyMultiRuneKeys(t *testing.T) {
 }
 
 func TestFormMinoSchemeDropsCancelAlias(t *testing.T) {
-	useScheme(t, minoScheme())
-	m := Form()
+	m := Form(minoScheme())
 
 	assertBound(t, m, "esc", keys.Cancel)
 	assertUnbound(t, m, "q")
@@ -77,12 +68,11 @@ func TestFormMinoSchemeDropsCancelAlias(t *testing.T) {
 }
 
 func TestFormDropsActionsLeftWithNoKeys(t *testing.T) {
-	useScheme(t, keys.Default().With(
+	m := Form(keys.Default().With(
 		keys.Binding{Keys: []string{"k"}, Action: keys.Up},
 		keys.Binding{Keys: []string{"tab", "x"}, Action: keys.Confirm},
 		keys.Binding{Keys: []string{}, Action: keys.PageUp},
 	))
-	m := Form()
 
 	if m.Has(keys.Up) {
 		t.Error("Up bound to only a single-rune key must be dropped entirely")
@@ -97,8 +87,8 @@ func TestFormDropsActionsLeftWithNoKeys(t *testing.T) {
 }
 
 func TestFormAppendsExtraBindingsVerbatim(t *testing.T) {
-	useScheme(t, minoScheme())
-	m := Form(BuilderBindings()...)
+	sc := minoScheme()
+	m := Form(sc, BuilderBindings(sc)...)
 
 	extras := map[string]keys.Action{
 		"ctrl+r": Run,
@@ -114,27 +104,26 @@ func TestFormAppendsExtraBindingsVerbatim(t *testing.T) {
 }
 
 func TestFormExtraSingleRuneKeysAreNotStripped(t *testing.T) {
-	useScheme(t, minoScheme())
-	m := Form(keys.Binding{Keys: []string{"d"}, Action: Delete})
+	m := Form(minoScheme(), keys.Binding{Keys: []string{"d"}, Action: Delete})
 	assertBound(t, m, "d", Delete)
 }
 
-func TestBuilderBindingsFollowTheActiveScheme(t *testing.T) {
-	useScheme(t, minoScheme().With(
+func TestBuilderBindingsFollowTheGivenScheme(t *testing.T) {
+	sc := minoScheme().With(
 		keys.Binding{Keys: []string{"ctrl+e"}, Action: Run, Glyph: "ctrl+e", Label: "run"},
-	))
+	)
 
-	if got := keys.Cur().Binding(Run).Keys; len(got) != 1 || got[0] != "ctrl+e" {
+	if got := sc.Binding(Run).Keys; len(got) != 1 || got[0] != "ctrl+e" {
 		t.Fatalf("Binding(Run).Keys = %v, want the scheme's ctrl+e", got)
 	}
-	m := Form(BuilderBindings()...)
+	m := Form(sc, BuilderBindings(sc)...)
 	assertBound(t, m, "ctrl+e", Run)
 	assertUnbound(t, m, "ctrl+r")
 	assertBound(t, m, "ctrl+t", Validate)
 }
 
-func TestWithDefaultsFillsBindingsASchemeOmits(t *testing.T) {
-	useScheme(t, keys.Default().WithDefaults(minoBindings()...))
+func TestSchemeForFillsBindingsASchemeOmits(t *testing.T) {
+	sc := keys.Default().WithDefaults(minoBindings()...)
 
 	for _, tc := range []struct {
 		action keys.Action
@@ -147,10 +136,17 @@ func TestWithDefaultsFillsBindingsASchemeOmits(t *testing.T) {
 		{Copy, "ctrl+g"},
 		{Write, "ctrl+w"},
 	} {
-		b := keys.Cur().Binding(tc.action)
+		b := sc.Binding(tc.action)
 		if len(b.Keys) == 0 || b.Keys[0] != tc.key {
 			t.Errorf("%q binding = %v, want the mino default %q so the editor stays usable",
 				tc.action, b.Keys, tc.key)
 		}
+	}
+}
+
+func TestSchemeForFallsBackToMino(t *testing.T) {
+	sc := SchemeFor("no-such-scheme")
+	if got := sc.Binding(Save).Keys; len(got) == 0 || got[0] != "ctrl+s" {
+		t.Fatalf("fallback scheme Save = %v, want ctrl+s", got)
 	}
 }

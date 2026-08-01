@@ -8,6 +8,7 @@ import (
 
 	"github.com/codyconfer/viewkit/clipboard"
 	"github.com/codyconfer/viewkit/forms"
+	"github.com/codyconfer/viewkit/keys"
 )
 
 type taskView struct {
@@ -24,7 +25,7 @@ func taskRecord(t Task) record {
 	return record{Kind: kindTask, ID: t.ID, Title: t.Title, Done: t.Done, Due: t.Due}
 }
 
-func newTaskView(home, role string, base record, dirty func()) *taskView {
+func newTaskView(home, role string, base record, dirty func(), sc keys.Scheme) *taskView {
 	v := &taskView{base: base}
 	v.recordCore = recordCore{
 		home:  home,
@@ -39,7 +40,7 @@ func newTaskView(home, role string, base record, dirty func()) *taskView {
 		"title": base.Title,
 		"due":   dueSeed(base.Due),
 		"done":  base.Done,
-	})
+	}, sc)
 	return v
 }
 

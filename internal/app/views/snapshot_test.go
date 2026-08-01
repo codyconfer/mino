@@ -7,6 +7,8 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/codyconfer/viewkit/layout"
+
 	"github.com/codyconfer/mino/internal/app/pane"
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -44,7 +46,7 @@ func TestSnapshotBodyDoesNotRepeatTheChromeTitle(t *testing.T) {
 	if v.Title() != title {
 		t.Fatalf("chrome title = %q, want %q", v.Title(), title)
 	}
-	body := ansi.Strip(v.render(80))
+	body := ansi.Strip(v.render(layout.Frame{Width: 80}))
 	if strings.Contains(body, title) {
 		t.Errorf("body repeated the chrome title:\n%s", body)
 	}

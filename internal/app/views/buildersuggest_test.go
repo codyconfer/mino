@@ -9,8 +9,6 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
-
-	"github.com/codyconfer/mino/internal/deck"
 )
 
 func (v *builderView) focus(t *testing.T, key string) {
@@ -124,7 +122,7 @@ func TestTabAcceptsSuggestionThenSwitchesFocus(t *testing.T) {
 	v := builderFor(t, kit)
 	v.selectSignal(t, "github")
 
-	a := deck.New(v)
+	a := newTestApp(v)
 	a, _ = updateBuilder(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	v.focus(t, "filters")

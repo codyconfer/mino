@@ -29,7 +29,7 @@ func newVersionCmd() *cobra.Command {
 }
 
 func versionLine() string {
-	return fmt.Sprintf("%s MINO %s", glyph.Brand(), Version)
+	return fmt.Sprintf("%s MINO %s", glyph.BrandIn(Scope().Glyphs), Version)
 }
 
 func skipsAppLoad(cmd *cobra.Command) bool {

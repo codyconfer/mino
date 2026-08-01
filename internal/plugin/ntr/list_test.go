@@ -17,7 +17,7 @@ import (
 
 func loadedList(t *testing.T, v *recordList) *vkdeck.Model {
 	t.Helper()
-	app := deck.New(v)
+	app := deck.New(v, deck.WithScope(testScope()))
 	app = step(app, tea.WindowSizeMsg{Width: 120, Height: 40})
 	return settle(app, v.Init())
 }
@@ -171,7 +171,7 @@ func TestListToggleMarksTaskDone(t *testing.T) {
 		t.Error("x did not mark the task done")
 	}
 
-	if newNotesList(home, "r").toggle != nil {
+	if newNotesList(home, "r").canToggle {
 		t.Error("the notes list binds x, but a note has nothing to toggle")
 	}
 
@@ -233,7 +233,7 @@ func TestListReloadsAfterSave(t *testing.T) {
 }
 
 func TestListHintsOfferEditAndRefresh(t *testing.T) {
-	notes := newNotesList("", "").Hints()
+	notes := newNotesList("", "").Hints(testScope())
 	for _, want := range []string{"edit", "refresh"} {
 		if !hasLabel(notes, want) {
 			t.Errorf("notes list hints missing %q: %v", want, hintLabels(notes))
@@ -243,7 +243,7 @@ func TestListHintsOfferEditAndRefresh(t *testing.T) {
 		t.Errorf("notes list offers a toggle hint: %v", hintLabels(notes))
 	}
 
-	tasks := newTasksList("", "").Hints()
+	tasks := newTasksList("", "").Hints(testScope())
 	if !hasLabel(tasks, "toggle") {
 		t.Errorf("tasks list hints missing toggle: %v", hintLabels(tasks))
 	}
@@ -251,7 +251,7 @@ func TestListHintsOfferEditAndRefresh(t *testing.T) {
 		t.Errorf("tasks list toggle hint is not bound to x: %v", tasks)
 	}
 
-	reminders := newRemindersList("", "").Hints()
+	reminders := newRemindersList("", "").Hints(testScope())
 	if !hasLabel(reminders, "done") {
 		t.Errorf("reminders list hints missing done: %v", hintLabels(reminders))
 	}

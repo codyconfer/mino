@@ -11,6 +11,7 @@ import (
 	"github.com/codyconfer/viewkit/list"
 	vnotify "github.com/codyconfer/viewkit/notify"
 	"github.com/codyconfer/viewkit/panels"
+	"github.com/codyconfer/viewkit/ui"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
@@ -136,7 +137,7 @@ func (v *ServeView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 }
 
 func (v *ServeView) handleKey(a *vkdeck.Model, m tea.KeyMsg) tea.Cmd {
-	act, ok := keymap.ItemList().Action(m.String())
+	act, ok := keymap.ItemList(modelScope(a).Keys).Action(m.String())
 	if !ok {
 		return nil
 	}
@@ -169,8 +170,9 @@ func (v *ServeView) confirm(a *vkdeck.Model) tea.Cmd {
 	return a.Push(&DetailView{ref: ref, fetch: v.FetchDetail})
 }
 
-func (v *ServeView) Body(width, height int) string {
-	f := layout.ScreenFrame(width)
+func (v *ServeView) Body(f layout.Frame) string {
+	width, height := f.Width, f.Height
+	f = f.Screen()
 	ns := v.toast.Snapshot()
 	recent := make([]vnotify.Notification, 0, len(ns))
 	for i := len(ns) - 1; i >= 0; i-- {
@@ -193,8 +195,8 @@ func (v *ServeView) Body(width, height int) string {
 	return layout.Stack(inbox, f.Panel(fmt.Sprintf("events · %d", len(v.refs)), v.lst.View()))
 }
 
-func (v *ServeView) Hints() []keys.Hint {
-	km := keymap.ItemList()
+func (v *ServeView) Hints(scope *ui.Scope) []keys.Hint {
+	km := keymap.ItemList(scope.Keys)
 	hints := []keys.Hint{km.HintLabeled(keys.Up, "move")}
 	if v.FetchDetail != nil {
 		hints = append(hints, km.HintLabeled(keys.Confirm, "details"))
@@ -202,7 +204,7 @@ func (v *ServeView) Hints() []keys.Hint {
 	return append(hints, km.HintLabeled(keys.Open, "open"))
 }
 
-func (v *ServeView) Context() []keys.Hint {
+func (v *ServeView) Context(scope *ui.Scope) []keys.Hint {
 	cues := []keys.Hint{{Key: "flight", Label: v.flight}}
 	if v.last != "" {
 		cues = append(cues, keys.Hint{Key: "last", Label: v.last})

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/layout"
 
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -40,7 +41,7 @@ func TestFlightTaskAdaptsSectionsToContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out[0].Render(0), "Alpha") {
-		t.Fatalf("got %q", out[0].Render(0))
+	if !strings.Contains(out[0].Render(layout.Frame{}), "Alpha") {
+		t.Fatalf("got %q", out[0].Render(layout.Frame{}))
 	}
 }

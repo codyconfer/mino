@@ -107,7 +107,7 @@ func TestSectionResultsErroredCountsErrSections(t *testing.T) {
 
 func TestItemLinesShowsAuthor(t *testing.T) {
 	f := layout.NewFrame(80)
-	th := theme.Cur()
+	th := theme.Default()
 	lines := itemLines(f, th, signals.Item{
 		Kind:     "pr",
 		Title:    "Add retry logic",

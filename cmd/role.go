@@ -6,10 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/viewkit/theme"
-
 	"github.com/codyconfer/mino/internal/errs"
-	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func dashRole(s string) string {
@@ -50,11 +47,12 @@ func newRoleCmd() *cobra.Command {
 				return nil
 			}
 			fmt.Fprintln(out, "\ndefined roles:")
+			sc := Scope()
 			for _, n := range names {
 				rd := shared.Dirs().Roles[n]
 				marker := "  "
 				if n == a.Role {
-					marker = theme.Cur().Can.Render(glyph.StatusOK()) + " "
+					marker = sc.Theme.Can.Render(sc.Glyphs.StatusOK()) + " "
 				}
 				fmt.Fprintf(out, "%s%-12s home=%s flights=[%s] queries=[%s] formatters=[%s]\n",
 					marker, n, dashRole(rd.Home),

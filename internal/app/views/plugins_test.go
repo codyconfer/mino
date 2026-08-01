@@ -10,7 +10,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/viewkit/layout"
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/signals/build"
 	"github.com/codyconfer/mino/internal/testenv"
@@ -40,7 +42,7 @@ func TestPluginsMenuSmoke(t *testing.T) {
 			t.Fatalf("plugins menu panicked: %v", r)
 		}
 	}()
-	a := deck.New(kit.Plugins())
+	a := newTestApp(kit.Plugins())
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := pluginsAnsi.ReplaceAllString(a.View(), "")
 	if !strings.Contains(body, "PLUGINS") {
@@ -82,7 +84,7 @@ func TestPluginsListsInternalAsBuiltIn(t *testing.T) {
 	if !found {
 		t.Fatalf("missing internal %s in rows: %+v", id, page.rows)
 	}
-	body := pluginsAnsi.ReplaceAllString(page.Body(120, 40), "")
+	body := pluginsAnsi.ReplaceAllString(page.Body(layout.Frame{Width: 120, Height: 40}), "")
 	if !strings.Contains(body, id) || !strings.Contains(body, "built-in") {
 		t.Fatalf("body missing built-in internal plugin:\n%s", body)
 	}
@@ -101,9 +103,9 @@ func TestPluginsListsInternalAsBuiltIn(t *testing.T) {
 			break
 		}
 	}
-	joined := fmt.Sprint(page.Hints())
+	joined := fmt.Sprint(page.Hints(ui.Default()))
 	if strings.Contains(joined, "uninstall") {
-		t.Fatalf("uninstall hint should be hidden for internal: %v", page.Hints())
+		t.Fatalf("uninstall hint should be hidden for internal: %v", page.Hints(ui.Default()))
 	}
 }
 
@@ -152,7 +154,7 @@ func TestPluginsDisableKeepsRow(t *testing.T) {
 		}
 	}
 
-	a := deck.New(page)
+	a := newTestApp(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	a, cmd := update(a, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
@@ -212,12 +214,12 @@ func TestPluginsUninstallRemovesExternalFromListAndReinstallRestores(t *testing.
 			break
 		}
 	}
-	joined := fmt.Sprint(page.Hints())
+	joined := fmt.Sprint(page.Hints(ui.Default()))
 	if !strings.Contains(joined, "uninstall") {
-		t.Fatalf("uninstall hint missing for external: %v", page.Hints())
+		t.Fatalf("uninstall hint missing for external: %v", page.Hints(ui.Default()))
 	}
 
-	a := deck.New(page)
+	a := newTestApp(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	a, cmd := update(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
@@ -291,7 +293,7 @@ func TestPluginsUninstallIgnoredForInternal(t *testing.T) {
 			break
 		}
 	}
-	a := deck.New(page)
+	a := newTestApp(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	a, cmd := update(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("u")})
 	if cmd != nil {
@@ -320,7 +322,7 @@ func TestPluginsTogglePersists(t *testing.T) {
 	}
 	was := page.rows[page.cursor].enabled
 
-	a := deck.New(page)
+	a := newTestApp(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	a, cmd := update(a, tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
@@ -412,7 +414,7 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 		}
 	}
 
-	a := deck.New(page)
+	a := newTestApp(page)
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	a, cmd := update(a, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
 	if cmd == nil {
@@ -491,7 +493,7 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 			break
 		}
 	}
-	hints := page.Hints()
+	hints := page.Hints(ui.Default())
 	joined := fmt.Sprint(hints)
 	if !strings.Contains(joined, "install") || !strings.Contains(joined, "uninstall") {
 		t.Fatalf("hints missing install/uninstall for external: %v", hints)
@@ -511,7 +513,7 @@ func TestPluginsListSpacesOnlyTheCursorRow(t *testing.T) {
 		t.Skipf("need at least 3 plugin rows, have %d", len(page.rows))
 	}
 
-	lines := strings.Split(page.Body(120, 40), "\n")
+	lines := strings.Split(page.Body(layout.Frame{Width: 120, Height: 40}), "\n")
 	at := func(id string) int {
 		for i, ln := range lines {
 			if strings.Contains(ln, id) {

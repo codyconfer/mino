@@ -31,6 +31,7 @@ func startLaunchLoading() {
 		Writer:      os.Stderr,
 		Message:     "starting…",
 		DoneMessage: "ready",
+		UI:          Scope(),
 	})
 }
 

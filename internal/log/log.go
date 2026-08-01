@@ -37,6 +37,8 @@ var (
 	console io.Writer = os.Stderr
 	file    *os.File
 
+	injected *theme.Theme
+
 	tags  map[Level]string
 	dimSt func(string) string
 )
@@ -62,7 +64,10 @@ func rebuild() {
 		dimSt = plain
 		return
 	}
-	th := theme.Cur()
+	th := theme.Default()
+	if injected != nil {
+		th = *injected
+	}
 	warn := th.Cant
 	if len(th.Series) > 2 {
 		warn = th.Series[2]
@@ -74,6 +79,14 @@ func rebuild() {
 		LevelDebug: th.Dim.Render("debug"),
 	}
 	dimSt = func(s string) string { return th.Dim.Render(s) }
+}
+
+// SetTheme pins log styles to t instead of the theme global.
+func SetTheme(t theme.Theme) {
+	mu.Lock()
+	injected = &t
+	rebuild()
+	mu.Unlock()
 }
 
 func SetOutput(w io.Writer) {

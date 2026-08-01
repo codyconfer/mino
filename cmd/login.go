@@ -30,7 +30,7 @@ func newLoginCmd() *cobra.Command {
 			if err := refuseUnreadableStore(p); err != nil {
 				return err
 			}
-			return loginflow.RunCLI(cmd.Context(), shared, p, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return loginflow.RunCLI(cmd.Context(), shared, Scope(), p, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 }

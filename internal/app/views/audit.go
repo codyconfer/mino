@@ -11,7 +11,7 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/panels"
-	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
@@ -61,7 +61,7 @@ func (me *auditView) Title() string { return "query · " + me.db() }
 
 func (me *auditView) Init() tea.Cmd { return nil }
 
-func (me *auditView) Context() []keys.Hint {
+func (me *auditView) Context(scope *ui.Scope) []keys.Hint {
 	cues := []keys.Hint{{Key: "db", Label: me.db()}}
 	if me.running {
 		cues = append(cues, keys.Hint{Key: "state", Label: "running"})
@@ -69,7 +69,7 @@ func (me *auditView) Context() []keys.Hint {
 	return cues
 }
 
-func (me *auditView) Hints() []keys.Hint {
+func (me *auditView) Hints(scope *ui.Scope) []keys.Hint {
 	return []keys.Hint{{Key: "←/→", Label: "db"}, {Key: "enter", Label: "run"}, {Key: "↑/↓", Label: "scroll"}}
 }
 
@@ -82,7 +82,7 @@ func (me *auditView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		return nil
 	case tea.KeyMsg:
 		if me.keys == nil {
-			me.keys = keymap.Form(keys.Binding{Keys: []string{"tab"}, Action: keys.Right})
+			me.keys = keymap.Form(modelScope(a).Keys, keys.Binding{Keys: []string{"tab"}, Action: keys.Right})
 		}
 		act, ok := me.keys.Action(m.String())
 		if !ok {
@@ -179,7 +179,7 @@ func auditExec(path, query string) auditResult {
 }
 
 func (me *auditView) results(f layout.Frame) string {
-	th := theme.Cur()
+	th := f.Theme()
 	switch {
 	case me.running:
 		return th.Dim.Render("running…")
@@ -191,9 +191,10 @@ func (me *auditView) results(f layout.Frame) string {
 	return panels.Table(f, me.result.cols, me.result.rows)
 }
 
-func (me *auditView) Body(width, height int) string {
-	th := theme.Cur()
-	f := layout.NewFrame(width)
+func (me *auditView) Body(f layout.Frame) string {
+	th := f.Theme()
+	height := f.Height
+	f = f.WithWidth(f.Width)
 
 	tabs := make([]string, len(auditvDBs))
 	for i, name := range auditvDBs {
@@ -214,7 +215,7 @@ func (me *auditView) Body(width, height int) string {
 	editor := f.Row("sql", shown+th.Accent.Render("▉"))
 
 	head := layout.StackTight(selector, editor, f.Rule())
-	results := me.scroll.View(me.results(f), height-layout.CountLines(head))
+	results := me.scroll.View(f, me.results(f), height-layout.CountLines(head))
 
 	return layout.StackTight(head, results)
 }

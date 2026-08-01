@@ -6,20 +6,22 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/codyconfer/viewkit/ui"
 )
 
 func TestCLINotesRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
 	var buf bytes.Buffer
-	if err := CLINotesAdd(ctx, &buf, home, "r", "hello", "body"); err != nil {
+	if err := CLINotesAdd(ctx, &buf, ui.Default(), home, "r", "hello", "body"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "created") {
 		t.Fatalf("add out = %q", buf.String())
 	}
 	buf.Reset()
-	if err := CLINotesList(ctx, &buf, home, "r"); err != nil {
+	if err := CLINotesList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "hello") {
@@ -27,25 +29,25 @@ func TestCLINotesRoundTrip(t *testing.T) {
 	}
 	id := strings.Fields(buf.String())[0]
 	buf.Reset()
-	if err := CLINotesUpdate(ctx, &buf, home, "r", id, "hi", "new body"); err != nil {
+	if err := CLINotesUpdate(ctx, &buf, ui.Default(), home, "r", id, "hi", "new body"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "updated") {
 		t.Fatalf("update out = %q", buf.String())
 	}
 	buf.Reset()
-	if err := CLINotesList(ctx, &buf, home, "r"); err != nil {
+	if err := CLINotesList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "hi") || strings.Contains(buf.String(), "hello") {
 		t.Fatalf("list after update = %q", buf.String())
 	}
 	buf.Reset()
-	if err := CLINotesRM(ctx, &buf, home, "r", id); err != nil {
+	if err := CLINotesRM(ctx, &buf, ui.Default(), home, "r", id); err != nil {
 		t.Fatal(err)
 	}
 	buf.Reset()
-	if err := CLINotesList(ctx, &buf, home, "r"); err != nil {
+	if err := CLINotesList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if buf.Len() != 0 {
@@ -57,11 +59,11 @@ func TestCLITasksCRUD(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
 	var buf bytes.Buffer
-	if err := CLITasksAdd(ctx, &buf, home, "r", "ship"); err != nil {
+	if err := CLITasksAdd(ctx, &buf, ui.Default(), home, "r", "ship"); err != nil {
 		t.Fatal(err)
 	}
 	buf.Reset()
-	if err := CLITasksList(ctx, &buf, home, "r"); err != nil {
+	if err := CLITasksList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "ship") {
@@ -70,11 +72,11 @@ func TestCLITasksCRUD(t *testing.T) {
 	id := strings.Fields(buf.String())[0]
 
 	buf.Reset()
-	if err := CLITasksDone(ctx, &buf, home, "r", id); err != nil {
+	if err := CLITasksDone(ctx, &buf, ui.Default(), home, "r", id); err != nil {
 		t.Fatal(err)
 	}
 	buf.Reset()
-	if err := CLITasksList(ctx, &buf, home, "r"); err != nil {
+	if err := CLITasksList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if buf.Len() != 0 {
@@ -82,14 +84,14 @@ func TestCLITasksCRUD(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := CLITasksUndo(ctx, &buf, home, "r", id); err != nil {
+	if err := CLITasksUndo(ctx, &buf, ui.Default(), home, "r", id); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "reopened") {
 		t.Fatalf("undo out = %q", buf.String())
 	}
 	buf.Reset()
-	if err := CLITasksList(ctx, &buf, home, "r"); err != nil {
+	if err := CLITasksList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "ship") {
@@ -97,11 +99,11 @@ func TestCLITasksCRUD(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := CLITasksRM(ctx, &buf, home, "r", id); err != nil {
+	if err := CLITasksRM(ctx, &buf, ui.Default(), home, "r", id); err != nil {
 		t.Fatal(err)
 	}
 	buf.Reset()
-	if err := CLITasksList(ctx, &buf, home, "r"); err != nil {
+	if err := CLITasksList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if buf.Len() != 0 {
@@ -113,11 +115,11 @@ func TestCLIRemindDone(t *testing.T) {
 	ctx := context.Background()
 	home := t.TempDir()
 	var buf bytes.Buffer
-	if err := CLIRemindAdd(ctx, &buf, home, "r", "ping", "1h"); err != nil {
+	if err := CLIRemindAdd(ctx, &buf, ui.Default(), home, "r", "ping", "1h"); err != nil {
 		t.Fatal(err)
 	}
 	buf.Reset()
-	if err := CLIRemindList(ctx, &buf, home, "r"); err != nil {
+	if err := CLIRemindList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "ping") {
@@ -125,14 +127,14 @@ func TestCLIRemindDone(t *testing.T) {
 	}
 	id := strings.Fields(buf.String())[0]
 	buf.Reset()
-	if err := CLIRemindDone(ctx, &buf, home, "r", id); err != nil {
+	if err := CLIRemindDone(ctx, &buf, ui.Default(), home, "r", id); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "done") {
 		t.Fatalf("done out = %q", buf.String())
 	}
 	buf.Reset()
-	if err := CLIRemindList(ctx, &buf, home, "r"); err != nil {
+	if err := CLIRemindList(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if buf.Len() != 0 {
@@ -153,7 +155,7 @@ func TestCLICatchUpAck(t *testing.T) {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer
-	if err := CLICatchUp(ctx, &buf, home, "r"); err != nil {
+	if err := CLICatchUp(ctx, &buf, ui.Default(), home, "r"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "fired 1") {

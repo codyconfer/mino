@@ -70,13 +70,13 @@ var detailMetaRows = []struct {
 }
 
 func contentFrame(f layout.Frame) layout.Frame {
-	return layout.NewFrame(f.BodyWidth() - 4)
+	return f.WithWidth(f.BodyWidth() - 4)
 }
 
 func DetailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail) string {
 	ref, d = cleanRef(ref), signals.CleanDetail(d)
 
-	th := theme.Cur()
+	th := f.Theme()
 	cf := contentFrame(f)
 	it := ref.Item
 
@@ -112,7 +112,7 @@ func DetailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail) string {
 	}
 
 	sev := detailSeverity(it, d)
-	icon := theme.SeverityStyle(sev).Render(glyph.Lead(glyph.For(sev)))
+	icon := th.SeverityStyle(sev).Render(glyph.Lead(glyph.ForIn(f.Glyphs(), sev)))
 	out := []string{f.TitledBoxIcon(icon, head, lines...)}
 	if d != nil {
 		for _, s := range d.Sections {
@@ -142,7 +142,7 @@ func detailChips(th theme.Theme, d *signals.ItemDetail) string {
 	}
 	parts := make([]string, 0, len(d.Chips))
 	for _, c := range d.Chips {
-		parts = append(parts, theme.SeverityStyle(c.Sev).Render(c.Label))
+		parts = append(parts, th.SeverityStyle(c.Sev).Render(c.Label))
 	}
 	return strings.Join(parts, th.Dim.Render(" · "))
 }

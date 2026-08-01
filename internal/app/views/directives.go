@@ -22,8 +22,7 @@ func directiveSplit(s string) []string {
 	return out
 }
 
-func directiveFindingLine(f Finding) string {
-	th := theme.Cur()
+func directiveFindingLine(th theme.Theme, f Finding) string {
 	var mark string
 	switch {
 	case f.OK:

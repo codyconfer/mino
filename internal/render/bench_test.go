@@ -219,7 +219,7 @@ func BenchmarkNewReportStyles(b *testing.B) {
 	pinTrueColor(b)
 	b.ReportAllocs()
 	for b.Loop() {
-		benchStyles = NewReportStyles(io.Discard)
+		benchStyles = NewReportStyles(io.Discard, nil)
 	}
 	if benchStyles.Title.Render("x") == "" {
 		b.Fatal("NewReportStyles produced an unusable style set")
@@ -283,7 +283,7 @@ func writeBenchReport(w io.Writer, sty ReportStyles, findings []benchFinding) {
 func trueColorReportStyles() ReportStyles {
 	r := lipgloss.NewRenderer(io.Discard)
 	r.SetColorProfile(termenv.TrueColor)
-	sty := NewReportStyles(io.Discard)
+	sty := NewReportStyles(io.Discard, nil)
 	return ReportStyles{
 		Title:   sty.Title.Renderer(r),
 		OK:      sty.OK.Renderer(r),
@@ -301,7 +301,7 @@ func BenchmarkReportRender(b *testing.B) {
 	findings := benchFindings()
 
 	b.Run("profile=writer_default", func(b *testing.B) {
-		sty := NewReportStyles(io.Discard)
+		sty := NewReportStyles(io.Discard, nil)
 		b.ReportAllocs()
 		for b.Loop() {
 			writeBenchReport(io.Discard, sty, findings)

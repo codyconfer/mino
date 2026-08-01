@@ -45,7 +45,6 @@ func pinPlain(tb testing.TB) {
 	prevMode := glyph.CurrentMode()
 	lipgloss.SetColorProfile(termenv.Ascii)
 	glyph.SetMode(glyph.ModeNone)
-	InstallDefaultTheme()
 	tb.Cleanup(func() {
 		lipgloss.SetColorProfile(prevProfile)
 		glyph.SetMode(prevMode)

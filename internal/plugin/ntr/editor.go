@@ -7,9 +7,9 @@ import (
 	"time"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/forms"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
-	"github.com/codyconfer/viewkit/theme"
 
 	"gopkg.in/yaml.v3"
 
@@ -25,10 +25,9 @@ const (
 
 type editorShell = vkdeck.Editor
 
-func recordKeys() vkdeck.EditorKeys {
-	sc := keys.Cur()
+func recordKeys(sc keys.Scheme) vkdeck.EditorKeys {
 	return vkdeck.EditorKeys{
-		Map: keymap.Form(
+		Map: keymap.Form(sc,
 			sc.Binding(keymap.Run),
 			sc.Binding(keymap.Validate),
 			sc.Binding(keymap.Preview),
@@ -36,7 +35,7 @@ func recordKeys() vkdeck.EditorKeys {
 			sc.Binding(keymap.Focus),
 			sc.Binding(keymap.Copy),
 		),
-		Confirm:  keymap.ConfirmMap(),
+		Confirm:  keymap.ConfirmMap(sc),
 		Run:      keymap.Run,
 		Save:     keymap.Save,
 		Validate: keymap.Validate,
@@ -47,8 +46,32 @@ func recordKeys() vkdeck.EditorKeys {
 	}
 }
 
-func newRecordEditor(doc vkdeck.EditorDoc, seed map[string]any) *editorShell {
-	return vkdeck.NewEditor(doc, recordKeys(), seed)
+// recordViewDoc is the doc surface a record view exposes; recordDoc adapts it
+// to vkdeck.EditorDoc, whose Context signature differs from vkdeck.View's.
+type recordViewDoc interface {
+	Kind() string
+	Title() string
+	SavedName() string
+	Fields(prev map[string]any) []forms.Field
+	Sync() bool
+	Summary() string
+	PreviewLines(f layout.Frame) []string
+	ValidateLines(f layout.Frame) ([]string, error)
+	Run() (string, func() vkdeck.Results, error)
+	Persist() (string, error)
+	Remove() (string, error)
+	CopyOutput() (string, error)
+	WriteOutput() (string, error)
+	docCtx() []keys.Hint
+}
+
+// recordDoc adapts a record view into vkdeck.EditorDoc.
+type recordDoc struct{ recordViewDoc }
+
+func (d recordDoc) Context() []keys.Hint { return d.docCtx() }
+
+func newRecordEditor(view recordViewDoc, seed map[string]any, sc keys.Scheme) *editorShell {
+	return vkdeck.NewEditor(recordDoc{view}, recordKeys(sc), seed)
 }
 
 type recordCore struct {
@@ -66,7 +89,7 @@ type recordCore struct {
 
 func (c *recordCore) Kind() string { return c.kind }
 
-func (c *recordCore) Context() []keys.Hint {
+func (c *recordCore) docCtx() []keys.Hint {
 	ctx := []keys.Hint{{Key: "role", Label: c.role}, {Key: "notes", Label: recordScreen(c.kind)}}
 	if c.id != 0 {
 		ctx = append(ctx, keys.Hint{Key: "item", Label: c.label()})
@@ -91,24 +114,24 @@ func (c *recordCore) Summary() string {
 	return rec.summary()
 }
 
-func (c *recordCore) PreviewLines() []string {
+func (c *recordCore) PreviewLines(f layout.Frame) []string {
 	rec, err := c.read()
 	if err != nil {
-		return []string{theme.Cur().Cant.Render(err.Error())}
+		return []string{f.Theme().Cant.Render(err.Error())}
 	}
 	data, err := yaml.Marshal(rec.preview())
 	if err != nil {
-		return []string{theme.Cur().Cant.Render(err.Error())}
+		return []string{f.Theme().Cant.Render(err.Error())}
 	}
 	return layout.Lines(string(data))
 }
 
-func (c *recordCore) ValidateLines() ([]string, error) {
+func (c *recordCore) ValidateLines(f layout.Frame) ([]string, error) {
 	rec, err := c.read()
 	if err != nil {
 		return nil, err
 	}
-	return rec.check(c.clock()), nil
+	return rec.check(f.Theme(), c.clock()), nil
 }
 
 func (c *recordCore) Run() (string, func() vkdeck.Results, error) {

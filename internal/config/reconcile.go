@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/log"
@@ -42,13 +43,13 @@ func ParseReconcilePolicy(s string) (ReconcilePolicy, error) {
 	return ReconcilePrompt, errs.Newf(errs.KindUsage, "unknown reconcile policy %q: want one of %v", s, ReconcilePolicyNames())
 }
 
-func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePolicy, interactive bool, in io.Reader, out io.Writer) (*Config, *Directives, *sisyphus.ConfigStore, error) {
+func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePolicy, interactive bool, in io.Reader, out io.Writer, scope *ui.Scope) (*Config, *Directives, *sisyphus.ConfigStore, error) {
 	home, err := Home(homeOverride)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	gs := LoadGlobalSettings()
-	res := &Resolver{home: home, preferDB: gs.PreferDB, policy: policy, interactive: interactive, in: in, out: out}
+	res := &Resolver{home: home, preferDB: gs.PreferDB, policy: policy, interactive: interactive, in: in, out: out, ui: scope}
 
 	var mgr *sisyphus.ConfigStore
 	if m, err := OpenStore(context.Background(), home); err != nil {
@@ -239,6 +240,16 @@ type Resolver struct {
 	interactive bool
 	in          io.Reader
 	out         io.Writer
+	ui          *ui.Scope
+}
+
+// scope returns the resolver's rendering scope, defaulting to the process
+// defaults.
+func (r *Resolver) scope() *ui.Scope {
+	if r.ui != nil {
+		return r.ui
+	}
+	return ui.Default()
 }
 
 // applyPlan resolves every planned reconciliation with a single batch
@@ -336,10 +347,11 @@ func (r *Resolver) Resolve(rec sisyphus.Reconciliation) (sisyphus.Action, error)
 
 func (r *Resolver) promptAll(recs []sisyphus.Reconciliation) (sisyphus.Action, error) {
 	out := r.out
+	sc := r.scope()
 	in := bufio.NewReader(r.in)
 	for {
-		fmt.Fprint(out, "\n"+renderReconcileBatchPanel(out, recs)+"\n")
-		fmt.Fprint(out, reconcilePromptLine())
+		fmt.Fprint(out, "\n"+renderReconcileBatchPanel(sc, out, recs)+"\n")
+		fmt.Fprint(out, reconcilePromptLine(sc.Theme))
 		key, err := readPromptKey(r.in, in)
 		if err != nil && key == "" {
 			fmt.Fprintln(out)
@@ -355,14 +367,14 @@ func (r *Resolver) promptAll(recs []sisyphus.Reconciliation) (sisyphus.Action, e
 			return sisyphus.ActionUseDB, nil
 		case choiceEdit:
 			if r.home == "" {
-				fmt.Fprintln(out, renderReconcileNotice("config home unknown; cannot open editor"))
+				fmt.Fprintln(out, renderReconcileNotice(sc, "config home unknown; cannot open editor"))
 				continue
 			}
 			if err := openConfigEditor(r.home); err != nil {
-				fmt.Fprintln(out, renderReconcileNotice(err.Error()))
+				fmt.Fprintln(out, renderReconcileNotice(sc, err.Error()))
 				continue
 			}
-			fmt.Fprintln(out, renderReconcileNotice("opened "+r.home+" in editor"))
+			fmt.Fprintln(out, renderReconcileNotice(sc, "opened "+r.home+" in editor"))
 		case choiceDiscard:
 			ok, err := r.confirmDiscardAll(in, recs)
 			if err != nil {
@@ -373,31 +385,32 @@ func (r *Resolver) promptAll(recs []sisyphus.Reconciliation) (sisyphus.Action, e
 			}
 			return sisyphus.ActionUseDB, nil
 		default:
-			fmt.Fprintln(out, renderReconcileNotice("unrecognized choice"))
+			fmt.Fprintln(out, renderReconcileNotice(sc, "unrecognized choice"))
 		}
 	}
 }
 
 func (r *Resolver) confirmDiscardAll(in *bufio.Reader, recs []sisyphus.Reconciliation) (bool, error) {
-	fmt.Fprint(r.out, discardConfirmBatchLine(r.home, recs))
+	sc := r.scope()
+	fmt.Fprint(r.out, discardConfirmBatchLine(sc, r.home, recs))
 	key, err := readPromptKey(r.in, in)
 	if err != nil && key == "" {
 		fmt.Fprintln(r.out)
-		fmt.Fprintln(r.out, renderReconcileNotice("kept the staged files"))
+		fmt.Fprintln(r.out, renderReconcileNotice(sc, "kept the staged files"))
 		return false, nil
 	}
 	echoPromptKey(r.out, key)
 	if strings.ToLower(key) != "y" {
-		fmt.Fprintln(r.out, renderReconcileNotice("kept the staged files"))
+		fmt.Fprintln(r.out, renderReconcileNotice(sc, "kept the staged files"))
 		return false, nil
 	}
 	for _, rec := range recs {
 		if err := deleteDirectiveFiles(r.home, rec.Name); err != nil {
-			fmt.Fprintln(r.out, renderReconcileNotice("discard failed: "+err.Error()))
+			fmt.Fprintln(r.out, renderReconcileNotice(sc, "discard failed: "+err.Error()))
 			return false, nil
 		}
 	}
-	fmt.Fprintln(r.out, renderReconcileNotice("discarded staged "+joinNames(recs)+"; using the stored version"))
+	fmt.Fprintln(r.out, renderReconcileNotice(sc, "discarded staged "+joinNames(recs)+"; using the stored version"))
 	return true, nil
 }
 

@@ -61,7 +61,7 @@ func (f *queryBuildFlags) prompt() error {
 		},
 	}
 
-	vals, err := deck.Prompt(spec)
+	vals, err := deck.Prompt(Scope(), spec)
 	if errors.Is(err, vkdeck.ErrCancelled) {
 		return errs.New(errs.KindUsage, "cancelled")
 	}

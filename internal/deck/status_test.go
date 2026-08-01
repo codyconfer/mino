@@ -53,9 +53,9 @@ func TestPluginServicesAppearInStatusStrip(t *testing.T) {
 		Services:   append([]ServiceStatus{{Name: "github", Severity: vkglyph.SeverityPositive}}, svcs...),
 	}
 	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
-	app := New(menu, WithStatus(func(context.Context) StatusInfo { return info }))
+	app := New(menu, WithStatus(nil, func(context.Context) StatusInfo { return info }))
 	app = drive(app, tea.WindowSizeMsg{Width: 120, Height: 40})
-	app.SetStatus(adaptStatus(info))
+	app.SetStatus(adaptStatus(nil, info))
 	view := ansi.Strip(app.View())
 	if !strings.Contains(view, "deckplug") || !strings.Contains(view, marker) {
 		t.Fatalf("status chrome missing plugin contrib\n---\n%s", view)
@@ -111,7 +111,7 @@ func TestAdaptStatusUsesToolLogos(t *testing.T) {
 		{Name: "slack", Severity: vkglyph.SeverityPositive},
 		{ID: "google", Name: "google", Severity: vkglyph.SeverityNeutral},
 	}}
-	got := adaptStatus(info)
+	got := adaptStatus(nil, info)
 	if len(got.Services) != 3 {
 		t.Fatalf("services = %d, want 3", len(got.Services))
 	}
@@ -139,7 +139,7 @@ func TestAdaptStatusHidesConfiguredEntries(t *testing.T) {
 		{ID: "mino.hide.test", Name: "SECRET-LOGO", Severity: vkglyph.SeverityPositive, Glyph: "G"},
 		{ID: "mino.show.test", Name: "notes", Severity: vkglyph.SeverityPositive, Glyph: "N"},
 	}}
-	got := adaptStatus(info)
+	got := adaptStatus(nil, info)
 	if len(got.Services) != 2 {
 		t.Fatalf("services = %d, want 2 (hidden filtered): %+v", len(got.Services), got.Services)
 	}
@@ -164,7 +164,7 @@ func TestAdaptStatusHidesGoogleViaLegacyKey(t *testing.T) {
 		{Name: "github", Severity: vkglyph.SeverityPositive},
 		{ID: "google", Name: "google", Severity: vkglyph.SeverityPositive},
 	}}
-	got := adaptStatus(info)
+	got := adaptStatus(nil, info)
 	if len(got.Services) != 1 || got.Services[0].Name != glyph.GitHub() {
 		t.Fatalf("expected only github after legacy google hide, got %+v", got.Services)
 	}
@@ -181,7 +181,7 @@ func TestRoleServicesAppearInStatusStrip(t *testing.T) {
 	}
 
 	info := StatusInfo{Services: append([]ServiceStatus{{Name: "slack", Severity: vkglyph.SeverityPositive}}, svcs...)}
-	got := adaptStatus(info)
+	got := adaptStatus(nil, info)
 	if len(got.Services) != 2 {
 		t.Fatalf("adaptStatus services = %+v", got.Services)
 	}
@@ -192,9 +192,9 @@ func TestRoleServicesAppearInStatusStrip(t *testing.T) {
 	}
 
 	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
-	app := New(menu, WithStatus(func(context.Context) StatusInfo { return info }))
+	app := New(menu, WithStatus(nil, func(context.Context) StatusInfo { return info }))
 	app = drive(app, tea.WindowSizeMsg{Width: 120, Height: 40})
-	app.SetStatus(adaptStatus(info))
+	app.SetStatus(adaptStatus(nil, info))
 	view := ansi.Strip(app.View())
 	if !strings.Contains(view, "triage-ctx") {
 		t.Fatalf("status chrome missing role status text\n---\n%s", view)

@@ -10,6 +10,8 @@ import (
 
 	"github.com/charmbracelet/x/term"
 
+	"github.com/codyconfer/viewkit/ui"
+
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/notify"
@@ -18,7 +20,7 @@ import (
 
 var stdinIsTTY = func() bool { return term.IsTerminal(os.Stdin.Fd()) }
 
-func RunCLI(ctx context.Context, a *app.App, p Provider, in io.Reader, out, errOut io.Writer) error {
+func RunCLI(ctx context.Context, a *app.App, scope *ui.Scope, p Provider, in io.Reader, out, errOut io.Writer) error {
 	if p.Authed(a) {
 		fmt.Fprintln(out, notify.Render(notify.AlreadyAuthed(p.Label)))
 		return nil
@@ -47,7 +49,7 @@ func RunCLI(ctx context.Context, a *app.App, p Provider, in io.Reader, out, errO
 	if err := p.Login(ctx, a, creds, errOut); err != nil {
 		return err
 	}
-	fmt.Fprintln(out, render.Success(p.Label+" authorized — token cached."))
+	fmt.Fprintln(out, render.Success(scope, p.Label+" authorized — token cached."))
 	return nil
 }
 

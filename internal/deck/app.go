@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render/glyph"
@@ -13,10 +14,20 @@ import (
 
 type Option func(*vkdeck.Model)
 
-func WithStatus(fn StatusFunc) Option {
+// WithScope installs the rendering scope on the deck model.
+func WithScope(scope *ui.Scope) Option {
+	return Option(vkdeck.WithScope(scope))
+}
+
+// WithStatus installs the async status loader; scope is captured for the
+// off-goroutine theme/glyph resolution (nil snapshots the process defaults).
+func WithStatus(scope *ui.Scope, fn StatusFunc) Option {
+	if scope == nil {
+		scope = ui.Default()
+	}
 	return func(h *vkdeck.Model) {
 		vkdeck.WithStatus(func(ctx context.Context) vkdeck.StatusInfo {
-			return adaptStatus(fn(ctx))
+			return adaptStatus(scope, fn(ctx))
 		})(h)
 	}
 }
@@ -44,18 +55,23 @@ func Run(root vkdeck.View, opts ...Option) error {
 	return nil
 }
 
+// minoOpts applies the caller's options first (so WithScope lands), then
+// builds the chrome glyphs from the model's scope.
 func minoOpts(opts ...Option) []vkdeck.Option {
-	out := []vkdeck.Option{
-		vkdeck.WithChrome(vkdeck.Chrome{
-			Brand:      "MINO",
-			BrandGlyph: glyph.Brand(),
-			Subtitle:   "netrunner deck",
-			ClockGlyph: glyph.Pad(glyph.Clock()),
-		}),
-		vkdeck.WithKeyMapQuit(),
-	}
+	out := make([]vkdeck.Option, 0, len(opts)+2)
 	for _, o := range opts {
 		out = append(out, vkdeck.Option(o))
 	}
-	return out
+	return append(out,
+		vkdeck.Option(func(h *vkdeck.Model) {
+			g := h.UI().Glyphs
+			vkdeck.WithChrome(vkdeck.Chrome{
+				Brand:      "MINO",
+				BrandGlyph: glyph.BrandIn(g),
+				Subtitle:   "netrunner deck",
+				ClockGlyph: glyph.Pad(g.Clock()),
+			})(h)
+		}),
+		vkdeck.WithKeyMapQuit(),
+	)
 }

@@ -7,7 +7,7 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	vkglyph "github.com/codyconfer/viewkit/glyph"
-	"github.com/codyconfer/viewkit/theme"
+	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/log"
@@ -123,8 +123,11 @@ func RoleServices() []ServiceStatus {
 // adaptStatus applies mino policy to the raw chips: drops user-hidden ones,
 // swaps known tool names for their logos, and renders the identity segment.
 // Glyph/color resolution from severity is viewkit's job now.
-func adaptStatus(info StatusInfo) vkdeck.StatusInfo {
-	out := vkdeck.StatusInfo{Identity: identity(info)}
+func adaptStatus(scope *ui.Scope, info StatusInfo) vkdeck.StatusInfo {
+	if scope == nil {
+		scope = ui.Default()
+	}
+	out := vkdeck.StatusInfo{Identity: identity(scope, info)}
 	for _, s := range info.Services {
 		if statusBarHidden(s) {
 			continue
@@ -161,15 +164,15 @@ func serviceChip(name, detail string) (string, string) {
 	return name, detail
 }
 
-func identity(info StatusInfo) string {
+func identity(scope *ui.Scope, info StatusInfo) string {
 	if info.GitHubUser == "" {
 		return ""
 	}
-	th := theme.Cur()
-	mark := theme.StripText(th.Cant.GetForeground(), glyph.SigningBad())
+	th := scope.Theme
+	mark := th.StripText(th.Cant.GetForeground(), glyph.SigningBadIn(scope.Glyphs))
 	if info.SigningVerified {
-		mark = theme.StripText(th.Can.GetForeground(), glyph.SigningOK())
+		mark = th.StripText(th.Can.GetForeground(), glyph.SigningOKIn(scope.Glyphs))
 	}
-	return theme.StripBold(th.Key.GetForeground(), "@"+info.GitHubUser) +
-		theme.StripText(th.Dim.GetForeground(), " ") + mark
+	return th.StripBold(th.Key.GetForeground(), "@"+info.GitHubUser) +
+		th.StripText(th.Dim.GetForeground(), " ") + mark
 }

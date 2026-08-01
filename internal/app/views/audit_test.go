@@ -305,7 +305,7 @@ func auditScrollView(rows int) *auditView {
 	me := &auditView{
 		result: auditResult{ran: true, cols: []string{"id", "val"}, rows: data},
 	}
-	me.Body(120, auditTestHeight) // prime the scroll row math from the body height
+	me.Body(layout.Frame{Width: 120, Height: auditTestHeight}) // prime the scroll row math from the body height
 	return me
 }
 
@@ -340,7 +340,7 @@ func TestAuditScrollClamping(t *testing.T) {
 	if me.scroll.Offset != 5 {
 		t.Fatalf("mid scroll = %d, want 5", me.scroll.Offset)
 	}
-	first := strings.Split(layout.Viewport(me.results(layout.NewFrame(120)), auditTestViewHeight, me.scroll.Offset), "\n")[0]
+	first := strings.Split(layout.NewFrame(120).Viewport(me.results(layout.NewFrame(120)), auditTestViewHeight, me.scroll.Offset), "\n")[0]
 	if !strings.Contains(first, "r03") {
 		t.Fatalf("first visible line at offset 5 = %q", first)
 	}
@@ -371,7 +371,7 @@ func TestAuditScrollShorterThanWindow(t *testing.T) {
 	if me.scroll.Offset != 0 {
 		t.Fatalf("offset = %d, want 0 for content shorter than window", me.scroll.Offset)
 	}
-	if got := layout.Viewport(body, auditTestViewHeight, me.scroll.Offset); got != body {
+	if got := layout.NewFrame(120).Viewport(body, auditTestViewHeight, me.scroll.Offset); got != body {
 		t.Fatalf("short body was windowed:\n%q\nwant\n%q", got, body)
 	}
 }
@@ -420,7 +420,7 @@ func TestAuditTallerBodyClampsOffset(t *testing.T) {
 	me := auditScrollView(50)
 	auditScrollBy(me, 1000)
 	tall := me.scroll.Offset
-	me.Body(120, 200)
+	me.Body(layout.Frame{Width: 120, Height: 200})
 	auditScrollBy(me, 0)
 	me.scroll.Handle(keys.Up)
 	if me.scroll.Offset >= tall {

@@ -19,7 +19,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	keymap.Install()
+	keymap.Register()
 	os.Exit(m.Run())
 }
 
@@ -98,14 +98,14 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 		},
 	}
 	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
-	app := New(menu, WithStatus(func(context.Context) StatusInfo { return info }))
+	app := New(menu, WithStatus(nil, func(context.Context) StatusInfo { return info }))
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	if strings.Contains(app.View(), "@cody") {
 		t.Fatal("identity rendered before status was fetched")
 	}
 
-	app.SetStatus(adaptStatus(info))
+	app.SetStatus(adaptStatus(nil, info))
 	view := app.View()
 	ghChip := glyph.Lead(glyph.GitHub()) + "4998/5000"
 	for _, want := range []string{"@cody", glyph.SigningOK(), ghChip, glyph.Slack(), glyph.Google()} {
@@ -139,9 +139,9 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 func TestAppUnverifiedSigningGlyph(t *testing.T) {
 	info := StatusInfo{GitHubUser: "cody", SigningVerified: false}
 	app := New(vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"}),
-		WithStatus(func(context.Context) StatusInfo { return info }))
+		WithStatus(nil, func(context.Context) StatusInfo { return info }))
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
-	app.SetStatus(adaptStatus(info))
+	app.SetStatus(adaptStatus(nil, info))
 	if !strings.Contains(app.View(), glyph.SigningBad()) {
 		t.Errorf("expected unverified glyph %q in header:\n%s", glyph.SigningBad(), app.View())
 	}
