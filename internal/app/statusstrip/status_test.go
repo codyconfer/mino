@@ -222,6 +222,18 @@ func TestProviderHonoursTheDeckDeadlineForPluginStatus(t *testing.T) {
 	t.Cleanup(resetChips)
 	resetChips()
 
+	plugin.RegisterBuiltins()
+	const githubPluginID = "mino.github"
+	githubWasEnabled := plugin.Enabled(githubPluginID)
+	if err := plugin.SetEnabled(githubPluginID, false); err != nil {
+		t.Fatalf("disable GitHub status collection: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := plugin.SetEnabled(githubPluginID, githubWasEnabled); err != nil {
+			t.Errorf("restore GitHub plugin enabled state: %v", err)
+		}
+	})
+
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
 
