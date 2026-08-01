@@ -4,6 +4,8 @@ cloud.google.com/go/auth/oauth2adapt v0.2.8 h1:keo8NaayQZ6wimpNSmW5OPc283g65QNIi
 cloud.google.com/go/auth/oauth2adapt v0.2.8/go.mod h1:XQ9y31RkqZCcwJWNSx2Xvric3RrU88hAYYbjDWYDL+c=
 cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdBtwLoEkH9Zs=
 cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
+fyne.io/systray v1.12.2 h1:Y8DZxgLHsVQt6rY9Zrkkg+j67S7vv/1F2viOWKPpVeA=
+fyne.io/systray v1.12.2/go.mod h1:RVwqP9nYMo7h5zViCBHri2FgjXF7H2cub7MAq4NSoLs=
 git.sr.ht/~jackmordaunt/go-toast v1.1.2 h1:/yrfI55LRt1M7H1vkaw+NaH1+L1CDxrqDltwm5euVuE=
 git.sr.ht/~jackmordaunt/go-toast v1.1.2/go.mod h1:jA4OqHKTQ4AFBdwrSnwnskUIIS3HYzlJSgdzCKqfavo=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
@@ -36,10 +38,10 @@ github.com/clipperhouse/displaywidth v0.11.0 h1:lBc6kY44VFw+TDx4I8opi/EtL9m20WSE
 github.com/clipperhouse/displaywidth v0.11.0/go.mod h1:bkrFNkf81G8HyVqmKGxsPufD3JhNl3dSqnGhOoSD/o0=
 github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJv2v7Vk=
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
-github.com/codyconfer/sisyphus v0.2.0 h1:kqwJnRSTc6IBnpYTVgEAeO7rFB+RrBnUHiFz/BClc5g=
-github.com/codyconfer/sisyphus v0.2.0/go.mod h1:JNxDOEftViY+39/29DJ/ZCV9qgGRpGVZpg41NP3ZRkQ=
-github.com/codyconfer/viewkit v0.2.0 h1:JZ/bGRYrocGG6mxTyQ1OeXp98xntTwZQj6euegLc0QM=
-github.com/codyconfer/viewkit v0.2.0/go.mod h1:auEtcf281rqlk6uk86eLaPbmTVJBNQvCvRHTsKBzK/k=
+github.com/codyconfer/sisyphus v0.2.4 h1:QCT7VS0jYy/RqcYzsI0Cbbvy+1yZOlHQmnagXRx2fVE=
+github.com/codyconfer/sisyphus v0.2.4/go.mod h1:JNxDOEftViY+39/29DJ/ZCV9qgGRpGVZpg41NP3ZRkQ=
+github.com/codyconfer/viewkit v0.2.2 h1:U9iifgnN62tccqpC128eXky6XARaBMl9ofW3siwiO+s=
+github.com/codyconfer/viewkit v0.2.2/go.mod h1:auEtcf281rqlk6uk86eLaPbmTVJBNQvCvRHTsKBzK/k=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/danieljoos/wincred v1.2.3 h1:v7dZC2x32Ut3nEfRH+vhoZGvN72+dQ/snVXo/vMFLdQ=
 github.com/danieljoos/wincred v1.2.3/go.mod h1:6qqX0WNrS4RzPZ1tnroDzq9kY3fu1KwE7MRLQK4X0bs=

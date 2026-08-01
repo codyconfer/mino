@@ -4,8 +4,8 @@ go 1.26.5
 
 require (
 	github.com/codyconfer/mino v0.0.0
-	github.com/codyconfer/sisyphus v0.2.0
-	github.com/codyconfer/viewkit v0.2.0
+	github.com/codyconfer/sisyphus v0.2.4
+	github.com/codyconfer/viewkit v0.2.2
 	github.com/slack-go/slack v0.27.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/oauth2 v0.36.0
@@ -16,6 +16,7 @@ require (
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	fyne.io/systray v1.12.2 // indirect
 	git.sr.ht/~jackmordaunt/go-toast v1.1.2 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/apache/arrow-go/v18 v18.4.1 // indirect
