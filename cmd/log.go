@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"os"
 	"path/filepath"
+
+	sconfig "github.com/codyconfer/sisyphus/config"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/log"
@@ -16,7 +17,7 @@ func routeLogs(mode string, fullScreen bool) {
 		return
 	}
 	dir := config.LogDir(shared.Cfg.Home)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := sconfig.EnsureDir(dir); err != nil {
 		log.Debugf("log dir unavailable: %v", err)
 		return
 	}

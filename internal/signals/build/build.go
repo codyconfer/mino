@@ -47,7 +47,7 @@ func Signal(name string, params map[string]string, cfg *config.Config, tokens *t
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `mino plugins enable` for the backing plugin")
 	}
-	q, err := plugin.BuildQuery(name, hostBuildCtx{signal: name, params: params, cfg: cfg, tokens: tokens, cache: results})
+	q, err := plugin.BuildQuery(name, newHostBuildCtx(name, params, cfg, tokens, nil, results))
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	if !plugin.HasCapability(name, plugin.CapStream) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q does not advertise CapStream", name)
 	}
-	src, err := plugin.BuildStream(name, hostBuildCtx{signal: name, params: params, cfg: cfg, tokens: tokens, state: state})
+	src, err := plugin.BuildStream(name, newHostBuildCtx(name, params, cfg, tokens, state, nil))
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func ScheduledJob(name string, params map[string]string, cfg *config.Config, tok
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `mino plugins enable` for the backing plugin")
 	}
-	job, err := pub.BuildScheduled(name, hostBuildCtx{signal: name, params: params, cfg: cfg, tokens: tokens, state: state})
+	job, err := pub.BuildScheduled(name, newHostBuildCtx(name, params, cfg, tokens, state, nil))
 	if err != nil {
 		return nil, err
 	}
@@ -193,18 +193,21 @@ func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Sto
 	if q := params["query"]; q != "" {
 		queries = []string{q}
 	}
+	if title := params["title"]; title != "" {
+		opts = append(opts, gh.WithTitle(title))
+	}
 	return gh.New(queries, backend, cfg.GitHub.Max, opts...), nil
 }
 
 func githubBackend(cfg *config.Config, tokens *token.Store) (gh.Backend, error) {
+	base, err := gh.NormalizeAPIURL(cfg.GitHub.APIURL)
+	if err != nil {
+		return nil, err
+	}
 	if auth.GHAvailable() {
-		return gh.CLIBackend{}, nil
+		return gh.CLIBackend{Hostname: auth.GHHostname(base)}, nil
 	}
 	if tok, origin := auth.GitHubToken(tokens); tok != "" {
-		base, err := gh.NormalizeAPIURL(cfg.GitHub.APIURL)
-		if err != nil {
-			return nil, err
-		}
 		log.Debugf("github: gh CLI not found; using %s via the REST API", origin)
 		return gh.APIBackend{Token: tok, BaseURL: base}, nil
 	}

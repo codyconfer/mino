@@ -8,9 +8,11 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+	"sync"
 
 	internalapp "github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/plugin"
 )
 
@@ -39,7 +41,18 @@ type Options struct {
 	AfterRun func(context.Context, error)
 }
 
-func Run(opts Options) (err error) {
+var bootstrapOnce sync.Once
+
+func Run(opts Options) error {
+	bootstrapOnce.Do(internalapp.Bootstrap)
+	err := run(opts)
+	if err != nil {
+		fmt.Fprint(os.Stderr, errs.Render(err))
+	}
+	return err
+}
+
+func run(opts Options) (err error) {
 	if opts.CLI == nil {
 		return ErrNoCLI
 	}

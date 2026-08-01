@@ -21,6 +21,7 @@ func Register() {
 		Kind:         plugin.KindSignal,
 		Signal:       SignalName,
 		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapCacheable},
+		Credentials:  []string{"slack", "slack-app", "slack-bot"},
 	}, plugin.Builders{
 		Query:  BuildQuery,
 		Stream: BuildStream,

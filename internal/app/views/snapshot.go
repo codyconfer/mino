@@ -157,7 +157,7 @@ func (v *SnapshotView) render(width int) string {
 		if len(v.snap.Sections) == 0 {
 			return th.Dim.Render("no results in snapshot")
 		}
-		return render.RenderTerminalStringTitled(v.snap.Title, v.snap.Sections)
+		return render.RenderTerminalString(v.snap.Sections)
 	}
 }
 

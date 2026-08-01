@@ -105,6 +105,13 @@ build-nodaemon:
 # link them, so nothing else in this gate would catch a break in that module.
 build-overlay:
 	cd external/plugins && go build ./... && go vet ./...
+	@host="$$(sed -n 's|^module ||p' external/plugins/go.mod | sed 's|/external/plugins$$||')"; \
+	bad="$$(cd external/plugins && go list -f '{{$$p := .ImportPath}}{{range .Imports}}{{$$p}} imports {{.}}{{"\n"}}{{end}}{{range .TestImports}}{{$$p}} imports {{.}}{{"\n"}}{{end}}{{range .XTestImports}}{{$$p}} imports {{.}}{{"\n"}}{{end}}' ./... | grep -F " $$host/internal/")" || true; \
+	if [ -n "$$bad" ]; then \
+	  echo "external/plugins must not import $$host/internal packages:"; \
+	  echo "$$bad"; \
+	  exit 1; \
+	fi
 
 # Test the overlay module. Separate target because it is a separate module, so
 # `go test ./...` from the root never reaches it.

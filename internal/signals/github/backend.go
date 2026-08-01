@@ -38,15 +38,25 @@ func NormalizeAPIURL(raw string) (string, error) {
 	return strings.TrimRight(raw, "/"), nil
 }
 
-type CLIBackend struct{}
-
-func (CLIBackend) SearchIssues(ctx context.Context, query string, perPage int) ([]byte, error) {
-	return auth.GH(ctx, "api", "-X", "GET", "search/issues",
-		"-f", "q="+query, "-f", fmt.Sprintf("per_page=%d", perPage))
+type CLIBackend struct {
+	Hostname string
 }
 
-func (CLIBackend) GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error) {
-	args := []string{"api", "graphql", "-f", "query=" + query}
+func (b CLIBackend) apiArgs(rest ...string) []string {
+	args := []string{"api"}
+	if b.Hostname != "" {
+		args = append(args, "--hostname", b.Hostname)
+	}
+	return append(args, rest...)
+}
+
+func (b CLIBackend) SearchIssues(ctx context.Context, query string, perPage int) ([]byte, error) {
+	return auth.GH(ctx, b.apiArgs("-X", "GET", "search/issues",
+		"-f", "q="+query, "-f", fmt.Sprintf("per_page=%d", perPage))...)
+}
+
+func (b CLIBackend) GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error) {
+	args := b.apiArgs("graphql", "-f", "query="+query)
 	keys := make([]string, 0, len(vars))
 	for k := range vars {
 		keys = append(keys, k)

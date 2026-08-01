@@ -25,7 +25,7 @@ func adapt(p plugin.LoginProvider) Provider {
 			Key:    f.Key,
 			Label:  f.Label,
 			Secret: f.Secret,
-			Cur:    currentValue(f),
+			Cur:    currentValue(p, f),
 		})
 	}
 	return Provider{
@@ -37,26 +37,26 @@ func adapt(p plugin.LoginProvider) Provider {
 			if p.Authed == nil {
 				return false
 			}
-			return p.Authed(hostFor(a))
+			return p.Authed(hostFor(a, p))
 		},
 		Login: func(ctx context.Context, a *app.App, creds map[string]string, w io.Writer) error {
-			return p.Login(ctx, hostFor(a), creds, w)
+			return p.Login(ctx, hostFor(a, p), creds, w)
 		},
 	}
 }
 
-func currentValue(f plugin.LoginField) func(*app.App) string {
+func currentValue(p plugin.LoginProvider, f plugin.LoginField) func(*app.App) string {
 	return func(a *app.App) string {
 		if f.Value == nil {
 			return ""
 		}
-		return f.Value(hostFor(a))
+		return f.Value(hostFor(a, p))
 	}
 }
 
-func hostFor(a *app.App) plugin.Host {
+func hostFor(a *app.App, p plugin.LoginProvider) plugin.Host {
 	if a == nil {
-		return pluginhost.New(nil, nil)
+		return pluginhost.ForLogin(nil, nil, p)
 	}
-	return pluginhost.New(a.Cfg, a.Tokens)
+	return pluginhost.ForLogin(a.Cfg, a.Tokens, p)
 }

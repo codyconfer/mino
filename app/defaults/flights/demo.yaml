@@ -1,7 +1,3 @@
-# Opt-in GitHub showcase flight — live search items with github.com URLs.
-# Not the default: make run / bare mino serve use flights/default.yaml instead.
-# Run with: mino fly demo · mino serve demo · mino deck demo · make run ARGS=demo
-# Synthetic toast spam: flight `notify-smoke`.
 name: demo
 type: flight
 queries: [demo, demo-reviews]

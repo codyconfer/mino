@@ -4,10 +4,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/codyconfer/mino/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/plugin/stream"
 )
 
-const MinPollInterval = time.Second
+const MinPollInterval = stream.MinPollInterval
 
 func Str(params map[string]string, key, def string) string {
 	if v := params[key]; v != "" {
@@ -45,19 +45,5 @@ func Window(raw string, def time.Duration) time.Duration {
 }
 
 func PollInterval(params map[string]string, signal string, def time.Duration) (time.Duration, error) {
-	raw := params["interval"]
-	if raw == "" {
-		return def, nil
-	}
-	where := signal + ": query param interval"
-	d, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, errx.Newf("%s: %q is not a valid poll interval", where, raw).
-			WithHint("use a Go duration such as 30s, 2m, or 1h")
-	}
-	if d < MinPollInterval {
-		return 0, errx.Newf("%s: poll interval %s is below the %s minimum", where, d, MinPollInterval).
-			WithHint("polling faster than %s burns provider rate limits", MinPollInterval)
-	}
-	return d, nil
+	return stream.PollInterval(params, signal, def)
 }

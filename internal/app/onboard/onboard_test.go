@@ -3,6 +3,7 @@ package onboard
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/codyconfer/mino/internal/auth"
@@ -100,6 +101,58 @@ func TestCheckGPGScopeErrorHint(t *testing.T) {
 	}
 	if len(step.Fix) != 1 || step.Fix[0] != "gh auth refresh -h github.com -s admin:gpg_key" {
 		t.Fatalf("expected admin:gpg_key refresh hint; got %+v", step.Fix)
+	}
+}
+
+func TestCheckPinsGitHubHostname(t *testing.T) {
+	restore(t)
+	allGood()
+	var calls [][]string
+	runGH = func(_ context.Context, args ...string) ([]byte, error) {
+		calls = append(calls, args)
+		return nil, nil
+	}
+	Check(context.Background(), fakeStore{}, "https://ghe.example.com/api/v3")
+	if len(calls) == 0 {
+		t.Fatal("expected runGH to be called")
+	}
+	want := []string{"auth", "status", "--hostname", "ghe.example.com"}
+	if !slices.Equal(calls[0], want) {
+		t.Fatalf("runGH args = %v, want %v", calls[0], want)
+	}
+}
+
+func TestCheckDoesNotPinHostnameWhenUnset(t *testing.T) {
+	restore(t)
+	allGood()
+	var calls [][]string
+	runGH = func(_ context.Context, args ...string) ([]byte, error) {
+		calls = append(calls, args)
+		return nil, nil
+	}
+	Check(context.Background(), fakeStore{}, "")
+	if len(calls) == 0 {
+		t.Fatal("expected runGH to be called")
+	}
+	want := []string{"auth", "status"}
+	if !slices.Equal(calls[0], want) {
+		t.Fatalf("runGH args = %v, want %v", calls[0], want)
+	}
+}
+
+func TestCheckGPGScopeErrorHintNamesConfiguredHost(t *testing.T) {
+	restore(t)
+	allGood()
+	ghAPIGet = func(context.Context, auth.TokenStore, string, string) ([]byte, error) {
+		return nil, errors.New("gh api user/gpg_keys: gh: Not Found (HTTP 404)")
+	}
+	st := Check(context.Background(), fakeStore{}, "https://ghe.example.com/api/v3")
+	step := stepByID(st, StepGPGGitHub)
+	if step.OK {
+		t.Fatal("expected gpg-github to fail on scope error")
+	}
+	if len(step.Fix) != 1 || step.Fix[0] != "gh auth refresh -h ghe.example.com -s admin:gpg_key" {
+		t.Fatalf("expected ghe.example.com refresh hint; got %+v", step.Fix)
 	}
 }
 

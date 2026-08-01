@@ -38,12 +38,20 @@ func (p CachePolicy) writes() bool { return p.Write && p.TTL > 0 }
 type signalOpts struct {
 	detail Cache
 	policy CachePolicy
+	title  string
 }
 
 type Option func(*signalOpts)
 
 func WithDetailCache(c Cache, pol CachePolicy) Option {
 	return func(o *signalOpts) { o.detail, o.policy = c, pol }
+}
+
+// WithTitle names the section of a signal built from a single configured query,
+// the way ProjectSpec.Title does for a project board. Signals running several
+// queries keep their own per-query titles, since one name cannot cover them all.
+func WithTitle(title string) Option {
+	return func(o *signalOpts) { o.title = title }
 }
 
 func applyOptions(opts []Option) signalOpts {

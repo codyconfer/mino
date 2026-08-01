@@ -92,6 +92,15 @@ func Render(err error) string {
 		}
 		return b.String()
 	}
+	var hinted interface{ Hint() string }
+	if errors.As(err, &hinted) {
+		if hint := hinted.Hint(); hint != "" {
+			msg, _, _ := strings.Cut(err.Error(), "\nhint: ")
+			fmt.Fprintf(&b, "%s %s\n", mark, Clean(msg))
+			fmt.Fprintf(&b, "  %s %s\n", th.Accent.Render("hint:"), Clean(hint))
+			return b.String()
+		}
+	}
 	fmt.Fprintf(&b, "%s %s\n", mark, Clean(err.Error()))
 	return b.String()
 }

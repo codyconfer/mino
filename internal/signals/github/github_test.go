@@ -1,6 +1,8 @@
 package github
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -106,5 +108,67 @@ func TestMapSearchResponseFlagsIncompleteResults(t *testing.T) {
 	}
 	if sec.Meta["truncated_reason"] == "" {
 		t.Error("truncated_reason meta is empty")
+	}
+}
+
+type searchBackend struct{ body string }
+
+func (b *searchBackend) SearchIssues(context.Context, string, int) ([]byte, error) {
+	return []byte(b.body), nil
+}
+
+func (b *searchBackend) GraphQL(context.Context, string, map[string]any) ([]byte, error) {
+	return nil, errors.New("unexpected graphql")
+}
+
+func TestWithTitleNamesASingleQuerySection(t *testing.T) {
+	be := &searchBackend{body: searchFixture}
+
+	secs, err := New([]string{"is:open is:pr author:@me"}, be, 10, WithTitle("My open PRs")).Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if len(secs) != 1 {
+		t.Fatalf("got %d sections, want 1", len(secs))
+	}
+	if secs[0].Title != "My open PRs" {
+		t.Errorf("Title = %q, want %q", secs[0].Title, "My open PRs")
+	}
+
+	// Without a title the section still falls back to the raw query text.
+	bare, err := New([]string{"is:open is:pr author:@me"}, be, 10).Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if bare[0].Title != "is:open is:pr author:@me" {
+		t.Errorf("untitled section = %q, want the query text", bare[0].Title)
+	}
+}
+
+// One name cannot cover several queries, so the per-query titles win.
+func TestWithTitleIgnoredForMultipleQueries(t *testing.T) {
+	be := &searchBackend{body: searchFixture}
+
+	secs, err := New([]string{"is:open is:pr author:@me", "is:open is:pr review-requested:@me"},
+		be, 10, WithTitle("My open PRs")).Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if len(secs) != 2 {
+		t.Fatalf("got %d sections, want 2", len(secs))
+	}
+	for _, s := range secs {
+		if s.Title == "My open PRs" {
+			t.Errorf("title leaked onto a multi-query signal: %q", s.Title)
+		}
+	}
+
+	// The built-in default queries keep their own names too.
+	def, err := New(nil, be, 10, WithTitle("My open PRs")).Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if def[0].Title != "Open Pull Requests" {
+		t.Errorf("default section = %q, want %q", def[0].Title, "Open Pull Requests")
 	}
 }

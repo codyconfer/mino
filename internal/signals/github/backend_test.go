@@ -7,11 +7,68 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/codyconfer/mino/internal/signals"
 )
+
+func fakeGH(t *testing.T, script string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gh shell script requires a POSIX shell")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+}
+
+func TestCLIBackendPinsConfiguredHostname(t *testing.T) {
+	fakeGH(t, "#!/bin/sh\necho \"$@\"\n")
+
+	b := CLIBackend{Hostname: "ghe.example.com"}
+	out, err := b.SearchIssues(context.Background(), "is:open", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "api --hostname ghe.example.com -X GET search/issues -f q=is:open -f per_page=5\n" {
+		t.Fatalf("gh args = %q", out)
+	}
+
+	out, err = b.GraphQL(context.Background(), "query{viewer{login}}", map[string]any{"first": 5, "login": "octo"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "api --hostname ghe.example.com graphql -f query=query{viewer{login}} -F first=5 -f login=octo\n" {
+		t.Fatalf("gh args = %q", out)
+	}
+}
+
+func TestCLIBackendUnpinnedWhenHostnameUnset(t *testing.T) {
+	fakeGH(t, "#!/bin/sh\necho \"$@\"\n")
+
+	b := CLIBackend{}
+	out, err := b.SearchIssues(context.Background(), "is:open", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "api -X GET search/issues -f q=is:open -f per_page=5\n" {
+		t.Fatalf("gh args = %q", out)
+	}
+
+	out, err = b.GraphQL(context.Background(), "query{viewer{login}}", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "api graphql -f query=query{viewer{login}}\n" {
+		t.Fatalf("gh args = %q", out)
+	}
+}
 
 func TestAPIBackendSearch(t *testing.T) {
 	var gotAuth, gotQuery string

@@ -36,9 +36,10 @@ func CacheGitHubToken(store TokenStore, token, scope string) error {
 	return store.Put(context.Background(), "github", Credential{AccessToken: token, Scope: scope})
 }
 
-func GitHubAuthStatus(ctx context.Context, store TokenStore) (ok bool, detail string) {
+func GitHubAuthStatus(ctx context.Context, store TokenStore, apiURL string) (ok bool, detail string) {
 	if GHAvailable() {
-		if _, err := GH(ctx, "auth", "status"); err == nil {
+		args := append([]string{"auth", "status"}, GHHostFlag(apiURL)...)
+		if _, err := GH(ctx, args...); err == nil {
 			return true, "gh CLI is logged in"
 		}
 	}

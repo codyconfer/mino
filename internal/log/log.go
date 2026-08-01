@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	sconfig "github.com/codyconfer/sisyphus/config"
+
 	"github.com/codyconfer/viewkit/theme"
 )
 
@@ -89,7 +91,7 @@ func ClearConsole() {
 }
 
 func SetFileSink(path string) (io.Closer, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := sconfig.OpenAppend(path)
 	if err != nil {
 		return nil, err
 	}

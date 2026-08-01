@@ -2,6 +2,9 @@ package googleauth
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,13 +61,83 @@ func TestMissingScopesUsesTheMemoisedVerdict(t *testing.T) {
 		grantedScopes.mu.Unlock()
 	})
 
-	if got := missingScopes(t.Context(), "tok", []string{"https://www.googleapis.com/auth/tasks"}); len(got) != 0 {
-		t.Fatalf("missingScopes = %v, want none for a granted scope", got)
+	got, err := missingScopes(t.Context(), "tok", []string{"https://www.googleapis.com/auth/tasks"})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("missingScopes = %v, %v, want none for a granted scope", got, err)
 	}
 	want := "https://www.googleapis.com/auth/gmail.readonly"
-	got := missingScopes(t.Context(), "tok", []string{want, "openid", "email"})
+	got, err = missingScopes(t.Context(), "tok", []string{want, "openid", "email"})
+	if err != nil {
+		t.Fatalf("missingScopes: %v", err)
+	}
 	if len(got) != 1 || got[0] != want {
 		t.Fatalf("missingScopes = %v, want just %s (openid/email need no grant)", got, want)
+	}
+}
+
+func stubTokenInfo(t *testing.T, handler http.HandlerFunc) {
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	prev := tokenInfoURL
+	tokenInfoURL = srv.URL
+	t.Cleanup(func() { tokenInfoURL = prev })
+	t.Cleanup(func() {
+		grantedScopes.mu.Lock()
+		grantedScopes.m = nil
+		grantedScopes.mu.Unlock()
+	})
+}
+
+func cachedVerdict(token string) bool {
+	grantedScopes.mu.Lock()
+	defer grantedScopes.mu.Unlock()
+	_, ok := grantedScopes.m[token]
+	return ok
+}
+
+func TestMissingScopesFailsClosedWhenTokeninfoFails(t *testing.T) {
+	stubTokenInfo(t, func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	})
+
+	missing, err := missingScopes(t.Context(), "tok-fail", []string{"https://www.googleapis.com/auth/tasks"})
+	if err == nil {
+		t.Fatalf("missingScopes = %v, want an error when tokeninfo fails", missing)
+	}
+	if cachedVerdict("tok-fail") {
+		t.Fatal("a failed tokeninfo lookup must not be memoised")
+	}
+}
+
+func TestTokenScopesRetriesAfterATransientFailure(t *testing.T) {
+	var calls atomic.Int32
+	stubTokenInfo(t, func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		w.Write([]byte(`{"scope":"https://www.googleapis.com/auth/tasks"}`))
+	})
+
+	required := []string{"https://www.googleapis.com/auth/tasks"}
+	if _, err := missingScopes(t.Context(), "tok-retry", required); err == nil {
+		t.Fatal("want an error from the first, failing lookup")
+	}
+	missing, err := missingScopes(t.Context(), "tok-retry", required)
+	if err != nil {
+		t.Fatalf("second lookup: %v", err)
+	}
+	if len(missing) != 0 {
+		t.Fatalf("missingScopes = %v, want none", missing)
+	}
+	if !cachedVerdict("tok-retry") {
+		t.Fatal("a successful verdict must be memoised")
+	}
+	if _, err := missingScopes(t.Context(), "tok-retry", required); err != nil {
+		t.Fatalf("memoised lookup: %v", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("tokeninfo calls = %d, want 2 (verdict memoised)", got)
 	}
 }
 

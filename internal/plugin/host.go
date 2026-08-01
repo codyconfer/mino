@@ -33,6 +33,10 @@ func LookupBackupDestination(name string) (BackupDestinationFunc, bool) {
 	return pub.LookupBackupDestination(name)
 }
 
+func BackupDestinationOwner(name string) (string, bool) {
+	return pub.BackupDestinationOwner(name)
+}
+
 func BackupDestinations() []string { return pub.BackupDestinations() }
 
 type ParamSpec = pub.ParamSpec

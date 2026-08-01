@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	sauth "github.com/codyconfer/sisyphus/auth"
@@ -34,9 +35,30 @@ func GH(ctx context.Context, args ...string) ([]byte, error) {
 		args...)
 }
 
+func GHHostname(apiURL string) string {
+	u, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	host := strings.ToLower(u.Host)
+	if host == "api.github.com" {
+		return "github.com"
+	}
+	return host
+}
+
+func GHHostFlag(apiURL string) []string {
+	host := GHHostname(apiURL)
+	if host == "" {
+		return nil
+	}
+	return []string{"--hostname", host}
+}
+
 func GHAPIGet(ctx context.Context, store TokenStore, apiURL, path string) ([]byte, error) {
 	if GHAvailable() {
-		return GH(ctx, "api", path)
+		args := append([]string{"api"}, GHHostFlag(apiURL)...)
+		return GH(ctx, append(args, path)...)
 	}
 	tok, _ := GitHubToken(store)
 	if tok == "" {

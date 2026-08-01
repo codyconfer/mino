@@ -11,6 +11,9 @@ overlay binary. Query a single signal ad-hoc, save reusable **queries** and
 a whole set concurrently. Results print as terminal panels or JSON — or through a
 **formatter**, a template that turns a run into a report you can paste.
 
+The name is for the bird — *Mino*, the genus of golden mynas — and is pronounced
+like the "mino bird": **MY-noh**, rhyming with "rhino".
+
 ## Getting started
 
 Build (or install) the binary:

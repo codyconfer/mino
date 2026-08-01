@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	sconfig "github.com/codyconfer/sisyphus/config"
+
 	pub "github.com/codyconfer/mino/plugin"
 
 	"github.com/codyconfer/mino/internal/config"
@@ -140,10 +142,7 @@ func writeSeeds(home string, seeds []FileSeed, opts InstallOptions) (written, sk
 				return written, skipped, errs.Wrapf(errs.KindConfig, err, "stat %s", rel)
 			}
 		}
-		if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
-			return written, skipped, errs.Wrapf(errs.KindConfig, err, "create dir for %s", rel)
-		}
-		if err := os.WriteFile(abs, seed.Content, 0o600); err != nil {
+		if _, err := sconfig.WriteItem(filepath.Dir(abs), filepath.Base(abs), seed.Content); err != nil {
 			return written, skipped, errs.Wrapf(errs.KindConfig, err, "write %s", rel)
 		}
 		written = append(written, rel)
@@ -214,7 +213,7 @@ func removeSeeds(home string, seeds []FileSeed, force bool) (removed, kept []str
 			kept = append(kept, rel)
 			continue
 		}
-		if err := os.Remove(abs); err != nil {
+		if err := sconfig.RemoveItem(abs); err != nil {
 			return removed, kept, errs.Wrapf(errs.KindConfig, err, "remove %s", rel)
 		}
 		removed = append(removed, rel)

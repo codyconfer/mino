@@ -40,8 +40,8 @@ func ParamSignals() []string { return plugin.ParamSignals() }
 
 func QueryableSignals() []string {
 	var out []string
-	for name, ok := range BuilderSignals() {
-		if ok {
+	for name := range BuilderSignals() {
+		if HasBuilder(name) {
 			out = append(out, name)
 		}
 	}

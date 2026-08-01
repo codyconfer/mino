@@ -16,10 +16,12 @@ const (
 
 func Register() {
 	plugin.RegisterSignal(plugin.Descriptor{
-		ID:           PluginID,
-		Kind:         plugin.KindSignal,
-		Signal:       SignalName,
-		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapCacheable},
+		ID:                 PluginID,
+		Kind:               plugin.KindSignal,
+		Signal:             SignalName,
+		Capabilities:       []plugin.Capability{plugin.CapQuery, plugin.CapCacheable},
+		Credentials:        []string{"google"},
+		SettingsNamespaces: []string{SignalName, "google"},
 	}, plugin.Builders{
 		Query: BuildQuery,
 	})

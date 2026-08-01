@@ -80,6 +80,31 @@ func TestTerminalRendererPlain(t *testing.T) {
 	}
 }
 
+func TestSectionResultsCountIncludesErrSections(t *testing.T) {
+	r := SectionResults{Sections: []signals.Section{
+		{Signal: "gmail", Err: errString("token expired")},
+		{Signal: "slack"},
+		{Signal: "github", Items: []signals.Item{{Title: "a"}, {Title: "b"}}},
+	}}
+	if got := r.Count(); got != 3 {
+		t.Fatalf("Count() = %d, want 3 (one error leaf + two items)", got)
+	}
+}
+
+func TestSectionResultsErroredCountsErrSections(t *testing.T) {
+	r := SectionResults{Sections: []signals.Section{
+		{Signal: "gmail", Err: errString("token expired")},
+		{Signal: "slack"},
+		{Signal: "github", Items: []signals.Item{{Title: "a"}, {Title: "b"}}},
+	}}
+	if got := r.Errored(); got != 1 {
+		t.Fatalf("Errored() = %d, want 1", got)
+	}
+	if got := (SectionResults{}).Errored(); got != 0 {
+		t.Fatalf("Errored() on empty = %d, want 0", got)
+	}
+}
+
 func TestItemLinesShowsAuthor(t *testing.T) {
 	f := layout.NewFrame(80)
 	th := theme.Cur()

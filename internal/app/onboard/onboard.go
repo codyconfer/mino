@@ -64,7 +64,7 @@ var (
 func Check(ctx context.Context, tokens auth.TokenStore, apiURL string) Status {
 	var st Status
 
-	authOK, authRes := checkGitHubAuth(ctx, tokens)
+	authOK, authRes := checkGitHubAuth(ctx, tokens, apiURL)
 	st.Results = append(st.Results, authRes)
 
 	format := signingFormat(ctx)
@@ -85,7 +85,7 @@ func checkGPG(ctx context.Context, tokens auth.TokenStore, apiURL string, authOK
 	if signingKey != "" && authOK {
 		raw, fetchErr = ghAPIGet(ctx, tokens, apiURL, "user/gpg_keys")
 	}
-	st.Results = append(st.Results, checkGPGGitHub(signingKey, authOK, raw, fetchErr))
+	st.Results = append(st.Results, checkGPGGitHub(signingKey, authOK, raw, fetchErr, auth.GHHostname(apiURL)))
 	if RequiredEmailDomain != "" {
 		st.Results = append(st.Results, checkEmailDomain(signingKey, authOK, raw, fetchErr))
 	}
@@ -102,7 +102,7 @@ func checkSSH(ctx context.Context, tokens auth.TokenStore, apiURL string, authOK
 	if pubKey != "" && authOK {
 		raw, fetchErr = ghAPIGet(ctx, tokens, apiURL, "user/ssh_signing_keys")
 	}
-	st.Results = append(st.Results, checkSSHGitHub(pubKey, authOK, raw, fetchErr))
+	st.Results = append(st.Results, checkSSHGitHub(pubKey, authOK, raw, fetchErr, auth.GHHostname(apiURL)))
 	if RequiredEmailDomain != "" {
 		st.Results = append(st.Results, checkSSHEmailDomain(ctx, tokens, apiURL, authOK))
 	}
@@ -121,10 +121,11 @@ func signingFormat(ctx context.Context) string {
 	return "openpgp"
 }
 
-func checkGitHubAuth(ctx context.Context, tokens auth.TokenStore) (bool, Result) {
+func checkGitHubAuth(ctx context.Context, tokens auth.TokenStore, apiURL string) (bool, Result) {
 	r := Result{Step: StepGitHubAuth, Title: "GitHub authenticated"}
 	if ghAvailable() {
-		if _, err := runGH(ctx, "auth", "status"); err == nil {
+		args := append([]string{"auth", "status"}, auth.GHHostFlag(apiURL)...)
+		if _, err := runGH(ctx, args...); err == nil {
 			r.OK, r.Detail = true, "gh CLI is logged in"
 			return true, r
 		}
@@ -185,7 +186,7 @@ func checkGPGLocal(ctx context.Context, signingKey string) Result {
 	return r
 }
 
-func checkGPGGitHub(signingKey string, authOK bool, raw []byte, fetchErr error) Result {
+func checkGPGGitHub(signingKey string, authOK bool, raw []byte, fetchErr error, host string) Result {
 	r := Result{Step: StepGPGGitHub, Title: "GPG key verified on GitHub"}
 	switch {
 	case signingKey == "":
@@ -195,18 +196,18 @@ func checkGPGGitHub(signingKey string, authOK bool, raw []byte, fetchErr error) 
 		r.Detail = "blocked: authenticate with GitHub first"
 		return r
 	case fetchErr != nil:
-		if fix := scopeFix(fetchErr, "admin:gpg_key"); fix != nil {
+		if fix := scopeFix(fetchErr, "admin:gpg_key", host); fix != nil {
 			r.Detail = "cannot read your GitHub GPG keys: your GitHub token is missing the admin:gpg_key scope"
 			r.Fix = fix
 			return r
 		}
 		r.Detail = "could not read your GitHub GPG keys: " + fetchErr.Error()
-		r.Fix = uploadFix(signingKey)
+		r.Fix = uploadFix(signingKey, host)
 		return r
 	}
 	if !keyRegistered(raw, signingKey) {
 		r.Detail = "signing key " + signingKey + " is not registered on your GitHub account"
-		r.Fix = uploadFix(signingKey)
+		r.Fix = uploadFix(signingKey, host)
 		return r
 	}
 	r.OK, r.Detail = true, "signing key is registered on GitHub; signed commits will show as Verified"
@@ -241,7 +242,7 @@ func checkEmailDomain(signingKey string, authOK bool, raw []byte, fetchErr error
 	return r
 }
 
-func scopeFix(err error, scope string) []string {
+func scopeFix(err error, scope, host string) []string {
 	if err == nil {
 		return nil
 	}
@@ -249,15 +250,22 @@ func scopeFix(err error, scope string) []string {
 	if strings.Contains(s, strings.ToLower(scope)) ||
 		strings.Contains(s, "404") ||
 		strings.Contains(s, "not found") {
-		return []string{"gh auth refresh -h github.com -s " + scope}
+		return []string{"gh auth refresh -h " + hostOrDefault(host) + " -s " + scope}
 	}
 	return nil
 }
 
-func uploadFix(signingKey string) []string {
+func hostOrDefault(host string) string {
+	if host == "" {
+		return "github.com"
+	}
+	return host
+}
+
+func uploadFix(signingKey, host string) []string {
 	return []string{
 		"gpg --armor --export " + signingKey + " | gh gpg-key add -",
-		"or: gpg --armor --export " + signingKey + "   then paste at https://github.com/settings/gpg/new",
+		"or: gpg --armor --export " + signingKey + "   then paste at https://" + hostOrDefault(host) + "/settings/gpg/new",
 	}
 }
 
@@ -280,7 +288,7 @@ func checkSSHLocal(ctx context.Context, signingKey string) (string, Result) {
 	return pub, r
 }
 
-func checkSSHGitHub(pubKey string, authOK bool, raw []byte, fetchErr error) Result {
+func checkSSHGitHub(pubKey string, authOK bool, raw []byte, fetchErr error, host string) Result {
 	r := Result{Step: StepSSHGitHub, Title: "SSH signing key registered on GitHub"}
 	switch {
 	case pubKey == "":
@@ -290,18 +298,18 @@ func checkSSHGitHub(pubKey string, authOK bool, raw []byte, fetchErr error) Resu
 		r.Detail = "blocked: authenticate with GitHub first"
 		return r
 	case fetchErr != nil:
-		if fix := scopeFix(fetchErr, "admin:ssh_signing_key"); fix != nil {
+		if fix := scopeFix(fetchErr, "admin:ssh_signing_key", host); fix != nil {
 			r.Detail = "cannot read your GitHub SSH signing keys: your GitHub token is missing the admin:ssh_signing_key scope"
 			r.Fix = fix
 			return r
 		}
 		r.Detail = "could not read your GitHub SSH signing keys: " + fetchErr.Error()
-		r.Fix = sshUploadFix()
+		r.Fix = sshUploadFix(host)
 		return r
 	}
 	if !sshKeyRegistered(raw, pubKey) {
 		r.Detail = "this SSH key is not registered as a signing key on your GitHub account"
-		r.Fix = sshUploadFix()
+		r.Fix = sshUploadFix(host)
 		return r
 	}
 	r.OK, r.Detail = true, "SSH signing key is registered on GitHub; signed commits will show as Verified"
@@ -340,10 +348,10 @@ func checkSSHEmailDomain(ctx context.Context, tokens auth.TokenStore, apiURL str
 	return r
 }
 
-func sshUploadFix() []string {
+func sshUploadFix(host string) []string {
 	return []string{
 		"gh ssh-key add <path-to-.pub> --type signing",
-		"or paste the key at https://github.com/settings/ssh/new (Key type: Signing Key)",
+		"or paste the key at https://" + hostOrDefault(host) + "/settings/ssh/new (Key type: Signing Key)",
 	}
 }
 

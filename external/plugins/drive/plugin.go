@@ -21,10 +21,12 @@ const (
 
 func Register() {
 	plugin.RegisterSignal(plugin.Descriptor{
-		ID:           PluginID,
-		Kind:         plugin.KindSignal,
-		Signal:       SignalName,
-		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapAction, plugin.CapCacheable},
+		ID:                 PluginID,
+		Kind:               plugin.KindSignal,
+		Signal:             SignalName,
+		Capabilities:       []plugin.Capability{plugin.CapQuery, plugin.CapCacheable},
+		Credentials:        []string{"google"},
+		SettingsNamespaces: []string{SignalName, "google"},
 	}, plugin.Builders{
 		Query: BuildQuery,
 	})
@@ -80,7 +82,7 @@ func newDriveCmd() *cobra.Command {
 }
 
 func addFile(c *cobra.Command, name, content, mime, dir string) error {
-	host := cmd.Host()
+	host := cmd.Host(SignalName)
 	configured := plugin.Setting(host.Settings(SignalName), "dir", "")
 	target, err := cmd.ResolveWriteTarget("directory", "plugins.drive.dir", configured, dir)
 	if err != nil {

@@ -34,9 +34,7 @@ func init() {
 		},
 		Scheduled: func(bc plugin.BuildContext) (plugin.Scheduled, error) {
 			job := ReminderJob{Home: bc.Home(), Role: buildRole(bc)}
-			if src, ok := bc.(interface{ KV() daemon.KV }); ok {
-				job.KV = src.KV()
-			}
+			job.KV = plugin.KVOf(bc)
 			return job, nil
 		},
 	})

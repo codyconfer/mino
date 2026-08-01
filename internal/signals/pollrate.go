@@ -1,26 +1,47 @@
 package signals
 
 import (
+	"errors"
 	"time"
 
 	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/plugin"
+	"github.com/codyconfer/mino/plugin/stream"
 )
 
-const MinPollInterval = time.Second
+const MinPollInterval = stream.MinPollInterval
 
 func CheckPollInterval(where string, d time.Duration) error {
-	if d >= MinPollInterval {
-		return nil
+	err := usageError(stream.CheckPollInterval(where, d))
+	var e *errs.Error
+	if errors.As(err, &e) && e.Hint != "" {
+		return e.WithHint("%s; GitHub's own X-Poll-Interval floor is 60s", e.Hint)
 	}
-	return errs.Newf(errs.KindUsage, "%s: poll interval %s is below the %s minimum", where, d, MinPollInterval).
-		WithHint("polling faster than %s burns provider rate limits; GitHub's own X-Poll-Interval floor is 60s", MinPollInterval)
+	return err
 }
 
 func ParsePollInterval(where, raw string) (time.Duration, error) {
-	d, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, errs.Newf(errs.KindUsage, "%s: %q is not a valid poll interval", where, raw).
-			WithHint("use a Go duration such as 30s, 2m, or 1h")
+	d, err := stream.ParsePollInterval(where, raw)
+	if err == nil {
+		return d, nil
+	}
+	if _, perr := time.ParseDuration(raw); perr != nil {
+		return d, usageError(err)
 	}
 	return d, CheckPollInterval(where, d)
+}
+
+func usageError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var e *plugin.Error
+	if !errors.As(err, &e) {
+		return err
+	}
+	out := errs.New(errs.KindUsage, e.Message())
+	if hint := e.Hint(); hint != "" {
+		out = out.WithHint("%s", hint)
+	}
+	return out
 }

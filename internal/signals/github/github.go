@@ -149,6 +149,9 @@ func New(queries []string, backend Backend, max int, opts ...Option) signals.Sig
 		max = defaultPerPage
 	}
 	o := applyOptions(opts)
+	if o.title != "" && len(qs) == 1 {
+		qs[0].title = o.title
+	}
 	return &Signal{queries: qs, backend: backend, max: max, detail: o.detail, policy: o.policy}
 }
 

@@ -1,5 +1,6 @@
-# Seed config embedded for distribution overlays.
-# Overlay repos replace this file with team defaults.
+# mino configuration — see the README for all options.
+# This is the only file that must be named config.yaml and sit at the root.
+# Directive files carry a `type:` and may live anywhere below here.
 output: terminal
 
 audit:

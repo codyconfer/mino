@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	sconfig "github.com/codyconfer/sisyphus/config"
+
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/signals"
@@ -33,19 +35,12 @@ func SnapshotPath(home, id string) string {
 }
 
 func WriteSnapshot(path string, s Snapshot) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return errs.Wrapf(errs.KindStore, err, "create %s", filepath.Dir(path))
-	}
 	b, err := json.Marshal(s)
 	if err != nil {
 		return errs.Wrap(errs.KindInternal, err, "encode pane snapshot")
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
-		return errs.Wrapf(errs.KindStore, err, "write %s", tmp)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		return errs.Wrapf(errs.KindStore, err, "replace %s", path)
+	if _, err := sconfig.WriteItem(filepath.Dir(path), filepath.Base(path), b); err != nil {
+		return errs.Wrapf(errs.KindStore, err, "write %s", path)
 	}
 	return nil
 }

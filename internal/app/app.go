@@ -17,6 +17,7 @@ import (
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/role"
 	"github.com/codyconfer/mino/internal/signals/cache"
+	gh "github.com/codyconfer/mino/internal/signals/github"
 	"github.com/codyconfer/mino/internal/token"
 )
 
@@ -126,7 +127,11 @@ func (a *App) GitHubAuthed() bool {
 	if !a.ghAuth.checked {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		a.ghAuth.ok, _ = auth.GitHubAuthStatus(ctx, a.Tokens)
+		var apiURL string
+		if a.Cfg != nil {
+			apiURL, _ = gh.NormalizeAPIURL(a.Cfg.GitHub.APIURL)
+		}
+		a.ghAuth.ok, _ = auth.GitHubAuthStatus(ctx, a.Tokens, apiURL)
 		a.ghAuth.checked = true
 	}
 	return a.ghAuth.ok

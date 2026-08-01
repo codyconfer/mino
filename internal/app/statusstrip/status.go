@@ -125,14 +125,13 @@ func signingVerified(st onboard.Status) bool {
 }
 
 func providerStatuses(a *app.App) []deck.ServiceStatus {
-	host := pluginhost.New(a.Cfg, a.Tokens)
 	var out []deck.ServiceStatus
 	for _, p := range plugin.LoginProviders() {
 		if !providerEnabled(p) {
 			continue
 		}
 		level := deck.StatusMuted
-		if p.Authed != nil && p.Authed(host) {
+		if p.Authed != nil && p.Authed(pluginhost.ForLogin(a.Cfg, a.Tokens, p)) {
 			level = deck.StatusOK
 		}
 		out = append(out, deck.ServiceStatus{ID: p.Key, Name: p.Key, Level: level})

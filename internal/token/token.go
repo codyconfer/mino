@@ -65,6 +65,9 @@ func (s *Store) Get(ctx context.Context, service string) (auth.Credential, bool,
 			return auth.Credential{}, false, errs.Wrapf(errs.KindAuth, err, "read %s token", service).
 				WithHint("the token store cannot be decrypted with the current key: delete tokens.duckdb in the mino data directory and run `mino login %s` again", service)
 		}
+		if errors.Is(err, sealed.ErrUnavailable) {
+			return auth.Credential{}, false, errUnavailable
+		}
 		return auth.Credential{}, ok, errs.Wrap(errs.KindStore, err, "read token")
 	}
 	if !ok {

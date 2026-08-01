@@ -1,8 +1,5 @@
-# Opt-in role scoping the GitHub URL-backed demo flight and queries.
-# Activate with: mino --role demo fly · mino --role demo query demo
 name: demo
 type: role
 flights: [demo]
 queries: [demo, demo-reviews, no-bots]
-# A role sees only the formatters it lists.
 formatters: [standup]

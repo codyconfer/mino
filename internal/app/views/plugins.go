@@ -376,7 +376,7 @@ func (p *pluginsPage) Body(width, _ int) string {
 		var line string
 		switch {
 		case row.orphan:
-			line = "  " + th.Cant.Render(glyph.Warn()+" "+row.id)
+			line = "  " + th.Cant.Render(glyph.Lead(glyph.Warn())+row.id)
 		default:
 			icon := glyph.Cross()
 			if row.enabled {
@@ -389,7 +389,7 @@ func (p *pluginsPage) Body(width, _ int) string {
 		}
 		lines = append(lines, line)
 		if row.problem != "" {
-			lines = append(lines, "    "+th.Cant.Render(glyph.Warn()+" "+row.problem))
+			lines = append(lines, "    "+th.Cant.Render(glyph.Lead(glyph.Warn())+row.problem))
 		}
 	}
 	body := f.TitledBox(strings.ToUpper(p.Title()), lines...)

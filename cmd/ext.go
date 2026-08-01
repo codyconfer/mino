@@ -36,7 +36,7 @@ func registered() []*cobra.Command {
 
 func App() *app.App { return shared }
 
-func Host() plugin.Host { return pluginhost.New(shared.Cfg, shared.Tokens) }
+func Host(signal string) plugin.Host { return pluginhost.ForSignal(shared.Cfg, shared.Tokens, signal) }
 
 func SignalCmd(name, short string) *cobra.Command { return sourceCmd(name, short) }
 

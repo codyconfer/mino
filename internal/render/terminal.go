@@ -29,6 +29,12 @@ func RenderTerminalStringTitled(root string, sections []signals.Section) string 
 	return treeString(FlightTree(layout.NewFrame(theme.BodyWidth), root, sections))
 }
 
+// RenderTerminalString renders sections without a trunk row, for views whose
+// chrome already shows the title.
+func RenderTerminalString(sections []signals.Section) string {
+	return treeString(SectionRows(layout.NewFrame(theme.BodyWidth), sections))
+}
+
 func treeString(rows []tree.Row) string {
 	lines := make([]string, 0, len(rows))
 	for _, r := range rows {
@@ -94,7 +100,21 @@ func (r SectionResults) Items(f layout.Frame) []list.Item {
 func (r SectionResults) Count() int {
 	n := 0
 	for _, sec := range r.Sections {
+		if sec.Err != nil {
+			n++
+			continue
+		}
 		n += len(sec.Items)
+	}
+	return n
+}
+
+func (r SectionResults) Errored() int {
+	n := 0
+	for _, sec := range r.Sections {
+		if sec.Err != nil {
+			n++
+		}
 	}
 	return n
 }

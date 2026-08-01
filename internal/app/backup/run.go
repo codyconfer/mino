@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/codyconfer/sisyphus"
+	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/sisyphus/store"
 
 	"github.com/codyconfer/mino/internal/config"
@@ -49,7 +50,7 @@ func restoreSpec(cfg *config.Config, sealed []byte, dest string) sisyphus.Restor
 	}
 }
 
-func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), tokens *token.Store, outDir string) error {
+func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), outDir string) error {
 	home := cfg.Home
 
 	closeDBs()
@@ -72,11 +73,11 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), 
 	keep := cfg.Backup.Keep
 
 	if dest := cfg.Backup.Destination; dest != "" && dest != "local" {
-		return uploadTo(ctx, w, cfg, tokens, dest, name, sealed, storeName, keep)
+		return uploadTo(ctx, w, cfg, dest, name, sealed, storeName, keep)
 	}
 
 	path := filepath.Join(outDir, name)
-	if err := os.WriteFile(path, sealed, 0o600); err != nil {
+	if _, err := sconfig.WriteItem(outDir, name, sealed); err != nil {
 		return errs.Wrapf(errs.KindBackup, err, "writing backup to %s", path)
 	}
 	fmt.Fprintf(w, "encrypted backup written to %s (%d bytes; key in %s)\n", path, len(sealed), storeName)
@@ -107,13 +108,19 @@ func Restore(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func
 	return nil
 }
 
-func uploadTo(ctx context.Context, w io.Writer, cfg *config.Config, tokens *token.Store, dest, name string, sealed []byte, storeName string, keep int) error {
+func uploadTo(ctx context.Context, w io.Writer, cfg *config.Config, dest, name string, sealed []byte, storeName string, keep int) error {
 	open, ok := plugin.LookupBackupDestination(dest)
 	if !ok {
 		return errs.Newf(errs.KindConfig, "unknown backup destination %q", dest).
 			WithHint("set backup.destination to local or one of: %s", strings.Join(plugin.BackupDestinations(), ", "))
 	}
-	sink, err := open(pluginhost.New(cfg, tokens))
+	tokens, err := token.Open(ctx, config.DataPath(cfg.Home, config.TokensDB))
+	if err != nil {
+		return errs.Wrap(errs.KindBackup, err, "opening token store for upload")
+	}
+	defer tokens.Close()
+	owner, _ := plugin.BackupDestinationOwner(dest)
+	sink, err := open(pluginhost.ForPlugin(cfg, tokens, owner, dest))
 	if err != nil {
 		return errs.Wrapf(errs.KindBackup, err, "opening backup destination %q", dest)
 	}

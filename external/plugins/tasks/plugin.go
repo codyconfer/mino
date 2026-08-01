@@ -20,10 +20,12 @@ const (
 
 func Register() {
 	plugin.RegisterSignal(plugin.Descriptor{
-		ID:           PluginID,
-		Kind:         plugin.KindSignal,
-		Signal:       SignalName,
-		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapAction, plugin.CapCacheable},
+		ID:                 PluginID,
+		Kind:               plugin.KindSignal,
+		Signal:             SignalName,
+		Capabilities:       []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapCacheable},
+		Credentials:        []string{"google"},
+		SettingsNamespaces: []string{SignalName, "google"},
 	}, plugin.Builders{
 		Query:  BuildQuery,
 		Stream: BuildStream,
@@ -81,7 +83,7 @@ func newTasksCmd() *cobra.Command {
 }
 
 func addTask(c *cobra.Command, title, notes, due, list string) error {
-	host := cmd.Host()
+	host := cmd.Host(SignalName)
 	configured := plugin.Setting(host.Settings(SignalName), "list", "")
 	target, err := cmd.ResolveWriteTarget("task list", "plugins.tasks.list", configured, list)
 	if err != nil {

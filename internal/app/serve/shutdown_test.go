@@ -47,6 +47,7 @@ func oneItemEvent(i int) signals.Event {
 func TestWatchRecordsAllEventsBeforeRollUp(t *testing.T) {
 	home := t.TempDir()
 	s, st := testServer(t, home)
+	shrinkAuditGraces(t, auditEnqueueGrace, 60*time.Second, auditAbortGrace)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	in := make(chan signals.Event)
@@ -67,7 +68,7 @@ func TestWatchRecordsAllEventsBeforeRollUp(t *testing.T) {
 	cancel()
 	select {
 	case <-done:
-	case <-time.After(60 * time.Second):
+	case <-time.After(auditDrainGrace + 30*time.Second):
 		t.Fatal("watch did not return after cancel")
 	}
 
