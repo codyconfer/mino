@@ -1,9 +1,12 @@
 # external/plugins
 
-The Google (Calendar, Gmail, Docs, Drive, Tasks), Slack, and demo signals. They
-are a **separate Go module** (`github.com/codyconfer/mino/external/plugins`)
-built only against mino's public SDK — `mino/plugin` for contributions and
-`mino/cmd` for the CLI bridge. Stock `mino` does not link them.
+The Google (Calendar, Gmail, Docs, Drive, Tasks), Slack, and demo signals, plus
+the Lane C / C2 packages (`gcx`, `kubectl`, `gooseai`, `pi`, `opencode`,
+`ollama`, `argocd`, the shared `stub` helper, and the `example` overlay
+sample). They are a **separate Go module**
+(`github.com/codyconfer/mino/external/plugins`) built only against mino's
+public SDK — `mino/plugin` for contributions and `mino/cmd` for the CLI
+bridge. Stock `mino` does not link them.
 
 ## Build the overlay
 
@@ -30,6 +33,27 @@ go run ./overlay calendar query     # the same CLI, plus these signals
 | `slack` | `slack` | query + stream, query params, `mino slack query`, the `slack` login provider |
 | `google` | — | the shared `google` login provider for the five Google signals |
 | `demo` | `demo` | query + stream, the `demo-no-lorem` filter engine |
+| `gcx` | `gcx` | offline Grafana Cloud status (sealed token key `gcx`), `declare-incident` / `add-activity` action stubs, seed query |
+| `kubectl` | `kubectl` | in-process context + read-only `kubectl config current-context` probe, seed query |
+| `gooseai` | `gooseai` | Lane C2 context stub via `stub`, seed query |
+| `pi` | `pi` | Lane C2 context stub via `stub`, seed query |
+| `opencode` | `opencode` | Lane C2 context stub via `stub`, seed query |
+| `ollama` | `ollama` | Lane C2 context stub via `stub`, seed query |
+| `argocd` | `argocd` | Lane C2 context stub via `stub`, seed query |
+| `example` | `example` | sample team-overlay signal (`overlay.example`) |
+
+`stub/` is the shared helper for new context-tool stubs: `stub.Register(Spec)`
+installs the signal, glyph, in-memory context provider, and status chip in one
+call. `gcx/SPIKE.md` documents the Grafana Cloud auth matrix and deferrals.
+
+## Team overlay pattern
+
+`overlay/main.go` embeds its own seed tree (`overlay/defaults/`) via
+`go:embed` and passes it as `app.Options.Defaults` alongside
+`RegisterPlugins: plugins.Register`. A team distribution copies this shape:
+private module, private `defaults/` (queries, flights, filters, roles),
+private plugin packages, one `main.go`. The artifact is conventionally named
+`mino-with-externals`.
 
 ## Configuration
 

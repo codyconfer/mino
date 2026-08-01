@@ -3,11 +3,14 @@
 Nothing here ships in the stock mino binary.
 
 **In-repo overlay module** — the Google (Calendar, Gmail, Docs, Drive, Tasks),
-Slack, and demo signals:
+Slack, and demo signals, plus the Lane C / C2 packages (`gcx`, `kubectl`,
+`gooseai`, `pi`, `opencode`, `ollama`, `argocd`, the shared `stub` helper, and
+the `example` overlay sample):
 
 ```text
 external/plugins/            public-SDK plugin packages + tests
-external/plugins/overlay/    thin binary: RegisterPlugins → plugins.Register
+external/plugins/overlay/    thin binary: RegisterPlugins → plugins.Register,
+                             embedded overlay/defaults/ seed tree
 ```
 
 ```sh
@@ -16,15 +19,7 @@ make test-overlay
 cd external/plugins && go run ./overlay calendar query
 ```
 
-**Sibling overlay repos** — Lane C / C2 packages (`gcx`, `kubectl`, `gooseai`,
-`pi`, `opencode`, `ollama`, and the shared `stub` helper):
-
-```text
-../mino-plugins-external/     public-SDK plugin packages + tests
-../mino-overlay-template/     thin binary: RegisterPlugins → externals.Register
-```
-
-Build stock mino without either:
+Build stock mino without it:
 
 ```sh
 make build

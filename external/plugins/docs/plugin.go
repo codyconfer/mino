@@ -15,6 +15,9 @@ const (
 )
 
 func Register() {
+	if _, ok := plugin.Lookup(PluginID); ok {
+		return
+	}
 	plugin.RegisterSignal(plugin.Descriptor{
 		ID:                 PluginID,
 		Kind:               plugin.KindSignal,

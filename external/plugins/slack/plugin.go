@@ -16,12 +16,16 @@ const (
 )
 
 func Register() {
+	if _, ok := plugin.Lookup(PluginID); ok {
+		return
+	}
 	plugin.RegisterSignal(plugin.Descriptor{
-		ID:           PluginID,
-		Kind:         plugin.KindSignal,
-		Signal:       SignalName,
-		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapCacheable},
-		Credentials:  []string{"slack", "slack-app", "slack-bot"},
+		ID:                 PluginID,
+		Kind:               plugin.KindSignal,
+		Signal:             SignalName,
+		Capabilities:       []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapCacheable},
+		Credentials:        []string{"slack", "slack-app", "slack-bot"},
+		SettingsNamespaces: []string{SignalName},
 	}, plugin.Builders{
 		Query:  BuildQuery,
 		Stream: BuildStream,

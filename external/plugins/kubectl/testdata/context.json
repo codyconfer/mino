@@ -1,0 +1,6 @@
+{
+  "context": "fixture-kubectl-ctx",
+  "signal": "kubectl",
+  "title": "kubectl",
+  "kind": "context"
+}

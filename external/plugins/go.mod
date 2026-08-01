@@ -4,8 +4,8 @@ go 1.26.5
 
 require (
 	github.com/codyconfer/mino v0.0.0
-	github.com/codyconfer/sisyphus v0.1.13
-	github.com/codyconfer/viewkit v0.1.17
+	github.com/codyconfer/sisyphus v0.2.0
+	github.com/codyconfer/viewkit v0.2.0
 	github.com/slack-go/slack v0.27.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/oauth2 v0.36.0

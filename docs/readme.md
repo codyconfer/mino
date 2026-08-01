@@ -186,10 +186,10 @@ serve/daemon socket is attached.
 against the public SDK, with `overlay/main.go` as a reference host:
 
 ```text
-external/plugins/            # calendar, gmail, docs, drive, tasks, slack, demo, google login
-external/plugins/overlay/    # thin binary: RegisterPlugins → plugins.Register
-../mino-plugins-external/   # other external.* packages (gcx, kubectl, …)
-../mino-overlay-template/   # thin binary for those siblings
+external/plugins/            # calendar, gmail, docs, drive, tasks, slack, demo, google login,
+                             # gcx, kubectl, gooseai, pi, opencode, ollama, argocd, stub, example
+external/plugins/overlay/    # thin binary: RegisterPlugins → plugins.Register,
+                             # embedded overlay/defaults/ seed tree
 ```
 
 ```sh
@@ -1303,10 +1303,8 @@ not commit — committed `replace` is rejected). A common local pattern is
 
 ```sh
 # from the mino checkout, with sisyphus and viewkit as siblings:
-go work init . ../sisyphus ../viewkit
-# or: go work use ../sisyphus ../viewkit
-# optional overlay siblings:
-#   go work use ../mino-plugins-external ../mino-overlay-template
+go work init . ./external/plugins ../sisyphus ../viewkit
+# or: go work use . ./external/plugins ../sisyphus ../viewkit
 ```
 
 Published consumers and CI ignore `go.work` and resolve the pinned module

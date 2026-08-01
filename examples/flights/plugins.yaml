@@ -8,3 +8,4 @@ queries:
   - pi-context
   - opencode-context
   - ollama-context
+  - argocd-context

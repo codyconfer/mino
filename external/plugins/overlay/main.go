@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"embed"
+	"io/fs"
 	"os"
 
 	"github.com/codyconfer/sisyphus/daemon"
 
 	minoapp "github.com/codyconfer/mino/app"
-	"github.com/codyconfer/mino/app/defaults"
 	"github.com/codyconfer/mino/cmd"
 	plugins "github.com/codyconfer/mino/external/plugins"
 )
+
+//go:embed all:defaults
+var defaultsRoot embed.FS
 
 func main() {
 	defer cmd.Shutdown()
@@ -18,8 +22,13 @@ func main() {
 	ctx, stop := daemon.SignalContext(context.Background())
 	defer stop()
 
-	err := minoapp.Run(minoapp.Options{
-		Defaults:        defaults.FS,
+	defaultsFS, err := fs.Sub(defaultsRoot, "defaults")
+	if err != nil {
+		panic(err)
+	}
+
+	err = minoapp.Run(minoapp.Options{
+		Defaults:        defaultsFS,
 		RegisterPlugins: plugins.Register,
 		CLI: func(_ context.Context, args []string) error {
 			root := cmd.Root()

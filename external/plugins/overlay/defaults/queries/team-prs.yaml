@@ -1,0 +1,4 @@
+name: team-prs
+signal: github
+params:
+  query: "is:open is:pr org:example"

@@ -11,6 +11,9 @@ import (
 const PluginID = "external.google"
 
 func Register() {
+	if _, ok := plugin.LookupLoginProvider("google"); ok {
+		return
+	}
 	plugin.RegisterLoginProvider(plugin.LoginProvider{
 		PluginID: PluginID,
 		Key:      "google",

@@ -1,0 +1,4 @@
+name: argocd-context
+type: query
+signal: argocd
+params: {}

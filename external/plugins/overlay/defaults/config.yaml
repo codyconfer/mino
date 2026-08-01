@@ -1,0 +1,5 @@
+# Team overlay seed config — replace with org defaults.
+output: terminal
+
+audit:
+  enabled: true

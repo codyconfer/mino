@@ -115,9 +115,9 @@ seeds.
 | `today` / `unread-mail` / `recent-docs` | calendar/gmail/docs | `external.*` | Moved to [`external/plugins/examples`](../external/plugins/examples/) with their signals |
 | `slack-standup` | `slack` | `external.slack` | Moved to `external/plugins/examples` |
 | `notify-smoke` | `demo` | `external.demo` | Moved to `external/plugins/examples`; synthetic notify toasts |
-| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`mino-plugins-external`); C-0 offline auth/context |
+| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`external/plugins`); C-0 offline auth/context |
 | `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; current kube context |
-| `*-context` | gooseai/pi/opencode/ollama | `external.*` | Overlay-only Lane C2 stubs |
+| `*-context` | gooseai/pi/opencode/ollama/argocd | `external.*` | Overlay-only Lane C2 stubs |
 | `scaffold-ping` | `scaffold` | `scaffold.example` | ADR-14 template; generate with `mino plugins scaffold` (not linked into the default binary) |
 
 External plugin YAML under `examples/` is reference material for an overlay

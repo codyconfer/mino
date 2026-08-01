@@ -1,0 +1,6 @@
+{
+  "context": "fixture-ollama-model",
+  "signal": "ollama",
+  "title": "ollama",
+  "kind": "context"
+}
