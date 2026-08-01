@@ -31,7 +31,7 @@ type editorDoc interface {
 	editorRun() (string, func() []signals.Section, error)
 	editorVerify(any) Finding
 	editorPersist(any) (string, error)
-	editorRemove() string
+	editorRemove() (string, error)
 }
 
 func newEditorShell(doc editorDoc, seed map[string]any) *editorShell {
@@ -72,13 +72,13 @@ type editorOutputAdapter struct {
 func (a *editorOutputAdapter) CopyOutput() (string, error)  { return a.out.CopyOutput() }
 func (a *editorOutputAdapter) WriteOutput() (string, error) { return a.out.WriteOutput() }
 
-func (a *editorAdapter) Kind() string         { return a.doc.editorKind() }
-func (a *editorAdapter) Title() string        { return a.doc.editorTitle() }
-func (a *editorAdapter) Context() []keys.Hint { return a.doc.editorCtx() }
-func (a *editorAdapter) SavedName() string    { return a.doc.editorSavedName() }
-func (a *editorAdapter) Sync() bool           { return a.doc.editorSync() }
-func (a *editorAdapter) Summary() string      { return a.doc.editorSummary() }
-func (a *editorAdapter) Remove() string       { return a.doc.editorRemove() }
+func (a *editorAdapter) Kind() string            { return a.doc.editorKind() }
+func (a *editorAdapter) Title() string           { return a.doc.editorTitle() }
+func (a *editorAdapter) Context() []keys.Hint    { return a.doc.editorCtx() }
+func (a *editorAdapter) SavedName() string       { return a.doc.editorSavedName() }
+func (a *editorAdapter) Sync() bool              { return a.doc.editorSync() }
+func (a *editorAdapter) Summary() string         { return a.doc.editorSummary() }
+func (a *editorAdapter) Remove() (string, error) { return a.doc.editorRemove() }
 
 func (a *editorAdapter) Fields(prev map[string]any) []forms.Field {
 	return a.doc.editorFields(prev)

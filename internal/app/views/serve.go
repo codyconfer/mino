@@ -171,8 +171,7 @@ func (v *ServeView) confirm(a *vkdeck.Model) tea.Cmd {
 
 func (v *ServeView) Body(width, height int) string {
 	f := layout.ScreenFrame(width)
-	v.toast.Prune()
-	ns := v.toast.Queue().Snapshot()
+	ns := v.toast.Snapshot()
 	recent := make([]vnotify.Notification, 0, len(ns))
 	for i := len(ns) - 1; i >= 0; i-- {
 		recent = append(recent, ns[i])

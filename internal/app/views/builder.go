@@ -70,7 +70,7 @@ func querySummary(q config.Query) string {
 	return strings.Join(parts, "  ")
 }
 
-func (kit *Kit) deleteQuery(name string) string {
+func (kit *Kit) deleteQuery(name string) (string, error) {
 	return kit.deleteDirective(config.TypeQuery, name)
 }
 
@@ -390,7 +390,7 @@ func (v *builderView) editorPersist(val any) (string, error) {
 	return summary, nil
 }
 
-func (v *builderView) editorRemove() string { return v.kit.deleteQuery(v.orig) }
+func (v *builderView) editorRemove() (string, error) { return v.kit.deleteQuery(v.orig) }
 
 func (v *builderView) query() (config.Query, error) {
 	vals := v.Form().Values()

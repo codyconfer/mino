@@ -48,7 +48,7 @@ func flightSummary(fl config.Flight) string {
 	return strings.Join(fl.Queries, ", ")
 }
 
-func (kit *Kit) deleteFlight(name string) string {
+func (kit *Kit) deleteFlight(name string) (string, error) {
 	return kit.deleteDirective(config.TypeFlight, name)
 }
 
@@ -207,4 +207,4 @@ func (v *flightView) editorPersist(val any) (string, error) {
 	return summary, nil
 }
 
-func (v *flightView) editorRemove() string { return v.kit.deleteFlight(v.orig) }
+func (v *flightView) editorRemove() (string, error) { return v.kit.deleteFlight(v.orig) }

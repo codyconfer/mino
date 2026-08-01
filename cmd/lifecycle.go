@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	vkdeck "github.com/codyconfer/viewkit/deck"
 	"os"
 
 	"github.com/charmbracelet/x/term"
@@ -87,9 +88,12 @@ func runNuke(cmd *cobra.Command, home string, yes bool) error {
 			return errs.New(errs.KindUsage, "refusing to nuke without --yes (no terminal for confirmation)").
 				WithHint("pass --yes to skip the confirmation prompt")
 		}
-		ok, err := deck.Confirm("Nuke config directory?",
-			fmt.Sprintf("Permanently delete %s and ALL contents (config, queries, filters, DuckDB)?", home),
-			"Delete", "Cancel")
+		ok, err := deck.Confirm(vkdeck.ConfirmSpec{
+			Title:    "Nuke config directory?",
+			Message:  fmt.Sprintf("Permanently delete %s and ALL contents (config, queries, filters, DuckDB)?", home),
+			YesLabel: "Delete",
+			NoLabel:  "Cancel",
+		})
 		if err != nil {
 			return err
 		}

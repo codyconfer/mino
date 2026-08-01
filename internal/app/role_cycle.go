@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/codyconfer/viewkit/layout"
-
 	"github.com/codyconfer/mino/internal/log"
 	"github.com/codyconfer/mino/internal/role"
 )
@@ -26,7 +24,7 @@ func NextRole(names []string, current string, delta int) (next string, ok bool) 
 	if len(names) == 0 || delta == 0 {
 		return NoRole, false
 	}
-	ring := make(layout.Ring, 0, len(names)+1)
+	ring := make([]string, 0, len(names)+1)
 	ring = append(ring, NoRole)
 	ring = append(ring, names...)
 
@@ -43,7 +41,8 @@ func NextRole(names []string, current string, delta int) (next string, ok bool) 
 		}
 		return names[len(names)-1], true
 	}
-	next = ring.At(ring.Step(idx, delta))
+	n := len(ring)
+	next = ring[((idx+delta)%n+n)%n]
 	if next == current {
 		return NoRole, false
 	}

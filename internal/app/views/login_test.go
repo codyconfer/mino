@@ -42,10 +42,10 @@ func TestLoginAlreadyAuthedStaysOnLoginWithToast(t *testing.T) {
 	a = step(a, tea.WindowSizeMsg{Width: 100, Height: 40})
 	a = step(a, loginAlreadyAuthedMsg{label: "GitHub"})
 
-	if !page.toast.Queue().Active() {
+	if !page.toast.Active() {
 		t.Fatal("expected toast queue to be active after already-authed msg")
 	}
-	n, ok := page.toast.Queue().Current()
+	n, ok := page.toast.Current()
 	if !ok || n.Message != "GitHub already authorized" {
 		t.Fatalf("toast = %+v ok=%v", n, ok)
 	}
@@ -81,7 +81,7 @@ func TestLoginFlowAlreadyAuthedRedirects(t *testing.T) {
 		t.Fatalf("top = %q, want accounts after redirect", a.Top().Title())
 	}
 	_ = step(a, msg)
-	if !page.toast.Queue().Active() {
+	if !page.toast.Active() {
 		t.Fatal("expected login page toast after redirect")
 	}
 }

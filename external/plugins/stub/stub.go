@@ -31,7 +31,10 @@ func Register(s Spec) *Provider {
 			return Signal{NameStr: s.SignalName, Title: s.Title, Prov: p}, nil
 		},
 	})
-	glyph.Register(s.PluginID, s.Glyph)
+	if !glyph.Register(s.PluginID, s.Glyph) {
+		plugin.NoteDiagnostic(s.PluginID, plugin.KindSignal, s.PluginID,
+			"glyph id already registered; keeping the incumbent glyph")
+	}
 	plugin.RegisterContext(s.PluginID, p)
 	plugin.RegisterStatusContribution(s.PluginID, func(_, _ string) glyph.StatusContribution {
 		return StatusContribution(s.PluginID, s.Tool, p)

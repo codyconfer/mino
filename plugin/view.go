@@ -18,7 +18,13 @@ func RegisterView(parentID, viewID string, ctor func() deck.View, opts ...Option
 		}
 		return
 	}
-	deck.RegisterView(viewID, ctor)
+	if !deck.RegisterView(viewID, ctor) {
+		// The descriptor registry said the id was free but viewkit disagreed —
+		// something registered with deck directly, bypassing this guard.
+		noteDiagnosticf(parentID, KindView, viewID,
+			"view %q collided in the deck registry; later view skipped", viewID)
+		return
+	}
 	d := Descriptor{
 		ID:     parentID + "/view/" + viewID,
 		Kind:   KindView,

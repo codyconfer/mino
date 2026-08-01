@@ -268,7 +268,7 @@ func (v *reportView) editorPersist(val any) (string, error) {
 	return summary, nil
 }
 
-func (v *reportView) editorRemove() string {
+func (v *reportView) editorRemove() (string, error) {
 	return v.kit.deleteDirective(config.TypeFormatter, v.orig)
 }
 

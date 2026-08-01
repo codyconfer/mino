@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"strings"
 
@@ -60,12 +61,12 @@ func (f *queryBuildFlags) prompt() error {
 		},
 	}
 
-	vals, ok, err := deck.Prompt(spec)
+	vals, err := deck.Prompt(spec)
+	if errors.Is(err, vkdeck.ErrCancelled) {
+		return errs.New(errs.KindUsage, "cancelled")
+	}
 	if err != nil {
 		return err
-	}
-	if !ok {
-		return errs.New(errs.KindUsage, "cancelled")
 	}
 	f.apply(signals[sigIdx], vals)
 	return nil

@@ -301,6 +301,6 @@ func (v *roleView) editorPersist(val any) (string, error) {
 	return summary, nil
 }
 
-func (v *roleView) editorRemove() string {
+func (v *roleView) editorRemove() (string, error) {
 	return v.kit.deleteDirective(config.TypeRole, v.orig)
 }

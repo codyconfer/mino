@@ -102,9 +102,8 @@ func TestServeViewRendersAndPrunes(t *testing.T) {
 		t.Fatalf("body should render the item title:\n%s", body)
 	}
 
-	v.toast.Queue().Prune(time.Now().Add(time.Hour))
-	if got := v.toast.Queue().Len(); got != 0 {
-		t.Fatalf("far-future prune should drain the queue, got %d", got)
+	if got := v.toast.Len(); got != 1 {
+		t.Fatalf("live inbox toast should be counted, got %d", got)
 	}
 
 	if v.Update(app, serveClosedMsg{}); !v.closed {

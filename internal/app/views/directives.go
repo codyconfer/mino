@@ -1,6 +1,7 @@
 package views
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -83,22 +84,22 @@ func (kit *Kit) removeDirective(kind config.DirectiveType, name string) ([]strin
 	return removed, ""
 }
 
-func (kit *Kit) deleteDirective(kind config.DirectiveType, name string) string {
+func (kit *Kit) deleteDirective(kind config.DirectiveType, name string) (string, error) {
 	removed, note := kit.removeDirective(kind, name)
 	if note != "" {
-		return note
+		return "", errors.New(note)
 	}
 	summary := "removed:\n  " + strings.Join(removed, "\n  ")
 	stored, err := config.SyncDirectives(kit.d.App.Mgr, kit.d.App.Cfg.Home)
 	switch {
 	case err != nil:
-		return summary + "\n\nthe store still holds it: " + err.Error()
+		return summary + "\n\nthe store still holds it: " + err.Error(), nil
 	case !stored:
 		return summary + "\n\nthe config store is unavailable, so this takes effect after\n" +
-			"reconcile: run `mino import directives` or restart mino."
+			"reconcile: run `mino import directives` or restart mino.", nil
 	}
 	if err := kit.d.App.RefreshDirectives(config.ReconcileIgnore); err != nil {
-		return summary + "\nremoved from DuckDB.\n\nreload failed: " + err.Error()
+		return summary + "\nremoved from DuckDB.\n\nreload failed: " + err.Error(), nil
 	}
-	return summary + "\nremoved from DuckDB; the change is live in this session."
+	return summary + "\nremoved from DuckDB; the change is live in this session.", nil
 }

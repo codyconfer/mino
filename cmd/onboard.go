@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	vkdeck "github.com/codyconfer/viewkit/deck"
 	"io"
 	"os"
 
@@ -92,6 +93,6 @@ func runOnboardTo(cmd *cobra.Command, w io.Writer, statusOnly bool) error {
 	}
 	return onboard.RunCLI(cmd.Context(), shared.Tokens, apiURL, w, statusOnly,
 		func(title, message, yes, no string) (bool, error) {
-			return deck.Confirm(title, message, yes, no)
+			return deck.Confirm(vkdeck.ConfirmSpec{Title: title, Message: message, YesLabel: yes, NoLabel: no})
 		})
 }

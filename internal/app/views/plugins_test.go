@@ -187,7 +187,7 @@ func TestPluginsDisableKeepsRow(t *testing.T) {
 	if !strings.Contains(body, "disabled") {
 		t.Fatalf("view missing disabled:\n%s", body)
 	}
-	if !page.toast.Queue().Active() {
+	if !page.toast.Active() {
 		t.Fatal("expected toast after toggle")
 	}
 }

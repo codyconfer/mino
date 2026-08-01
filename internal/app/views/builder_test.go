@@ -545,7 +545,10 @@ func TestQueryDeleteRemovesTheFile(t *testing.T) {
 	}
 	loadKitDirectives(t, kit)
 
-	summary := kit.deleteQuery("doomed")
+	summary, err := kit.deleteQuery("doomed")
+	if err != nil {
+		t.Fatalf("deleteQuery: %v", err)
+	}
 	if !strings.Contains(summary, "removed") {
 		t.Fatalf("delete summary = %q", summary)
 	}

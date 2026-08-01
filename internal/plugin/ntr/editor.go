@@ -119,19 +119,19 @@ func (c *recordCore) Run() (string, func() vkdeck.Results, error) {
 	}, nil
 }
 
-func (c *recordCore) Remove() string {
+func (c *recordCore) Remove() (string, error) {
 	if c.id == 0 {
-		return "nothing to delete"
+		return "nothing to delete", nil
 	}
 	label := c.label()
 	err := withStore(c.home, c.role, recordWriteTimeout, func(ctx context.Context, st *Store) error {
 		return removeRecord(ctx, st, c.kind, c.id)
 	})
 	if err != nil {
-		return "did not delete " + label + ": " + err.Error()
+		return "", fmt.Errorf("did not delete %s: %w", label, err)
 	}
 	c.markDirty()
-	return "removed " + label + "."
+	return "removed " + label + ".", nil
 }
 
 func (c *recordCore) CopyOutput() (string, error) {

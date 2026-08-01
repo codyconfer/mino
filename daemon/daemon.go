@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"fmt"
+	vkdeck "github.com/codyconfer/viewkit/deck"
 	"os"
 	"time"
 
@@ -145,9 +146,12 @@ func confirmDaemonInstall() (bool, error) {
 		return false, errs.New(errs.KindUsage, "refusing to install the daemon without --yes (no terminal for confirmation)").
 			WithHint("pass --yes to install non-interactively")
 	}
-	return deck.Confirm("Install mino daemon?",
-		"Install mino as an OS service (systemd/launchd/Windows) and start it?",
-		"Install", "Cancel")
+	return deck.Confirm(vkdeck.ConfirmSpec{
+		Title:    "Install mino daemon?",
+		Message:  "Install mino as an OS service (systemd/launchd/Windows) and start it?",
+		YesLabel: "Install",
+		NoLabel:  "Cancel",
+	})
 }
 
 func newDaemonControlCmds() []*cobra.Command {
