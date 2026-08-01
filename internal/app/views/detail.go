@@ -30,11 +30,12 @@ type DetailView struct {
 	ref     render.ItemRef
 	fetch   func(signal string, it signals.Item) (*signals.ItemDetail, error)
 	open    func(url string) error
-	detail  *signals.ItemDetail
-	err     error
-	loading bool
-	frame   int
-	scroll  vkdeck.ScrollBody
+	detail    *signals.ItemDetail
+	err       error
+	loading   bool
+	frame     int
+	animating bool
+	scroll    vkdeck.ScrollBody
 }
 
 func (k *Kit) Detail(ref render.ItemRef) vkdeck.View {
@@ -46,28 +47,42 @@ func (v *DetailView) Title() string { return render.ItemLabel(v.ref.Item) }
 func (v *DetailView) ConsoleLoading() bool { return v.loading }
 
 func (v *DetailView) Init() tea.Cmd {
+	animate := v.animate()
 	if v.fetch == nil {
-		return nil
+		return animate
 	}
 	v.loading = true
 	ref := v.ref
 	fetch := v.fetch
-	return func() tea.Msg {
+	return tea.Batch(animate, func() tea.Msg {
 		d, err := fetch(ref.Signal, ref.Item)
 		return detailLoadedMsg{detail: d, err: err}
+	})
+}
+
+func (v *DetailView) animFrame() int {
+	if !v.animating {
+		return -1
 	}
+	return v.frame
+}
+
+func (v *DetailView) animate() tea.Cmd {
+	if v.animating || !render.DetailAnimates(v.ref, v.detail) {
+		return nil
+	}
+	v.animating = true
+	return detailAnimationTick()
 }
 
 func (v *DetailView) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case detailLoadedMsg:
 		v.detail, v.err, v.loading = m.detail, m.err, false
-		if render.DetailHasInProgress(v.detail) {
-			return detailAnimationTick()
-		}
-		return nil
+		return v.animate()
 	case detailAnimationMsg:
-		if !render.DetailHasInProgress(v.detail) {
+		if !render.DetailAnimates(v.ref, v.detail) {
+			v.animating = false
 			return nil
 		}
 		v.frame++
@@ -124,7 +139,7 @@ func openURL(url string) tea.Cmd {
 func (v *DetailView) Body(f layout.Frame) string {
 	height := f.Height
 	f = f.Screen()
-	body := render.DetailPanelFrame(f, v.ref, v.detail, v.frame)
+	body := render.DetailPanelFrame(f, v.ref, v.detail, v.animFrame())
 	if v.err != nil {
 		body = f.Theme().Cant.Render(signals.Clean(v.err.Error())) + "\n" + body
 	}

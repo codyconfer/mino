@@ -54,3 +54,53 @@ func TestSnapshotBodyDoesNotRepeatTheChromeTitle(t *testing.T) {
 		t.Errorf("body should start at the first section head:\n%s", body)
 	}
 }
+
+func TestSnapshotAnimatesInProgressWorkflow(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pane.json")
+	snap := pane.Snapshot{
+		Kind:   pane.KindSections,
+		Title:  "flight: ci",
+		Origin: "flight:ci",
+		Sections: []signals.Section{
+			{Signal: "github", Title: "Workflows", Items: []signals.Item{{
+				Kind:  "workflow",
+				Title: "CI #42",
+				URL:   "https://github.com/acme/tools/actions/runs/42",
+				Meta:  map[string]string{"status": "in_progress", "state": "in progress"},
+			}}},
+		},
+	}
+	if err := pane.WriteSnapshot(path, snap); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+
+	v := NewSnapshotView(path)
+	if cmd := v.Update(nil, v.loadCmd()().(snapshotLoadedMsg)); cmd == nil {
+		t.Fatal("in-progress workflow did not start the animation tick")
+	}
+	f := layout.Frame{Width: 80}
+	before := ansi.Strip(v.render(f))
+	if cmd := v.Update(nil, snapshotAnimationMsg{}); cmd == nil {
+		t.Fatal("in-progress workflow did not continue the animation tick")
+	}
+	if after := ansi.Strip(v.render(f)); after == before {
+		t.Fatalf("snapshot spinner stayed frozen:\n%s", after)
+	}
+
+	v.snap.Sections[0].Items[0].Meta = map[string]string{"status": "completed", "conclusion": "success"}
+	if cmd := v.Update(nil, snapshotAnimationMsg{}); cmd != nil {
+		t.Error("completed workflow kept the animation tick alive")
+	}
+}
+
+func TestSnapshotSettledSectionsRenderNoSpinnerFrame(t *testing.T) {
+	v := NewSnapshotView(filepath.Join(t.TempDir(), "pane.json"))
+	v.snap = pane.Snapshot{Kind: pane.KindSections, Sections: []signals.Section{
+		{Signal: "github", Title: "Workflows", Items: []signals.Item{
+			{Kind: "workflow", Title: "CI #41", Meta: map[string]string{"status": "completed", "conclusion": "success"}},
+		}},
+	}}
+	if got := v.animFrame(); got != -1 {
+		t.Fatalf("animFrame = %d, want -1 while nothing is in progress", got)
+	}
+}

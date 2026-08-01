@@ -27,6 +27,10 @@ type snapshotLoadedMsg struct {
 
 type snapshotPollMsg struct{}
 
+type snapshotAnimationMsg struct{}
+
+const snapshotAnimationInterval = 80 * time.Millisecond
+
 type SnapshotView struct {
 	path  string
 	title string
@@ -34,6 +38,9 @@ type SnapshotView struct {
 	snap    pane.Snapshot
 	mod     time.Time
 	loadErr error
+
+	frame     int
+	animating bool
 
 	scroll vkdeck.ScrollBody
 }
@@ -66,6 +73,32 @@ func (v *SnapshotView) pollCmd() tea.Cmd {
 	return tea.Tick(snapshotPollInterval, func(time.Time) tea.Msg { return snapshotPollMsg{} })
 }
 
+func (v *SnapshotView) animationCmd() tea.Cmd {
+	return tea.Tick(snapshotAnimationInterval, func(time.Time) tea.Msg { return snapshotAnimationMsg{} })
+}
+
+func (v *SnapshotView) animates() bool {
+	if v.snap.Kind == pane.KindDetail {
+		return render.DetailAnimates(v.ref(), v.snap.Detail)
+	}
+	return render.SectionsHaveInProgress(v.snap.Sections)
+}
+
+func (v *SnapshotView) animFrame() int {
+	if !v.animating {
+		return -1
+	}
+	return v.frame
+}
+
+func (v *SnapshotView) animate() tea.Cmd {
+	if v.animating || !v.animates() {
+		return nil
+	}
+	v.animating = true
+	return v.animationCmd()
+}
+
 func (v *SnapshotView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch t := msg.(type) {
 	case snapshotLoadedMsg:
@@ -77,7 +110,14 @@ func (v *SnapshotView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 			}
 		}
 		v.mod = t.mod
-		return nil
+		return v.animate()
+	case snapshotAnimationMsg:
+		if !v.animates() {
+			v.animating = false
+			return nil
+		}
+		v.frame++
+		return v.animationCmd()
 	case snapshotPollMsg:
 		fi, err := os.Stat(v.path)
 		if err == nil && fi.ModTime().After(v.mod) {
@@ -137,12 +177,12 @@ func (v *SnapshotView) render(f layout.Frame) string {
 		if v.snap.Detail == nil {
 			return th.Dim.Render("no detail in snapshot")
 		}
-		return render.DetailPanel(f.Screen(), v.ref(), v.snap.Detail)
+		return render.DetailPanelFrame(f.Screen(), v.ref(), v.snap.Detail, v.animFrame())
 	default:
 		if len(v.snap.Sections) == 0 {
 			return th.Dim.Italic(true).Render("no results in snapshot")
 		}
-		return render.RenderTerminalString(v.snap.Sections)
+		return render.RenderTerminalStringFrame(v.snap.Sections, v.animFrame())
 	}
 }
 

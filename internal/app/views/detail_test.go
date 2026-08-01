@@ -249,3 +249,35 @@ func detailKey(s string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 	}
 }
+
+func TestDetailViewAnimatesWhenOnlyTheItemIsInProgress(t *testing.T) {
+	v := detailView(t, nil)
+	v.ref.Item = signals.Item{
+		Kind:  "workflow",
+		Title: "CI #42",
+		URL:   "https://github.com/acme/tools/actions/runs/42",
+		Meta:  map[string]string{"status": "in_progress", "state": "in progress"},
+	}
+	if cmd := v.Init(); cmd == nil {
+		t.Fatal("in-progress workflow item did not start the animation tick")
+	}
+	if got := v.animFrame(); got != 0 {
+		t.Fatalf("animFrame = %d, want 0 once animating", got)
+	}
+	if cmd := v.Update(nil, detailAnimationMsg{}); cmd == nil {
+		t.Fatal("in-progress workflow item did not continue the animation tick")
+	}
+	if v.frame != 1 {
+		t.Errorf("frame = %d, want 1", v.frame)
+	}
+}
+
+func TestDetailViewSettledItemRendersNoSpinnerFrame(t *testing.T) {
+	v := detailView(t, nil)
+	if cmd := v.Init(); cmd != nil {
+		t.Fatal("settled detail should not start an animation tick")
+	}
+	if got := v.animFrame(); got != -1 {
+		t.Fatalf("animFrame = %d, want -1 while nothing is in progress", got)
+	}
+}

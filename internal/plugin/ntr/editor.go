@@ -138,7 +138,7 @@ func (c *recordCore) Run() (string, func() vkdeck.Results, error) {
 	home, role, kind := c.home, c.role, c.kind
 	label := SignalName + " · " + role
 	return label, func() vkdeck.Results {
-		return render.SectionResults{Sections: recordRun(home, role, kind, label)}
+		return &render.SectionResults{Sections: recordRun(home, role, kind, label)}
 	}, nil
 }
 

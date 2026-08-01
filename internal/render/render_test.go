@@ -145,9 +145,14 @@ func TestWorkflowResultInProgressUsesSpinnerGlyph(t *testing.T) {
 		Title: "CI #42",
 		Meta:  map[string]string{"status": "in_progress", "state": "in progress"},
 	}
-	head := ansi.Strip(itemLines(f, th, inProgress)[0])
+	head := ansi.Strip(itemLinesInFrame(f, newItemTheme(f.Glyphs(), th), inProgress, 0)[0])
 	if !strings.HasPrefix(head, glyph.Lead("|")+"CI #42") {
 		t.Fatalf("in-progress workflow head = %q, want spinner glyph", head)
+	}
+
+	settled := ansi.Strip(itemLines(f, th, inProgress)[0])
+	if strings.HasPrefix(settled, glyph.Lead("|")) {
+		t.Fatalf("unanimated workflow head = %q, want a settled glyph rather than a stuck spinner frame", settled)
 	}
 
 	completed := inProgress

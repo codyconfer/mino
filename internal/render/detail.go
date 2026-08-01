@@ -81,6 +81,10 @@ func DetailPanelFrame(f layout.Frame, ref ItemRef, d *signals.ItemDetail, frame 
 	return detailPanel(f, ref, d, frame)
 }
 
+func DetailAnimates(ref ItemRef, d *signals.ItemDetail) bool {
+	return ItemInProgress(ref.Item) || DetailHasInProgress(d)
+}
+
 func DetailHasInProgress(d *signals.ItemDetail) bool {
 	if d == nil {
 		return false
@@ -133,7 +137,7 @@ func detailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail, frame int) 
 
 	sev := detailSeverity(it, d)
 	icon := th.SeverityStyle(sev).Render(glyph.Lead(glyph.ForIn(f.Glyphs(), sev)))
-	if workflowInProgress(it) {
+	if frame >= 0 && workflowInProgress(it) {
 		icon = th.SeverityStyle(sev).Render(glyph.Lead(spinnerFrame(f.Glyphs(), frame)))
 	}
 	out := []string{f.TitledBoxIcon(icon, head, lines...)}

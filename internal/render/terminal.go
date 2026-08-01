@@ -35,7 +35,11 @@ func RenderTerminalStringTitled(root string, sections []signals.Section) string 
 // RenderTerminalString renders sections without a trunk row, for views whose
 // chrome already shows the title.
 func RenderTerminalString(sections []signals.Section) string {
-	return treeString(SectionRows(layout.DocumentFrame(), sections))
+	return RenderTerminalStringFrame(sections, -1)
+}
+
+func RenderTerminalStringFrame(sections []signals.Section, frame int) string {
+	return treeString(sectionRows(layout.DocumentFrame(), sections, frame))
 }
 
 func treeString(rows []tree.Row) string {
@@ -280,11 +284,13 @@ func itemLinesInFrame(f layout.Frame, t itemTheme, it signals.Item, frame int) [
 
 func (t itemTheme) itemIcon(it signals.Item, frame int) string {
 	sev := glyph.ClassifyItem(it)
-	if workflowInProgress(it) {
+	if frame >= 0 && workflowInProgress(it) {
 		return t.style(sev).Render(glyph.Lead(spinnerFrame(t.g, frame)))
 	}
 	return t.icon(sev)
 }
+
+func ItemInProgress(it signals.Item) bool { return workflowInProgress(it) }
 
 func workflowInProgress(it signals.Item) bool {
 	if !strings.EqualFold(strings.TrimSpace(it.Kind), "workflow") || strings.TrimSpace(it.Meta["conclusion"]) != "" {
