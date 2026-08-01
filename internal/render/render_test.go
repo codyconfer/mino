@@ -133,6 +133,31 @@ func TestItemLinesShowsAuthor(t *testing.T) {
 	}
 }
 
+func TestWorkflowResultInProgressUsesSpinnerGlyph(t *testing.T) {
+	previous := glyph.CurrentMode()
+	glyph.SetMode(glyph.ModeNone)
+	t.Cleanup(func() { glyph.SetMode(previous) })
+
+	f := layout.NewFrame(80)
+	th := theme.Default()
+	inProgress := signals.Item{
+		Kind:  "workflow",
+		Title: "CI #42",
+		Meta:  map[string]string{"status": "in_progress", "state": "in progress"},
+	}
+	head := ansi.Strip(itemLines(f, th, inProgress)[0])
+	if !strings.HasPrefix(head, glyph.Lead("|")+"CI #42") {
+		t.Fatalf("in-progress workflow head = %q, want spinner glyph", head)
+	}
+
+	completed := inProgress
+	completed.Meta = map[string]string{"status": "completed", "conclusion": "success", "state": "success"}
+	head = ansi.Strip(itemLines(f, th, completed)[0])
+	if !strings.HasPrefix(head, glyph.Lead(glyph.Check())+"CI #42") {
+		t.Fatalf("completed workflow head = %q, want success glyph", head)
+	}
+}
+
 func TestNewUnknownFormat(t *testing.T) {
 	if _, err := New(Format("xml"), "run"); err == nil {
 		t.Fatal("expected error for unknown format")

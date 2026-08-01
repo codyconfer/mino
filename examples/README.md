@@ -31,20 +31,17 @@ turns a run's results into text and **replaces** the usual panels/JSON on
 stdout. Attach one with `formatter: <name>` on a query or flight, or ad-hoc with
 `--formatter <name>`; add `--copy` for the clipboard or `--out <path>` for a
 file. Roles scope them with `formatters: [names]`, so a role listing none sees
-none — see `daily.yaml` and `triage.yaml`.
+none.
 
 | Formatter | Shows off |
 |---|---|
 | `formatters/standup.yaml` | `range .Queries` headings, `now \| date`, `.Meta.author`, markdown links |
-| `formatters/triage-summary.yaml` | the flat `.Items` view: `byMeta` buckets, `sortByTime \| limit 5`, `rel`, `.Errors` |
 | `formatters/pr-nudge.yaml` | a canned response for `--copy`: `truncate`, `indent`, a timestamped footer |
 
 ```sh
 mino formatter                          # list the formatters the role can see
 mino formatter show standup             # print the YAML
 mino formatter render standup morning   # run flight `morning`, render the report
-mino fly triage --formatter triage-summary --copy
-mino fly triage -o json | mino formatter render triage-summary --stdin
 ```
 
 Missing map keys render empty rather than erroring (`missingkey=zero`), because
@@ -99,8 +96,6 @@ status:
       Write-Output "triage"
 ```
 
-See `daily.yaml`, `triage.yaml`, and `ops.yaml`.
-
 ## Plugin starters
 
 Plugins are **compile-time linked** into the mino binary (ADR-7). Runtime
@@ -137,10 +132,5 @@ mino-with-externals plugins uninstall external.kubectl
 ```
 
 Flight `plugins` bundles the external stub queries for a quick smoke fly (overlay).
-Flight `demo` is a live GitHub showcase (`signal: github` queries whose items
-carry `github.com` URLs); opt in with `mino fly demo` / `mino serve demo` /
-`make run ARGS=demo` — it is not the default flight. Queries `demo` and
-`demo-reviews` apply filter `demo` (drops `meta.author` bot matches). Role
-`demo` scopes visibility to that flight/queries/filter (`mino --role demo …`).
 Synthetic toast spam lives separately in flight `notify-smoke` (`signal: demo`),
 which ships with the demo plugin in `external/plugins/examples`.

@@ -1,0 +1,5 @@
+name: default
+type: role
+home: default
+flights: [default]
+queries: [my-open-prs]

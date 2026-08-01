@@ -80,22 +80,6 @@ params:
   title: "mino · latest CI"
   actions: codyconfer/mino
 `
-	sampleDemoQueryYAML = `name: demo
-type: query
-signal: github
-params:
-  query: "is:open is:pr author:@me"
-rules:
-  - field: meta.author
-    exclude: "(?i)bot$"
-`
-	sampleDemoReviewsQueryYAML = `name: demo-reviews
-type: query
-signal: github
-filters: [no-bots]
-params:
-  query: "is:open is:pr review-requested:@me"
-`
 	sampleFilterYAML = `name: no-bots
 type: filter
 rules:
@@ -106,15 +90,11 @@ rules:
 type: flight
 queries: [sisyphus-open-prs, sisyphus-ci, viewkit-open-prs, viewkit-ci, mino-open-prs, mino-ci]
 `
-	sampleDemoFlightYAML = `name: demo
-type: flight
-queries: [demo, demo-reviews]
-`
-	sampleDemoRoleYAML = `name: demo
+	sampleDefaultRoleYAML = `name: default
 type: role
-flights: [demo]
-queries: [demo, demo-reviews, no-bots]
-formatters: [standup]
+home: default
+flights: [default]
+queries: [my-open-prs]
 `
 	sampleFormatterYAML = `name: standup
 type: formatter
@@ -189,13 +169,10 @@ func installSpec(home string, force bool) lifecycle.InstallSpec {
 		{RelPath: path.Join(config.DirQueries, "viewkit-ci.yaml"), Content: []byte(viewkitCIYAML)},
 		{RelPath: path.Join(config.DirQueries, "mino-open-prs.yaml"), Content: []byte(minoOpenPRsYAML)},
 		{RelPath: path.Join(config.DirQueries, "mino-ci.yaml"), Content: []byte(minoCIYAML)},
-		{RelPath: path.Join(config.DirQueries, "demo.yaml"), Content: []byte(sampleDemoQueryYAML)},
-		{RelPath: path.Join(config.DirQueries, "demo-reviews.yaml"), Content: []byte(sampleDemoReviewsQueryYAML)},
 		{RelPath: path.Join(config.DirQueries, "no-bots.yaml"), Content: []byte(sampleFilterYAML)},
 		{RelPath: path.Join(config.DirFlights, "default.yaml"), Content: []byte(sampleFlightYAML)},
-		{RelPath: path.Join(config.DirFlights, "demo.yaml"), Content: []byte(sampleDemoFlightYAML)},
 		{RelPath: path.Join(config.DirFormatters, "standup.yaml"), Content: []byte(sampleFormatterYAML)},
-		{RelPath: "demo.yaml", Content: []byte(sampleDemoRoleYAML)},
+		{RelPath: "default.yaml", Content: []byte(sampleDefaultRoleYAML)},
 	}
 	return lifecycle.InstallSpec{
 		Home:  home,

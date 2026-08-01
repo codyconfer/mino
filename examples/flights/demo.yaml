@@ -1,6 +1,0 @@
-# Opt-in GitHub showcase flight — live search items with github.com URLs.
-# Pair with `mino fly demo` / `mino serve demo` / `make run ARGS=demo` (not the default flight).
-# Synthetic toast spam: flight `notify-smoke`.
-name: demo
-type: flight
-queries: [demo, demo-reviews]

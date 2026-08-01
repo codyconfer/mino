@@ -232,7 +232,7 @@ func itemLinesIn(f layout.Frame, t itemTheme, it signals.Item) []string {
 	it = signals.CleanItem(it)
 
 	th := t.th
-	head := t.icon(glyph.ClassifyItem(it)) + th.Val.Render(it.Title)
+	head := t.itemIcon(it, -1) + th.Val.Render(it.Title)
 	if it.Subtitle != "" {
 		head += "  " + th.Dim.Render(it.Subtitle)
 	}
@@ -257,4 +257,26 @@ func itemLinesIn(f layout.Frame, t itemTheme, it signals.Item) []string {
 		lines = append(lines, th.Dim.Render(it.URL))
 	}
 	return lines
+}
+
+func (t itemTheme) itemIcon(it signals.Item, frame int) string {
+	sev := glyph.ClassifyItem(it)
+	if workflowInProgress(it) {
+		return t.style(sev).Render(glyph.Lead(spinnerFrame(t.g, frame)))
+	}
+	return t.icon(sev)
+}
+
+func workflowInProgress(it signals.Item) bool {
+	if !strings.EqualFold(strings.TrimSpace(it.Kind), "workflow") || strings.TrimSpace(it.Meta["conclusion"]) != "" {
+		return false
+	}
+	normalize := func(state string) string {
+		return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(state), "_", " "))
+	}
+	status := normalize(it.Meta["status"])
+	if status == "" {
+		status = normalize(it.Meta["state"])
+	}
+	return status == "in progress"
 }

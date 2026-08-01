@@ -1,6 +1,0 @@
-name: demo-reviews
-type: query
-signal: github
-filters: [no-bots]
-params:
-  query: "is:open is:pr review-requested:@me"

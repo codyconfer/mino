@@ -1,8 +1,0 @@
-name: demo
-type: query
-signal: github
-params:
-  query: "is:open is:pr author:@me"
-rules:
-  - field: meta.author
-    exclude: "(?i)bot$"

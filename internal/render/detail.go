@@ -133,6 +133,9 @@ func detailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail, frame int) 
 
 	sev := detailSeverity(it, d)
 	icon := th.SeverityStyle(sev).Render(glyph.Lead(glyph.ForIn(f.Glyphs(), sev)))
+	if workflowInProgress(it) {
+		icon = th.SeverityStyle(sev).Render(glyph.Lead(spinnerFrame(f.Glyphs(), frame)))
+	}
 	out := []string{f.TitledBoxIcon(icon, head, lines...)}
 	if d != nil {
 		for _, s := range d.Sections {
@@ -235,6 +238,19 @@ func detailSection(f, cf layout.Frame, th theme.Theme, s signals.DetailSection, 
 }
 
 var detailLoadingFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+var asciiLoadingFrames = []string{"|", "/", "-", "\\"}
+
+func spinnerFrame(g glyph.Set, frame int) string {
+	frames := detailLoadingFrames
+	if g.Mode() == glyph.ModeNone {
+		frames = asciiLoadingFrames
+	}
+	if frame < 0 {
+		frame = 0
+	}
+	return frames[frame%len(frames)]
+}
 
 func animatedDetailRows(rows [][2]string, frame int) [][2]string {
 	out := make([][2]string, len(rows))

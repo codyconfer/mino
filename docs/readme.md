@@ -139,12 +139,8 @@ names run concurrently — your whole shift-start sweep in one command. `mino fl
 
 The seeded `default` flight shows open pull requests and the latest CI run for
 `codyconfer/sisyphus`, `codyconfer/viewkit`, and `codyconfer/mino`. Select a CI
-run to inspect its job and step statuses. Opt-in showcase flights (also under
-[`examples/`](../examples/)): **`demo`** is live GitHub
-(`signal: github` items with `github.com` URLs); **`notify-smoke`** streams
-synthetic toasts (`signal: demo`) for desktop/notify smoke — keep it off the
-default path. Try `mino fly demo`, `mino serve notify-smoke`, or
-`make run ARGS=demo`.
+run to inspect its job and step statuses. The seeded `default` role uses this
+flight as its home screen.
 
 → [How to create a flight config](#create-a-flight-config)
 
@@ -1260,7 +1256,6 @@ make command ARGS="fly work -o json"   # cli
 make serve   ARGS="work"               # foreground watcher (current shell)
 make daemon  ARGS="work"               # install + start the OS service (experimental; sets TAGS=daemon)
 make run                               # deck TUI only (silent background serve if needed; dies with deck)
-make run ARGS=demo                     # deck on the live-GitHub demo flight
 ```
 
 Build vars (make variables, not `ARGS`): `RACE=1` (race detector), `TAGS=…` (build

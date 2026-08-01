@@ -1,5 +1,0 @@
-name: demo
-type: role
-flights: [demo]
-queries: [demo, demo-reviews, no-bots]
-formatters: [standup]

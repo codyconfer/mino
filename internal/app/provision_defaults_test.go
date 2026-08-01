@@ -46,7 +46,7 @@ func TestMergeFileSeedsOverlayWins(t *testing.T) {
 	}
 }
 
-func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
+func TestStockSeedsIncludeDefaultHomeFlight(t *testing.T) {
 	SetDefaultsFS(nil)
 	spec := installSpec(t.TempDir(), true)
 	got := map[string]string{}
@@ -54,12 +54,9 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 		got[f.RelPath] = string(f.Content)
 	}
 	for _, want := range []string{
-		"queries/demo.yaml",
-		"queries/demo-reviews.yaml",
 		"queries/no-bots.yaml",
-		"flights/demo.yaml",
-		"demo.yaml",
 		"flights/default.yaml",
+		"default.yaml",
 		"queries/my-open-prs.yaml",
 		"queries/sisyphus-open-prs.yaml",
 		"queries/sisyphus-ci.yaml",
@@ -72,29 +69,12 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 			t.Fatalf("missing stock seed %s (have %#v)", want, got)
 		}
 	}
-	if !strings.Contains(got["flights/demo.yaml"], "demo-reviews") {
-		t.Fatalf("demo flight = %q", got["flights/demo.yaml"])
-	}
-	if !strings.Contains(got["queries/demo.yaml"], "signal: github") ||
-		!strings.Contains(got["queries/demo.yaml"], "rules:") {
-		t.Fatalf("demo query = %q", got["queries/demo.yaml"])
-	}
-	if !strings.Contains(got["queries/demo-reviews.yaml"], "filters: [no-bots]") {
-		t.Fatalf("demo-reviews query = %q", got["queries/demo-reviews.yaml"])
-	}
-	if strings.Contains(got["queries/demo.yaml"], "signal: demo") {
-		t.Fatalf("demo query must not be synthetic: %q", got["queries/demo.yaml"])
-	}
 	if !strings.Contains(got["queries/no-bots.yaml"], "meta.author") {
 		t.Fatalf("no-bots filter = %q", got["queries/no-bots.yaml"])
 	}
-	if !strings.Contains(got["demo.yaml"], "flights: [demo]") ||
-		!strings.Contains(got["demo.yaml"], "demo-reviews") ||
-		!strings.Contains(got["demo.yaml"], "no-bots") {
-		t.Fatalf("demo role = %q", got["demo.yaml"])
-	}
-	if strings.Contains(got["flights/default.yaml"], "demo") {
-		t.Fatalf("default flight must not reference demo: %q", got["flights/default.yaml"])
+	if !strings.Contains(got["default.yaml"], "home: default") ||
+		!strings.Contains(got["default.yaml"], "flights: [default]") {
+		t.Fatalf("default role is not wired to the default home flight: %q", got["default.yaml"])
 	}
 	for _, query := range []string{"sisyphus-open-prs", "sisyphus-ci", "viewkit-open-prs", "viewkit-ci", "mino-open-prs", "mino-ci"} {
 		if !strings.Contains(got["flights/default.yaml"], query) {
@@ -130,6 +110,10 @@ func TestStockSeedsLoadAsTypedDirectives(t *testing.T) {
 	if len(dirs.Queries) == 0 || len(dirs.Flights) == 0 || len(dirs.Roles) == 0 {
 		t.Fatalf("stock seeds should populate every kind: q=%d fl=%d r=%d",
 			len(dirs.Queries), len(dirs.Flights), len(dirs.Roles))
+	}
+	defaultRole, ok := dirs.Roles["default"]
+	if !ok || defaultRole.Home != "default" || len(defaultRole.Flights) != 1 || defaultRole.Flights[0] != "default" {
+		t.Fatalf("default role is not wired to its home flight: %#v", defaultRole)
 	}
 	for _, name := range dirs.FlightNames() {
 		for _, q := range dirs.Flights[name].Queries {
