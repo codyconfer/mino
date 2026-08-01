@@ -3,14 +3,14 @@ package plugin
 import (
 	"strings"
 
-	"github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/stream"
 )
 
-// ScopeKV confines a raw daemon.KV handle to one plugin's own namespaces via
-// daemon.ScopedKV. Callers that hand a KV to plugin code must scope it first,
+// ScopeKV confines a raw stream.KV handle to one plugin's own namespaces via
+// stream.ScopedKV. Callers that hand a KV to plugin code must scope it first,
 // or the plugin could read or wipe another signal's persisted cursors.
-func ScopeKV(raw daemon.KV, ownerID string) daemon.KV {
-	return daemon.ScopedKV(raw, KVNamespacePrefix(ownerID))
+func ScopeKV(raw stream.KV, ownerID string) stream.KV {
+	return stream.ScopedKV(raw, KVNamespacePrefix(ownerID))
 }
 
 // KVNamespacePrefix is the namespace prefix owned by ownerID. "/" is stripped

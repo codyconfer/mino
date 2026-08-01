@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	vkdeck "github.com/codyconfer/viewkit/deck"
 	"io"
 	"os"
+
+	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"

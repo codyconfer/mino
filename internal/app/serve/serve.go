@@ -9,9 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/sisyphus/desktop"
+	"github.com/codyconfer/sisyphus/ipc"
 	"github.com/codyconfer/sisyphus/kv"
+	"github.com/codyconfer/sisyphus/stream"
+	"github.com/codyconfer/sisyphus/tray"
 	"github.com/codyconfer/viewkit/glyph"
 
 	"github.com/codyconfer/mino/internal/app"
@@ -56,7 +58,7 @@ type notifySink struct {
 	bell     bool
 	desktop  bool
 	terminal bool
-	onState  func(sysdaemon.State)
+	onState  func(tray.State)
 }
 
 func (n notifySink) handle(ev signals.Event) {
@@ -69,7 +71,7 @@ func (n notifySink) handle(ev signals.Event) {
 		return
 	}
 	if n.desktop {
-		icon, _ := sysdaemon.StateIcon(st)
+		icon, _ := tray.IconFor(st)
 		_ = desktop.Notify(desktop.Notification{
 			Title:   note.Title,
 			Message: note.Message,
@@ -112,7 +114,7 @@ func (s *Server) sources(ctx context.Context, name string, interval time.Duratio
 		return sources{}, errs.Newf(errs.KindUsage, "flight %q has no signals with realtime or scheduled support", name).
 			WithHint("active: slack, github, calendar, tasks, demo; scheduled: ntr")
 	}
-	return sources{events: sysdaemon.FanIn(ctx, chans...), join: wg.Wait}, nil
+	return sources{events: stream.FanIn(ctx, chans...), join: wg.Wait}, nil
 }
 
 type sources struct {
@@ -395,27 +397,27 @@ func observeNotify(ctx context.Context, ch <-chan signals.Event, sink notifySink
 	}
 }
 
-func (s *Server) socket(ctx context.Context, subj *sysdaemon.Subject[signals.Event]) func() {
+func (s *Server) socket(ctx context.Context, subj *stream.Subject[signals.Event]) func() {
 	path := s.SocketPath()
-	if sysdaemon.IsListening(config.SocketPrefix, path) {
+	if ipc.IsListening(config.SocketPrefix, path) {
 		log.Debugf("serve: another daemon already owns %s; not exposing a socket", path)
 		return func() {}
 	}
-	ln, err := sysdaemon.Listen(config.SocketPrefix, path)
+	ln, err := ipc.Listen(config.SocketPrefix, path)
 	if err != nil {
-		if errors.Is(err, sysdaemon.ErrInUse) {
+		if errors.Is(err, ipc.ErrInUse) {
 			log.Debugf("serve: another daemon already owns %s: %v", path, err)
 		} else {
 			log.Debugf("serve: socket unavailable: %v", err)
 		}
 		return func() {}
 	}
-	go sysdaemon.Broadcast(ctx, ln, subj, serveBuffer, Encode)
+	go ipc.Broadcast(ctx, ln, subj, serveBuffer, Encode)
 	return func() { _ = ln.Close() }
 }
 
 func (s *Server) Dial(ctx context.Context) (<-chan signals.Event, bool) {
-	events, err := sysdaemon.Dial(ctx, config.SocketPrefix, s.SocketPath(), Decode)
+	events, err := ipc.Dial(ctx, config.SocketPrefix, s.SocketPath(), Decode)
 	if err != nil {
 		return nil, false
 	}
@@ -457,7 +459,7 @@ type RunOptions struct {
 	Bell     bool
 	Desktop  bool
 	Terminal bool
-	OnState  func(sysdaemon.State)
+	OnState  func(tray.State)
 }
 
 func (s *Server) Run(ctx context.Context, opt RunOptions) error {
@@ -480,7 +482,7 @@ type session struct {
 	cancel    context.CancelFunc
 	src       sources
 	closeSock func()
-	subj      *sysdaemon.Subject[signals.Event]
+	subj      *stream.Subject[signals.Event]
 	audited   <-chan struct{}
 	stopAudit context.CancelFunc
 	feed      *auditFeed
@@ -488,7 +490,7 @@ type session struct {
 }
 
 func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sources, sink notifySink) {
-	subj := sysdaemon.NewSubject[signals.Event]()
+	subj := stream.NewSubject[signals.Event]()
 	closeSock := s.socket(ctx, subj)
 	flightID := s.Audit.StartFlightContext(ctx, "serve", s.Role())
 
@@ -567,9 +569,9 @@ func (s *Server) reportAuditLoss(f *auditFeed, prefix string) {
 		prefix, missing, f.seen.Load(), f.dropped.Load())
 }
 
-func stateForEvent(ev signals.Event) sysdaemon.State {
+func stateForEvent(ev signals.Event) tray.State {
 	if ev.Section.Err != nil {
-		return sysdaemon.StateError
+		return tray.StateError
 	}
 	worst := glyph.SeverityNeutral
 	for _, it := range ev.Section.Items {
@@ -579,11 +581,11 @@ func stateForEvent(ev signals.Event) sysdaemon.State {
 	}
 	switch worst {
 	case glyph.SeverityNegative:
-		return sysdaemon.StateError
+		return tray.StateError
 	case glyph.SeverityWarning:
-		return sysdaemon.StateWarn
+		return tray.StateWarn
 	default:
-		return sysdaemon.StateNotify
+		return tray.StateNotify
 	}
 }
 

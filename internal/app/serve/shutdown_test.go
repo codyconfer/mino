@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/stream"
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/audit"
@@ -99,7 +99,7 @@ func TestEndSessionOrdersTeardown(t *testing.T) {
 	s, st := testServer(t, home)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	subj := sysdaemon.NewSubject[signals.Event]()
+	subj := stream.NewSubject[signals.Event]()
 
 	var cancelled, joined, socketClosed atomic.Bool
 	go func() {
@@ -227,7 +227,7 @@ func TestEndSessionBoundsTheAuditDrain(t *testing.T) {
 	shrinkAuditGraces(t, 20*time.Millisecond, 200*time.Millisecond, 100*time.Millisecond)
 
 	_, cancel := context.WithCancel(context.Background())
-	subj := sysdaemon.NewSubject[signals.Event]()
+	subj := stream.NewSubject[signals.Event]()
 	flightID := st.StartFlight("serve", "test")
 
 	stuck := make(chan struct{})

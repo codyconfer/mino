@@ -5,8 +5,7 @@ package daemon
 import (
 	"context"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
-	"github.com/codyconfer/sisyphus/daemon/ui"
+	systray "github.com/codyconfer/sisyphus/tray"
 
 	"github.com/codyconfer/mino/cmd"
 	"github.com/codyconfer/mino/internal/app/serve"
@@ -35,12 +34,12 @@ func runTray(parent context.Context, opt options) error {
 	defer cancel()
 	errCh := make(chan error, 1)
 	ready := make(chan struct{})
-	stateIcons := sysdaemon.DefaultStateIcons()
+	stateIcons := systray.DefaultIcons()
 	if missing := stateIcons.Missing(); len(missing) > 0 {
 		log.Warnf("daemon: tray icons missing for %v (icon may be blank)", missing)
 	}
-	var tray *ui.Tray
-	tray = ui.NewTray(ui.TrayConfig{
+	var tray *systray.Tray
+	tray = systray.NewTray(systray.Config{
 		Title:   "mino",
 		Tooltip: "mino",
 		Icons:   stateIcons,
@@ -48,7 +47,7 @@ func runTray(parent context.Context, opt options) error {
 		OnReady: func() {
 			close(ready)
 			go func() {
-				tray.SetState(sysdaemon.StateRunning)
+				tray.SetState(systray.StateRunning)
 				errCh <- server().Run(ctx, serve.RunOptions{
 					Flight:   opt.Flight,
 					Interval: opt.Interval,

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/stream"
 	"github.com/codyconfer/viewkit/glyph"
 
 	"github.com/codyconfer/mino/internal/plugin"
@@ -97,7 +97,7 @@ func (s Signal) Fetch(ctx context.Context) ([]signals.Section, error) {
 type ReminderJob struct {
 	Home string
 	Role string
-	KV   daemon.KV
+	KV   stream.KV
 	Now  func() time.Time
 }
 
@@ -177,7 +177,7 @@ func (r ReminderJob) Ack(ctx context.Context, sections []signals.Section) error 
 		}
 	}
 	if r.KV != nil {
-		if err := daemon.NewWatermark(r.KV, "ntr", "reminders:"+r.Role).Save(ctx, r.now()); err != nil {
+		if err := stream.NewWatermark(r.KV, "ntr", "reminders:"+r.Role).Save(ctx, r.now()); err != nil {
 			return err
 		}
 	}

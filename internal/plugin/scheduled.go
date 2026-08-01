@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/schedule"
 
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/log"
@@ -33,7 +33,7 @@ func RunScheduled(ctx context.Context, jobs []Scheduled, onFire func(name string
 		return err
 	}
 	if len(jobs) == 0 {
-		return daemon.Schedule(ctx, scanInterval)
+		return schedule.Run(ctx, scanInterval)
 	}
 	var wg sync.WaitGroup
 	failures := make([]error, len(jobs))
@@ -42,7 +42,7 @@ func RunScheduled(ctx context.Context, jobs []Scheduled, onFire func(name string
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := daemon.Schedule(ctx, scanInterval, scheduleJob(j, onFire)); err != nil && ctx.Err() == nil {
+			if err := schedule.Run(ctx, scanInterval, scheduleJob(j, onFire)); err != nil && ctx.Err() == nil {
 				failures[i] = errs.Wrapf(errs.KindInternal, err, "scheduled %s", j.Name())
 			}
 		}()
@@ -65,17 +65,17 @@ func checkJobs(jobs []Scheduled) error {
 	return nil
 }
 
-func scheduleJob(j Scheduled, onFire func(name string, sections []signals.Section) error) daemon.ScheduleJob {
-	return daemon.ScheduleJob{
+func scheduleJob(j Scheduled, onFire func(name string, sections []signals.Section) error) schedule.Job {
+	return schedule.Job{
 		Name: j.Name(),
 		OnError: func(err error, fails int, retryIn time.Duration) {
 			log.Warnf("scheduled %s failed (%d consecutive): %v (retry in %s)", j.Name(), fails, err, retryIn)
 		},
-		Next: func(ctx context.Context, now time.Time) (daemon.Due, error) {
+		Next: func(ctx context.Context, now time.Time) (schedule.Due, error) {
 			ctx, cancel := context.WithTimeout(ctx, nextTimeout)
 			defer cancel()
 			at, err := j.Next(ctx, now)
-			return daemon.Due{At: at}, err
+			return schedule.Due{At: at}, err
 		},
 		Run: func(ctx context.Context) error {
 			secs, err := fetchOnce(ctx, j)

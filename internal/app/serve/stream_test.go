@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/ipc"
+	"github.com/codyconfer/sisyphus/stream"
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/config"
@@ -98,11 +99,11 @@ func TestSocketOpensDespiteBlockingPlugin(t *testing.T) {
 	listening := make(chan bool, 1)
 	go func() {
 		s.openStreams(ctx, []activeQuery{{label: "blocker", src: blocker}, {label: "good", src: good}})
-		subj := sysdaemon.NewSubject[signals.Event]()
+		subj := stream.NewSubject[signals.Event]()
 		defer subj.Close()
 		closeSock := s.socket(ctx, subj)
 		defer closeSock()
-		listening <- sysdaemon.IsListening(config.SocketPrefix, s.SocketPath())
+		listening <- ipc.IsListening(config.SocketPrefix, s.SocketPath())
 	}()
 
 	select {

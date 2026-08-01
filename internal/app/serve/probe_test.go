@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/ipc"
+	"github.com/codyconfer/sisyphus/stream"
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/config"
@@ -17,7 +18,7 @@ import (
 func dialGoroutines() int {
 	buf := make([]byte, 1<<20)
 	n := runtime.Stack(buf, true)
-	return strings.Count(string(buf[:n]), "sisyphus/daemon.Dial[")
+	return strings.Count(string(buf[:n]), "sisyphus/ipc.Dial[")
 }
 
 func TestEnsureLiveProviderProbeLeaksNoConnection(t *testing.T) {
@@ -27,7 +28,7 @@ func TestEnsureLiveProviderProbeLeaksNoConnection(t *testing.T) {
 		Directives: &config.Directives{},
 	}}
 
-	ln, err := sysdaemon.Listen(config.SocketPrefix, s.SocketPath())
+	ln, err := ipc.Listen(config.SocketPrefix, s.SocketPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,9 +37,9 @@ func TestEnsureLiveProviderProbeLeaksNoConnection(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	subj := sysdaemon.NewSubject[signals.Event]()
+	subj := stream.NewSubject[signals.Event]()
 	defer subj.Close()
-	go sysdaemon.Broadcast(ctx, ln, subj, 8, Encode)
+	go ipc.Broadcast(ctx, ln, subj, 8, Encode)
 	time.Sleep(50 * time.Millisecond)
 
 	before := dialGoroutines()

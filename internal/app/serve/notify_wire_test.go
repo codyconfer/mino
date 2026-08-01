@@ -3,7 +3,7 @@ package serve
 import (
 	"testing"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/tray"
 
 	"github.com/codyconfer/mino/internal/notify"
 	"github.com/codyconfer/mino/internal/signals"
@@ -18,7 +18,7 @@ func TestReminderEventDrivesNotifySinkContract(t *testing.T) {
 			Items:  []signals.Item{{Kind: "alert", Title: "pay invoice"}},
 		},
 	}
-	if st := stateForEvent(ev); st != sysdaemon.StateWarn {
+	if st := stateForEvent(ev); st != tray.StateWarn {
 		t.Fatalf("state = %v, want warn", st)
 	}
 	n, ok := notify.FromEvent(ev)

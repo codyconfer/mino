@@ -1,8 +1,8 @@
 package plugin
 
-import "github.com/codyconfer/sisyphus/daemon"
+import "github.com/codyconfer/sisyphus/stream"
 
-type KV = daemon.KV
+type KV = stream.KV
 
 func KVOf(bc BuildContext) KV {
 	if src, ok := bc.(interface{ KV() KV }); ok {

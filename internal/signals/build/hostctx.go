@@ -3,7 +3,7 @@ package build
 import (
 	"context"
 
-	"github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/stream"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/plugin"
@@ -73,7 +73,7 @@ func (c hostBuildCtx) Credentials() plugin.CredentialStore {
 	return pluginhost.ScopeCredentials(c.tokens, c.grant)
 }
 
-func (c hostBuildCtx) KV() daemon.KV {
+func (c hostBuildCtx) KV() stream.KV {
 	return plugin.ScopeKV(c.state.KV(), kvOwner(c.signal))
 }
 

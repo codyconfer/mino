@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/sisyphus/kv"
+	"github.com/codyconfer/sisyphus/stream"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/signals"
@@ -28,7 +28,7 @@ func (kvProbeJob) Fetch(context.Context) ([]signals.Section, error) { return nil
 
 // TestPluginKVCannotReachAnotherPluginsNamespace pins the blast radius of the
 // KV handle handed to external plugins through the BuildContext: it must not be
-// the raw, unnamespaced daemon.KV over every other signal's persisted state.
+// the raw, unnamespaced stream.KV over every other signal's persisted state.
 func TestPluginKVCannotReachAnotherPluginsNamespace(t *testing.T) {
 	ctx := context.Background()
 	store, err := kv.Open(ctx, filepath.Join(t.TempDir(), "serve.duckdb"))
@@ -44,7 +44,7 @@ func TestPluginKVCannotReachAnotherPluginsNamespace(t *testing.T) {
 	}
 
 	const signal = "kvscopeprobe"
-	var captured daemon.KV
+	var captured stream.KV
 	plugin.RegisterSignal(plugin.Descriptor{
 		ID:           "test.kvscope.probe",
 		Kind:         plugin.KindSignal,
@@ -52,7 +52,7 @@ func TestPluginKVCannotReachAnotherPluginsNamespace(t *testing.T) {
 		Capabilities: []plugin.Capability{plugin.CapScheduled},
 	}, plugin.Builders{
 		Scheduled: func(bc plugin.BuildContext) (plugin.Scheduled, error) {
-			if src, ok := bc.(interface{ KV() daemon.KV }); ok {
+			if src, ok := bc.(interface{ KV() stream.KV }); ok {
 				captured = src.KV()
 			}
 			return kvProbeJob{}, nil

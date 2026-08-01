@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/ipc"
+	"github.com/codyconfer/sisyphus/stream"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/signals"
@@ -68,21 +69,21 @@ func shortSocketPath(t *testing.T) string {
 
 func TestServeSocketDeliversToClients(t *testing.T) {
 	path := shortSocketPath(t)
-	ln, err := sysdaemon.Listen(config.SocketPrefix, path)
+	ln, err := ipc.Listen(config.SocketPrefix, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer ln.Close()
 
-	subj := sysdaemon.NewSubject[signals.Event]()
+	subj := stream.NewSubject[signals.Event]()
 	defer subj.Close()
-	go sysdaemon.Broadcast(t.Context(), ln, subj, 8, Encode)
+	go ipc.Broadcast(t.Context(), ln, subj, 8, Encode)
 
-	a, err := sysdaemon.Dial(t.Context(), config.SocketPrefix, path, Decode)
+	a, err := ipc.Dial(t.Context(), config.SocketPrefix, path, Decode)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := sysdaemon.Dial(t.Context(), config.SocketPrefix, path, Decode)
+	b, err := ipc.Dial(t.Context(), config.SocketPrefix, path, Decode)
 	if err != nil {
 		t.Fatal(err)
 	}

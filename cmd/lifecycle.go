@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	vkdeck "github.com/codyconfer/viewkit/deck"
 	"os"
+
+	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"

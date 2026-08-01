@@ -3,8 +3,8 @@
 package daemon
 
 import (
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/sisyphus/daemon/service"
+	"github.com/codyconfer/sisyphus/ipc"
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 
 	"github.com/codyconfer/mino/cmd"
@@ -21,7 +21,7 @@ const (
 )
 
 func classifyInstall(opt options) InstallState {
-	if sysdaemon.IsListening(config.SocketPrefix, socketPath()) {
+	if ipc.IsListening(config.SocketPrefix, socketPath()) {
 		return InstallRunning
 	}
 	svc, err := newService(opt, true)

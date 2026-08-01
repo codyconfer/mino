@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	sysdaemon "github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/ipc"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/log"
@@ -14,7 +14,7 @@ import (
 
 func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs ...string) (stop func()) {
 	stop = func() {}
-	if sysdaemon.IsListening(config.SocketPrefix, s.SocketPath()) {
+	if ipc.IsListening(config.SocketPrefix, s.SocketPath()) {
 		return stop
 	}
 	self, err := os.Executable()
@@ -35,7 +35,7 @@ func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs
 func waitListening(ctx context.Context, path string, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if sysdaemon.IsListening(config.SocketPrefix, path) {
+		if ipc.IsListening(config.SocketPrefix, path) {
 			return
 		}
 		select {

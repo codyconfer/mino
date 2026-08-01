@@ -4,13 +4,13 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/tray"
 )
 
 func TestRegisterEmbedsStateIcons(t *testing.T) {
 	Register("dark")
-	for _, s := range daemon.States() {
-		a, ok := daemon.StateIcon(s)
+	for _, s := range tray.States() {
+		a, ok := tray.IconFor(s)
 		if !ok || len(a.Bytes) == 0 {
 			t.Fatalf("missing embedded icon for state %s", s)
 		}
