@@ -10,9 +10,9 @@ import (
 
 	"github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func detailTestRef() render.ItemRef {

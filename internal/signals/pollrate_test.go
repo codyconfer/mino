@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func TestCheckPollIntervalRejectsBelowTheFloor(t *testing.T) {

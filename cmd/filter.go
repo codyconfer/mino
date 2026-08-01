@@ -6,9 +6,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 func newFilterCmd() *cobra.Command {
@@ -17,7 +17,7 @@ func newFilterCmd() *cobra.Command {
 		Short: "Inspect saved regex filter sets and plugin filter engines",
 		Long: `List and show filter contributions.
 
-Saved YAML filters live under ~/.munin/queries alongside the queries that use
+Saved YAML filters live under ~/.mino/queries alongside the queries that use
 them: any document carrying rules, aliases, or keywords is a filter, whether or
 not it also names a signal. Plugins may also register KindFilter contributions:
 
@@ -39,7 +39,7 @@ Plugin engines appear in list with kind=engine.`,
 				out := cmd.OutOrStdout()
 				names := visibleFilterNames()
 				if len(names) == 0 && len(plugin.FilterNames()) == 0 {
-					fmt.Fprintln(out, "no saved filters visible (check --role, or add rules to a YAML file under ~/.munin/queries)")
+					fmt.Fprintln(out, "no saved filters visible (check --role, or add rules to a YAML file under ~/.mino/queries)")
 					return nil
 				}
 				seen := map[string]bool{}
@@ -94,7 +94,7 @@ Plugin engines appear in list with kind=engine.`,
 					fmt.Fprint(cmd.OutOrStdout(), string(out))
 					return nil
 				}
-				return errs.Newf(errs.KindUsage, "no saved filter named %q", name).WithHint("run `munin filter list` to see saved filters")
+				return errs.Newf(errs.KindUsage, "no saved filter named %q", name).WithHint("run `mino filter list` to see saved filters")
 			},
 		},
 	)

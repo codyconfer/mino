@@ -4,9 +4,9 @@ import (
 	"context"
 	"io"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/pluginhost"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/pluginhost"
 )
 
 func registered() []Provider {

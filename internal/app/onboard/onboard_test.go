@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/auth"
+	"github.com/codyconfer/mino/internal/auth"
 )
 
 type fakeStore struct{}

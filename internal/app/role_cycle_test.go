@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/role"
 )
 
 func TestNextRoleOrderAndEdges(t *testing.T) {

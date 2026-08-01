@@ -9,12 +9,12 @@ import (
 
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 
-	"github.com/codyconfer/munin/internal/app/serve"
-	"github.com/codyconfer/munin/internal/app/suggest"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render/icons"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/app/serve"
+	"github.com/codyconfer/mino/internal/app/suggest"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render/icons"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func serveServer() *serve.Server {
@@ -27,12 +27,12 @@ func newServeCmd() *cobra.Command {
 	var theme string
 	c := &cobra.Command{
 		Use:   "serve [flight]",
-		Short: "Run munin in the foreground, watching a flight's signals in realtime and notifying",
-		Long: "Runs munin in the CURRENT shell as a long-running process that opens each of the\n" +
+		Short: "Run mino in the foreground, watching a flight's signals in realtime and notifying",
+		Long: "Runs mino in the CURRENT shell as a long-running process that opens each of the\n" +
 			"flight's realtime-capable signals, fans their events into one loop, and emits a\n" +
 			"notification for each new item. Ctrl-C exits. Logs stream to the shell and the\n" +
 			"log dir. serve does NOT install an OS service or own the system tray — use\n" +
-			"`munin daemon` for the installed service (and daemon.tray for a tray icon).\n" +
+			"`mino daemon` for the installed service (and daemon.tray for a tray icon).\n" +
 			"--desktop sends OS notifications using per-state icons from <home>/icons/ or\n" +
 			"embedded themes. Only Slack is a true websocket; the rest are polled at\n" +
 			"--interval; unsupported signals are skipped.",
@@ -135,7 +135,7 @@ func resolveServeFlight(args []string) (string, error) {
 	}
 	if _, ok := shared.Directives.Flights[name]; !ok {
 		return "", errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix()).
-			WithHint("run `munin fly` with no argument to list available flights")
+			WithHint("run `mino fly` with no argument to list available flights")
 	}
 	if !access().FlightVisible(name) {
 		return "", notInRoleError("flight", name)

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/codyconfer/munin/internal/auth"
+	"github.com/codyconfer/mino/internal/auth"
 )
 
 var RequiredEmailDomain string
@@ -134,7 +134,7 @@ func checkGitHubAuth(ctx context.Context, tokens auth.TokenStore) (bool, Result)
 		return true, r
 	}
 	r.Detail = "no working GitHub authentication found"
-	r.Fix = []string{"gh auth login", "munin login github"}
+	r.Fix = []string{"gh auth login", "mino login github"}
 	return false, r
 }
 

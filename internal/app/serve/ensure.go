@@ -7,10 +7,10 @@ import (
 	"time"
 
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
-	muninterm "github.com/codyconfer/viewkit/term"
+	minoterm "github.com/codyconfer/viewkit/term"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs ...string) (stop func()) {
@@ -18,9 +18,9 @@ func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs
 	if sysdaemon.IsListening(config.SocketPrefix, s.SocketPath()) {
 		return stop
 	}
-	self, err := muninterm.Self()
+	self, err := minoterm.Self()
 	if err != nil {
-		log.Debugf("deck: cannot locate munin binary to start a serve provider: %v", err)
+		log.Debugf("deck: cannot locate mino binary to start a serve provider: %v", err)
 		return stop
 	}
 	args := append([]string{"serve", flight}, selfArgs...)

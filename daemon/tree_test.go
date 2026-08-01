@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/internal/app/views"
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/internal/app/views"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func findCmd(root *cobra.Command, name string) *cobra.Command {

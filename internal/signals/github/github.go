@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const defaultPerPage = 30
@@ -21,7 +21,7 @@ const defaultPerPage = 30
 const maxResponseBytes = 8 << 20
 
 const githubAuthHintPrefix = "your GitHub token may be missing or lack "
-const githubAuthHintSuffix = "; run `munin login github` or set $GITHUB_TOKEN"
+const githubAuthHintSuffix = "; run `mino login github` or set $GITHUB_TOKEN"
 
 func githubAuthHint(scope string) string {
 	return githubAuthHintPrefix + scope + githubAuthHintSuffix

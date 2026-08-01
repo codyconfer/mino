@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/plugin/ntr"
+	"github.com/codyconfer/mino/internal/plugin/ntr"
 )
 
 func newNotesCmd() *cobra.Command {

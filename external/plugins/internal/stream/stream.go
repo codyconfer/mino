@@ -6,7 +6,7 @@ import (
 
 	"github.com/codyconfer/sisyphus/daemon"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const (

@@ -9,8 +9,8 @@ import (
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 type GlobalSettings struct {
@@ -51,7 +51,7 @@ func LogDir(home string) string {
 }
 
 func GlobalSettingsPath() string {
-	path, err := sconfig.UserConfigPath("munin", "settings.yaml")
+	path, err := sconfig.UserConfigPath("mino", "settings.yaml")
 	if err != nil {
 		return ""
 	}
@@ -103,7 +103,7 @@ func LoadGlobalSettings() GlobalSettings {
 	msg := err.Error()
 	if settingsWarned[path] != msg {
 		settingsWarned[path] = msg
-		log.Warnf("%s: falling back to built-in defaults; munin will not overwrite the file", msg)
+		log.Warnf("%s: falling back to built-in defaults; mino will not overwrite the file", msg)
 	}
 	return GlobalSettings{}
 }

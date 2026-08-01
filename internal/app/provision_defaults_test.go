@@ -9,7 +9,7 @@ import (
 
 	"github.com/codyconfer/sisyphus/lifecycle"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func TestMergeFileSeedsOverlayWins(t *testing.T) {

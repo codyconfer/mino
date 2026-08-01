@@ -3,8 +3,8 @@ package build
 import (
 	"context"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func Action(ctx context.Context, signal, name string, params map[string]string) error {

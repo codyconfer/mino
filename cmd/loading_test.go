@@ -7,7 +7,7 @@ import (
 )
 
 func TestWantsLaunchLoading(t *testing.T) {
-	root := &cobra.Command{Use: "munin"}
+	root := &cobra.Command{Use: "mino"}
 	marked := &cobra.Command{Use: "deck", Annotations: map[string]string{AnnoLaunchLoading: "true"}}
 	sub := &cobra.Command{Use: "status"}
 	fly := &cobra.Command{Use: "fly"}

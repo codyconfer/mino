@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func TestPluginsReportsRegistryDiagnostics(t *testing.T) {
@@ -25,7 +25,7 @@ func TestPluginsReportsRegistryDiagnostics(t *testing.T) {
 			"absent from the registry, so verify and the listings are the only places it can surface at all")
 	}
 	if got.OK || got.Warn {
-		t.Errorf("finding = {OK:%v Warn:%v}; a skipped contribution must count as a problem so `munin verify` "+
+		t.Errorf("finding = {OK:%v Warn:%v}; a skipped contribution must count as a problem so `mino verify` "+
 			"exits non-zero", got.OK, got.Warn)
 	}
 	if !strings.Contains(got.Msg, "collision guard") {

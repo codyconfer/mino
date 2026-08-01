@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/role"
 )
 
 func hookHome(t *testing.T, cfgBody string) (home, enter, exit string) {
@@ -80,18 +80,18 @@ func TestSessionRoleFlagRunsNoHooksAndWritesNoMarker(t *testing.T) {
 func TestSessionRoleEnvRunsNoHooksAndWritesNoMarker(t *testing.T) {
 	requireBash(t)
 	home, enter, _ := hookHome(t, "output: terminal\n")
-	t.Setenv("MUNIN_ROLE", "hooky")
+	t.Setenv("MINO_ROLE", "hooky")
 
 	a := loadHome(t, Options{Home: home})
 
 	if got := a.Role(); got != "hooky" {
-		t.Errorf("Role() = %q, want hooky from MUNIN_ROLE", got)
+		t.Errorf("Role() = %q, want hooky from MINO_ROLE", got)
 	}
 	if fileExists(enter) {
-		t.Error("MUNIN_ROLE must not run the enter hook")
+		t.Error("MINO_ROLE must not run the enter hook")
 	}
 	if got := role.LoadActive(home); got != "" {
-		t.Errorf("hook marker = %q, want unwritten by MUNIN_ROLE", got)
+		t.Errorf("hook marker = %q, want unwritten by MINO_ROLE", got)
 	}
 }
 

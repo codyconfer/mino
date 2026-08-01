@@ -40,7 +40,7 @@ func TestStartSilentStop(t *testing.T) {
 }
 
 func TestLifelineServeHelper(t *testing.T) {
-	if os.Getenv("MUNIN_TEST_LIFELINE_SERVE") != "1" {
+	if os.Getenv("MINO_TEST_LIFELINE_SERVE") != "1" {
 		return
 	}
 	ctx, cancel := BindDeckLifeline(context.Background())
@@ -53,8 +53,8 @@ func TestStartSilentLifelineParentDeath(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("lifeline pipe not wired on Windows")
 	}
-	if os.Getenv("MUNIN_TEST_LIFELINE_PARENT") == "1" {
-		os.Setenv("MUNIN_TEST_LIFELINE_SERVE", "1")
+	if os.Getenv("MINO_TEST_LIFELINE_PARENT") == "1" {
+		os.Setenv("MINO_TEST_LIFELINE_SERVE", "1")
 		owned, err := startSilent(os.Args[0], "-test.run=^TestLifelineServeHelper$", "-test.count=1")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "startSilent: %v\n", err)
@@ -65,7 +65,7 @@ func TestStartSilentLifelineParentDeath(t *testing.T) {
 	}
 
 	cmd := exec.Command(os.Args[0], "-test.run=^TestStartSilentLifelineParentDeath$", "-test.count=1")
-	cmd.Env = append(os.Environ(), "MUNIN_TEST_LIFELINE_PARENT=1")
+	cmd.Env = append(os.Environ(), "MINO_TEST_LIFELINE_PARENT=1")
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("helper: %v\n%s", err, out)

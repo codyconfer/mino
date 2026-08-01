@@ -9,8 +9,8 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func resultSections() []signals.Section {
@@ -26,7 +26,7 @@ func resultSections() []signals.Section {
 
 func loadedResults(t *testing.T, onSelect SelectFunc) (*vkdeck.Model, *vkdeck.ItemList) {
 	t.Helper()
-	lst := NewResults("flight: morning", "morning", nil,
+	lst := NewResults("flight: morning", nil,
 		func() []signals.Section { return resultSections() }, onSelect)
 	app := New(lst)
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})

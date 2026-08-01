@@ -5,8 +5,8 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/plugin/ntr"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/plugin/ntr"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func (k *Kit) NTR() vkdeck.View {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestPollStepGetsDeadline(t *testing.T) {

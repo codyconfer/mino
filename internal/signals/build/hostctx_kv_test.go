@@ -9,11 +9,11 @@ import (
 	"github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/sisyphus/kv"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/active"
-	"github.com/codyconfer/munin/internal/signals/build"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/active"
+	"github.com/codyconfer/mino/internal/signals/build"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type kvProbeJob struct{}

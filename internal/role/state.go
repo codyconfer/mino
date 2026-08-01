@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 const activeRoleFile = "active-role"

@@ -7,15 +7,15 @@ import (
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 const (
-	envHome     = "MUNIN_HOME"
-	envLogDir   = "MUNIN_LOG_DIR"
-	HomeDirName = ".munin"
-	envPrefix   = "MUNIN_"
+	envHome     = "MINO_HOME"
+	envLogDir   = "MINO_LOG_DIR"
+	HomeDirName = ".mino"
+	envPrefix   = "MINO_"
 	homeDir     = HomeDirName
 )
 
@@ -91,7 +91,7 @@ func Defaults() *Config {
 		Timeout:  "30s",
 		Keybinds: DefaultKeybinds(),
 		Audit:    AuditConfig{Enabled: true},
-		Backup:   BackupConfig{SecretBackend: "auto", SecretName: "munin-backup-key", Destination: "local"},
+		Backup:   BackupConfig{SecretBackend: "auto", SecretName: "mino-backup-key", Destination: "local"},
 		GitHub:   GitHubConfig{OAuthScopes: "repo read:org", Max: 30},
 		Daemon:   DaemonConfig{Interval: "60s", Bell: true, Theme: "dark"},
 		Cache:    CacheConfig{TTL: "60s"},
@@ -142,7 +142,7 @@ func ConfigFilePath(homeOverride string) (string, error) {
 		}
 	}
 	return "", errs.Newf(errs.KindConfig, "no config file found in %s", home).
-		WithHint("expected config.yaml, config.yml, or config.json; create one from Settings or run `munin install`")
+		WithHint("expected config.yaml, config.yml, or config.json; create one from Settings or run `mino install`")
 }
 
 func ParseConfig(home string, raw []byte, format string) (*Config, error) {

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/plugin/ntr"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin/ntr"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestRunScheduledAcksOnlyAfterOnFire(t *testing.T) {

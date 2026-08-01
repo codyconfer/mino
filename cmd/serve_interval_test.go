@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func useServeTestApp(t *testing.T, configuredInterval string) {
@@ -24,7 +24,7 @@ func useServeTestApp(t *testing.T, configuredInterval string) {
 func runServe(t *testing.T, args ...string) error {
 	t.Helper()
 	var out bytes.Buffer
-	root := &cobra.Command{Use: "munin", SilenceUsage: true, SilenceErrors: true}
+	root := &cobra.Command{Use: "mino", SilenceUsage: true, SilenceErrors: true}
 	root.AddCommand(newServeCmd())
 	root.SetOut(&out)
 	root.SetErr(&out)

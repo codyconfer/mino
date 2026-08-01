@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func seedDirectives(t *testing.T) string {
@@ -842,7 +842,7 @@ func TestTypoedParamsKeyErrorsInsteadOfRunningUnparameterised(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "prs.yaml"),
-		"name: prs\ntype: query\nsignal: github.prs\nparmas:\n  repo: munin\n")
+		"name: prs\ntype: query\nsignal: github.prs\nparmas:\n  repo: mino\n")
 
 	s, err := LoadDirectivesFromFiles(home)
 	if err == nil {
@@ -938,7 +938,7 @@ func TestWhollyMisspelledDocumentInADirectiveLocationErrors(t *testing.T) {
 			name: "query with every field misspelled",
 			dir:  DirQueries,
 			rel:  DirQueries + "/prs.yaml",
-			body: "sinal: github.prs\nparmas:\n  repo: munin\n",
+			body: "sinal: github.prs\nparmas:\n  repo: mino\n",
 			keys: []string{"sinal"},
 		},
 		{
@@ -1020,7 +1020,7 @@ func TestJSONDirectiveRejectsUnknownFields(t *testing.T) {
 	home := t.TempDir()
 	mkdir(t, filepath.Join(home, DirQueries))
 	write(t, filepath.Join(home, DirQueries, "prs.json"),
-		"{\"name\":\"prs\",\"type\":\"query\",\"signal\":\"github.prs\",\"parmas\":{\"repo\":\"munin\"}}\n")
+		"{\"name\":\"prs\",\"type\":\"query\",\"signal\":\"github.prs\",\"parmas\":{\"repo\":\"mino\"}}\n")
 
 	s, err := LoadDirectivesFromFiles(home)
 	if err == nil {
@@ -1038,7 +1038,7 @@ func TestJSONDirectiveRejectsUnknownFields(t *testing.T) {
 }
 
 func TestJSONDirectiveRejectsUnknownFieldsThroughTheStoreBlob(t *testing.T) {
-	blob := []byte(`{"queries/prs.json":"{\"name\":\"prs\",\"type\":\"query\",\"signal\":\"github.prs\",\"parmas\":{\"repo\":\"munin\"}}"}`)
+	blob := []byte(`{"queries/prs.json":"{\"name\":\"prs\",\"type\":\"query\",\"signal\":\"github.prs\",\"parmas\":{\"repo\":\"mino\"}}"}`)
 	if s, err := NewDirectives(blob); err == nil {
 		t.Fatalf("the stored blob accepted a misspelled key: %#v", s.Queries["prs"])
 	}

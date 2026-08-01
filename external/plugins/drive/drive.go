@@ -9,9 +9,9 @@ import (
 
 	driveapi "google.golang.org/api/drive/v3"
 
-	"github.com/codyconfer/munin/external/plugins/internal/errx"
-	"github.com/codyconfer/munin/external/plugins/internal/googleauth"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/external/plugins/internal/googleauth"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const folderMime = "application/vnd.google-apps.folder"

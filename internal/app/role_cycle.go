@@ -7,8 +7,8 @@ import (
 
 	"github.com/codyconfer/viewkit/layout"
 
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/role"
 )
 
 const RoleCycleDebounce = 400 * time.Millisecond

@@ -5,8 +5,8 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func init() {
@@ -21,7 +21,7 @@ func RunTUI(home, role string) error {
 		role = "default"
 	}
 	return vkdeck.Run(NewHomeView(home, role), vkdeck.WithChrome(vkdeck.Chrome{
-		Brand:    "MUNIN",
+		Brand:    "MINO",
 		Subtitle: "notes",
 	}), vkdeck.WithKeyMapQuit())
 }

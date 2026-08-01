@@ -5,7 +5,7 @@ import (
 
 	vk "github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type Mode = vk.Mode
@@ -20,7 +20,7 @@ func SetMode(m Mode) { vk.SetMode(m) }
 
 func CurrentMode() Mode { return vk.CurrentMode() }
 
-func Resolve() { vk.Detect(os.Stdout, os.Getenv("MUNIN_ICONS")) }
+func Resolve() { vk.Detect(os.Stdout, os.Getenv("MINO_ICONS")) }
 
 func Pad(s string) string { return vk.Pad(s) }
 
@@ -53,7 +53,7 @@ func Reply() string       { return reply.String() }
 
 var (
 	brand      = vk.Variants{Nerd: "▚▚", Uni: "▚▚", ASCII: "##"}
-	signingOK  = vk.Variants{Nerd: "", Uni: "✓", ASCII: "ok"}
+	signingOK  = vk.Variants{Nerd: "", Uni: "✓", ASCII: "+"}
 	signingBad = vk.Variants{Nerd: "", Uni: "✗", ASCII: "x"}
 	login      = vk.Variants{Nerd: "", Uni: "⚷", ASCII: ">"}
 	notes      = vk.Variants{Nerd: "", Uni: "✎", ASCII: "nt"}

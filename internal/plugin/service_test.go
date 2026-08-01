@@ -5,7 +5,7 @@ import (
 
 	"github.com/codyconfer/sisyphus/mode"
 
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 func TestServiceAttachedAtEmpty(t *testing.T) {

@@ -7,11 +7,11 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render"
 )
 
 var lifecycleHome string
@@ -30,7 +30,7 @@ func newInstallCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:               "install",
 		Short:             "Create the config directory and initialize it with defaults",
-		Long:              "Creates the munin home (default ~/.munin) and seeds stock config/directives.\nDoes not require an existing config file. Override the target with --home/--dir or MUNIN_HOME.",
+		Long:              "Creates the mino home (default ~/.mino) and seeds stock config/directives.\nDoes not require an existing config file. Override the target with --home/--dir or MINO_HOME.",
 		Args:              cobra.NoArgs,
 		Annotations:       map[string]string{annoSkipOnboarding: "true"},
 		PersistentPreRunE: lifecyclePreRun,
@@ -39,7 +39,7 @@ func newInstallCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), render.Success(fmt.Sprintf("installed munin in %s:", lifecycleHome)))
+			fmt.Fprintln(cmd.OutOrStdout(), render.Success(fmt.Sprintf("installed mino in %s:", lifecycleHome)))
 			for _, p := range created {
 				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", p)
 			}
@@ -69,7 +69,7 @@ func newNukeCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:               "nuke",
 		Short:             "Delete the config directory (including DuckDB)",
-		Long:              "Permanently deletes the munin home directory. Does not reinstall — run `munin install` afterward.\nWith no --home/--dir/MUNIN_HOME, a matching settings.yaml home: override is cleared so install defaults to ~/.munin.",
+		Long:              "Permanently deletes the mino home directory. Does not reinstall — run `mino install` afterward.\nWith no --home/--dir/MINO_HOME, a matching settings.yaml home: override is cleared so install defaults to ~/.mino.",
 		Args:              cobra.NoArgs,
 		Annotations:       map[string]string{annoSkipOnboarding: "true"},
 		PersistentPreRunE: lifecyclePreRun,

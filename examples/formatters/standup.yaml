@@ -1,10 +1,10 @@
 # A formatter is a Go text/template that turns a run's results into text. It
 # replaces the panels on stdout, so it pipes cleanly:
-#   munin fly morning --formatter standup
-#   munin formatter render standup morning --copy
+#   mino fly morning --formatter standup
+#   mino formatter render standup morning --copy
 name: standup
 type: formatter
-# Optional display label for `munin formatter`, completion, and the deck.
+# Optional display label for `mino formatter`, completion, and the deck.
 title: Daily Standup
 # `.Queries` groups the results by the saved query that produced them, so each
 # query becomes one heading. Missing map keys render empty rather than failing

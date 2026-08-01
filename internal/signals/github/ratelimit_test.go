@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
@@ -29,7 +29,7 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 			body:    `{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}`,
 			kind:    errs.KindSignal,
 			hintHas: "retry",
-			hintNot: "munin login github",
+			hintNot: "mino login github",
 		},
 		{
 			name:   "primary rate limit",
@@ -41,7 +41,7 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 			body:    `{"message":"API rate limit exceeded for user ID 1."}`,
 			kind:    errs.KindSignal,
 			hintHas: "retry",
-			hintNot: "munin login github",
+			hintNot: "mino login github",
 		},
 		{
 			name:    "too many requests",
@@ -50,7 +50,7 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 			body:    `{"message":"Too many requests"}`,
 			kind:    errs.KindSignal,
 			hintHas: "retry",
-			hintNot: "munin login github",
+			hintNot: "mino login github",
 		},
 		{
 			name:    "missing scope",
@@ -58,7 +58,7 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 			header:  http.Header{"X-Ratelimit-Remaining": []string{"4999"}},
 			body:    `{"message":"Resource not accessible by personal access token"}`,
 			kind:    errs.KindAuth,
-			hintHas: "munin login github",
+			hintHas: "mino login github",
 		},
 		{
 			name:   "missing scope whose doc link mentions rate limits",
@@ -67,7 +67,7 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 			body: `{"message":"Resource not accessible by personal access token",` +
 				`"documentation_url":"https://docs.github.com/rest/overview/resources#rate limit policy"}`,
 			kind:    errs.KindAuth,
-			hintHas: "munin login github",
+			hintHas: "mino login github",
 			hintNot: "rate limit reached",
 		},
 		{
@@ -90,7 +90,7 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 				`the ` + "`acme`" + ` organization has an IP allow list enabled."}`,
 			kind:    errs.KindAuth,
 			hintHas: "IP allow list",
-			hintNot: "munin login github",
+			hintNot: "mino login github",
 		},
 		{
 			name:    "secondary rate limit with no rate limit headers",
@@ -99,14 +99,14 @@ func TestCheckGitHubStatusClassifiesRateLimits(t *testing.T) {
 			body:    `{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}`,
 			kind:    errs.KindSignal,
 			hintHas: "rate limit",
-			hintNot: "munin login github",
+			hintNot: "mino login github",
 		},
 		{
 			name:    "bad credentials",
 			status:  http.StatusUnauthorized,
 			body:    `{"message":"Bad credentials"}`,
 			kind:    errs.KindAuth,
-			hintHas: "munin login github",
+			hintHas: "mino login github",
 		},
 		{
 			name:    "saml enforcement",

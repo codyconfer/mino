@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type blockingJob struct {

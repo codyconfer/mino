@@ -6,8 +6,8 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func newSettingsCmd() *cobra.Command {

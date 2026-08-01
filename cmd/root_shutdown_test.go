@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/cache"
-	"github.com/codyconfer/munin/internal/testenv"
-	"github.com/codyconfer/munin/internal/token"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/cache"
+	"github.com/codyconfer/mino/internal/testenv"
+	"github.com/codyconfer/mino/internal/token"
 )
 
 func sharedForShutdown(t *testing.T) string {

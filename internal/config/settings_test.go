@@ -8,16 +8,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
-const malformedSettings = "home: /work/munin\n\ttheme: dracula\n"
+const malformedSettings = "home: /work/mino\n\ttheme: dracula\n"
 
 func settingsPath(t *testing.T, env testenv.Env) string {
 	t.Helper()
-	mkdir(t, filepath.Join(env.ConfigDir, "munin"))
-	return filepath.Join(env.ConfigDir, "munin", "settings.yaml")
+	mkdir(t, filepath.Join(env.ConfigDir, "mino"))
+	return filepath.Join(env.ConfigDir, "mino", "settings.yaml")
 }
 
 func captureLog(t *testing.T) *bytes.Buffer {
@@ -38,7 +38,7 @@ func TestLoadGlobalSettingsWarnsInsteadOfSilentlyReturningZeroForMalformedFile(t
 
 	got := logs.String()
 	if got == "" {
-		t.Fatalf("a malformed %s was treated as empty settings with no diagnostic at all; munin would silently use a different home directory", path)
+		t.Fatalf("a malformed %s was treated as empty settings with no diagnostic at all; mino would silently use a different home directory", path)
 	}
 	if !strings.Contains(got, path) {
 		t.Errorf("warning should name the offending file %q, got %q", path, got)
@@ -66,7 +66,7 @@ func TestSaveGlobalSettingsRefusesToOverwriteUnparseableFile(t *testing.T) {
 
 	gs := LoadGlobalSettings()
 	if err := SaveGlobalSettings(gs); err == nil {
-		t.Error("SaveGlobalSettings overwrote settings munin could not parse; the user's real home and plugin list are gone")
+		t.Error("SaveGlobalSettings overwrote settings mino could not parse; the user's real home and plugin list are gone")
 	}
 
 	data, err := os.ReadFile(path)
@@ -81,7 +81,7 @@ func TestSaveGlobalSettingsRefusesToOverwriteUnparseableFile(t *testing.T) {
 func TestSetHiddenStatusBarDoesNotDestroyUnparseableSettings(t *testing.T) {
 	env := testenv.Isolate(t)
 	path := settingsPath(t, env)
-	original := "home: /work/munin\ninstalled_plugins:\n  - jira\n\ttheme: dracula\n"
+	original := "home: /work/mino\ninstalled_plugins:\n  - jira\n\ttheme: dracula\n"
 	write(t, path, original)
 
 	if err := SetHiddenStatusBar([]string{"slack"}); err == nil {
@@ -111,7 +111,7 @@ func TestSaveGlobalSettingsWorksWhenFileIsAbsent(t *testing.T) {
 		t.Fatalf("absent settings should be zero, got %#v", gs)
 	}
 
-	home := filepath.Join(t.TempDir(), "custom-munin")
+	home := filepath.Join(t.TempDir(), "custom-mino")
 	if err := SaveGlobalSettings(GlobalSettings{Home: home, Theme: "dracula"}); err != nil {
 		t.Fatalf("SaveGlobalSettings on an absent file: %v", err)
 	}
@@ -123,17 +123,17 @@ func TestSaveGlobalSettingsWorksWhenFileIsAbsent(t *testing.T) {
 func TestSaveGlobalSettingsStillOverwritesParseableFile(t *testing.T) {
 	env := testenv.Isolate(t)
 	path := settingsPath(t, env)
-	write(t, path, "home: /work/munin\ntheme: dracula\n")
+	write(t, path, "home: /work/mino\ntheme: dracula\n")
 
 	gs := LoadGlobalSettings()
-	if gs.Home != "/work/munin" {
+	if gs.Home != "/work/mino" {
 		t.Fatalf("valid settings failed to load: %#v", gs)
 	}
 	gs.Theme = "nord"
 	if err := SaveGlobalSettings(gs); err != nil {
 		t.Fatalf("SaveGlobalSettings on a valid file: %v", err)
 	}
-	if got := LoadGlobalSettings(); got.Theme != "nord" || got.Home != "/work/munin" {
+	if got := LoadGlobalSettings(); got.Theme != "nord" || got.Home != "/work/mino" {
 		t.Fatalf("round trip = %#v", got)
 	}
 }
@@ -143,7 +143,7 @@ func TestLoadGlobalSettingsDoesNotWarnForValidOrAbsentFiles(t *testing.T) {
 	logs := captureLog(t)
 
 	LoadGlobalSettings()
-	write(t, settingsPath(t, env), "home: /work/munin\n")
+	write(t, settingsPath(t, env), "home: /work/mino\n")
 	LoadGlobalSettings()
 
 	if got := logs.String(); got != "" {

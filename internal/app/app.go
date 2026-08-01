@@ -9,15 +9,15 @@ import (
 
 	"github.com/codyconfer/sisyphus"
 
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/role"
-	"github.com/codyconfer/munin/internal/signals/cache"
-	"github.com/codyconfer/munin/internal/token"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/role"
+	"github.com/codyconfer/mino/internal/signals/cache"
+	"github.com/codyconfer/mino/internal/token"
 )
 
 type App struct {
@@ -216,7 +216,7 @@ func loadConfig(opts Options) (*config.Config, *config.Directives, *sisyphus.Man
 
 func (a *App) Thin() bool { return a != nil && a.thin }
 
-const envSessionRole = "MUNIN_ROLE"
+const envSessionRole = "MINO_ROLE"
 
 func sessionScopedRole(opts Options) bool {
 	return opts.Role != "" || os.Getenv(envSessionRole) != ""
@@ -231,7 +231,7 @@ func (a *App) ActivateRole(name string) error {
 	}
 	if _, ok := a.RoleDef(name); !ok && name != "" {
 		return errs.Newf(errs.KindUsage, "unknown role %q", name).
-			WithHint("run `munin role` to list defined roles")
+			WithHint("run `mino role` to list defined roles")
 	}
 	if err := a.persistRole(name); err != nil {
 		return err

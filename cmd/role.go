@@ -8,8 +8,8 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func dashRole(s string) string {
@@ -23,10 +23,10 @@ func newRoleCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "role",
 		Short: "Show the active role and defined roles",
-		Long: "Roles scope what munin shows. `munin role use <name>` activates one for\n" +
+		Long: "Roles scope what mino shows. `mino role use <name>` activates one for\n" +
 			"good: it writes `role:` into config.yaml and runs the previous role's\n" +
 			"exit hooks and the new role's enter hooks. `--role <name>` and the\n" +
-			"MUNIN_ROLE env var scope a single invocation instead and run no hooks,\n" +
+			"MINO_ROLE env var scope a single invocation instead and run no hooks,\n" +
 			"so they are safe in prompts, statuslines, and wrappers. A role names\n" +
 			"the flights, queries, and filters that appear in lists and the TUI;\n" +
 			"with no active role, everything is listed. Role YAML may also set\n" +
@@ -75,7 +75,7 @@ func newRoleUseCmd() *cobra.Command {
 		Short: "Activate a role: persist it to config.yaml and run its hooks",
 		Long: "Writes `role: <name>` into config.yaml, runs the previous role's exit\n" +
 			"hooks then <name>'s enter hooks, applies its contexts, and refreshes\n" +
-			"its status blocks. Use --role or MUNIN_ROLE to scope one invocation\n" +
+			"its status blocks. Use --role or MINO_ROLE to scope one invocation\n" +
 			"without touching the config file and without running hooks.",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeRoleNames,

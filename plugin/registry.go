@@ -159,7 +159,7 @@ func queueActionKindLocked(signal, name string, serviceOnly bool) {
 	})
 }
 
-const InternalPrefix = "munin."
+const InternalPrefix = "mino."
 
 func IsInternal(id string) bool {
 	return strings.HasPrefix(id, InternalPrefix)

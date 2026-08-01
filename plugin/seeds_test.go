@@ -3,7 +3,7 @@ package plugin_test
 import (
 	"testing"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestRegisterSeedsRoundTrip(t *testing.T) {

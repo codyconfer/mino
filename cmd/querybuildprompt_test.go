@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/app/qform"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/app/qform"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 func TestPromptSeedSplitsKnownParamsFromExtras(t *testing.T) {

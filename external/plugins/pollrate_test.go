@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/external/plugins/calendar"
-	"github.com/codyconfer/munin/external/plugins/tasks"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/calendar"
+	"github.com/codyconfer/mino/external/plugins/tasks"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type hotContext struct{}

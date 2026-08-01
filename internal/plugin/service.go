@@ -3,8 +3,8 @@ package plugin
 import (
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 
-	"github.com/codyconfer/munin/internal/config"
-	pub "github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/config"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 func init() {

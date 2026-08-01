@@ -11,7 +11,7 @@ import (
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func SetValues(homeOverride string, values map[string]any) (string, error) {
@@ -165,7 +165,7 @@ func setYAMLValues(name string, raw []byte, values map[string]any) ([]byte, erro
 	}
 	if len(docs) > 1 {
 		return nil, errs.Newf(errs.KindConfig, "%s holds %d YAML documents", name, len(docs)).
-			WithHint("munin reads only the first one, so editing settings here would delete the other %d; "+
+			WithHint("mino reads only the first one, so editing settings here would delete the other %d; "+
 				"merge them into a single document (drop the `---` separators) or edit the file by hand", len(docs)-1)
 	}
 	if len(docs) == 0 {
@@ -377,7 +377,7 @@ func mappingChild(m *yaml.Node, key string) (*yaml.Node, error) {
 	if cur.Kind == yaml.AliasNode {
 		anchor = cur.Value
 		if cur.Alias == nil {
-			return nil, errs.Newf(errs.KindConfig, "cannot add settings under %q: it is the alias `*%s` and munin cannot find that anchor", key, anchor).
+			return nil, errs.Newf(errs.KindConfig, "cannot add settings under %q: it is the alias `*%s` and mino cannot find that anchor", key, anchor).
 				WithHint("give %q a nested block of its own, or edit the config file by hand", key)
 		}
 		flattenAlias(cur)

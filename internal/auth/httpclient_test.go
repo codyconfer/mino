@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 const testDeadline = 3 * time.Second
@@ -188,7 +188,7 @@ func TestGHAPIGetClassifies401And403Distinctly(t *testing.T) {
 				_, _ = w.Write([]byte(`{"message":"Bad credentials"}`))
 			},
 			wantKind: errs.KindAuth,
-			wantHint: "munin login github",
+			wantHint: "mino login github",
 		},
 		{
 			name: "403 rate limited",
@@ -273,7 +273,7 @@ func TestGHAPIGetRateLimitHintDoesNotTellTheUserToReLogIn(t *testing.T) {
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte(`{"message":"API rate limit exceeded for user"}`))
 	})
-	if strings.Contains(errs.Hint(err), "munin login") {
+	if strings.Contains(errs.Hint(err), "mino login") {
 		t.Fatalf("a rate-limited 403 must not send the user back through login: %q", errs.Hint(err))
 	}
 }

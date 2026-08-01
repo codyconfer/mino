@@ -13,15 +13,15 @@ import (
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/sisyphus/lifecycle"
 
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/token"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/token"
 )
 
 const (
-	defaultConfigYAML = `# munin configuration — see the README for all options.
+	defaultConfigYAML = `# mino configuration — see the README for all options.
 # This is the only file that must be named config.yaml and sit at the root.
 # Directive files carry a ` + "`type:`" + ` and may live anywhere below here.
 output: terminal
@@ -202,7 +202,7 @@ func seedStores(home string, created *[]string) error {
 func Install(home string, force bool) ([]string, error) {
 	if !force && ConfigExists(home) {
 		return nil, errs.Newf(errs.KindConfig, "%s already has a config file", home).
-			WithHint("use --force to overwrite, or `munin nuke` then `munin install`")
+			WithHint("use --force to overwrite, or `mino nuke` then `mino install`")
 	}
 	created, err := lifecycle.Install(installSpec(home, force))
 	if err != nil {
@@ -244,7 +244,7 @@ func Nuke(w io.Writer, home string) error {
 		return err
 	}
 	fmt.Fprintln(w, render.Success(fmt.Sprintf("nuked %s", home)))
-	fmt.Fprintln(w, "run `munin install` to recreate defaults in ~/.munin (or pass --home/--dir)")
+	fmt.Fprintln(w, "run `mino install` to recreate defaults in ~/.mino (or pass --home/--dir)")
 	return nil
 }
 

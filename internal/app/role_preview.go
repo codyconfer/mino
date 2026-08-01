@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/role"
 )
 
 const (

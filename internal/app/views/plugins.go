@@ -14,11 +14,11 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/keymap"
-	mnotify "github.com/codyconfer/munin/internal/notify"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/keymap"
+	mnotify "github.com/codyconfer/mino/internal/notify"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 type pluginsToggledMsg struct {
@@ -366,11 +366,7 @@ func (p *pluginsPage) Body(width, _ int) string {
 		return p.overlay(p.toast.Body(body, width), width)
 	}
 	lines := make([]string, 0, len(p.rows))
-	cursorLine := 0
 	for i, row := range p.rows {
-		if i == p.cursor {
-			cursorLine = len(lines)
-		}
 		cursor := "  "
 		label := th.Val.Render(row.id)
 		if i == p.cursor {
@@ -396,7 +392,6 @@ func (p *pluginsPage) Body(width, _ int) string {
 			lines = append(lines, "    "+th.Cant.Render(glyph.Warn()+" "+row.problem))
 		}
 	}
-	lines = layout.CursorRows(lines, cursorLine, 0)
 	body := f.TitledBox(strings.ToUpper(p.Title()), lines...)
 	return p.overlay(p.toast.Body(body, width), width)
 }

@@ -9,11 +9,11 @@ import (
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/role"
 )
 
 type StatusLevel = vkglyph.Severity

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type fakeGraphQL struct {

@@ -11,17 +11,17 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (
 	DefaultFetchLimit = 8
-	FetchLimitEnv     = "MUNIN_FETCH_CONCURRENCY"
+	FetchLimitEnv     = "MINO_FETCH_CONCURRENCY"
 
 	unknownSignal = "unknown"
 )
@@ -86,7 +86,7 @@ func signalName(q Query) (name string) {
 
 func panicErr(name string, r any) error {
 	return errs.Newf(errs.KindInternal, "signal %s panicked: %v", name, r).
-		WithHint("this is a bug in the %s signal; run with MUNIN_LOG_LEVEL=debug for the stack trace", name)
+		WithHint("this is a bug in the %s signal; run with MINO_LOG_LEVEL=debug for the stack trace", name)
 }
 
 func errSection(name string, err error) []signals.Section {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 
 	"golang.org/x/oauth2"
 )
@@ -71,7 +71,7 @@ func TestMissingScopesUsesTheMemoisedVerdict(t *testing.T) {
 func TestGoogleLoginScopesDoNotRequestFullDrive(t *testing.T) {
 	for _, s := range LoginScopes {
 		if s == "https://www.googleapis.com/auth/drive" {
-			t.Fatal("LoginScopes requests full read/write Drive; munin only lists metadata and writes its own files")
+			t.Fatal("LoginScopes requests full read/write Drive; mino only lists metadata and writes its own files")
 		}
 	}
 }

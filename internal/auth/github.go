@@ -11,7 +11,7 @@ import (
 
 	sauth "github.com/codyconfer/sisyphus/auth"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func GHAvailable() bool {
@@ -60,14 +60,14 @@ func GitHubDeviceFlow(ctx context.Context, clientID, scope string, w io.Writer) 
 func runGitHubDeviceFlow(ctx context.Context, hc *http.Client, deviceURL, tokenURL, clientID, scope string, w io.Writer, sleep func(time.Duration)) (string, error) {
 	if clientID == "" {
 		return "", errs.New(errs.KindConfig, "no GitHub OAuth client id configured").
-			WithHint("set a GitHub OAuth App client id in config to use `munin login github`")
+			WithHint("set a GitHub OAuth App client id in config to use `mino login github`")
 	}
 	tok, _, err := sauth.DeviceToken(ctx, w, sauth.DeviceFlowOptions{
 		ClientID:   clientID,
 		Scope:      scope,
 		CodeURL:    deviceURL,
 		TokenURL:   tokenURL,
-		Product:    "munin",
+		Product:    "mino",
 		HTTPClient: hc,
 		Sleep:      sleep,
 		Open:       func(string) error { return nil },
@@ -78,10 +78,10 @@ func runGitHubDeviceFlow(ctx context.Context, hc *http.Client, deviceURL, tokenU
 			return "", errs.New(errs.KindAuth, "authorization was denied")
 		case errors.Is(err, sauth.ErrDeviceExpired):
 			return "", errs.New(errs.KindAuth, "device code expired before authorization").
-				WithHint("run `munin login github` again")
+				WithHint("run `mino login github` again")
 		default:
 			return "", errs.Wrap(errs.KindAuth, err, "github device flow").
-				WithHint("run `munin login github` again")
+				WithHint("run `mino login github` again")
 		}
 	}
 	return tok, nil

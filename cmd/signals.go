@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 type errSignal struct {

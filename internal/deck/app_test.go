@@ -12,8 +12,8 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func TestMain(m *testing.M) {
@@ -50,7 +50,7 @@ func TestAppRendersChromeAndMenu(t *testing.T) {
 	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	view := app.View()
-	for _, want := range []string{"MUNIN", "netrunner", "role", "triage", "Alpha", "Beta", "quit"} {
+	for _, want := range []string{"MINO", "netrunner", "role", "triage", "Alpha", "Beta", "quit"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("main menu frame missing %q\n---\n%s", want, view)
 		}
@@ -157,7 +157,7 @@ func TestAppHeaderBreadcrumbs(t *testing.T) {
 	brandIdx, crumbIdx := -1, -1
 	for i, ln := range lines {
 		p := ansi.Strip(ln)
-		if strings.Contains(p, "MUNIN") {
+		if strings.Contains(p, "MINO") {
 			brandIdx = i
 		}
 		if strings.Contains(p, "main") && strings.Contains(p, "details") {

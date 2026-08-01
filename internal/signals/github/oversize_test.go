@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func TestOversizeBodyKeepsTheStatusClassification(t *testing.T) {
@@ -21,7 +21,7 @@ func TestOversizeBodyKeepsTheStatusClassification(t *testing.T) {
 	if errs.KindOf(err) != errs.KindAuth {
 		t.Fatalf("kind = %q, want auth so the caller keeps the 401", errs.KindOf(err))
 	}
-	if !strings.Contains(errs.Hint(err), "munin login github") {
+	if !strings.Contains(errs.Hint(err), "mino login github") {
 		t.Fatalf("hint = %q, want the login remedy", errs.Hint(err))
 	}
 	if !strings.Contains(err.Error(), "401 Unauthorized") {
@@ -63,7 +63,7 @@ func TestSearchIssuesKeepsA401BehindAnOversizeBody(t *testing.T) {
 	if errs.KindOf(err) != errs.KindAuth {
 		t.Fatalf("kind = %q, want auth: a 9 MiB 401 must still read as an auth failure (err %v)", errs.KindOf(err), err)
 	}
-	if !strings.Contains(errs.Hint(err), "munin login github") {
+	if !strings.Contains(errs.Hint(err), "mino login github") {
 		t.Fatalf("hint = %q, want the login remedy", errs.Hint(err))
 	}
 }

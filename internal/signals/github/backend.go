@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type Backend interface {

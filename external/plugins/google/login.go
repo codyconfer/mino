@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/codyconfer/munin/external/plugins/internal/googleauth"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/internal/googleauth"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const PluginID = "external.google"

@@ -9,8 +9,8 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 	"github.com/codyconfer/viewkit/tree"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.Row {
@@ -25,22 +25,35 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 	rows = append(rows, tree.Row{Lines: []string{
 		th.Title.Render(glyph.Lead(c.Trunk) + label),
 	}})
-
 	for i, s := range sections {
 		last := i == len(sections)-1
 		_, spad := c.Edge(last)
-
-		title := s.Title
-		if title == "" {
-			title = s.Signal
-		}
-		title = fmt.Sprintf("%s  (%s)", signals.CleanLine(title), sectionCount(s))
-		icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
-
-		rows = append(rows, tree.Branch(c, last, []string{icon + th.Title.Render(title) + staleChip(th, s)}, ""))
+		rows = append(rows, tree.Branch(c, last, []string{sectionHead(th, i, s)}, ""))
 		rows = append(rows, sectionLeaves(f, th, c, spad, s)...)
 	}
 	return rows
+}
+
+func SectionRows(f layout.Frame, sections []signals.Section) []tree.Row {
+	th := theme.Cur()
+	c := tree.DefaultConnectors()
+
+	rows := make([]tree.Row, 0, len(sections))
+	for i, s := range sections {
+		rows = append(rows, tree.Row{Lines: []string{sectionHead(th, i, s)}})
+		rows = append(rows, sectionLeaves(f, th, c, "", s)...)
+	}
+	return rows
+}
+
+func sectionHead(th *theme.Theme, i int, s signals.Section) string {
+	title := s.Title
+	if title == "" {
+		title = s.Signal
+	}
+	title = fmt.Sprintf("%s  (%s)", signals.CleanLine(title), sectionCount(s))
+	icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
+	return icon + th.Title.Render(title) + staleChip(th, s)
 }
 
 func staleChip(th *theme.Theme, s signals.Section) string {

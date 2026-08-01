@@ -10,8 +10,8 @@ import (
 
 	slackapi "github.com/slack-go/slack"
 
-	"github.com/codyconfer/munin/external/plugins/internal/errx"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const (

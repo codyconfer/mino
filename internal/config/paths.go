@@ -7,8 +7,8 @@ import (
 
 	"github.com/codyconfer/sisyphus"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 const (
 	ServeSocket  = "serve.sock"
-	SocketPrefix = "munin"
+	SocketPrefix = "mino"
 )
 
 func ServeSocketPath(home string) string { return filepath.Join(home, ServeSocket) }

@@ -3,7 +3,7 @@ package signals
 import (
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 const MinPollInterval = time.Second

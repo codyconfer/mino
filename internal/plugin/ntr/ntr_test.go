@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func TestStoreCRUDAndReminders(t *testing.T) {

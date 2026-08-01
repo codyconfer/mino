@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"sync"
 
-	muninterm "github.com/codyconfer/viewkit/term"
+	minoterm "github.com/codyconfer/viewkit/term"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/tmux"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/tmux"
 )
 
 const (
@@ -64,9 +64,9 @@ func NewManager(home, flight string) (*Manager, error) {
 	if !tmux.Inside() {
 		return nil, errs.New(errs.KindInternal, "pane manager requires a tmux session")
 	}
-	self, err := muninterm.Self()
+	self, err := minoterm.Self()
 	if err != nil {
-		return nil, errs.Wrap(errs.KindInternal, err, "locate munin binary")
+		return nil, errs.Wrap(errs.KindInternal, err, "locate mino binary")
 	}
 	return &Manager{
 		home:   home,
@@ -88,7 +88,7 @@ func (m *Manager) OpenInbox() error {
 		Target:     m.own,
 		Horizontal: horizontal,
 		Size:       size,
-		Title:      "munin inbox",
+		Title:      "mino inbox",
 		Env:        m.env,
 		Argv:       argv,
 	}, "")
@@ -106,7 +106,7 @@ func (m *Manager) OpenSnapshot(s Snapshot) error {
 	}
 	title := s.Title
 	if title == "" {
-		title = "munin pane"
+		title = "mino pane"
 	}
 	horizontal, size := m.layoutFor(detailPercent)
 	err := m.split(tmux.SplitOpts{

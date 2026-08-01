@@ -6,7 +6,7 @@ import (
 
 	"github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestUIVisibleServiceOnly(t *testing.T) {

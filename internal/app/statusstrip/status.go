@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/pluginhost"
-	gh "github.com/codyconfer/munin/internal/signals/github"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/pluginhost"
+	gh "github.com/codyconfer/mino/internal/signals/github"
 )
 
 type ChipFunc func() (deck.ServiceStatus, bool)

@@ -9,14 +9,14 @@ import (
 	"github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (
-	PluginID   = "munin.ntr"
+	PluginID   = "mino.ntr"
 	SignalName = "ntr"
-	GlyphID    = "munin.ntr"
+	GlyphID    = "mino.ntr"
 )
 
 func init() {

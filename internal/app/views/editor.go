@@ -9,9 +9,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const editorAdhocLabel = "ad-hoc"
@@ -117,7 +117,7 @@ func (a *editorAdapter) Run() (string, func() vkdeck.Results, error) {
 		return "", nil, err
 	}
 	return label, func() vkdeck.Results {
-		return render.SectionResults{Label: label, Sections: fetch()}
+		return render.SectionResults{Sections: fetch()}
 	}, nil
 }
 

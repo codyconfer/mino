@@ -13,7 +13,7 @@ import (
 	"github.com/codyconfer/sisyphus/redact"
 )
 
-const exportTestConfig = "output: terminal\nbackup:\n  secret_backend: keyring\n  secret_name: munin-backup-key\ngoogle:\n  oauth_client_secret: super-secret-value\n"
+const exportTestConfig = "output: terminal\nbackup:\n  secret_backend: keyring\n  secret_name: mino-backup-key\ngoogle:\n  oauth_client_secret: super-secret-value\n"
 
 func exportTestStore(t *testing.T, home, content string) *configdb.Store {
 	t.Helper()
@@ -50,7 +50,7 @@ func TestExportConfigRefusesToMaskTheLiveConfig(t *testing.T) {
 			var buf bytes.Buffer
 			err := Export(&buf, db, "", home, directive, false)
 			if err == nil {
-				t.Fatalf("Export(out=munin home, includeSecrets=false) succeeded; it must refuse\n%s", buf.String())
+				t.Fatalf("Export(out=mino home, includeSecrets=false) succeeded; it must refuse\n%s", buf.String())
 			}
 			if !strings.Contains(err.Error(), "refusing") {
 				t.Errorf("err = %v, want it to say it is refusing the write", err)
@@ -116,7 +116,7 @@ func TestExportConfigMasksOnlyOutsideTheLiveHome(t *testing.T) {
 	if !strings.Contains(got, redact.Mask) {
 		t.Errorf("expected a masked value:\n%s", got)
 	}
-	if !strings.Contains(got, "keyring") || !strings.Contains(got, "munin-backup-key") {
+	if !strings.Contains(got, "keyring") || !strings.Contains(got, "mino-backup-key") {
 		t.Errorf("backup selectors must survive the masked export:\n%s", got)
 	}
 	if !strings.Contains(buf.String(), "warning") {
@@ -186,8 +186,8 @@ func TestSamePath(t *testing.T) {
 	}
 	for _, rel := range []string{".", "./", "sub/.."} {
 		if !SamePath(rel, dir) {
-			t.Errorf("SamePath(%q, %q) = false: --out takes a relative path, so `munin export config --out .` "+
-				"run from the munin home must still be recognised as the live home", rel, dir)
+			t.Errorf("SamePath(%q, %q) = false: --out takes a relative path, so `mino export config --out .` "+
+				"run from the mino home must still be recognised as the live home", rel, dir)
 		}
 	}
 
@@ -196,7 +196,7 @@ func TestSamePath(t *testing.T) {
 		t.Skipf("symlinks unavailable here: %v", err)
 	}
 	if !SamePath(link, dir) {
-		t.Errorf("SamePath(%q, %q) = false: a symlink to the munin home is the munin home", link, dir)
+		t.Errorf("SamePath(%q, %q) = false: a symlink to the mino home is the mino home", link, dir)
 	}
 	if !SamePath(filepath.Join(link, "."), dir) {
 		t.Errorf("SamePath(%q/., %q) = false", link, dir)

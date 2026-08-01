@@ -8,9 +8,9 @@ import (
 
 	"github.com/codyconfer/sisyphus/sealed"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type Credential = plugin.Credential
@@ -44,7 +44,7 @@ func (s CredentialState) String() string {
 
 func unreadableErr(service string, cause error) *errs.Error {
 	return errs.Wrapf(errs.KindAuth, cause, "the stored %s credential cannot be decrypted with the current key", service).
-		WithHint("the credential store was written with a different encryption key (a restored or copied tokens.duckdb, or a lost keyring entry): delete tokens.duckdb in the munin data directory, then run `munin login %s` again", service)
+		WithHint("the credential store was written with a different encryption key (a restored or copied tokens.duckdb, or a lost keyring entry): delete tokens.duckdb in the mino data directory, then run `mino login %s` again", service)
 }
 
 var credStore struct {

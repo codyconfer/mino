@@ -14,7 +14,7 @@ import (
 	"github.com/codyconfer/sisyphus/configdb"
 	"github.com/codyconfer/sisyphus/redact"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 const (
@@ -130,7 +130,7 @@ func exportConfig(w io.Writer, db *configdb.Store, out, liveHome string, single,
 	if !ok {
 		if single {
 			return errs.New(errs.KindStore, "no current version for config in the store").
-				WithHint("run `munin import config` first")
+				WithHint("run `mino import config` first")
 		}
 		fmt.Fprintln(w, "notice: no config version in store, skipping")
 		return nil
@@ -143,7 +143,7 @@ func exportConfig(w io.Writer, db *configdb.Store, out, liveHome string, single,
 			return errs.Newf(errs.KindUsage,
 				"refusing to overwrite the live config in %s with a secret-masked copy", out).
 				WithHint("masked exports are for sharing only: pass --out <other-dir> to write the masked copy elsewhere, " +
-					"or --include-secrets to materialize the real config back into the munin home")
+					"or --include-secrets to materialize the real config back into the mino home")
 		}
 		content = redact.Config([]byte(v.Content), v.Format)
 		fmt.Fprintf(w, "warning: secret values are replaced with %q and comments and key order are lost; this copy is for sharing, not a working config\n", redact.Mask)
@@ -164,7 +164,7 @@ func exportDirectives(w io.Writer, db *configdb.Store, out string, single bool) 
 	if !ok {
 		if single {
 			return errs.New(errs.KindStore, "no current version for directives in the store").
-				WithHint("run `munin import directives` first")
+				WithHint("run `mino import directives` first")
 		}
 		fmt.Fprintln(w, "notice: no directives version in store, skipping")
 		return nil
@@ -237,7 +237,7 @@ func importConfig(w io.Writer, db *configdb.Store, home string, required bool) e
 	if len(raw) == 0 {
 		if required {
 			return errs.Newf(errs.KindConfig, "no config file found in %s", home).
-				WithHint("expected config.yaml, config.yml, or config.json; run `munin install` to create one")
+				WithHint("expected config.yaml, config.yml, or config.json; run `mino install` to create one")
 		}
 		fmt.Fprintln(w, "notice: no config file, skipping")
 		return nil

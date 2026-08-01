@@ -7,7 +7,7 @@ import (
 	"github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/sisyphus/kv"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (

@@ -12,9 +12,9 @@ import (
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/app/pane"
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/render"
+	"github.com/codyconfer/mino/internal/app/pane"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/render"
 )
 
 const (

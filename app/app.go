@@ -9,9 +9,9 @@ import (
 	"os"
 	"strings"
 
-	internalapp "github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/plugin"
+	internalapp "github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/plugin"
 )
 
 var ErrNoCLI = errors.New("app: Options.CLI is required (wire cmd.Root().ExecuteContext)")
@@ -74,9 +74,9 @@ func Run(opts Options) (err error) {
 }
 
 // EnvPluginDiagnostics suppresses the stderr plugin-problem report when set to
-// one of 0/off/false/quiet/none. Diagnostics stay available in `munin plugins
+// one of 0/off/false/quiet/none. Diagnostics stay available in `mino plugins
 // list`.
-const EnvPluginDiagnostics = "MUNIN_PLUGIN_DIAGNOSTICS"
+const EnvPluginDiagnostics = "MINO_PLUGIN_DIAGNOSTICS"
 
 // registerPlugins is defence in depth: every SDK entry point now skips a bad
 // contribution with a diagnostic instead of panicking, so nothing here should
@@ -129,7 +129,7 @@ func ReportPluginDiagnostics(w io.Writer) {
 		return
 	}
 	for _, d := range plugin.Diagnostics() {
-		fmt.Fprintf(w, "munin: plugin problem: %s\n", d)
+		fmt.Fprintf(w, "mino: plugin problem: %s\n", d)
 	}
 }
 

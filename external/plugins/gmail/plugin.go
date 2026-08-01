@@ -3,10 +3,10 @@ package gmail
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/external/plugins/internal/googleauth"
-	"github.com/codyconfer/munin/external/plugins/internal/params"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/external/plugins/internal/googleauth"
+	"github.com/codyconfer/mino/external/plugins/internal/params"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const (

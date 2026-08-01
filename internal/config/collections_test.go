@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/filter"
 )
 
 func seedNestedHome(t *testing.T) string {
@@ -478,7 +478,7 @@ func assertNotSymlink(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	if fi.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("%s is still a symlink; a later write would escape the munin home again", path)
+		t.Fatalf("%s is still a symlink; a later write would escape the mino home again", path)
 	}
 }
 
@@ -500,7 +500,7 @@ func TestWriteDirectivesReplacesASymlinkInsteadOfWritingThroughIt(t *testing.T) 
 	}
 
 	if raw, err := os.ReadFile(victim); err != nil || string(raw) != "victim: untouched\n" {
-		t.Fatalf("a file outside the munin home was overwritten through a symlink: %q (err=%v)", raw, err)
+		t.Fatalf("a file outside the mino home was overwritten through a symlink: %q (err=%v)", raw, err)
 	}
 	assertNotSymlink(t, link)
 	if raw, err := os.ReadFile(link); err != nil || string(raw) != payload {
@@ -566,7 +566,7 @@ func TestSaveDirectiveRefusesASymlinkedDerivedTarget(t *testing.T) {
 
 	_, _, err := SaveDirective(nil, home, "", TypeQuery, "team", Query{Name: "team", Signal: "gitlab"})
 	if err == nil {
-		t.Fatal("SaveDirective wrote through a symlink out of the munin home")
+		t.Fatal("SaveDirective wrote through a symlink out of the mino home")
 	}
 	if !strings.Contains(err.Error(), "symlink") {
 		t.Errorf("error should say the target is a symlink, got %v", err)
@@ -588,7 +588,7 @@ func TestSaveDirectiveWithExplicitPathReplacesASymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 	if raw, err := os.ReadFile(victim); err != nil || string(raw) != "victim: untouched\n" {
-		t.Fatalf("a file outside the munin home was overwritten through a symlink: %q (err=%v)", raw, err)
+		t.Fatalf("a file outside the mino home was overwritten through a symlink: %q (err=%v)", raw, err)
 	}
 	assertNotSymlink(t, link)
 }
@@ -666,7 +666,7 @@ func TestWriteDirectivesSkipsAReservedRootConfigKey(t *testing.T) {
 					t.Fatalf("the directive row's content landed in %s: %q", name, raw)
 				}
 			}
-			if out := logs.String(); !strings.Contains(out, rel) || !strings.Contains(out, "munin import directives") {
+			if out := logs.String(); !strings.Contains(out, rel) || !strings.Contains(out, "mino import directives") {
 				t.Errorf("the skipped row must be reported with a way to remove it from the store, got %q", out)
 			}
 		})

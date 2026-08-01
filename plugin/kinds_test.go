@@ -8,7 +8,7 @@ import (
 	"github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestKnownKindsRouted(t *testing.T) {

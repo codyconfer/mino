@@ -12,20 +12,20 @@ import (
 
 	"github.com/codyconfer/sisyphus/daemon/service"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render"
 )
 
 func newDaemonCmd() *cobra.Command {
 	var system, yes bool
 	c := &cobra.Command{
 		Use:   "daemon [flight]",
-		Short: "EXPERIMENTAL: install and start munin as an OS service (idempotent)",
+		Short: "EXPERIMENTAL: install and start mino as an OS service (idempotent)",
 		Long: "EXPERIMENTAL — the OS-service daemon is off by default and only present in\n" +
 			"builds made with `-tags daemon`. Its behavior and flags may change.\n\n" +
-			"Ensures munin runs as a background OS service (systemd user unit on Linux,\n" +
+			"Ensures mino runs as a background OS service (systemd user unit on Linux,\n" +
 			"launchd agent on macOS, Windows service): installs it if not present (after a\n" +
 			"confirmation), then starts it if not already running. Running again is a no-op.\n" +
 			"The service watches the given flight (or the role default) and logs through the\n" +
@@ -69,7 +69,7 @@ func newDaemonCmd() *cobra.Command {
 					return errs.Wrap(errs.KindInternal, err, "starting service")
 				}
 				cmd.StopLoading()
-				fmt.Fprintln(w, render.Success(fmt.Sprintf("installed and started munin daemon (%s) watching flight %q", svc.Platform(), name)))
+				fmt.Fprintln(w, render.Success(fmt.Sprintf("installed and started mino daemon (%s) watching flight %q", svc.Platform(), name)))
 				return nil
 			}
 			if st != "running" {
@@ -77,11 +77,11 @@ func newDaemonCmd() *cobra.Command {
 					return errs.Wrap(errs.KindInternal, err, "starting service")
 				}
 				cmd.StopLoading()
-				fmt.Fprintln(w, render.Success(fmt.Sprintf("started munin daemon watching flight %q", name)))
+				fmt.Fprintln(w, render.Success(fmt.Sprintf("started mino daemon watching flight %q", name)))
 				return nil
 			}
 			cmd.StopLoading()
-			fmt.Fprintln(w, "munin daemon already running")
+			fmt.Fprintln(w, "mino daemon already running")
 			return nil
 		},
 	}
@@ -145,8 +145,8 @@ func confirmDaemonInstall() (bool, error) {
 		return false, errs.New(errs.KindUsage, "refusing to install the daemon without --yes (no terminal for confirmation)").
 			WithHint("pass --yes to install non-interactively")
 	}
-	return deck.Confirm("Install munin daemon?",
-		"Install munin as an OS service (systemd/launchd/Windows) and start it?",
+	return deck.Confirm("Install mino daemon?",
+		"Install mino as an OS service (systemd/launchd/Windows) and start it?",
 		"Install", "Cancel")
 }
 
@@ -154,7 +154,7 @@ func newDaemonControlCmds() []*cobra.Command {
 	var system bool
 	install := &cobra.Command{
 		Use:               "install [flight]",
-		Short:             "Install munin as a system daemon (systemd user unit / launchd agent / Windows service)",
+		Short:             "Install mino as a system daemon (systemd user unit / launchd agent / Windows service)",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: cmd.CompleteFlights,
 		Annotations:       map[string]string{cmd.AnnoGateMode: cmd.ModeDaemon},
@@ -170,8 +170,8 @@ func newDaemonControlCmds() []*cobra.Command {
 			if err := svc.Install(); err != nil {
 				return errs.Wrap(errs.KindInternal, err, "installing service")
 			}
-			fmt.Fprintln(c.OutOrStdout(), render.Success(fmt.Sprintf("installed munin service (%s) to watch flight %q", svc.Platform(), name)))
-			fmt.Fprintln(c.OutOrStdout(), "start it with: munin daemon start")
+			fmt.Fprintln(c.OutOrStdout(), render.Success(fmt.Sprintf("installed mino service (%s) to watch flight %q", svc.Platform(), name)))
+			fmt.Fprintln(c.OutOrStdout(), "start it with: mino daemon start")
 			return nil
 		},
 	}
@@ -201,9 +201,9 @@ func newDaemonControlCmds() []*cobra.Command {
 
 	attach := &cobra.Command{
 		Use:   "attach",
-		Short: "Attach a TUI to a running munin daemon and watch its live notifications",
-		Long: "Connects to a munin daemon already watching a flight (a foreground `munin serve`,\n" +
-			"a `munin deck` session, or the installed service) over its local socket and shows\n" +
+		Short: "Attach a TUI to a running mino daemon and watch its live notifications",
+		Long: "Connects to a mino daemon already watching a flight (a foreground `mino serve`,\n" +
+			"a `mino deck` session, or the installed service) over its local socket and shows\n" +
 			"the same live notification inbox. Multiple attach clients can watch one daemon.",
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{cmd.AnnoGateMode: cmd.ModeDaemon},
@@ -212,15 +212,15 @@ func newDaemonControlCmds() []*cobra.Command {
 		},
 	}
 
-	uninstall := ctl("uninstall", "Remove the installed munin daemon", func(s *service.Service) error { return s.Uninstall() })
-	start := ctl("start", "Start the installed munin daemon", func(s *service.Service) error { return s.Start() })
-	stop := ctl("stop", "Stop the running munin daemon", func(s *service.Service) error { return s.Stop() })
-	restart := ctl("restart", "Restart the munin daemon", func(s *service.Service) error { return s.Restart() })
+	uninstall := ctl("uninstall", "Remove the installed mino daemon", func(s *service.Service) error { return s.Uninstall() })
+	start := ctl("start", "Start the installed mino daemon", func(s *service.Service) error { return s.Start() })
+	stop := ctl("stop", "Stop the running mino daemon", func(s *service.Service) error { return s.Stop() })
+	restart := ctl("restart", "Restart the mino daemon", func(s *service.Service) error { return s.Restart() })
 
 	var statusSys bool
 	status := &cobra.Command{
 		Use:         "status",
-		Short:       "Show the munin daemon status",
+		Short:       "Show the mino daemon status",
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{cmd.AnnoGateMode: cmd.ModeDaemon},
 		RunE: func(c *cobra.Command, _ []string) error {
@@ -230,10 +230,10 @@ func newDaemonControlCmds() []*cobra.Command {
 			}
 			st, err := svc.Status()
 			if err != nil {
-				fmt.Fprintf(c.OutOrStdout(), "munin daemon: %s (%v)\n", st, err)
+				fmt.Fprintf(c.OutOrStdout(), "mino daemon: %s (%v)\n", st, err)
 				return nil
 			}
-			fmt.Fprintf(c.OutOrStdout(), "munin daemon: %s\n", st)
+			fmt.Fprintf(c.OutOrStdout(), "mino daemon: %s\n", st)
 			return nil
 		},
 	}

@@ -5,8 +5,8 @@ import (
 
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 
-	"github.com/codyconfer/munin/internal/notify"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/notify"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestReminderEventDrivesNotifySinkContract(t *testing.T) {

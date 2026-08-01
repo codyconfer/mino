@@ -1,5 +1,5 @@
 # Scaffold template sample. The scaffold package is not imported by the
-# default munin binary — copy the package when creating a new plugin.
+# default mino binary — copy the package when creating a new plugin.
 name: scaffold-ping
 type: query
 signal: scaffold

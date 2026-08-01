@@ -10,8 +10,8 @@ import (
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 var refNow = time.Now()
@@ -133,8 +133,16 @@ func TestRootLabelReplacesTheHardcodedFlight(t *testing.T) {
 		t.Errorf("empty label should fall back to %q:\n%s", DefaultRoot, fallback)
 	}
 
-	items := SectionItems(layout.NewFrame(80), "my-open-prs", secs)
-	if len(items) == 0 || !strings.Contains(ansi.Strip(items[0].Block), "my-open-prs") {
-		t.Errorf("SectionItems root did not use the label: %#v", items)
+	items := SectionItems(layout.NewFrame(80), secs)
+	if len(items) == 0 {
+		t.Fatal("SectionItems returned nothing")
+	}
+	for _, it := range items {
+		if strings.Contains(ansi.Strip(it.Block), "my-open-prs") {
+			t.Errorf("SectionItems repeated the header the view already shows: %#v", it)
+		}
+	}
+	if !strings.Contains(ansi.Strip(items[0].Block), "Open PRs") {
+		t.Errorf("SectionItems should start at the first section: %#v", items[0])
 	}
 }

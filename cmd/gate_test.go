@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/loginflow"
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/loginflow"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func TestGuidedAuthKeepsPromptsAndStatusOffStdout(t *testing.T) {
@@ -43,7 +43,7 @@ func TestGuidedAuthKeepsPromptsAndStatusOffStdout(t *testing.T) {
 		t.Fatalf("cliGuidedAuth = %v", err)
 	}
 	if stdout.Len() != 0 {
-		t.Errorf("guided auth wrote to stdout (would corrupt `munin fly -o json > f.json`): %q", stdout.String())
+		t.Errorf("guided auth wrote to stdout (would corrupt `mino fly -o json > f.json`): %q", stdout.String())
 	}
 	for _, want := range []string{"OAuth client id", "token cached", "Onboarding"} {
 		if !strings.Contains(stderr.String(), want) {

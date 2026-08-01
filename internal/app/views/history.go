@@ -13,10 +13,10 @@ import (
 	"github.com/codyconfer/viewkit/list"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const historyLimit = 50
@@ -105,7 +105,7 @@ func (k *Kit) historyRun(r audit.AuditRow) vkdeck.View {
 	}
 	ctx := append(k.menuCtx(), [2]string{r.Kind, r.Name})
 	id := r.ID
-	lst := deck.NewResults(title, r.Name, ctx, func() []signals.Section {
+	lst := deck.NewResults(title, ctx, func() []signals.Section {
 		st := k.d.App.Audit
 		if st == nil {
 			return []signals.Section{{Signal: r.Name, Title: r.Name, Err: fmt.Errorf("audit disabled")}}

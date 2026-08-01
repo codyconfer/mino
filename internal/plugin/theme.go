@@ -3,7 +3,7 @@ package plugin
 import (
 	"github.com/codyconfer/viewkit/theme"
 
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 func RegisterTheme(parentID, key, displayName string, p theme.Palette) {

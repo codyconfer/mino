@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/loginflow"
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/testenv"
-	"github.com/codyconfer/munin/internal/token"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/loginflow"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/testenv"
+	"github.com/codyconfer/mino/internal/token"
 )
 
 func fixedKey(b byte) func(context.Context) ([]byte, error) {
@@ -69,7 +69,7 @@ func TestLoginRefusesAnUnreadableCredentialStore(t *testing.T) {
 	}
 	err = refuseUnreadableStore(p)
 	if err == nil {
-		t.Fatal("munin still lets the user re-login into a credential store it cannot read")
+		t.Fatal("mino still lets the user re-login into a credential store it cannot read")
 	}
 	msg := err.Error()
 	for _, want := range []string{"cannot be decrypted", config.TokensDB} {

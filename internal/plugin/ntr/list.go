@@ -13,8 +13,8 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 	"github.com/codyconfer/viewkit/timefmt"
 
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 const (

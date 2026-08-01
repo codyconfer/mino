@@ -7,13 +7,13 @@ import (
 )
 
 func TestErrorRendersEachHintOnce(t *testing.T) {
-	inner := New("no Slack token available").WithHint("export a user token or run `munin login slack`")
+	inner := New("no Slack token available").WithHint("export a user token or run `mino login slack`")
 	outer := Wrap(inner, "slack authentication").WithHint("set SLACK_TOKEN")
 
 	got := outer.Error()
 	want := "slack authentication: no Slack token available\n" +
 		"hint: set SLACK_TOKEN\n" +
-		"hint: export a user token or run `munin login slack`"
+		"hint: export a user token or run `mino login slack`"
 	if got != want {
 		t.Fatalf("Error() =\n%s\nwant\n%s", got, want)
 	}

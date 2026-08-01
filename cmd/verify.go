@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app/verify"
+	"github.com/codyconfer/mino/internal/app/verify"
 )
 
 func newVerifyCmd() *cobra.Command {

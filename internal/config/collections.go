@@ -17,8 +17,8 @@ import (
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 var collectionExts = []string{".yaml", ".yml", ".json"}
@@ -97,7 +97,7 @@ func warnMiscasedConfig(home, rel string) {
 		return
 	}
 	miscasedSeen[path] = true
-	log.Warnf("%s differs only in case from %s: munin reads it as the config file on case-insensitive filesystems "+
+	log.Warnf("%s differs only in case from %s: mino reads it as the config file on case-insensitive filesystems "+
 		"and ignores it everywhere else, and either way it is not a directive; rename it to %s", path, canonical, canonical)
 }
 
@@ -149,8 +149,8 @@ func planDirectives(home string, blob []byte) (*directivePlan, error) {
 	for _, rel := range sortedKeys(files) {
 		if reservedRoot(normalizeRel(rel)) {
 			plan.skipped = append(plan.skipped, rel)
-			log.Warnf("skipping stored directive %q: %s is the name munin reads as its config file, so it can never be a directive; "+
-				"run `munin import directives` to rewrite the stored set from your munin home and drop this row", rel, rel)
+			log.Warnf("skipping stored directive %q: %s is the name mino reads as its config file, so it can never be a directive; "+
+				"run `mino import directives` to rewrite the stored set from your mino home and drop this row", rel, rel)
 			continue
 		}
 		if err := checkDirectiveRel(rel); err != nil {
@@ -409,7 +409,7 @@ func checkDerivedTarget(target, rel string, kind DirectiveType, name string) err
 	}
 	if fi.Mode()&os.ModeSymlink != 0 {
 		return errs.Newf(errs.KindConfig, "%s is a symlink", rel).
-			WithHint("munin replaces directive files in place and will not write through a link; remove it, or save %s %q to a path of your own",
+			WithHint("mino replaces directive files in place and will not write through a link; remove it, or save %s %q to a path of your own",
 				typeLabel(kind), name)
 	}
 	raw, ok, err := sconfig.ReadRaw(target)

@@ -1,6 +1,6 @@
 package cmd
 
-import "github.com/codyconfer/munin/internal/config"
+import "github.com/codyconfer/mino/internal/config"
 
 func access() config.Access { return shared.Access() }
 

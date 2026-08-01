@@ -1,13 +1,13 @@
-# Munin directive examples (Lane D)
+# Mino directive examples (Lane D)
 
-Copy `queries/`, `flights/`, and `formatters/` into `~/.munin/`, and the loose
+Copy `queries/`, `flights/`, and `formatters/` into `~/.mino/`, and the loose
 role `*.yaml` next to `config.yaml`. A filename becomes the directive name when
 `name:` is omitted — but only for single-document files.
 
 | Path | Purpose |
 |---|---|
 | `queries/` | Saved signal fetches (`signal:` + optional `params` / `filters`) **and** filters (`rules:` / `aliases:` / `keywords:`). A document can be both; add `type: query` or `type: filter` to be explicit. |
-| `flights/` | Ordered lists of query names for `munin fly` / `munin serve` |
+| `flights/` | Ordered lists of query names for `mino fly` / `mino serve` |
 | `formatters/` | Go `text/template` reports (`template:`) that replace stdout for a run |
 | `*.yaml` (top level) | Roles: visibility scopes + optional `contexts:` / `hooks:` / `status:` (ADR-9) |
 
@@ -40,20 +40,20 @@ none — see `daily.yaml` and `triage.yaml`.
 | `formatters/pr-nudge.yaml` | a canned response for `--copy`: `truncate`, `indent`, a timestamped footer |
 
 ```sh
-munin formatter                          # list the formatters the role can see
-munin formatter show standup             # print the YAML
-munin formatter render standup morning   # run flight `morning`, render the report
-munin fly triage --formatter triage-summary --copy
-munin fly triage -o json | munin formatter render triage-summary --stdin
+mino formatter                          # list the formatters the role can see
+mino formatter show standup             # print the YAML
+mino formatter render standup morning   # run flight `morning`, render the report
+mino fly triage --formatter triage-summary --copy
+mino fly triage -o json | mino formatter render triage-summary --stdin
 ```
 
 Missing map keys render empty rather than erroring (`missingkey=zero`), because
-`.Meta` is sparse per signal. `munin serve` ignores formatters — a stream never
+`.Meta` is sparse per signal. `mino serve` ignores formatters — a stream never
 has all the results.
 
 ## Role `contexts:`, `hooks:`, and `status:`
 
-On role activation (`--role`, `MUNIN_ROLE`, or config `role:`), munin applies
+On role activation (`--role`, `MINO_ROLE`, or config `role:`), mino applies
 `contexts:` bindings via each tool’s `ContextProvider`:
 
 ```yaml
@@ -63,11 +63,11 @@ contexts:
 ```
 
 Optional `hooks:` run shell scripts when entering or leaving a role. On a role
-switch munin runs the previous role’s **exit** hooks, then the new role’s
+switch mino runs the previous role’s **exit** hooks, then the new role’s
 **enter** hooks, then applies `contexts:`. Bash is preferred on Unix;
 PowerShell on Windows. If the preferred script is empty, the other is used when
 present. Missing interpreters are warned and skipped (activation continues).
-The last entered role is remembered under `~/.munin/.data/active-role` so exit
+The last entered role is remembered under `~/.mino/.data/active-role` so exit
 hooks still run across separate CLI invocations.
 
 ```yaml
@@ -103,44 +103,44 @@ See `daily.yaml`, `triage.yaml`, and `ops.yaml`.
 
 ## Plugin starters
 
-Plugins are **compile-time linked** into the munin binary (ADR-7). Runtime
-`enable`/`disable` toggles activation; `munin plugins install <id>` enables and
-copies that plugin's example directives into `~/.munin` (config seeds only — no
-`.so` loading). `munin plugins uninstall <id>` disables and removes unmodified
+Plugins are **compile-time linked** into the mino binary (ADR-7). Runtime
+`enable`/`disable` toggles activation; `mino plugins install <id>` enables and
+copies that plugin's example directives into `~/.mino` (config seeds only — no
+`.so` loading). `mino plugins uninstall <id>` disables and removes unmodified
 seeds.
 
 | Query | Signal | Plugin id | Notes |
 |---|---|---|---|
-| `ntr-list` | `ntr` | `munin.ntr` | Notes/tasks; reminders are service-only (UI + Scheduled delivery via `munin serve ntr` / daemon) |
+| `ntr-list` | `ntr` | `mino.ntr` | Notes/tasks; reminders are service-only (UI + Scheduled delivery via `mino serve ntr` / daemon) |
 | `today` / `unread-mail` / `recent-docs` | calendar/gmail/docs | `external.*` | Moved to [`external/plugins/examples`](../external/plugins/examples/) with their signals |
 | `slack-standup` | `slack` | `external.slack` | Moved to `external/plugins/examples` |
 | `notify-smoke` | `demo` | `external.demo` | Moved to `external/plugins/examples`; synthetic notify toasts |
-| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`munin-plugins-external`); C-0 offline auth/context |
+| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`mino-plugins-external`); C-0 offline auth/context |
 | `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; current kube context |
 | `*-context` | gooseai/pi/opencode/ollama | `external.*` | Overlay-only Lane C2 stubs |
-| `scaffold-ping` | `scaffold` | `scaffold.example` | ADR-14 template; generate with `munin plugins scaffold` (not linked into the default binary) |
+| `scaffold-ping` | `scaffold` | `scaffold.example` | ADR-14 template; generate with `mino plugins scaffold` (not linked into the default binary) |
 
 External plugin YAML under `examples/` is reference material for an overlay
-binary. Stock `munin` does not register `external.*`. The Google, Slack, and demo
+binary. Stock `mino` does not register `external.*`. The Google, Slack, and demo
 directives live beside their plugins in
 [`external/plugins/examples`](../external/plugins/examples/), built by
 `make build-overlay`.
 
 ```sh
-munin plugins scaffold team.example --dir ./plugins/example
-munin plugins install munin.ntr          # enable + seed queries/ntr-list + flights/ntr
-munin notes ui                           # Notes/Tasks TUI; Reminders when serve/daemon attached
+mino plugins scaffold team.example --dir ./plugins/example
+mino plugins install mino.ntr          # enable + seed queries/ntr-list + flights/ntr
+mino notes ui                           # Notes/Tasks TUI; Reminders when serve/daemon attached
 
 # With externals overlay binary:
-munin-with-externals plugins install external.kubectl
-munin-with-externals plugins uninstall external.kubectl
+mino-with-externals plugins install external.kubectl
+mino-with-externals plugins uninstall external.kubectl
 ```
 
 Flight `plugins` bundles the external stub queries for a quick smoke fly (overlay).
 Flight `demo` is a live GitHub showcase (`signal: github` queries whose items
-carry `github.com` URLs); opt in with `munin fly demo` / `munin serve demo` /
+carry `github.com` URLs); opt in with `mino fly demo` / `mino serve demo` /
 `make run ARGS=demo` — it is not the default flight. Queries `demo` and
 `demo-reviews` apply filter `demo` (drops `meta.author` bot matches). Role
-`demo` scopes visibility to that flight/queries/filter (`munin --role demo …`).
+`demo` scopes visibility to that flight/queries/filter (`mino --role demo …`).
 Synthetic toast spam lives separately in flight `notify-smoke` (`signal: demo`),
 which ships with the demo plugin in `external/plugins/examples`.

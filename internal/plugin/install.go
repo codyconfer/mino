@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 type FileSeed = pub.FileSeed
@@ -37,7 +37,7 @@ func Install(home, id string, opts InstallOptions) (InstallResult, error) {
 	res := InstallResult{PluginID: id}
 	if _, ok := Lookup(id); !ok {
 		return res, errs.Newf(errs.KindConfig, "unknown plugin %q", id).
-			WithHint("plugins are linked at compile time; use `munin plugins list` for ids in this binary")
+			WithHint("plugins are linked at compile time; use `mino plugins list` for ids in this binary")
 	}
 	if err := setInstalledEnabled(id, true, true); err != nil {
 		return res, err
@@ -62,12 +62,12 @@ func seedTarget(home, rel string) (string, error) {
 	slashed := strings.ReplaceAll(trimmed, `\`, "/")
 	clean := filepath.FromSlash(slashed)
 	if strings.HasPrefix(slashed, "/") || filepath.IsAbs(clean) || filepath.VolumeName(clean) != "" {
-		return "", errs.Newf(errs.KindConfig, "seed path %q must be relative to the munin home", rel)
+		return "", errs.Newf(errs.KindConfig, "seed path %q must be relative to the mino home", rel)
 	}
 	abs := filepath.Join(home, clean)
 	inside, err := filepath.Rel(home, abs)
 	if err != nil || inside == "." || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
-		return "", errs.Newf(errs.KindConfig, "seed path %q escapes the munin home", rel)
+		return "", errs.Newf(errs.KindConfig, "seed path %q escapes the mino home", rel)
 	}
 	if err := checkResolvedWithinHome(home, abs, rel); err != nil {
 		return "", err
@@ -77,12 +77,12 @@ func seedTarget(home, rel string) (string, error) {
 
 // checkResolvedWithinHome repeats the containment check on resolved paths. The
 // string comparison above cannot see a symlink at, say, $HOME/queries pointing
-// outside the munin home, so on its own it lets both writes and removals land
+// outside the mino home, so on its own it lets both writes and removals land
 // outside while reporting success.
 func checkResolvedWithinHome(home, abs, rel string) error {
 	realHome, err := resolveExisting(home)
 	if err != nil {
-		return errs.Wrapf(errs.KindConfig, err, "resolve munin home")
+		return errs.Wrapf(errs.KindConfig, err, "resolve mino home")
 	}
 	realParent, err := resolveExisting(filepath.Dir(abs))
 	if err != nil {
@@ -91,8 +91,8 @@ func checkResolvedWithinHome(home, abs, rel string) error {
 	within, err := filepath.Rel(realHome, realParent)
 	if err != nil || within == ".." || filepath.IsAbs(within) ||
 		strings.HasPrefix(within, ".."+string(filepath.Separator)) {
-		return errs.Newf(errs.KindConfig, "seed path %q resolves outside the munin home", rel).
-			WithHint("a symlink inside the munin home points elsewhere; remove or repoint it")
+		return errs.Newf(errs.KindConfig, "seed path %q resolves outside the mino home", rel).
+			WithHint("a symlink inside the mino home points elsewhere; remove or repoint it")
 	}
 	if fi, err := os.Lstat(abs); err == nil && fi.Mode()&os.ModeSymlink != 0 {
 		return errs.Newf(errs.KindConfig, "seed path %q is a symlink; refusing to follow it", rel)
@@ -168,7 +168,7 @@ func Uninstall(home, id string, opts UninstallOptions) (UninstallResult, error) 
 	res := UninstallResult{PluginID: id}
 	if _, ok := Lookup(id); !ok {
 		return res, errs.Newf(errs.KindConfig, "unknown plugin %q", id).
-			WithHint("plugins are linked at compile time; use `munin plugins list` for ids in this binary")
+			WithHint("plugins are linked at compile time; use `mino plugins list` for ids in this binary")
 	}
 	if IsInternal(id) {
 		return res, errs.Newf(errs.KindConfig, "cannot uninstall built-in plugin %q", id).
@@ -231,7 +231,7 @@ func seedRel(dir, name string) string {
 }
 
 func registerStockSeeds() {
-	RegisterSeeds("munin.ntr", []FileSeed{
+	RegisterSeeds("mino.ntr", []FileSeed{
 		{RelPath: seedRel(config.DirQueries, "ntr-list.yaml"), Content: []byte(seedNTRListYAML)},
 		{RelPath: seedRel(config.DirFlights, "ntr.yaml"), Content: []byte(seedNTRFlightYAML)},
 	})
@@ -243,7 +243,7 @@ type: query
 signal: ntr
 params: {}
 `
-	seedNTRFlightYAML = `# Scheduled reminders fire when this flight is served (` + "`munin serve ntr`" + `).
+	seedNTRFlightYAML = `# Scheduled reminders fire when this flight is served (` + "`mino serve ntr`" + `).
 # NTR ReminderJob shares the daemon/serve notify sink (tray on daemon; desktop/terminal on serve).
 name: ntr
 type: flight

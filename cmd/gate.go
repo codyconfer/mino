@@ -8,17 +8,17 @@ import (
 
 	"github.com/codyconfer/sisyphus/mode"
 
-	"github.com/codyconfer/munin/internal/app/loginflow"
-	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	gh "github.com/codyconfer/munin/internal/signals/github"
+	"github.com/codyconfer/mino/internal/app/loginflow"
+	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	gh "github.com/codyconfer/mino/internal/signals/github"
 )
 
-const annoGateMode = "munin_gate_mode"
+const annoGateMode = "mino_gate_mode"
 
-const annoThin = "munin_thin"
+const annoThin = "mino_thin"
 
 const (
 	modeCLI    = string(mode.ModeCLI)
@@ -55,7 +55,7 @@ func gate(cmd *cobra.Command) error {
 		CLIUnauthenticated: func(ctx context.Context) error { return cliGuidedAuth(cmd) },
 		CLIUnauthorized: func(ctx context.Context) error {
 			if onboard.AllOrNothingAuth == "true" {
-				return errs.New(errs.KindOnboarding, "munin is not fully authorized").WithHint("%s", onboardHint())
+				return errs.New(errs.KindOnboarding, "mino is not fully authorized").WithHint("%s", onboardHint())
 			}
 			gateWarn(cmd, onboardHint())
 			return nil
@@ -77,7 +77,7 @@ func gate(cmd *cobra.Command) error {
 		return err
 	}
 	if m == mode.ModeServe && !thinMode(cmd) && serveSocketTaken() {
-		gateWarn(cmd, "serve: a munin daemon is already listening; this instance will not own the socket")
+		gateWarn(cmd, "serve: a mino daemon is already listening; this instance will not own the socket")
 	}
 	return nil
 }

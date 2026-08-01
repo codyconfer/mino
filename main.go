@@ -8,14 +8,14 @@ import (
 	"github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/viewkit/theme"
 
-	muninapp "github.com/codyconfer/munin/app"
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	minoapp "github.com/codyconfer/mino/app"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 	ctx, stop := daemon.Context(context.Background())
 	defer stop()
 
-	err := muninapp.Run(muninapp.Options{
+	err := minoapp.Run(minoapp.Options{
 		CLI: func(_ context.Context, args []string) error {
 			root := cmd.Root()
 			root.SetArgs(args)
@@ -44,7 +44,7 @@ func main() {
 }
 
 func applyLogLevel() {
-	lvl := os.Getenv("MUNIN_LOG_LEVEL")
+	lvl := os.Getenv("MINO_LOG_LEVEL")
 	if lvl == "" {
 		lvl = config.LoadGlobalSettings().LogLevel
 	}
@@ -54,7 +54,7 @@ func applyLogLevel() {
 }
 
 func applyLogColor() {
-	c := os.Getenv("MUNIN_LOG_COLOR")
+	c := os.Getenv("MINO_LOG_COLOR")
 	if c == "" {
 		c = config.LoadGlobalSettings().LogColor
 	}
@@ -65,7 +65,7 @@ func applyLogColor() {
 
 func applyTheme() {
 	render.InstallDefaultTheme()
-	key := os.Getenv("MUNIN_THEME")
+	key := os.Getenv("MINO_THEME")
 	if key == "" {
 		key = config.LoadGlobalSettings().Theme
 	}

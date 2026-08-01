@@ -11,9 +11,9 @@ import (
 	"github.com/codyconfer/viewkit/timefmt"
 	"github.com/codyconfer/viewkit/tree"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type TerminalRenderer struct{ Root string }
@@ -65,8 +65,8 @@ func Panels(f layout.Frame, root string, sections []signals.Section) string {
 	return treeString(FlightTree(f, rootLabel(root), sections))
 }
 
-func SectionItems(f layout.Frame, root string, sections []signals.Section) []list.Item {
-	rows := FlightTree(f, rootLabel(root), sections)
+func SectionItems(f layout.Frame, sections []signals.Section) []list.Item {
+	rows := SectionRows(f, sections)
 	items := make([]list.Item, 0, len(rows))
 	for _, r := range rows {
 		block := strings.Join(r.Lines, "\n")
@@ -84,12 +84,11 @@ func SectionItems(f layout.Frame, root string, sections []signals.Section) []lis
 }
 
 type SectionResults struct {
-	Label    string
 	Sections []signals.Section
 }
 
 func (r SectionResults) Items(f layout.Frame) []list.Item {
-	return SectionItems(f, r.Label, r.Sections)
+	return SectionItems(f, r.Sections)
 }
 
 func (r SectionResults) Count() int {

@@ -8,8 +8,8 @@ import (
 	"github.com/codyconfer/viewkit/list"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const listIndent = 2
@@ -43,7 +43,7 @@ func NewHome(title string, ctx [][2]string, items []vkdeck.MenuItem, flightName 
 		if len(sections) == 0 {
 			return []list.Item{{Block: th.Dim.Render("nothing to show")}}
 		}
-		return render.SectionItems(layout.ScreenFrame(width-listIndent), flightName(), sections)
+		return render.SectionItems(layout.ScreenFrame(width-listIndent), sections)
 	}
 	if onSelect != nil {
 		shell.OnSelect = func(h *vkdeck.Model, key string) tea.Cmd {

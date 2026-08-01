@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func TestShowCommandIsRegistered(t *testing.T) {

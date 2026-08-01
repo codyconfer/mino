@@ -3,7 +3,7 @@ package demo
 import (
 	"testing"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestNoLoremEngineDropsPlaceholderNoise(t *testing.T) {

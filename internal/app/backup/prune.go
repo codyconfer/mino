@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const Prefix = "munin-backup-"
+const Prefix = "mino-backup-"
 
 const suffix = ".tar.enc"
 

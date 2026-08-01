@@ -5,11 +5,11 @@ import (
 
 	"github.com/codyconfer/sisyphus/daemon"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals/active"
-	"github.com/codyconfer/munin/internal/signals/cache"
-	"github.com/codyconfer/munin/internal/token"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals/active"
+	"github.com/codyconfer/mino/internal/signals/cache"
+	"github.com/codyconfer/mino/internal/token"
 )
 
 type hostBuildCtx struct {

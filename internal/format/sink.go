@@ -8,7 +8,7 @@ import (
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func Deliver(out, status io.Writer, text string, copyFn func(string) error, outPath string) error {

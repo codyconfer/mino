@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/filter"
 )
 
 func TestVisibleNamesRespectActiveRole(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 type Option func(*vkdeck.Model)
@@ -34,20 +34,20 @@ func WithInitCmd(cmd tea.Cmd) Option {
 }
 
 func New(root vkdeck.View, opts ...Option) *vkdeck.Model {
-	return vkdeck.New(root, muninOpts(opts...)...)
+	return vkdeck.New(root, minoOpts(opts...)...)
 }
 
 func Run(root vkdeck.View, opts ...Option) error {
-	if err := vkdeck.Run(root, muninOpts(opts...)...); err != nil {
+	if err := vkdeck.Run(root, minoOpts(opts...)...); err != nil {
 		return errs.Wrap(errs.KindInternal, err, "deck program exited with error")
 	}
 	return nil
 }
 
-func muninOpts(opts ...Option) []vkdeck.Option {
+func minoOpts(opts ...Option) []vkdeck.Option {
 	out := []vkdeck.Option{
 		vkdeck.WithChrome(vkdeck.Chrome{
-			Brand:      "MUNIN",
+			Brand:      "MINO",
 			BrandGlyph: glyph.Brand(),
 			Subtitle:   "netrunner deck",
 			ClockGlyph: glyph.Pad(glyph.Clock()),

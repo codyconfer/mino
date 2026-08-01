@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/codyconfer/viewkit/forms"
 
-	"github.com/codyconfer/munin/internal/deck"
+	"github.com/codyconfer/mino/internal/deck"
 )
 
 func setField(t *testing.T, fm *forms.Form, key, val string) {

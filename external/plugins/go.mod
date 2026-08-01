@@ -1,9 +1,9 @@
-module github.com/codyconfer/munin/external/plugins
+module github.com/codyconfer/mino/external/plugins
 
 go 1.26.5
 
 require (
-	github.com/codyconfer/munin v0.0.0
+	github.com/codyconfer/mino v0.0.0
 	github.com/codyconfer/sisyphus v0.1.12
 	github.com/codyconfer/viewkit v0.1.15
 	github.com/slack-go/slack v0.27.0
@@ -106,4 +106,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/codyconfer/munin => ../..
+replace github.com/codyconfer/mino => ../..

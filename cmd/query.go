@@ -8,16 +8,16 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func buildQuery(name string) (query, error) {
 	q, ok := shared.Directives.Queries[name]
 	if !ok {
-		return query{}, errs.Newf(errs.KindUsage, "no saved query named %q", name).WithHint("run `munin query list` to see saved queries")
+		return query{}, errs.Newf(errs.KindUsage, "no saved query named %q", name).WithHint("run `mino query list` to see saved queries")
 	}
 	if !q.Runnable() {
 		return query{}, errs.Newf(errs.KindUsage, "%q defines no signal, so there is nothing to run", name).
@@ -55,11 +55,11 @@ func newQueryCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "query [name]",
 		Short: "Run a saved query by name (or list/show to inspect)",
-		Long: "Run a saved query from ~/.munin/queries by name: `munin query <name>`.\n" +
-			"With no name it lists the saved queries. Use `munin query show <name>` to\n" +
+		Long: "Run a saved query from ~/.mino/queries by name: `mino query <name>`.\n" +
+			"With no name it lists the saved queries. Use `mino query show <name>` to\n" +
 			"print a query's definition.\n\n" +
 			"For an ad-hoc, one-off query against a single signal, use the signal's own\n" +
-			"query subcommand instead, e.g. `munin github query` or `munin slack query`.",
+			"query subcommand instead, e.g. `mino github query` or `mino slack query`.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeQueryNames,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -107,7 +107,7 @@ func newQueryShowCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			q, ok := shared.Directives.Queries[args[0]]
 			if !ok {
-				return errs.Newf(errs.KindUsage, "no saved query named %q", args[0]).WithHint("run `munin query list` to see saved queries")
+				return errs.Newf(errs.KindUsage, "no saved query named %q", args[0]).WithHint("run `mino query list` to see saved queries")
 			}
 			out, err := yaml.Marshal(q)
 			if err != nil {
@@ -122,7 +122,7 @@ func newQueryShowCmd() *cobra.Command {
 func listQueries(cmd *cobra.Command) error {
 	names := visibleQueryNames()
 	if len(names) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "no saved queries visible (check --role, or add YAML files under ~/.munin/queries)")
+		fmt.Fprintln(cmd.OutOrStdout(), "no saved queries visible (check --role, or add YAML files under ~/.mino/queries)")
 		return nil
 	}
 	marker := theme.Cur().Accent.Render(glyph.Bullet())

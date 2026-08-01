@@ -11,12 +11,12 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
-const projectScopeHint = "the read:project scope is required; run `gh auth refresh -s read:project` or re-run `munin login github`"
+const projectScopeHint = "the read:project scope is required; run `gh auth refresh -s read:project` or re-run `mino login github`"
 
 const (
 	searchPageSize  = 50
@@ -570,7 +570,7 @@ func (p *projectSignal) viewerLogin(ctx context.Context) (string, error) {
 	}
 	if resp.Data.Viewer == nil || resp.Data.Viewer.Login == "" {
 		return "", errs.New(errs.KindAuth, "github: cannot resolve @me — no authenticated user").
-			WithHint("run `gh auth login` or `munin login github`")
+			WithHint("run `gh auth login` or `mino login github`")
 	}
 	return resp.Data.Viewer.Login, nil
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type testQuery struct{ name string }

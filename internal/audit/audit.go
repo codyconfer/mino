@@ -6,8 +6,8 @@ import (
 
 	"github.com/codyconfer/sisyphus/journal"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type Store struct {

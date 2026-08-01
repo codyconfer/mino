@@ -3,9 +3,9 @@ package qform
 import (
 	"github.com/codyconfer/viewkit/forms"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/suggest"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/suggest"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 const ParamPrefix = "param."

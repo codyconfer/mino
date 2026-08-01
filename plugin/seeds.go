@@ -53,11 +53,11 @@ func RegisterSeeds(pluginID string, files []FileSeed) {
 
 	for _, rel := range rejected {
 		noteDiagnosticf(pluginID, "", "",
-			"seed path %q is not a safe path relative to the munin home; seed skipped", rel)
+			"seed path %q is not a safe path relative to the mino home; seed skipped", rel)
 	}
 	if len(dst) == 0 {
 		noteDiagnosticf(pluginID, "", "",
-			"every seed was rejected, so this plugin registered no seeds; `munin plugins install %s` will write nothing", pluginID)
+			"every seed was rejected, so this plugin registered no seeds; `mino plugins install %s` will write nothing", pluginID)
 	}
 }
 

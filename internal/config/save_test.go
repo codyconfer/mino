@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/mino/internal/filter"
 )
 
 func TestSaveDirectiveWritesFileAndStore(t *testing.T) {

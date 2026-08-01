@@ -13,7 +13,7 @@ import (
 	sauth "github.com/codyconfer/sisyphus/auth"
 	"github.com/codyconfer/viewkit/browser"
 
-	"github.com/codyconfer/munin/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/external/plugins/internal/errx"
 )
 
 const (
@@ -100,7 +100,7 @@ func PostForm(ctx context.Context, client *http.Client, endpoint string, form ur
 
 func LoopbackAuthCode(ctx context.Context, w io.Writer, service string, buildURL func(redirect, state string) string) (code, redirect string, err error) {
 	code, redirect, err = sauth.LoopbackAuthCode(ctx, w, service, sauth.LoopbackOptions{
-		Product: "munin",
+		Product: "mino",
 		Open:    OpenBrowser,
 	}, buildURL)
 	if err != nil {

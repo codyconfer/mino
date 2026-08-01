@@ -11,12 +11,12 @@ import (
 	"github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/timefmt"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
-const detailScopeHint = "the repo scope is required; run `gh auth refresh -s repo` or re-run `munin login github`"
+const detailScopeHint = "the repo scope is required; run `gh auth refresh -s repo` or re-run `mino login github`"
 
 const (
 	detailCacheNS   = "github:detail"

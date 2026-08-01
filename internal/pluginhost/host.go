@@ -1,9 +1,9 @@
 package pluginhost
 
 import (
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/token"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/token"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type host struct {

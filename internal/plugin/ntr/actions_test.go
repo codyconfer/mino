@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestRemindActionsServiceOnly(t *testing.T) {

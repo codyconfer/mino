@@ -7,9 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/plugin"
-	pub "github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 func TestNTRViewsRegistered(t *testing.T) {

@@ -49,8 +49,8 @@ func TestLoadingStartStopClearsLine(t *testing.T) {
 		time.Sleep(2 * time.Millisecond)
 	}
 	got := stripANSI(buf.String())
-	if !strings.Contains(got, "munin ▸") {
-		t.Fatalf("expected munin prefix, got %q", got)
+	if !strings.Contains(got, "mino ▸") {
+		t.Fatalf("expected mino prefix, got %q", got)
 	}
 	if !strings.Contains(got, "starting…") {
 		t.Fatalf("expected message, got %q", got)

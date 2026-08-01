@@ -1,6 +1,6 @@
 package plugin
 
-import pub "github.com/codyconfer/munin/plugin"
+import pub "github.com/codyconfer/mino/plugin"
 
 func Register(d Descriptor) { pub.Register(d) }
 

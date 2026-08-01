@@ -3,18 +3,18 @@ package plugin_test
 import (
 	"testing"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestIsInternal(t *testing.T) {
-	if !plugin.IsInternal("munin.demo") {
-		t.Fatal("expected munin.demo internal")
+	if !plugin.IsInternal("mino.demo") {
+		t.Fatal("expected mino.demo internal")
 	}
 	if plugin.IsInternal("acme.widgets") {
 		t.Fatal("expected acme.widgets external")
 	}
-	if plugin.IsInternal("muninx.fake") {
-		t.Fatal("prefix must be munin.")
+	if plugin.IsInternal("minox.fake") {
+		t.Fatal("prefix must be mino.")
 	}
 }
 
@@ -25,8 +25,8 @@ func TestPrimariesInternalFirst(t *testing.T) {
 	for _, f := range []fix{
 		{"zzz.overlay.sort", "testsortzzz"},
 		{"aaa.overlay.sort", "testsortaaa"},
-		{"munin.test.sort.b", "testsortrab"},
-		{"munin.test.sort.a", "testsortraa"},
+		{"mino.test.sort.b", "testsortrab"},
+		{"mino.test.sort.a", "testsortraa"},
 	} {
 		if _, ok := plugin.Lookup(f.id); ok {
 			continue
@@ -63,20 +63,20 @@ func TestPrimariesInternalFirst(t *testing.T) {
 	}
 
 	for _, id := range []string{
-		"munin.test.sort.a", "munin.test.sort.b",
+		"mino.test.sort.a", "mino.test.sort.b",
 		"aaa.overlay.sort", "zzz.overlay.sort",
 	} {
 		if _, ok := idx[id]; !ok {
 			t.Fatalf("missing primary %q", id)
 		}
 	}
-	if idx["munin.test.sort.a"] > idx["munin.test.sort.b"] {
-		t.Fatalf("internal not alpha: a=%d b=%d", idx["munin.test.sort.a"], idx["munin.test.sort.b"])
+	if idx["mino.test.sort.a"] > idx["mino.test.sort.b"] {
+		t.Fatalf("internal not alpha: a=%d b=%d", idx["mino.test.sort.a"], idx["mino.test.sort.b"])
 	}
 	if idx["aaa.overlay.sort"] > idx["zzz.overlay.sort"] {
 		t.Fatalf("external not alpha: aaa=%d zzz=%d", idx["aaa.overlay.sort"], idx["zzz.overlay.sort"])
 	}
-	if idx["munin.test.sort.b"] > idx["aaa.overlay.sort"] {
-		t.Fatalf("internal after external: munin.b=%d aaa=%d", idx["munin.test.sort.b"], idx["aaa.overlay.sort"])
+	if idx["mino.test.sort.b"] > idx["aaa.overlay.sort"] {
+		t.Fatalf("internal after external: mino.b=%d aaa=%d", idx["mino.test.sort.b"], idx["aaa.overlay.sort"])
 	}
 }

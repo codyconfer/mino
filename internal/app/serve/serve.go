@@ -15,17 +15,17 @@ import (
 	"github.com/codyconfer/sisyphus/kv"
 	"github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/views"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/log"
-	mnotify "github.com/codyconfer/munin/internal/notify"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/active"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/views"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/log"
+	mnotify "github.com/codyconfer/mino/internal/notify"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/active"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 const (
@@ -446,8 +446,8 @@ func (s *Server) fetchDetail(signal string, it signals.Item) (*signals.ItemDetai
 func (s *Server) Attach(ctx context.Context) error {
 	events, ok := s.Dial(ctx)
 	if !ok {
-		return errs.Newf(errs.KindUsage, "no running munin daemon at %s", s.SocketPath()).
-			WithHint("start one with `munin serve <flight>` (foreground) or `munin daemon` (installed service), or open `munin deck`")
+		return errs.Newf(errs.KindUsage, "no running mino daemon at %s", s.SocketPath()).
+			WithHint("start one with `mino serve <flight>` (foreground) or `mino daemon` (installed service), or open `mino deck`")
 	}
 	return s.WatchAttached(events)
 }

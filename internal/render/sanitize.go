@@ -1,7 +1,7 @@
 package render
 
 import (
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func cleanRef(ref ItemRef) ItemRef {

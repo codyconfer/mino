@@ -8,8 +8,8 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 )
 
-func TestMuninPaletteSetsEveryColour(t *testing.T) {
-	v := reflect.ValueOf(muninPalette)
+func TestMinoPaletteSetsEveryColour(t *testing.T) {
+	v := reflect.ValueOf(minoPalette)
 	ty := v.Type()
 	for i := range ty.NumField() {
 		f := ty.Field(i)
@@ -18,13 +18,13 @@ func TestMuninPaletteSetsEveryColour(t *testing.T) {
 			t.Fatalf("Palette.%s is %s, expected lipgloss.Color", f.Name, f.Type)
 		}
 		if string(got) == "" {
-			t.Errorf("muninPalette.%s is unset; viewkit renders it as the terminal default", f.Name)
+			t.Errorf("minoPalette.%s is unset; viewkit renders it as the terminal default", f.Name)
 		}
 	}
 }
 
-func TestMuninThemeSeriesStylesAllHaveAColour(t *testing.T) {
-	th := theme.New(muninPalette)
+func TestMinoThemeSeriesStylesAllHaveAColour(t *testing.T) {
+	th := theme.New(minoPalette)
 	if len(th.Series) == 0 {
 		t.Fatal("theme has no series styles")
 	}

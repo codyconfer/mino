@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/signals/cache"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/signals/cache"
 )
 
 func useCacheTestApp(t *testing.T) *cache.Store {
@@ -32,7 +32,7 @@ func useCacheTestApp(t *testing.T) *cache.Store {
 func runCache(t *testing.T, args ...string) string {
 	t.Helper()
 	var out bytes.Buffer
-	root := &cobra.Command{Use: "munin", SilenceUsage: true, SilenceErrors: true}
+	root := &cobra.Command{Use: "mino", SilenceUsage: true, SilenceErrors: true}
 	root.AddCommand(newCacheCmd())
 	root.SetOut(&out)
 	root.SetErr(&out)

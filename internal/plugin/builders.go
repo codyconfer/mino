@@ -1,6 +1,6 @@
 package plugin
 
-import pub "github.com/codyconfer/munin/plugin"
+import pub "github.com/codyconfer/mino/plugin"
 
 type BuildContext = pub.BuildContext
 type TokenSource = pub.TokenSource

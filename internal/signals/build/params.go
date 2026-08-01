@@ -3,7 +3,7 @@ package build
 import (
 	"sort"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 type ParamSpec = plugin.ParamSpec

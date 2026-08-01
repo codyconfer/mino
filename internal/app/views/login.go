@@ -15,11 +15,11 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/app/loginflow"
-	"github.com/codyconfer/munin/internal/keymap"
-	mnotify "github.com/codyconfer/munin/internal/notify"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/app/loginflow"
+	"github.com/codyconfer/mino/internal/keymap"
+	mnotify "github.com/codyconfer/mino/internal/notify"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 type loginAlreadyAuthedMsg struct{ label string }

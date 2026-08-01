@@ -1,8 +1,8 @@
 # A triage digest built from the flat `.Items` view: one count, repo buckets,
 # then the freshest handful. Add `formatter: triage-summary` to the triage
-# flight and a bare `munin fly triage` prints the digest instead of panels:
-#   munin fly triage --formatter triage-summary
-#   munin formatter render triage-summary triage
+# flight and a bare `mino fly triage` prints the digest instead of panels:
+#   mino fly triage --formatter triage-summary
+#   mino formatter render triage-summary triage
 name: triage-summary
 type: formatter
 title: Triage Summary

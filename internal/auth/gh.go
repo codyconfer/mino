@@ -8,7 +8,7 @@ import (
 
 	sauth "github.com/codyconfer/sisyphus/auth"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func runTool(ctx context.Context, bins []string, name string, kind errs.Kind, notInstalledMsg, notInstalledHint, runHint string, args ...string) ([]byte, error) {
@@ -29,8 +29,8 @@ func runTool(ctx context.Context, bins []string, name string, kind errs.Kind, no
 func GH(ctx context.Context, args ...string) ([]byte, error) {
 	return runTool(ctx, []string{"gh"}, "gh", errs.KindAuth,
 		"the GitHub CLI `gh` is not installed or not on PATH",
-		"install gh and run `gh auth login`, or run `munin login github`",
-		"run `gh auth login` or `munin login github` to (re)authenticate",
+		"install gh and run `gh auth login`, or run `mino login github`",
+		"run `gh auth login` or `mino login github` to (re)authenticate",
 		args...)
 }
 
@@ -41,7 +41,7 @@ func GHAPIGet(ctx context.Context, store TokenStore, apiURL, path string) ([]byt
 	tok, _ := GitHubToken(store)
 	if tok == "" {
 		return nil, errs.New(errs.KindAuth, "no GitHub authentication available").
-			WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `munin login github`")
+			WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `mino login github`")
 	}
 	base := strings.TrimRight(apiURL, "/")
 	if base == "" {

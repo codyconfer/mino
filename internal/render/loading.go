@@ -6,10 +6,10 @@ import (
 
 	"github.com/codyconfer/viewkit/spin"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
-const loadingPrefix = "munin ▸"
+const loadingPrefix = "mino ▸"
 
 type Loading = spin.Spinner
 

@@ -3,7 +3,7 @@ package backup
 import (
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 const sisyphusDefaultKeyName = "backup-key"
@@ -11,7 +11,7 @@ const sisyphusDefaultKeyName = "backup-key"
 func TestBackupSpecNeverSendsAnEmptySecretName(t *testing.T) {
 	want := config.Defaults().Backup.SecretName
 	if want == "" || want == sisyphusDefaultKeyName {
-		t.Fatalf("munin default backup key name = %q, want a non-empty name distinct from sisyphus's %q; if "+
+		t.Fatalf("mino default backup key name = %q, want a non-empty name distinct from sisyphus's %q; if "+
 			"they ever match, coercing an empty name buys nothing and this guard is moot",
 			want, sisyphusDefaultKeyName)
 	}

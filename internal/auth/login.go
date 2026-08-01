@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 const defaultGitHubOAuthScope = "repo read:org"

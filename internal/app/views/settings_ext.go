@@ -3,7 +3,7 @@ package views
 import (
 	"github.com/codyconfer/viewkit/forms"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 type StatusBarEntry struct {

@@ -1,5 +1,5 @@
-# A saved, named query. Copy to ~/.munin/queries/slack-standup.yaml and run it
-# with: munin query slack-standup
+# A saved, named query. Copy to ~/.mino/queries/slack-standup.yaml and run it
+# with: mino query slack-standup
 name: slack-standup
 type: query
 signal: slack

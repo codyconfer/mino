@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals/build"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals/build"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestPluginsHelpStatesCompileTimeTruth(t *testing.T) {
@@ -62,7 +62,7 @@ func TestPluginsScaffoldCLI(t *testing.T) {
 	if !strings.Contains(string(body), `PluginID    = "acme.widgets"`) {
 		t.Fatalf("plugin.go = %s", body)
 	}
-	if !strings.Contains(string(body), "github.com/codyconfer/munin/plugin") {
+	if !strings.Contains(string(body), "github.com/codyconfer/mino/plugin") {
 		t.Fatal("expected public SDK import")
 	}
 }
@@ -70,7 +70,7 @@ func TestPluginsScaffoldCLI(t *testing.T) {
 func TestPluginsInstallUninstallCLI(t *testing.T) {
 	testenv.Isolate(t)
 	home := t.TempDir()
-	t.Setenv("MUNIN_HOME", home)
+	t.Setenv("MINO_HOME", home)
 
 	_ = build.KnownSignals()
 	if err := config.SaveGlobalSettings(config.GlobalSettings{Onboarded: true}); err != nil {
@@ -80,9 +80,9 @@ func TestPluginsInstallUninstallCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	id := "munin.ntr"
+	id := "mino.ntr"
 	if _, ok := plugin.Lookup(id); !ok {
-		t.Skip("munin.ntr not linked in this test binary")
+		t.Skip("mino.ntr not linked in this test binary")
 	}
 
 	run := func(args ...string) (string, error) {

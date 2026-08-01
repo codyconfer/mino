@@ -3,8 +3,8 @@ package deck
 import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/keymap"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/keymap"
 )
 
 func Prompt(spec vkdeck.PromptSpec) (map[string]any, bool, error) {

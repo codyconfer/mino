@@ -8,11 +8,11 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/app/suggest"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/app/suggest"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 type queryBuildFlags struct {
@@ -35,7 +35,7 @@ func newQueryBuildCmd() *cobra.Command {
 		Short: "Compose and run an ad-hoc query, optionally saving it",
 		Long: "Builds a query from flags, runs it, and prints the results. Nothing is\n" +
 			"written unless you pass --save, which stores the query under\n" +
-			"~/.munin/queries so it can be run by name and used in flights.\n\n" +
+			"~/.mino/queries so it can be run by name and used in flights.\n\n" +
 			"Use --dry-run to print the query definition without running it.\n\n" +
 			"Pass -i to fill the same fields in a prompt, with suggestions for signals,\n" +
 			"params and saved filters. For the full builder, open the deck and pick\n" +
@@ -120,7 +120,7 @@ func (f queryBuildFlags) query() (config.Query, error) {
 		}
 		if _, ok := shared.Directives.LookupFilter(ref); !ok {
 			return config.Query{}, errs.Newf(errs.KindUsage, "unknown filter %q", ref).
-				WithHint("run `munin filter list` to see the saved filters")
+				WithHint("run `mino filter list` to see the saved filters")
 		}
 		q.Filters = append(q.Filters, config.QueryFilter{Ref: ref})
 	}
@@ -175,7 +175,7 @@ func saveBuiltQuery(cmd *cobra.Command, q config.Query) error {
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "\nsaved %s\n", path)
 	if !stored {
-		fmt.Fprintln(out, "the config store is unavailable; run `munin import directives` to store it.")
+		fmt.Fprintln(out, "the config store is unavailable; run `mino import directives` to store it.")
 		return nil
 	}
 	fmt.Fprintln(out, "imported the directives collection into DuckDB.")

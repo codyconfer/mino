@@ -12,16 +12,16 @@ import (
 	"github.com/codyconfer/sisyphus"
 	"github.com/codyconfer/sisyphus/store"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/pluginhost"
-	"github.com/codyconfer/munin/internal/token"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/pluginhost"
+	"github.com/codyconfer/mino/internal/token"
 
-	_ "github.com/codyconfer/munin/internal/plugin/ntr"
+	_ "github.com/codyconfer/mino/internal/plugin/ntr"
 )
 
-const secretService = "munin"
+const secretService = "mino"
 
 func secretName(cfg *config.Config) string {
 	if cfg != nil && cfg.Backup.SecretName != "" {

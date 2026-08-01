@@ -4,19 +4,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/active"
-	"github.com/codyconfer/munin/internal/signals/cache"
-	gh "github.com/codyconfer/munin/internal/signals/github"
-	"github.com/codyconfer/munin/internal/token"
-	pub "github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/active"
+	"github.com/codyconfer/mino/internal/signals/cache"
+	gh "github.com/codyconfer/mino/internal/signals/github"
+	"github.com/codyconfer/mino/internal/token"
+	pub "github.com/codyconfer/mino/plugin"
 
-	_ "github.com/codyconfer/munin/internal/plugin/ntr"
+	_ "github.com/codyconfer/mino/internal/plugin/ntr"
 )
 
 func init() {
@@ -45,7 +45,7 @@ func Signal(name string, params map[string]string, cfg *config.Config, tokens *t
 	}
 	if !plugin.SignalEnabled(name) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
-			WithHint("enable with `munin plugins enable` for the backing plugin")
+			WithHint("enable with `mino plugins enable` for the backing plugin")
 	}
 	q, err := plugin.BuildQuery(name, hostBuildCtx{signal: name, params: params, cfg: cfg, tokens: tokens, cache: results})
 	if err != nil {
@@ -63,7 +63,7 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	}
 	if !plugin.SignalEnabled(name) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
-			WithHint("enable with `munin plugins enable` for the backing plugin")
+			WithHint("enable with `mino plugins enable` for the backing plugin")
 	}
 	if !plugin.HasStreamBuilder(name) {
 		if plugin.HasCapability(name, plugin.CapStream) {
@@ -96,7 +96,7 @@ func ScheduledJob(name string, params map[string]string, cfg *config.Config, tok
 	}
 	if !plugin.SignalEnabled(name) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
-			WithHint("enable with `munin plugins enable` for the backing plugin")
+			WithHint("enable with `mino plugins enable` for the backing plugin")
 	}
 	job, err := pub.BuildScheduled(name, hostBuildCtx{signal: name, params: params, cfg: cfg, tokens: tokens, state: state})
 	if err != nil {
@@ -208,7 +208,7 @@ func githubBackend(cfg *config.Config, tokens *token.Store) (gh.Backend, error) 
 		log.Debugf("github: gh CLI not found; using %s via the REST API", origin)
 		return gh.APIBackend{Token: tok, BaseURL: base}, nil
 	}
-	return nil, errs.New(errs.KindAuth, "no GitHub authentication available").WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `munin login github`")
+	return nil, errs.New(errs.KindAuth, "no GitHub authentication available").WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `mino login github`")
 }
 
 func buildActiveGithub(params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {

@@ -1,6 +1,6 @@
 # External plugins
 
-Nothing here ships in the stock munin binary.
+Nothing here ships in the stock mino binary.
 
 **In-repo overlay module** — the Google (Calendar, Gmail, Docs, Drive, Tasks),
 Slack, and demo signals:
@@ -20,11 +20,11 @@ cd external/plugins && go run ./overlay calendar query
 `pi`, `opencode`, `ollama`, and the shared `stub` helper):
 
 ```text
-../munin-plugins-external/     public-SDK plugin packages + tests
-../munin-overlay-template/     thin binary: RegisterPlugins → externals.Register
+../mino-plugins-external/     public-SDK plugin packages + tests
+../mino-overlay-template/     thin binary: RegisterPlugins → externals.Register
 ```
 
-Build stock munin without either:
+Build stock mino without either:
 
 ```sh
 make build

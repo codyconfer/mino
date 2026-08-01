@@ -162,7 +162,7 @@ func logf(l Level, format string, args ...any) {
 	mu.Lock()
 	enabled := l <= level
 	tag := tags[l]
-	prefix := dimSt("munin ▸")
+	prefix := dimSt("mino ▸")
 	cw := console
 	fw := file
 	mu.Unlock()
@@ -174,7 +174,7 @@ func logf(l Level, format string, args ...any) {
 		fmt.Fprintln(cw, prefix+" "+tag+" "+msg)
 	}
 	if fw != nil {
-		fmt.Fprintln(fw, "munin ▸ "+plainTags[l]+" "+msg)
+		fmt.Fprintln(fw, "mino ▸ "+plainTags[l]+" "+msg)
 	}
 }
 

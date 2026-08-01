@@ -3,14 +3,14 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app/backup"
+	"github.com/codyconfer/mino/internal/app/backup"
 )
 
 func newBackupCmd() *cobra.Command {
 	var out string
 	c := &cobra.Command{
 		Use:   "backup",
-		Short: "Create an encrypted backup of munin's DuckDB databases",
+		Short: "Create an encrypted backup of mino's DuckDB databases",
 		Long: "Bundles the DuckDB files under <home>/.data (config, audit, tokens) into a\n" +
 			"tar, encrypts it with AES-256-GCM, and writes it to the current directory (or the app's\n" +
 			"private Google Drive folder when backup.destination=gdrive). The encryption\n" +

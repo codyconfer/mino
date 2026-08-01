@@ -6,8 +6,8 @@ import (
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func StatusStripLine(brand, role string, contexts []string, contribs []vkglyph.StatusContribution) (left, right string) {

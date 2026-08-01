@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 func routeLogs(mode string, fullScreen bool) {
@@ -20,7 +20,7 @@ func routeLogs(mode string, fullScreen bool) {
 		log.Debugf("log dir unavailable: %v", err)
 		return
 	}
-	if _, err := log.SetFileSink(filepath.Join(dir, "munin.log")); err != nil {
+	if _, err := log.SetFileSink(filepath.Join(dir, "mino.log")); err != nil {
 		log.Debugf("log file unavailable: %v", err)
 		return
 	}

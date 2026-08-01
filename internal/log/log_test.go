@@ -9,7 +9,7 @@ import (
 
 func TestFileSinkPlain(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "munin.log")
+	p := filepath.Join(dir, "mino.log")
 	c, err := SetFileSink(p)
 	if err != nil {
 		t.Fatalf("SetFileSink: %v", err)

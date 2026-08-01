@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 type fakeCache struct {

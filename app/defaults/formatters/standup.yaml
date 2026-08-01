@@ -1,5 +1,5 @@
 # A formatter replaces the usual panels on stdout with rendered text.
-# Run it with: munin fly --formatter standup   (or `munin formatter render standup`)
+# Run it with: mino fly --formatter standup   (or `mino formatter render standup`)
 name: standup
 type: formatter
 title: Daily Standup

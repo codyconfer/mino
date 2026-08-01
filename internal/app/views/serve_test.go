@@ -9,8 +9,8 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func serveEventFor(url string) signals.Event {

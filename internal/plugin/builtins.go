@@ -6,7 +6,7 @@ func RegisterBuiltins() {
 		caps       []Capability
 	}
 	for _, s := range []sig{
-		{"munin.github", "github", []Capability{CapQuery, CapStream, CapCacheable, CapDetail}},
+		{"mino.github", "github", []Capability{CapQuery, CapStream, CapCacheable, CapDetail}},
 	} {
 		if _, ok := Lookup(s.id); ok {
 			continue

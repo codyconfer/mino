@@ -9,7 +9,7 @@ import (
 	"github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func mustNotPanic(t *testing.T, what string, fn func()) {

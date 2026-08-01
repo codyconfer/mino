@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/filter"
+	"github.com/codyconfer/mino/internal/filter"
 )
 
 func TestFetchFilterDemoDropsBots(t *testing.T) {

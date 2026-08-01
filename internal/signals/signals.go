@@ -1,6 +1,6 @@
 package signals
 
-import "github.com/codyconfer/munin/plugin"
+import "github.com/codyconfer/mino/plugin"
 
 type Item = plugin.Item
 type Section = plugin.Section

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const sandboxEnv = "MUNIN_TEST_SANDBOX"
+const sandboxEnv = "MINO_TEST_SANDBOX"
 
 type Env struct {
 	Home      string
@@ -24,7 +24,7 @@ func Isolate(t *testing.T) Env {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("AppData", filepath.Join(home, "AppData", "Roaming"))
-	t.Setenv("MUNIN_HOME", "")
+	t.Setenv("MINO_HOME", "")
 	return resolve(t, home)
 }
 

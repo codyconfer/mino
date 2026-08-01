@@ -13,9 +13,9 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 
-	"github.com/codyconfer/munin/external/plugins/internal/errx"
-	"github.com/codyconfer/munin/external/plugins/internal/httpx"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/external/plugins/internal/httpx"
+	"github.com/codyconfer/mino/plugin"
 )
 
 var LoginScopes = []string{
@@ -131,7 +131,7 @@ func conf(ga Auth, scopes []string) *oauth2.Config {
 func Login(ctx context.Context, ga Auth, w io.Writer) error {
 	if ga.ClientID == "" || ga.ClientSecret == "" {
 		return errx.New("missing Google OAuth desktop-app client credentials").
-			WithHint("set `plugins.google.oauth_client_id` and `plugins.google.oauth_client_secret` in config to use `munin login google`")
+			WithHint("set `plugins.google.oauth_client_id` and `plugins.google.oauth_client_secret` in config to use `mino login google`")
 	}
 	conf := conf(ga, LoginScopes)
 	verifier := oauth2.GenerateVerifier()
@@ -146,7 +146,7 @@ func Login(ctx context.Context, ga Auth, w io.Writer) error {
 	tok, err := conf.Exchange(oauthCtx(ctx), code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return errx.Wrap(err, "exchanging authorization code").
-			WithHint("run `munin login google` again")
+			WithHint("run `mino login google` again")
 	}
 	return cacheToken(ga.Store, tok)
 }
@@ -250,7 +250,7 @@ func fetchTokenScopes(ctx context.Context, accessToken string) map[string]bool {
 func adcHelp(scopes []string, reason string) error {
 	return errx.New(reason).WithHint(
 		"authorize Google access with either:\n"+
-			"  gcloud auth application-default login \\\n    --scopes=%s\nor:\n  munin login google",
+			"  gcloud auth application-default login \\\n    --scopes=%s\nor:\n  mino login google",
 		strings.Join(scopes, ","))
 }
 
@@ -280,7 +280,7 @@ func FromHost(h plugin.Host) Auth {
 func FromBuildContext(bc plugin.BuildContext) (Auth, error) {
 	h, ok := plugin.HostOf(bc)
 	if !ok {
-		return Auth{}, errx.New("google signals require a munin host build context")
+		return Auth{}, errx.New("google signals require a mino host build context")
 	}
 	return FromHost(h), nil
 }

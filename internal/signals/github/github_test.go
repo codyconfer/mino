@@ -11,10 +11,10 @@ const searchFixture = `{
   "items": [
     {
       "title": "Add retry to fetcher",
-      "html_url": "https://github.com/octo/munin/pull/7",
+      "html_url": "https://github.com/octo/mino/pull/7",
       "body": "Retries transient failures.",
       "updated_at": "2026-07-20T15:04:05Z",
-      "repository_url": "https://api.github.com/repos/octo/munin",
+      "repository_url": "https://api.github.com/repos/octo/mino",
       "user": {"login": "alice"}
     },
     {
@@ -50,7 +50,7 @@ func TestMapSearchResponse(t *testing.T) {
 		url      string
 		ts       string
 	}{
-		{"Add retry to fetcher", "octo/munin", "alice", "https://github.com/octo/munin/pull/7", "2026-07-20T15:04:05Z"},
+		{"Add retry to fetcher", "octo/mino", "alice", "https://github.com/octo/mino/pull/7", "2026-07-20T15:04:05Z"},
 		{"Fix flaky test", "octo/tools", "bob", "https://github.com/octo/tools/pull/12", "2026-07-21T09:30:00Z"},
 	}
 	for i, want := range cases {

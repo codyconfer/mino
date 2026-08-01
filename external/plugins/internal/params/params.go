@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/codyconfer/munin/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/external/plugins/internal/errx"
 )
 
 const MinPollInterval = time.Second

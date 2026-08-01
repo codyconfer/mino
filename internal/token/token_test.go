@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/auth"
+	"github.com/codyconfer/mino/internal/auth"
 )
 
 func testKey() []byte {

@@ -8,8 +8,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/codyconfer/viewkit/layout"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestFlightTreeStructure(t *testing.T) {
@@ -86,13 +86,13 @@ func TestFlightTreeGapStemContinuesConnectors(t *testing.T) {
 		t.Fatalf("section GapStem = %q, want %q", sectionStem, "|  ")
 	}
 
-	items := SectionItems(layout.NewFrame(80), "run", secs)
+	items := SectionItems(layout.NewFrame(80), secs)
 	var found bool
 	for _, it := range items {
 		if it.Key == "u1" {
 			found = true
-			if got := ansi.Strip(it.GapStem); got != "|  |  " {
-				t.Fatalf("SectionItems GapStem = %q, want %q", got, "|  |  ")
+			if got := ansi.Strip(it.GapStem); got != "|  " {
+				t.Fatalf("SectionItems GapStem = %q, want %q", got, "|  ")
 			}
 		}
 	}
@@ -126,7 +126,7 @@ func TestFlightTreeCuesTruncatedSections(t *testing.T) {
 		},
 		{
 			name: "serve frame truncation",
-			meta: map[string]string{"munin.truncated": "1300000 byte event exceeds the 1048576 byte frame limit"},
+			meta: map[string]string{"mino.truncated": "1300000 byte event exceeds the 1048576 byte frame limit"},
 			want: "(truncated)",
 		},
 		{

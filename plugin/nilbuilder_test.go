@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type testStream struct{ name string }

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 type boomProvider struct{ tool string }

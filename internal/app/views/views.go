@@ -7,14 +7,14 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/pane"
-	"github.com/codyconfer/munin/internal/app/verify"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/pane"
+	"github.com/codyconfer/mino/internal/app/verify"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type Finding = verify.Finding
@@ -187,7 +187,7 @@ func (k *Kit) homeFlightName() string {
 func (k *Kit) FlightResults(name string) vkdeck.View {
 	ctx := append(k.menuCtx(), [2]string{"flight", name})
 	var held sectionHolder
-	lst := deck.NewResults("flight: "+name, name, ctx, func() []signals.Section {
+	lst := deck.NewResults("flight: "+name, ctx, func() []signals.Section {
 		sections := k.d.FetchFlightAudited(name)
 		held.set(sections)
 		return sections

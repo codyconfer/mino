@@ -3,7 +3,7 @@ package plugin
 import (
 	"github.com/codyconfer/viewkit/glyph"
 
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 type StatusFactory = pub.StatusFactory

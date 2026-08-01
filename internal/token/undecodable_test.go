@@ -10,8 +10,8 @@ import (
 
 	"github.com/codyconfer/sisyphus/sealed"
 
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func otherKey() []byte {
@@ -64,7 +64,7 @@ func TestGetReportsUndecodableStore(t *testing.T) {
 		t.Fatal("no hint: the only recovery is deleting tokens.duckdb and logging in again, which the user " +
 			"cannot guess from the error text")
 	}
-	for _, want := range []string{"tokens.duckdb", "munin login github"} {
+	for _, want := range []string{"tokens.duckdb", "mino login github"} {
 		if !strings.Contains(hint, want) {
 			t.Errorf("hint = %q, want it to name %q", hint, want)
 		}
@@ -113,7 +113,7 @@ func TestReadCredentialDistinguishesThreeStates(t *testing.T) {
 
 	got, state, err := auth.ReadCredential(lost, "slack")
 	if state != auth.CredUnreadable {
-		t.Fatalf("undecryptable store = state %v (%+v), want CredUnreadable: munin reports \"not logged in\" and the user re-logs into a store it cannot read", state, got)
+		t.Fatalf("undecryptable store = state %v (%+v), want CredUnreadable: mino reports \"not logged in\" and the user re-logs into a store it cannot read", state, got)
 	}
 	if err == nil || !errors.Is(err, sealed.ErrUndecodable) {
 		t.Fatalf("undecryptable store error = %v, want one wrapping sealed.ErrUndecodable", err)
