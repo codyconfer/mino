@@ -118,7 +118,7 @@ func (a *editorAdapter) Run() (string, func() vkdeck.Results, error) {
 		return "", nil, err
 	}
 	return label, func() vkdeck.Results {
-		return render.SectionResults{Sections: fetch()}
+		return &render.SectionResults{Sections: fetch()}
 	}, nil
 }
 

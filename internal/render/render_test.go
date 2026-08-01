@@ -158,6 +158,35 @@ func TestWorkflowResultInProgressUsesSpinnerGlyph(t *testing.T) {
 	}
 }
 
+func TestSectionResultsAdvanceWorkflowSpinner(t *testing.T) {
+	previous := glyph.CurrentMode()
+	glyph.SetMode(glyph.ModeNone)
+	t.Cleanup(func() { glyph.SetMode(previous) })
+
+	r := &SectionResults{Sections: []signals.Section{{
+		Signal: "github",
+		Title:  "Workflows",
+		Items: []signals.Item{{
+			Kind:  "workflow",
+			Title: "CI #42",
+			Meta:  map[string]string{"status": "in_progress"},
+		}},
+	}}}
+	before := r.Items(layout.NewFrame(80))[1].Block
+	if !r.Advance() {
+		t.Fatal("in-progress workflow did not request another frame")
+	}
+	after := r.Items(layout.NewFrame(80))[1].Block
+	if before == after {
+		t.Fatalf("workflow spinner stayed frozen: %q", after)
+	}
+
+	r.Sections[0].Items[0].Meta = map[string]string{"status": "completed", "conclusion": "success"}
+	if r.Advance() {
+		t.Fatal("completed workflow requested another frame")
+	}
+}
+
 func TestNewUnknownFormat(t *testing.T) {
 	if _, err := New(Format("xml"), "run"); err == nil {
 		t.Fatal("expected error for unknown format")

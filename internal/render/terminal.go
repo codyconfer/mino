@@ -93,10 +93,21 @@ func SectionItemsFrame(f layout.Frame, sections []signals.Section, frame int) []
 
 type SectionResults struct {
 	Sections []signals.Section
+	frame    int
 }
 
 func (r SectionResults) Items(f layout.Frame) []list.Item {
-	return SectionItems(f, r.Sections)
+	return SectionItemsFrame(f, r.Sections, r.frame)
+}
+
+// Advance implements deck.AnimatedResults. It advances workflow spinners only
+// while at least one workflow in the result set is still in progress.
+func (r *SectionResults) Advance() bool {
+	if !SectionsHaveInProgress(r.Sections) {
+		return false
+	}
+	r.frame++
+	return true
 }
 
 func (r SectionResults) Count() int {
