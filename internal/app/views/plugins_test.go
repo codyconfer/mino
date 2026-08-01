@@ -144,6 +144,11 @@ func TestPluginsDisableKeepsRow(t *testing.T) {
 	if _, ok := plugin.Lookup(id); !ok {
 		t.Skip("mino.ntr not linked")
 	}
+	t.Cleanup(func() {
+		if err := plugin.SetEnabled(id, true); err != nil {
+			t.Errorf("restore %s enabled state: %v", id, err)
+		}
+	})
 
 	page := kit.Plugins().(*pluginsPage)
 	page.cursor = 0
