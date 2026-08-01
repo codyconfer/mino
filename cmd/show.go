@@ -9,10 +9,10 @@ import (
 
 	"github.com/codyconfer/viewkit/layout"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 const defaultDetailSignal = "github"
@@ -38,7 +38,7 @@ func runShow(cmd *cobra.Command, url, signalName string) error {
 	url = strings.TrimSpace(url)
 	if url == "" {
 		return errs.New(errs.KindUsage, "show requires an item URL").
-			WithHint("try `munin show https://github.com/owner/repo/pull/123`")
+			WithHint("try `mino show https://github.com/owner/repo/pull/123`")
 	}
 	if signalName == "" {
 		signalName = defaultDetailSignal

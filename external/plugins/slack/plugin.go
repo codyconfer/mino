@@ -3,11 +3,11 @@ package slack
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/external/plugins/internal/errx"
-	"github.com/codyconfer/munin/external/plugins/internal/params"
-	"github.com/codyconfer/munin/external/plugins/internal/slackauth"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/external/plugins/internal/params"
+	"github.com/codyconfer/mino/external/plugins/internal/slackauth"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const (
@@ -21,6 +21,7 @@ func Register() {
 		Kind:         plugin.KindSignal,
 		Signal:       SignalName,
 		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapCacheable},
+		Credentials:  []string{"slack", "slack-app", "slack-bot"},
 	}, plugin.Builders{
 		Query:  BuildQuery,
 		Stream: BuildStream,

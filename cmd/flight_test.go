@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/flight"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/flight"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type flightTestSignal struct {

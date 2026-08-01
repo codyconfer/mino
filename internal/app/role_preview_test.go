@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/role"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/role"
 )
 
 func previewDirectives() *config.Directives {

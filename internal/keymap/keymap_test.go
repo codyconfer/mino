@@ -67,8 +67,8 @@ func TestFormDefaultSchemeKeepsOnlyMultiRuneKeys(t *testing.T) {
 	}
 }
 
-func TestFormMuninSchemeDropsCancelAlias(t *testing.T) {
-	useScheme(t, muninScheme())
+func TestFormMinoSchemeDropsCancelAlias(t *testing.T) {
+	useScheme(t, minoScheme())
 	m := Form()
 
 	assertBound(t, m, "esc", keys.Cancel)
@@ -97,7 +97,7 @@ func TestFormDropsActionsLeftWithNoKeys(t *testing.T) {
 }
 
 func TestFormAppendsExtraBindingsVerbatim(t *testing.T) {
-	useScheme(t, muninScheme())
+	useScheme(t, minoScheme())
 	m := Form(BuilderBindings()...)
 
 	extras := map[string]keys.Action{
@@ -114,13 +114,13 @@ func TestFormAppendsExtraBindingsVerbatim(t *testing.T) {
 }
 
 func TestFormExtraSingleRuneKeysAreNotStripped(t *testing.T) {
-	useScheme(t, muninScheme())
+	useScheme(t, minoScheme())
 	m := Form(keys.Binding{Keys: []string{"d"}, Action: Delete})
 	assertBound(t, m, "d", Delete)
 }
 
 func TestBuilderBindingsFollowTheActiveScheme(t *testing.T) {
-	useScheme(t, muninScheme().With(
+	useScheme(t, minoScheme().With(
 		keys.Binding{Keys: []string{"ctrl+e"}, Action: Run, Glyph: "ctrl+e", Label: "run"},
 	))
 
@@ -148,7 +148,7 @@ func TestBuilderBindingsFallBackWhenASchemeOmitsThem(t *testing.T) {
 		{WriteBinding(), "ctrl+w"},
 	} {
 		if len(tc.binding.Keys) == 0 || tc.binding.Keys[0] != tc.key {
-			t.Errorf("%q binding = %v, want the munin default %q so the editor stays usable",
+			t.Errorf("%q binding = %v, want the mino default %q so the editor stays usable",
 				tc.binding.Action, tc.binding.Keys, tc.key)
 		}
 	}

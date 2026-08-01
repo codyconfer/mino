@@ -2,6 +2,7 @@ package views
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,10 +12,10 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func builderFor(t *testing.T, kit *Kit) *builderView {
@@ -1171,6 +1172,35 @@ func TestBuilderEmptyResultsSaySo(t *testing.T) {
 	_, app := builderWithResults(t, testKit(t))
 	if body := app.View(); !strings.Contains(body, "no items") {
 		t.Errorf("empty run did not report no items: %q", body)
+	}
+}
+
+func TestBuilderErrorRunShowsTheErrorNotNoItems(t *testing.T) {
+	kit := testKit(t)
+	kit.d.FetchAdhoc = func(config.Query) []signals.Section {
+		return []signals.Section{{Signal: "github", Title: "Demo Items", Err: errors.New("token expired")}}
+	}
+
+	v := builderFor(t, kit)
+	v.selectSignal(t, "github")
+	v.set(t, "param.query", "is:open")
+
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 44})
+	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlR})
+	for _, c := range flattenCmds(cmd) {
+		if c != nil {
+			app = step(app, c())
+		}
+	}
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 44})
+
+	body := app.View()
+	if strings.Contains(body, "no items") {
+		t.Errorf("failed run reported no items, hiding the error:\n%s", body)
+	}
+	if !strings.Contains(body, "token expired") {
+		t.Errorf("failed run did not surface the error text:\n%s", body)
 	}
 }
 

@@ -15,9 +15,9 @@ import (
 	"github.com/codyconfer/sisyphus/kv"
 	"github.com/codyconfer/viewkit/layout"
 
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func auditRender(res auditResult) string {

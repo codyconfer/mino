@@ -30,7 +30,7 @@ func TestGenerateWritesPublicSDKPackage(t *testing.T) {
 		"package example",
 		`PluginID    = "team.example"`,
 		`SignalName  = "example"`,
-		`"github.com/codyconfer/munin/plugin"`,
+		`"github.com/codyconfer/mino/plugin"`,
 		"plugin.RegisterSignal",
 		"plugin.RegisterFilterEngine",
 		"plugin.RegisterContext",
@@ -53,7 +53,7 @@ func TestGenerateWritesPublicSDKPackage(t *testing.T) {
 	if !strings.Contains(string(qb), "type: query") {
 		t.Fatalf("scaffolded query must declare its type: %s", qb)
 	}
-	if !strings.Contains(string(qb), "anywhere under the munin home") {
+	if !strings.Contains(string(qb), "anywhere under the mino home") {
 		t.Fatalf("scaffolded query comment still points at a fixed directory: %s", qb)
 	}
 

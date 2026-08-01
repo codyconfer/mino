@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/render"
+	"github.com/codyconfer/mino/internal/render"
 )
 
 var (

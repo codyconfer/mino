@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func TestRunCLIKeepsCredentialPromptsOffStdout(t *testing.T) {

@@ -5,10 +5,10 @@ package daemon
 import (
 	"github.com/codyconfer/viewkit/forms"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/internal/app/statusstrip"
-	"github.com/codyconfer/munin/internal/app/views"
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/internal/app/statusstrip"
+	"github.com/codyconfer/mino/internal/app/views"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func init() {

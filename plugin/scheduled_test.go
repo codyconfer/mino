@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type testScheduled struct{ name string }

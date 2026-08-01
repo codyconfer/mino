@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestDiscoverLocalMissingDir(t *testing.T) {
@@ -379,9 +379,9 @@ func TestListInstallCandidatesSurvivesBrokenPack(t *testing.T) {
 func TestListInstallCandidatesOmitsInternal(t *testing.T) {
 	testenv.Isolate(t)
 	LoadEnabled()
-	id := "munin.ntr"
+	id := "mino.ntr"
 	if _, ok := Lookup(id); !ok {
-		t.Skip("munin.ntr not registered in this binary")
+		t.Skip("mino.ntr not registered in this binary")
 	}
 	if !Installed(id) {
 		t.Fatal("internal plugin should report installed without settings entry")

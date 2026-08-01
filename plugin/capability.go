@@ -57,13 +57,15 @@ type Detailer interface {
 }
 
 type Descriptor struct {
-	ID           string
-	Kind         Kind
-	Capabilities []Capability
-	Signal       string
-	Ref          string
-	Parent       string
-	ServiceOnly  bool
+	ID                 string
+	Kind               Kind
+	Capabilities       []Capability
+	Signal             string
+	Ref                string
+	Parent             string
+	ServiceOnly        bool
+	Credentials        []string
+	SettingsNamespaces []string
 }
 
 func KnownKinds() []Kind {

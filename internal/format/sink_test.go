@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func TestDeliverStdoutOnly(t *testing.T) {

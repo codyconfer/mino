@@ -1,13 +1,13 @@
 .PHONY: build build-experimental build-nodaemon build-overlay dev install command run serve daemon test test-race test-shuffle test-overlay prove fmt fmt-check vet lint govulncheck check ci package clean icons
 
 DIST    ?= dist
-BIN     ?= $(DIST)/munin
+BIN     ?= $(DIST)/mino
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -s -w -X 'github.com/codyconfer/munin/cmd.Version=$(VERSION)'
+LDFLAGS := -s -w -X 'github.com/codyconfer/mino/cmd.Version=$(VERSION)'
 INSTALL_DIR ?= $(shell d="$$(go env GOBIN)"; [ -n "$$d" ] || d="$$(go env GOPATH)/bin"; printf '%s' "$$d")
 
 # Runtime + build knobs for the mode targets (command/serve/daemon/run) and test:
-#   ARGS    — forwarded verbatim to munin, e.g. `make command ARGS="fly work -o json"`
+#   ARGS    — forwarded verbatim to mino, e.g. `make command ARGS="fly work -o json"`
 #   RACE    — set to build/test with the race detector, e.g. `make run RACE=1`,
 #             `make test RACE=1`
 #   SHUFFLE — set to randomize test order, e.g. `make test SHUFFLE=1`. Catches
@@ -15,7 +15,7 @@ INSTALL_DIR ?= $(shell d="$$(go env GOBIN)"; [ -n "$$d" ] || d="$$(go env GOPATH
 #   TAGS    — extra build tags, e.g. `make build TAGS=demo`
 #
 # TAGS=daemon enables the EXPERIMENTAL OS-service daemon, which is OFF by
-# default. The daemon lives in its own package (github.com/codyconfer/munin/daemon)
+# default. The daemon lives in its own package (github.com/codyconfer/mino/daemon)
 # and is linked only by experimental_daemon.go, a single blank import behind the
 # tag. With it: the `daemon` command tree, the daemon status chip, the
 # daemon.tray setting, kardianos/service and the systray dependency. Without it:
@@ -30,12 +30,12 @@ GOFLAGS_DEV = $(if $(RACE),-race,) $(GOFLAGS_TAGS)
 GOFLAGS_TEST = $(if $(RACE),-race,) $(if $(SHUFFLE),-shuffle=on,) $(GOFLAGS_TAGS)
 
 # EMAIL_DOMAIN, when set, compiles a locked-down build that only completes
-# onboarding (and thus unlocks munin) if the git signing key has a GitHub-verified
+# onboarding (and thus unlocks mino) if the git signing key has a GitHub-verified
 # identity in that domain, e.g. `make package EMAIL_DOMAIN=example.com`. Left empty,
-# munin builds with no domain restriction.
+# mino builds with no domain restriction.
 EMAIL_DOMAIN ?=
 ifneq ($(EMAIL_DOMAIN),)
-LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.RequiredEmailDomain=$(EMAIL_DOMAIN)'
+LDFLAGS += -X 'github.com/codyconfer/mino/internal/app/onboard.RequiredEmailDomain=$(EMAIL_DOMAIN)'
 endif
 
 # ALL_OR_NOTHING_AUTH, when set, compiles a build where cli directives block when
@@ -43,13 +43,13 @@ endif
 # scope, or onboarding), instead of warning and continuing.
 ALL_OR_NOTHING_AUTH ?=
 ifneq ($(ALL_OR_NOTHING_AUTH),)
-LDFLAGS += -X 'github.com/codyconfer/munin/internal/app/onboard.AllOrNothingAuth=true'
+LDFLAGS += -X 'github.com/codyconfer/mino/internal/app/onboard.AllOrNothingAuth=true'
 endif
 
-# Regenerate the embedded system-tray / notification state icons from the raven
+# Regenerate the embedded system-tray / notification state icons from the bird
 # SVGs in internal/render/icons/svg into internal/render/icons/data/<theme>/<state>.png.
 # Uses rsvg-convert if present (best), else ImageMagick. Override size with
-# ICON_SIZE=NN. SVG state names map to munin daemon states.
+# ICON_SIZE=NN. SVG state names map to mino daemon states.
 ICON_SVG  := internal/render/icons/svg
 ICON_DATA := internal/render/icons/data
 ICON_SIZE ?= 128
@@ -62,11 +62,11 @@ icons:
 	  else echo "need rsvg-convert (librsvg2-bin) or imagemagick"; exit 1; fi; }; \
 	for theme in dark light; do \
 	  out="$(ICON_DATA)/$$theme"; mkdir -p "$$out"; \
-	  render "$(ICON_SVG)/munin--$$theme--dimmed.svg"      "$$out/inactive.png"; \
-	  render "$(ICON_SVG)/munin--$$theme--standard.svg"    "$$out/running.png"; \
-	  render "$(ICON_SVG)/munin--$$theme--highlighted.svg" "$$out/notify.png"; \
-	  render "$(ICON_SVG)/munin--$$theme--warning.svg"     "$$out/warn.png"; \
-	  render "$(ICON_SVG)/munin--$$theme--error.svg"       "$$out/error.png"; \
+	  render "$(ICON_SVG)/mino--$$theme--dimmed.svg"      "$$out/inactive.png"; \
+	  render "$(ICON_SVG)/mino--$$theme--standard.svg"    "$$out/running.png"; \
+	  render "$(ICON_SVG)/mino--$$theme--highlighted.svg" "$$out/notify.png"; \
+	  render "$(ICON_SVG)/mino--$$theme--warning.svg"     "$$out/warn.png"; \
+	  render "$(ICON_SVG)/mino--$$theme--error.svg"       "$$out/error.png"; \
 	done; \
 	echo "wrote $(ICON_DATA)/{dark,light}/{inactive,running,notify,warn,error}.png"
 
@@ -101,10 +101,17 @@ build-nodaemon:
 	go vet -tags nodaemon ./...
 
 # Build and vet the external plugin overlay module (external/plugins): the Google,
-# Slack, and demo signals, built only against the public SDK. Stock munin does not
+# Slack, and demo signals, built only against the public SDK. Stock mino does not
 # link them, so nothing else in this gate would catch a break in that module.
 build-overlay:
 	cd external/plugins && go build ./... && go vet ./...
+	@host="$$(sed -n 's|^module ||p' external/plugins/go.mod | sed 's|/external/plugins$$||')"; \
+	bad="$$(cd external/plugins && go list -f '{{$$p := .ImportPath}}{{range .Imports}}{{$$p}} imports {{.}}{{"\n"}}{{end}}{{range .TestImports}}{{$$p}} imports {{.}}{{"\n"}}{{end}}{{range .XTestImports}}{{$$p}} imports {{.}}{{"\n"}}{{end}}' ./... | grep -F " $$host/internal/")" || true; \
+	if [ -n "$$bad" ]; then \
+	  echo "external/plugins must not import $$host/internal packages:"; \
+	  echo "$$bad"; \
+	  exit 1; \
+	fi
 
 # Test the overlay module. Separate target because it is a separate module, so
 # `go test ./...` from the root never reaches it.
@@ -117,14 +124,14 @@ dev:
 	@mkdir -p $(dir $(BIN))
 	@go build $(GOFLAGS_DEV) -ldflags "$(LDFLAGS)" -o $(BIN) .
 
-# Install the host munin binary to $(INSTALL_DIR)/munin, replacing any existing
+# Install the host mino binary to $(INSTALL_DIR)/mino, replacing any existing
 # binary. Honors the same RACE/TAGS/EMAIL_DOMAIN/ALL_OR_NOTHING_AUTH knobs as `dev`.
-# This is the Go toolchain PATH install — not `munin install` (config provision)
+# This is the Go toolchain PATH install — not `mino install` (config provision)
 # and not `make daemon` (OS service).
 install:
 	@mkdir -p "$(INSTALL_DIR)"
-	@go build $(GOFLAGS_DEV) -ldflags "$(LDFLAGS)" -o "$(INSTALL_DIR)/munin" .
-	@echo "installed $(INSTALL_DIR)/munin"
+	@go build $(GOFLAGS_DEV) -ldflags "$(LDFLAGS)" -o "$(INSTALL_DIR)/mino" .
+	@echo "installed $(INSTALL_DIR)/mino"
 
 # cli mode: run a directive and print formatted output. e.g.
 #   make command ARGS="fly work -o json"
@@ -137,7 +144,7 @@ command: dev
 serve: dev
 	@$(BIN) serve $(ARGS)
 
-# daemon mode: install munin as an OS service if needed, then start it (idempotent).
+# daemon mode: install mino as an OS service if needed, then start it (idempotent).
 # EXPERIMENTAL and off by default, so this target adds TAGS=daemon itself.
 #   make daemon ARGS="work"
 daemon: TAGS += daemon
@@ -152,7 +159,7 @@ run: dev
 
 # Cross-compile release binaries for every supported platform/arch into $(DIST).
 #
-# munin links DuckDB via cgo, so cross-builds need a C cross-compiler for each
+# mino links DuckDB via cgo, so cross-builds need a C cross-compiler for each
 # target. `zig cc` provides one for all targets from any host; install zig
 # (https://ziglang.org) to build the full matrix. The host target always builds
 # with the native compiler, so `make package` works without zig for that one and
@@ -163,7 +170,7 @@ package:
 	have_zig=0; command -v zig >/dev/null 2>&1 && have_zig=1; \
 	for p in $(PLATFORMS); do \
 	  os=$${p%/*}; arch=$${p#*/}; \
-	  out="$(DIST)/munin_$(VERSION)_$${os}_$${arch}"; \
+	  out="$(DIST)/mino_$(VERSION)_$${os}_$${arch}"; \
 	  [ "$$os" = windows ] && out="$$out.exe"; \
 	  cc=""; \
 	  if [ "$$p" != "$$host" ]; then \
@@ -189,7 +196,7 @@ package:
 	      go build -trimpath $(GOFLAGS_TAGS) -ldflags "$(LDFLAGS)" -o "$$out" . || exit 1; \
 	  fi; \
 	done; \
-	( cd $(DIST) && (sha256sum munin_* 2>/dev/null || shasum -a 256 munin_*) > SHA256SUMS ); \
+	( cd $(DIST) && (sha256sum mino_* 2>/dev/null || shasum -a 256 mino_*) > SHA256SUMS ); \
 	echo "artifacts written to $(DIST)/"
 
 # Remove build artifacts.

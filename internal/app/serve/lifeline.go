@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-const deckLifelineEnv = "MUNIN_DECK_LIFELINE"
+const deckLifelineEnv = "MINO_DECK_LIFELINE"
 
 func BindDeckLifeline(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)

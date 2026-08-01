@@ -5,13 +5,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/pluginhost"
-	"github.com/codyconfer/munin/internal/signals/build"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/pluginhost"
+	"github.com/codyconfer/mino/internal/signals/build"
+	"github.com/codyconfer/mino/plugin"
 )
 
-const AnnoLaunchLoading = "munin_launch_loading"
+const AnnoLaunchLoading = "mino_launch_loading"
 
 const (
 	AnnoGateMode = annoGateMode
@@ -36,7 +36,7 @@ func registered() []*cobra.Command {
 
 func App() *app.App { return shared }
 
-func Host() plugin.Host { return pluginhost.New(shared.Cfg, shared.Tokens) }
+func Host(signal string) plugin.Host { return pluginhost.ForSignal(shared.Cfg, shared.Tokens, signal) }
 
 func SignalCmd(name, short string) *cobra.Command { return sourceCmd(name, short) }
 

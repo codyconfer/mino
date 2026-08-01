@@ -9,10 +9,10 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 var listKinds = []string{"queries", "filters", "flights", "formatters", "roles"}
@@ -110,7 +110,7 @@ func listQueriesSection(w io.Writer, all bool) {
 	names := scopedNames(all, shared.Directives.RunnableNames(), access().QueryVisible)
 	listHeading(w, "queries"+listScopeNote(all))
 	if len(names) == 0 {
-		listEmpty(w, "none (add a YAML file with a `signal:` under ~/.munin/queries)")
+		listEmpty(w, "none (add a YAML file with a `signal:` under ~/.mino/queries)")
 		return
 	}
 	for _, n := range names {
@@ -155,7 +155,7 @@ func listFiltersSection(w io.Writer, all bool) {
 		plugins++
 	}
 	if len(names) == 0 && plugins == 0 {
-		listEmpty(w, "none (add `rules:` to a YAML file under ~/.munin/queries)")
+		listEmpty(w, "none (add `rules:` to a YAML file under ~/.mino/queries)")
 	}
 }
 
@@ -163,7 +163,7 @@ func listFlightsSection(w io.Writer, all bool) {
 	names := scopedNames(all, shared.Directives.FlightNames(), access().FlightVisible)
 	listHeading(w, "flights"+listScopeNote(all))
 	if len(names) == 0 {
-		listEmpty(w, "none (add a YAML file under ~/.munin/flights)")
+		listEmpty(w, "none (add a YAML file under ~/.mino/flights)")
 		return
 	}
 	for _, n := range names {
@@ -176,7 +176,7 @@ func listFormattersSection(w io.Writer, all bool) {
 	names := scopedNames(all, shared.Directives.FormatterNames(), access().FormatterVisible)
 	listHeading(w, "formatters"+listScopeNote(all))
 	if len(names) == 0 {
-		listEmpty(w, "none (add a YAML file with a `template:` under ~/.munin/formatters)")
+		listEmpty(w, "none (add a YAML file with a `template:` under ~/.mino/formatters)")
 		return
 	}
 	for _, n := range names {
@@ -194,7 +194,7 @@ func listRolesSection(w io.Writer) {
 	names := shared.Directives.RoleNames()
 	listHeading(w, "roles")
 	if len(names) == 0 {
-		listEmpty(w, "none (add a <name>.yaml at the top of ~/.munin)")
+		listEmpty(w, "none (add a <name>.yaml at the top of ~/.mino)")
 		return
 	}
 	for _, n := range names {

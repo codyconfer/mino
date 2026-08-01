@@ -19,7 +19,7 @@ func symlinkedHome(t *testing.T) (home, outside string) {
 func TestSeedTargetRejectsSymlinkedParent(t *testing.T) {
 	home, _ := symlinkedHome(t)
 	if abs, err := seedTarget(home, "queries/evil.yaml"); err == nil {
-		t.Fatalf("seedTarget = %q, nil; a symlinked parent escapes the munin home", abs)
+		t.Fatalf("seedTarget = %q, nil; a symlinked parent escapes the mino home", abs)
 	}
 }
 
@@ -29,10 +29,10 @@ func TestWriteSeedsRefusesToEscapeViaSymlink(t *testing.T) {
 
 	written, _, err := writeSeeds(home, seeds, InstallOptions{})
 	if err == nil {
-		t.Errorf("writeSeeds reported success (%v) writing through a symlink out of the munin home", written)
+		t.Errorf("writeSeeds reported success (%v) writing through a symlink out of the mino home", written)
 	}
 	if _, err := os.Stat(filepath.Join(outside, "evil.yaml")); err == nil {
-		t.Fatal("writeSeeds wrote a file outside the munin home through a symlink")
+		t.Fatal("writeSeeds wrote a file outside the mino home through a symlink")
 	}
 }
 
@@ -45,10 +45,10 @@ func TestRemoveSeedsRefusesToEscapeViaSymlink(t *testing.T) {
 	seeds := []FileSeed{{RelPath: "queries/victim.yaml", Content: []byte("mine\n")}}
 
 	if removed, _, err := removeSeeds(home, seeds, true); err == nil {
-		t.Errorf("removeSeeds reported success (%v) deleting outside the munin home", removed)
+		t.Errorf("removeSeeds reported success (%v) deleting outside the mino home", removed)
 	}
 	if _, err := os.Stat(victim); err != nil {
-		t.Fatalf("removeSeeds deleted a file outside the munin home through a symlink: %v", err)
+		t.Fatalf("removeSeeds deleted a file outside the mino home through a symlink: %v", err)
 	}
 }
 

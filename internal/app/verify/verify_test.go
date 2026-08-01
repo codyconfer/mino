@@ -10,9 +10,9 @@ import (
 
 	"github.com/codyconfer/sisyphus/secret"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func directivesFrom(t *testing.T, files map[string]string) *config.Directives {
@@ -376,7 +376,7 @@ func TestSecretBackendMatchesSisyphus(t *testing.T) {
 	}
 	for _, backend := range []string{"bw", "op"} {
 		if f := backendFinding(t, backend); !f.OK {
-			t.Errorf("secret_backend %q must validate; `munin backup` already accepts it", backend)
+			t.Errorf("secret_backend %q must validate; `mino backup` already accepts it", backend)
 		}
 	}
 	f := backendFinding(t, "nope")

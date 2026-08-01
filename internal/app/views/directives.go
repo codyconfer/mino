@@ -6,9 +6,9 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func directiveSplit(s string) []string {
@@ -38,7 +38,7 @@ func directiveFindingLine(f Finding) string {
 func directiveNoFileNote(name string) string {
 	return "no file on disk for " + name + ".\n\n" +
 		"It may exist only in DuckDB (the source of truth); use\n" +
-		"`munin export directives` to write files first."
+		"`mino export directives` to write files first."
 }
 
 func (kit *Kit) directiveMultiDocNote(rel string) string {
@@ -60,7 +60,7 @@ func (kit *Kit) saveDirective(kind config.DirectiveType, rel, name string, doc a
 	if !stored {
 		return "wrote " + path + "\n\n" +
 			"the config store is unavailable, so this file takes effect after\n" +
-			"reconcile: run `munin import directives` or restart munin.", false, nil
+			"reconcile: run `mino import directives` or restart mino.", false, nil
 	}
 	return "wrote " + path + "\nimported the directives collection into DuckDB.", true, nil
 }
@@ -95,7 +95,7 @@ func (kit *Kit) deleteDirective(kind config.DirectiveType, name string) string {
 		return summary + "\n\nthe store still holds it: " + err.Error()
 	case !stored:
 		return summary + "\n\nthe config store is unavailable, so this takes effect after\n" +
-			"reconcile: run `munin import directives` or restart munin."
+			"reconcile: run `mino import directives` or restart mino."
 	}
 	if err := kit.d.App.RefreshDirectives(config.ReconcileIgnore); err != nil {
 		return summary + "\nremoved from DuckDB.\n\nreload failed: " + err.Error()

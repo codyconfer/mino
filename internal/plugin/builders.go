@@ -1,12 +1,15 @@
 package plugin
 
-import pub "github.com/codyconfer/munin/plugin"
+import pub "github.com/codyconfer/mino/plugin"
 
 type BuildContext = pub.BuildContext
 type TokenSource = pub.TokenSource
 type QueryFunc = pub.QueryFunc
 type StreamFunc = pub.StreamFunc
 type Builders = pub.Builders
+type KV = pub.KV
+
+func KVOf(bc BuildContext) KV { return pub.KVOf(bc) }
 
 func RegisterBuilders(signal string, b Builders) { pub.RegisterBuilders(signal, b) }
 

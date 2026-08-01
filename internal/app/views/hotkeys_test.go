@@ -9,13 +9,13 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/role"
-	"github.com/codyconfer/munin/internal/signals"
-	pub "github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/role"
+	"github.com/codyconfer/mino/internal/signals"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 func TestHotkeyOpensNewNoteFromHome(t *testing.T) {

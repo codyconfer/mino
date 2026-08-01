@@ -11,9 +11,9 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/app/suggest"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals/cache"
+	"github.com/codyconfer/mino/internal/app/suggest"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals/cache"
 )
 
 func newCacheCmd() *cobra.Command {
@@ -44,7 +44,7 @@ func newCacheCmd() *cobra.Command {
 			Long: "With no argument every namespace is dropped. With a signal name that signal's\n" +
 				"results go along with the side tables it owns (github also keeps `github:team`\n" +
 				"rosters and `github:detail` entries). Naming one of those namespaces directly\n" +
-				"clears just it; `munin cache stats` lists everything that is clearable.",
+				"clears just it; `mino cache stats` lists everything that is clearable.",
 			Args:              cobra.MaximumNArgs(1),
 			ValidArgsFunction: completeCacheTargets,
 			RunE: func(cmd *cobra.Command, args []string) error {

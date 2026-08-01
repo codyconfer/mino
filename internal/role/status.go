@@ -12,7 +12,7 @@ import (
 	"github.com/codyconfer/sisyphus/lifecycle"
 	"github.com/codyconfer/viewkit/layout"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 const StatusTextMax = 20

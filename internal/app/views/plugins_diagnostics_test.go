@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func TestPluginsPageShowsADiagnosticForAnUnregisteredPlugin(t *testing.T) {

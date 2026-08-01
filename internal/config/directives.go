@@ -17,9 +17,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/format"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/format"
 )
 
 const (
@@ -791,7 +791,7 @@ func unknownFieldHint(name string, keys []string) string {
 		seen[k] = true
 		quoted = append(quoted, "`"+k+"`")
 	}
-	return fmt.Sprintf("delete %s from %s, or correct the spelling: munin ignores keys it does not know, so the line would silently do nothing; a directive takes %s",
+	return fmt.Sprintf("delete %s from %s, or correct the spelling: mino ignores keys it does not know, so the line would silently do nothing; a directive takes %s",
 		strings.Join(quoted, ", "), name, strings.Join(directiveFieldNames(), ", "))
 }
 

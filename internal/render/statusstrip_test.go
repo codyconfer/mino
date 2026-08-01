@@ -11,7 +11,7 @@ import (
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func TestStatusStripLineColorsByTone(t *testing.T) {

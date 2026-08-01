@@ -6,5 +6,5 @@
 *.duckdb.gen
 /dist/
 go.work*
-.munin/
-.munin-*/
+.mino/
+.mino-*/

@@ -1,6 +1,6 @@
 # Opt-in synthetic notify smoke — streams signal:demo toasts every few seconds.
 # Kept separate from flight `demo` (live GitHub URLs). Not the default flight.
-# Run with: munin serve notify-smoke · make serve ARGS=notify-smoke
+# Run with: mino serve notify-smoke · make serve ARGS=notify-smoke
 name: notify-smoke
 type: flight
 queries: [notify-smoke]

@@ -9,9 +9,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func registerFakeGoogle(t *testing.T) {
@@ -71,7 +71,7 @@ func TestContributedProviderIsNotResolvedWhenUnregistered(t *testing.T) {
 	plugin.ResetLoginProviders()
 	t.Cleanup(plugin.ResetLoginProviders)
 	if _, ok := Resolve("google"); ok {
-		t.Error("google resolves without a plugin: stock munin no longer ships the Google signals")
+		t.Error("google resolves without a plugin: stock mino no longer ships the Google signals")
 	}
 }
 

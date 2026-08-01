@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/plugin/ntr"
-	"github.com/codyconfer/munin/internal/signals/active"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin/ntr"
+	"github.com/codyconfer/mino/internal/signals/active"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestScheduledEventsEmitsDueReminder(t *testing.T) {

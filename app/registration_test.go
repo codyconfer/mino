@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 // TestRegistrationIsNotTruncatedByABadContribution is the gap left by

@@ -15,10 +15,10 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/keymap"
-	mnotify "github.com/codyconfer/munin/internal/notify"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/keymap"
+	mnotify "github.com/codyconfer/mino/internal/notify"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (

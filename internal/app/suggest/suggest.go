@@ -5,12 +5,12 @@ import (
 
 	"github.com/codyconfer/viewkit/forms"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/loginflow"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/loginflow"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 func QueryNames(a *app.App) []string {

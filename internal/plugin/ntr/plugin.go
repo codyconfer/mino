@@ -9,14 +9,14 @@ import (
 	"github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (
-	PluginID   = "munin.ntr"
+	PluginID   = "mino.ntr"
 	SignalName = "ntr"
-	GlyphID    = "munin.ntr"
+	GlyphID    = "mino.ntr"
 )
 
 func init() {
@@ -34,9 +34,7 @@ func init() {
 		},
 		Scheduled: func(bc plugin.BuildContext) (plugin.Scheduled, error) {
 			job := ReminderJob{Home: bc.Home(), Role: buildRole(bc)}
-			if src, ok := bc.(interface{ KV() daemon.KV }); ok {
-				job.KV = src.KV()
-			}
+			job.KV = plugin.KVOf(bc)
 			return job, nil
 		},
 	})

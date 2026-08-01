@@ -1,22 +1,22 @@
-# Copy to ~/.munin/config.yaml and edit. Every field is optional; the values
-# shown are munin's built-in defaults (except roles/flights, empty by default).
+# Copy to ~/.mino/config.yaml and edit. Every field is optional; the values
+# shown are mino's built-in defaults (except roles/flights, empty by default).
 
 output: terminal            # terminal | json  (override per-run with --output)
 timeout: 30s                # per-signal fetch timeout (override with --timeout)
 # The UI theme is a GLOBAL setting, not here — put `theme: monokai` in
-# ~/.config/munin/settings.yaml (or set $MUNIN_THEME). See `munin verify config`.
+# ~/.config/mino/settings.yaml (or set $MINO_THEME). See `mino verify config`.
 
 # Signal result cache. Fetched sections are stored in <home>/.data/cache.duckdb
 # and reused until they age past the TTL, so re-running a flight does not re-hit
 # the GitHub, Google, and Slack APIs. Set ttl to "0" to disable entirely.
 # Bypass per-run with --no-cache (read nothing, write nothing) or --refresh
-# (fetch live, then re-warm). Inspect with `munin cache stats`.
-# If a fetch fails and a cached copy is under 24h old, munin serves it and marks
+# (fetch live, then re-warm). Inspect with `mino cache stats`.
+# If a fetch fails and a cached copy is under 24h old, mino serves it and marks
 # the section "(stale <age>)" rather than showing an error.
 cache:
   ttl: 60s
   # How long one item's fetched details (body, checks, reviews, comments) stay
-  # fresh, for `munin show` and the deck's details view. Separate from `ttl`
+  # fresh, for `mino show` and the deck's details view. Separate from `ttl`
   # because details are fetched per item, not per signal. "0" disables.
   # Falls back to `detail_cache_ttl` in settings.yaml, then 5m.
   detail_ttl: 5m
@@ -28,25 +28,25 @@ cache:
 
 # Audit trail: every flight/query run and each applied config is recorded to an
 # embedded DuckDB database (default <home>/audit.duckdb) with timestamps, for
-# recall and workflow metrics — not caching. Recall with `munin history`.
+# recall and workflow metrics — not caching. Recall with `mino history`.
 audit:
   enabled: true
   # path: /custom/path/audit.duckdb
 
-# `munin backup` creates an AES-256-GCM encrypted tar of the DuckDB databases.
+# `mino backup` creates an AES-256-GCM encrypted tar of the DuckDB databases.
 # The key is escrowed in a secret manager: secret_backend "auto" tries Bitwarden
 # (bw), then 1Password (op), then the OS keyring. destination "local" writes to
 # the current directory; any other value names a plugin-contributed destination
 # ("gdrive" comes from the external Drive plugin).
 backup:
   secret_backend: auto      # auto | bitwarden | 1password | keyring
-  secret_name: munin-backup-key
+  secret_name: mino-backup-key
   destination: local        # local, or a plugin destination such as gdrive
   keep: 0                   # retain newest N backups (0 = unlimited)
 
 # Active role. A role names the flights, queries, and filters that appear in
 # lists and the TUI; with no active role, everything is listed. Override
-# per-invocation with --role, or the MUNIN_ROLE env var.
+# per-invocation with --role, or the MINO_ROLE env var.
 role: ""
 
 # TUI hotkeys (global on the deck host). Keys are bubbletea strings; targets are
@@ -66,7 +66,7 @@ keybinds:
 # `contexts:` (tool → name), `hooks:` (enter/exit bash or PowerShell), and
 # `status:` (glyph + command chips) applied on activation; see examples/README.md.
 
-# Long-running daemon defaults (`munin serve`). Command flags override these.
+# Long-running daemon defaults (`mino serve`). Command flags override these.
 daemon:
   interval: 60s     # poll floor for polled (non-websocket) signals
   bell: true        # ring the terminal bell on each notification
@@ -81,18 +81,18 @@ github:
     - "is:open is:pr review-requested:@me"
   max: 30                   # results per query
   # api_url: https://ghe.example.com/api/v3   # GitHub Enterprise REST base
-  # Fallback when the gh CLI is absent: `munin login github` (OAuth device flow).
+  # Fallback when the gh CLI is absent: `mino login github` (OAuth device flow).
   # oauth_client_id: Iv1.xxxxxxxxxxxx
-  # oauth_scopes: "repo read:org"             # scopes requested by `munin login github`
+  # oauth_scopes: "repo read:org"             # scopes requested by `mino login github`
 
 # Plugin settings. Every non-stock signal reads its knobs from this section,
-# namespaced by plugin: `plugins.<namespace>.<key>`. Stock munin ships GitHub and
+# namespaced by plugin: `plugins.<namespace>.<key>`. Stock mino ships GitHub and
 # NTR only; the Google and Slack signals live in external/plugins and are
 # registered by an overlay binary (see external/plugins/README.md).
-# Override any leaf from the environment: MUNIN_PLUGINS_CALENDAR_MAX=20.
+# Override any leaf from the environment: MINO_PLUGINS_CALENDAR_MAX=20.
 # plugins:
 #   google:
-#     # Desktop-app OAuth client; fallback for gcloud ADC (`munin login google`).
+#     # Desktop-app OAuth client; fallback for gcloud ADC (`mino login google`).
 #     oauth_client_id: xxxx.apps.googleusercontent.com
 #     oauth_client_secret: xxxx
 #   calendar:

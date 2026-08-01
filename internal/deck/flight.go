@@ -5,9 +5,9 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type Task struct {

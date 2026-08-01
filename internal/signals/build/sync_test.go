@@ -3,7 +3,7 @@ package build
 import (
 	"testing"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func TestPluginAndBuilderRegistriesAligned(t *testing.T) {

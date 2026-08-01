@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	sauth "github.com/codyconfer/sisyphus/auth"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func runTool(ctx context.Context, bins []string, name string, kind errs.Kind, notInstalledMsg, notInstalledHint, runHint string, args ...string) ([]byte, error) {
@@ -29,19 +30,40 @@ func runTool(ctx context.Context, bins []string, name string, kind errs.Kind, no
 func GH(ctx context.Context, args ...string) ([]byte, error) {
 	return runTool(ctx, []string{"gh"}, "gh", errs.KindAuth,
 		"the GitHub CLI `gh` is not installed or not on PATH",
-		"install gh and run `gh auth login`, or run `munin login github`",
-		"run `gh auth login` or `munin login github` to (re)authenticate",
+		"install gh and run `gh auth login`, or run `mino login github`",
+		"run `gh auth login` or `mino login github` to (re)authenticate",
 		args...)
+}
+
+func GHHostname(apiURL string) string {
+	u, err := url.Parse(strings.TrimSpace(apiURL))
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	host := strings.ToLower(u.Host)
+	if host == "api.github.com" {
+		return "github.com"
+	}
+	return host
+}
+
+func GHHostFlag(apiURL string) []string {
+	host := GHHostname(apiURL)
+	if host == "" {
+		return nil
+	}
+	return []string{"--hostname", host}
 }
 
 func GHAPIGet(ctx context.Context, store TokenStore, apiURL, path string) ([]byte, error) {
 	if GHAvailable() {
-		return GH(ctx, "api", path)
+		args := append([]string{"api"}, GHHostFlag(apiURL)...)
+		return GH(ctx, append(args, path)...)
 	}
 	tok, _ := GitHubToken(store)
 	if tok == "" {
 		return nil, errs.New(errs.KindAuth, "no GitHub authentication available").
-			WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `munin login github`")
+			WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `mino login github`")
 	}
 	base := strings.TrimRight(apiURL, "/")
 	if base == "" {

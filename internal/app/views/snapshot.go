@@ -12,9 +12,9 @@ import (
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/app/pane"
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/render"
+	"github.com/codyconfer/mino/internal/app/pane"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/render"
 )
 
 const (
@@ -157,7 +157,7 @@ func (v *SnapshotView) render(width int) string {
 		if len(v.snap.Sections) == 0 {
 			return th.Dim.Render("no results in snapshot")
 		}
-		return render.RenderTerminalStringTitled(v.snap.Title, v.snap.Sections)
+		return render.RenderTerminalString(v.snap.Sections)
 	}
 }
 

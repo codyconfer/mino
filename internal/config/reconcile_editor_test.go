@@ -46,27 +46,27 @@ func TestEditorArgvKeepsWindowsPathsIntact(t *testing.T) {
 	}{
 		{
 			ed:       "notepad",
-			path:     `C:\Users\x\.munin\config.yaml`,
+			path:     `C:\Users\x\.mino\config.yaml`,
 			wantName: "notepad",
-			wantArgs: []string{`C:\Users\x\.munin\config.yaml`},
+			wantArgs: []string{`C:\Users\x\.mino\config.yaml`},
 		},
 		{
 			ed:       "code --wait",
-			path:     `C:\Users\x\.munin\config.yaml`,
+			path:     `C:\Users\x\.mino\config.yaml`,
 			wantName: "code",
-			wantArgs: []string{"--wait", `C:\Users\x\.munin\config.yaml`},
+			wantArgs: []string{"--wait", `C:\Users\x\.mino\config.yaml`},
 		},
 		{
 			ed:       `"C:\Program Files\Vim\vim.exe" --nofork`,
-			path:     `C:\Users\x\.munin\config.yaml`,
+			path:     `C:\Users\x\.mino\config.yaml`,
 			wantName: `C:\Program Files\Vim\vim.exe`,
-			wantArgs: []string{"--nofork", `C:\Users\x\.munin\config.yaml`},
+			wantArgs: []string{"--nofork", `C:\Users\x\.mino\config.yaml`},
 		},
 		{
 			ed:       "  vim  ",
-			path:     "/home/x/.munin/config.yaml",
+			path:     "/home/x/.mino/config.yaml",
 			wantName: "vim",
-			wantArgs: []string{"/home/x/.munin/config.yaml"},
+			wantArgs: []string{"/home/x/.mino/config.yaml"},
 		},
 	}
 	for _, c := range cases {

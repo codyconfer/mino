@@ -1,4 +1,4 @@
-module github.com/codyconfer/munin/tools
+module github.com/codyconfer/mino/tools
 
 go 1.26.5
 

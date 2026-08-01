@@ -8,11 +8,11 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func storeKit(t *testing.T) *Kit {

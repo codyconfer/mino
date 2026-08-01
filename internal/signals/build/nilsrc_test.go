@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/signals/build"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/signals/build"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type nilStream struct{}

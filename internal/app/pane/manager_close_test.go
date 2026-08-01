@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/tmux"
+	"github.com/codyconfer/mino/internal/tmux"
 )
 
 type tmuxStub struct {

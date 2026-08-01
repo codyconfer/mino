@@ -3,7 +3,7 @@ package github
 import (
 	"testing"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func testItem(mutate func(*projectItem)) projectItem {

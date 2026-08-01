@@ -3,10 +3,10 @@ package docs
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/external/plugins/internal/googleauth"
-	"github.com/codyconfer/munin/external/plugins/internal/params"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/external/plugins/internal/googleauth"
+	"github.com/codyconfer/mino/external/plugins/internal/params"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const (
@@ -16,10 +16,12 @@ const (
 
 func Register() {
 	plugin.RegisterSignal(plugin.Descriptor{
-		ID:           PluginID,
-		Kind:         plugin.KindSignal,
-		Signal:       SignalName,
-		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapCacheable},
+		ID:                 PluginID,
+		Kind:               plugin.KindSignal,
+		Signal:             SignalName,
+		Capabilities:       []plugin.Capability{plugin.CapQuery, plugin.CapCacheable},
+		Credentials:        []string{"google"},
+		SettingsNamespaces: []string{SignalName, "google"},
 	}, plugin.Builders{
 		Query: BuildQuery,
 	})

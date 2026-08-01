@@ -5,26 +5,26 @@ import (
 
 	"github.com/codyconfer/viewkit/keys"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/config"
 )
 
-const DefaultSchemeKey = "munin"
+const DefaultSchemeKey = "mino"
 
 const (
-	Save            keys.Action = "munin.save"
-	Run             keys.Action = "munin.run"
-	Delete          keys.Action = "munin.delete"
-	Validate        keys.Action = "munin.validate"
-	Preview         keys.Action = "munin.preview"
-	Focus           keys.Action = "munin.focus"
-	Copy            keys.Action = "munin.copy"
-	Write           keys.Action = "munin.write"
-	PluginInstall   keys.Action = "munin.plugin.install"
-	PluginUninstall keys.Action = "munin.plugin.uninstall"
-	Toggle          keys.Action = "munin.toggle"
+	Save            keys.Action = "mino.save"
+	Run             keys.Action = "mino.run"
+	Delete          keys.Action = "mino.delete"
+	Validate        keys.Action = "mino.validate"
+	Preview         keys.Action = "mino.preview"
+	Focus           keys.Action = "mino.focus"
+	Copy            keys.Action = "mino.copy"
+	Write           keys.Action = "mino.write"
+	PluginInstall   keys.Action = "mino.plugin.install"
+	PluginUninstall keys.Action = "mino.plugin.uninstall"
+	Toggle          keys.Action = "mino.toggle"
 )
 
-func muninBindings() []keys.Binding {
+func minoBindings() []keys.Binding {
 	return []keys.Binding{
 		{Keys: []string{"ctrl+r"}, Action: Run, Glyph: "ctrl+r", Label: "run"},
 		{Keys: []string{"ctrl+x"}, Action: Delete, Glyph: "ctrl+x", Label: "delete"},
@@ -44,7 +44,7 @@ func binding(a keys.Action) keys.Binding {
 	if b := keys.Cur().Binding(a); len(b.Keys) > 0 {
 		return b
 	}
-	for _, b := range muninBindings() {
+	for _, b := range minoBindings() {
 		if b.Action == a {
 			return b
 		}
@@ -74,21 +74,21 @@ func BuilderBindings() []keys.Binding {
 	}
 }
 
-func muninScheme() keys.Scheme {
-	return keys.Default().With(append(muninBindings(),
+func minoScheme() keys.Scheme {
+	return keys.Default().With(append(minoBindings(),
 		keys.Binding{Keys: []string{"esc", "q"}, Action: keys.Cancel, Glyph: "esc", Label: "back"},
 		keys.Binding{Keys: []string{"ctrl+c"}, Action: keys.Quit, Glyph: "ctrl+c", Label: "quit"},
 	)...)
 }
 
 func Register() {
-	keys.Register(DefaultSchemeKey, "Munin", muninScheme())
+	keys.Register(DefaultSchemeKey, "Mino", minoScheme())
 }
 
 func Install() {
 	Register()
-	keys.Use(muninScheme())
-	key := os.Getenv("MUNIN_KEYS")
+	keys.Use(minoScheme())
+	key := os.Getenv("MINO_KEYS")
 	if key == "" {
 		key = config.LoadGlobalSettings().Keys
 	}

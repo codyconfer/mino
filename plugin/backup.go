@@ -70,6 +70,16 @@ func LookupBackupDestination(name string) (BackupDestinationFunc, bool) {
 	return entry.open, true
 }
 
+func BackupDestinationOwner(name string) (string, bool) {
+	backupMu.RLock()
+	defer backupMu.RUnlock()
+	entry, ok := backupByName[name]
+	if !ok {
+		return "", false
+	}
+	return entry.pluginID, true
+}
+
 func BackupDestinations() []string {
 	backupMu.RLock()
 	out := make([]string, 0, len(backupByName))

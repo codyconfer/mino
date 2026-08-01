@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/codyconfer/munin/external/plugins/internal/httpx"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/internal/httpx"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestUserTokenPrecedence(t *testing.T) {

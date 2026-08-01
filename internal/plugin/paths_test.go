@@ -7,9 +7,9 @@ import (
 
 	"github.com/codyconfer/sisyphus/store"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/plugin/ntr"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin/ntr"
 )
 
 func TestDataPathsJoinsOpenBackupPaths(t *testing.T) {

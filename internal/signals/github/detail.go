@@ -11,12 +11,12 @@ import (
 	"github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/timefmt"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
-const detailScopeHint = "the repo scope is required; run `gh auth refresh -s repo` or re-run `munin login github`"
+const detailScopeHint = "the repo scope is required; run `gh auth refresh -s repo` or re-run `mino login github`"
 
 const (
 	detailCacheNS   = "github:detail"
@@ -38,12 +38,20 @@ func (p CachePolicy) writes() bool { return p.Write && p.TTL > 0 }
 type signalOpts struct {
 	detail Cache
 	policy CachePolicy
+	title  string
 }
 
 type Option func(*signalOpts)
 
 func WithDetailCache(c Cache, pol CachePolicy) Option {
 	return func(o *signalOpts) { o.detail, o.policy = c, pol }
+}
+
+// WithTitle names the section of a signal built from a single configured query,
+// the way ProjectSpec.Title does for a project board. Signals running several
+// queries keep their own per-query titles, since one name cannot cover them all.
+func WithTitle(title string) Option {
+	return func(o *signalOpts) { o.title = title }
 }
 
 func applyOptions(opts []Option) signalOpts {

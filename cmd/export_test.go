@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func TestValidateDirectiveArg(t *testing.T) {

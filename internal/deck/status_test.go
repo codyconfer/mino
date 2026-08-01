@@ -11,11 +11,11 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/role"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/role"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestPluginServicesAppearInStatusStrip(t *testing.T) {
@@ -129,15 +129,15 @@ func TestAdaptStatusUsesToolLogos(t *testing.T) {
 
 func TestAdaptStatusHidesConfiguredEntries(t *testing.T) {
 	testenv.Isolate(t)
-	if err := config.SetHiddenStatusBar([]string{"slack", "munin.hide.test"}); err != nil {
+	if err := config.SetHiddenStatusBar([]string{"slack", "mino.hide.test"}); err != nil {
 		t.Fatalf("SetHiddenStatusBar: %v", err)
 	}
 
 	info := StatusInfo{Services: []ServiceStatus{
 		{Name: "github", Level: StatusOK},
 		{Name: "slack", Level: StatusOK},
-		{ID: "munin.hide.test", Name: "SECRET-LOGO", Level: StatusOK, Glyph: "G"},
-		{ID: "munin.show.test", Name: "notes", Level: StatusOK, Glyph: "N"},
+		{ID: "mino.hide.test", Name: "SECRET-LOGO", Level: StatusOK, Glyph: "G"},
+		{ID: "mino.show.test", Name: "notes", Level: StatusOK, Glyph: "N"},
 	}}
 	got := adaptStatus(info)
 	if len(got.Services) != 2 {

@@ -10,13 +10,13 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/suggest"
-	"github.com/codyconfer/munin/internal/app/verify"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/suggest"
+	"github.com/codyconfer/mino/internal/app/verify"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func (kit *Kit) rolesCtx() [][2]string {

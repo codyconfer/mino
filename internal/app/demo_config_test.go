@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
@@ -44,7 +44,7 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 		t.Fatalf("demo-reviews query = %q", got["queries/demo-reviews.yaml"])
 	}
 	if _, ok := got["queries/notify-smoke.yaml"]; ok {
-		t.Fatalf("notify-smoke seeds the synthetic demo signal, which stock munin no longer registers: %q",
+		t.Fatalf("notify-smoke seeds the synthetic demo signal, which stock mino no longer registers: %q",
 			got["queries/notify-smoke.yaml"])
 	}
 	if !strings.Contains(got["flights/demo.yaml"], "demo-reviews") {
@@ -113,12 +113,12 @@ func TestDemoSeedsWireGitHubFilterAndRole(t *testing.T) {
 	items := filter.ApplyAll(compiled, []signals.Item{
 		{
 			Kind: "pr", Title: "Fix flaky test",
-			URL:  "https://github.com/octo/munin/pull/7",
+			URL:  "https://github.com/octo/mino/pull/7",
 			Meta: map[string]string{"author": "alice"},
 		},
 		{
 			Kind: "pr", Title: "CI green",
-			URL:  "https://github.com/octo/munin/pull/8",
+			URL:  "https://github.com/octo/mino/pull/8",
 			Meta: map[string]string{"author": "deploy-bot"},
 		},
 	})

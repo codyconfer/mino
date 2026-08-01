@@ -13,8 +13,8 @@ import (
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/layout"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const benchFrameWidth = 80

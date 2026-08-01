@@ -8,10 +8,10 @@ import (
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 	"github.com/codyconfer/sisyphus/daemon/ui"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/internal/app/serve"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/render/icons"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/internal/app/serve"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/render/icons"
 )
 
 func watch(ctx context.Context, opt options) error {
@@ -41,8 +41,8 @@ func runTray(parent context.Context, opt options) error {
 	}
 	var tray *ui.Tray
 	tray = ui.NewTray(ui.TrayConfig{
-		Title:   "munin",
-		Tooltip: "munin",
+		Title:   "mino",
+		Tooltip: "mino",
 		Icons:   stateIcons,
 		OnQuit:  cancel,
 		OnReady: func() {

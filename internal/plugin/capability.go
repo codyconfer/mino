@@ -1,7 +1,7 @@
 package plugin
 
 import (
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 type Kind = pub.Kind

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 const viewerAlias = "@me"

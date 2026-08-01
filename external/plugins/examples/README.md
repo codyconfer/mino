@@ -1,6 +1,6 @@
 # Overlay example directives
 
-Directives for the signals in this module. Copy into `~/.munin` (queries into
+Directives for the signals in this module. Copy into `~/.mino` (queries into
 `queries/`, flights into `flights/`) when running the overlay binary.
 
 | File | Signal |

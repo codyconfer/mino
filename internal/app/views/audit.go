@@ -15,8 +15,8 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/keymap"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/keymap"
 )
 
 var auditvDBs = []string{"audit", "config", "tokens"}

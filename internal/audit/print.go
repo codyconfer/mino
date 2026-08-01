@@ -5,8 +5,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func PrintRecent(w io.Writer, s *Store, limit int) error {

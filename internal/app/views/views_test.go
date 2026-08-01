@@ -13,15 +13,15 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/forms"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/testenv"
-	pub "github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/testenv"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 func testKit(t *testing.T) *Kit {

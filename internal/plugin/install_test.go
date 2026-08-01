@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestInstallEnablesAndWritesSeeds(t *testing.T) {
@@ -284,14 +284,14 @@ func TestInstallSeedCannotEscapeHome(t *testing.T) {
 	}
 	got, err := os.ReadFile(victim)
 	if err != nil {
-		t.Fatalf("file outside the munin home was removed/renamed: %v", err)
+		t.Fatalf("file outside the mino home was removed/renamed: %v", err)
 	}
 	if string(got) != escapeVictimData {
-		t.Fatalf("install clobbered a file outside the munin home: %q", got)
+		t.Fatalf("install clobbered a file outside the mino home: %q", got)
 	}
 	outsideTree := filepath.Join(home, "..", "..", ".config")
 	if _, err := os.Stat(outsideTree); !os.IsNotExist(err) {
-		t.Fatalf("install created %s outside the munin home: %v", outsideTree, err)
+		t.Fatalf("install created %s outside the mino home: %v", outsideTree, err)
 	}
 }
 
@@ -317,7 +317,7 @@ func TestUninstallSeedRemoveCannotEscapeHome(t *testing.T) {
 		}
 	}
 	if _, err := os.Stat(victim); err != nil {
-		t.Fatalf("uninstall removed a file outside the munin home: %v", err)
+		t.Fatalf("uninstall removed a file outside the mino home: %v", err)
 	}
 }
 
@@ -381,12 +381,12 @@ func TestInstallUnknownPlugin(t *testing.T) {
 
 func TestInternalPluginsAlwaysInstalled(t *testing.T) {
 	testenv.Isolate(t)
-	id := "munin.demo"
+	id := "mino.demo"
 	if _, ok := Lookup(id); !ok {
 		RegisterBuiltins()
 	}
 	if _, ok := Lookup(id); !ok {
-		t.Skip("munin.demo not registered")
+		t.Skip("mino.demo not registered")
 	}
 	LoadEnabled()
 	if !Installed(id) {

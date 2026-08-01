@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 // typedNilQuery models the most common way Go produces a non-nil interface

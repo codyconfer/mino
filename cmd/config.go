@@ -3,17 +3,17 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func newConfigCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "config",
 		Short: "Show the active config (from the DuckDB config store) and its history",
-		Long: "munin's config is stored in DuckDB: on startup the config file is hashed\n" +
+		Long: "mino's config is stored in DuckDB: on startup the config file is hashed\n" +
 			"and, when changed, imported as the new current (the prior version archived).\n" +
-			"`munin config` prints the active config; `config history` lists prior versions.",
+			"`mino config` prints the active config; `config history` lists prior versions.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if shared.Mgr == nil {

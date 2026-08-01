@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestInstallAfterNukeDefaultsToStockHome(t *testing.T) {
 	userHome := testenv.Isolate(t).Home
 
-	custom := filepath.Join(userHome, "custom-munin")
+	custom := filepath.Join(userHome, "custom-mino")
 	if err := config.SaveGlobalSettings(config.GlobalSettings{Home: custom}); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestInstallAfterNukeDefaultsToStockHome(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want != filepath.Join(userHome, config.HomeDirName) {
-		t.Fatalf("DefaultHome = %q, want ~/.munin under test HOME", want)
+		t.Fatalf("DefaultHome = %q, want ~/.mino under test HOME", want)
 	}
 	if _, err := os.Stat(filepath.Join(want, "config.yaml")); err != nil {
 		t.Fatalf("install after nuke should create %s/config.yaml: %v", want, err)

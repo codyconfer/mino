@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func TestCheckPollIntervalRejectsBelowTheFloor(t *testing.T) {
@@ -19,6 +19,22 @@ func TestCheckPollIntervalRejectsBelowTheFloor(t *testing.T) {
 			t.Errorf("CheckPollInterval(%s) kind = %v, want %v so the CLI prints usage rather than a stack",
 				d, errs.KindOf(err), errs.KindUsage)
 		}
+	}
+}
+
+func TestPollIntervalFloorHintMentionsGitHubFloor(t *testing.T) {
+	want := "polling faster than " + MinPollInterval.String() +
+		" burns provider rate limits; GitHub's own X-Poll-Interval floor is 60s"
+	if got := errs.Hint(CheckPollInterval("probe", 100*time.Millisecond)); got != want {
+		t.Errorf("CheckPollInterval hint = %q, want %q", got, want)
+	}
+	_, err := ParsePollInterval("probe", "100ms")
+	if got := errs.Hint(err); got != want {
+		t.Errorf("ParsePollInterval below-floor hint = %q, want %q", got, want)
+	}
+	_, err = ParsePollInterval("probe", "1minute")
+	if got, wantParse := errs.Hint(err), "use a Go duration such as 30s, 2m, or 1h"; got != wantParse {
+		t.Errorf("ParsePollInterval malformed hint = %q, want %q", got, wantParse)
 	}
 }
 

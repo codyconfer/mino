@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestDuplicateSignalRefSkipsContributionAndKeepsRegistryUsable(t *testing.T) {

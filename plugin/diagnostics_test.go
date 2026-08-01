@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func findDiagnostic(t *testing.T, pluginID string, substrings ...string) plugin.Diagnostic {

@@ -13,9 +13,9 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
 
-	"github.com/codyconfer/munin/external/plugins/internal/errx"
-	"github.com/codyconfer/munin/external/plugins/internal/httpx"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/external/plugins/internal/httpx"
+	"github.com/codyconfer/mino/plugin"
 )
 
 var LoginScopes = []string{
@@ -74,7 +74,11 @@ func adcOption(ctx context.Context, scopes []string) (option.ClientOption, error
 	if err != nil {
 		return nil, adcHelp(scopes, fmt.Sprintf("could not obtain a token from ADC (%v)", err))
 	}
-	if missing := missingScopes(ctx, tok.AccessToken, scopes); len(missing) > 0 {
+	missing, err := missingScopes(ctx, tok.AccessToken, scopes)
+	if err != nil {
+		return nil, adcHelp(scopes, fmt.Sprintf("could not verify the scopes on your ADC token (%v)", err))
+	}
+	if len(missing) > 0 {
 		return nil, adcHelp(scopes, fmt.Sprintf("your credentials are missing required scopes: %s", strings.Join(missing, ", ")))
 	}
 	return option.WithTokenSource(creds.TokenSource), nil
@@ -131,7 +135,7 @@ func conf(ga Auth, scopes []string) *oauth2.Config {
 func Login(ctx context.Context, ga Auth, w io.Writer) error {
 	if ga.ClientID == "" || ga.ClientSecret == "" {
 		return errx.New("missing Google OAuth desktop-app client credentials").
-			WithHint("set `plugins.google.oauth_client_id` and `plugins.google.oauth_client_secret` in config to use `munin login google`")
+			WithHint("set `plugins.google.oauth_client_id` and `plugins.google.oauth_client_secret` in config to use `mino login google`")
 	}
 	conf := conf(ga, LoginScopes)
 	verifier := oauth2.GenerateVerifier()
@@ -146,7 +150,7 @@ func Login(ctx context.Context, ga Auth, w io.Writer) error {
 	tok, err := conf.Exchange(oauthCtx(ctx), code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return errx.Wrap(err, "exchanging authorization code").
-			WithHint("run `munin login google` again")
+			WithHint("run `mino login google` again")
 	}
 	return cacheToken(ga.Store, tok)
 }
@@ -177,17 +181,17 @@ var grantedScopes struct {
 	m  map[string]map[string]bool
 }
 
-func tokenScopes(ctx context.Context, accessToken string) map[string]bool {
+func tokenScopes(ctx context.Context, accessToken string) (map[string]bool, error) {
 	grantedScopes.mu.Lock()
 	if granted, ok := grantedScopes.m[accessToken]; ok {
 		grantedScopes.mu.Unlock()
-		return granted
+		return granted, nil
 	}
 	grantedScopes.mu.Unlock()
 
-	granted := fetchTokenScopes(ctx, accessToken)
-	if granted == nil {
-		return nil
+	granted, err := fetchTokenScopes(ctx, accessToken)
+	if err != nil {
+		return nil, err
 	}
 
 	grantedScopes.mu.Lock()
@@ -196,13 +200,13 @@ func tokenScopes(ctx context.Context, accessToken string) map[string]bool {
 		grantedScopes.m = map[string]map[string]bool{}
 	}
 	grantedScopes.m[accessToken] = granted
-	return granted
+	return granted, nil
 }
 
-func missingScopes(ctx context.Context, accessToken string, required []string) []string {
-	granted := tokenScopes(ctx, accessToken)
-	if granted == nil {
-		return nil
+func missingScopes(ctx context.Context, accessToken string, required []string) ([]string, error) {
+	granted, err := tokenScopes(ctx, accessToken)
+	if err != nil {
+		return nil, err
 	}
 	var missing []string
 	for _, s := range required {
@@ -211,46 +215,46 @@ func missingScopes(ctx context.Context, accessToken string, required []string) [
 		}
 		missing = append(missing, s)
 	}
-	return missing
+	return missing, nil
 }
 
 var tokenInfoURL = "https://oauth2.googleapis.com/tokeninfo"
 
-func fetchTokenScopes(ctx context.Context, accessToken string) map[string]bool {
+func fetchTokenScopes(ctx context.Context, accessToken string) (map[string]bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tokenInfoURL, nil)
 	if err != nil {
-		return nil
+		return nil, errx.Wrap(err, "google tokeninfo: building request")
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	resp, err := httpx.Client().Do(req)
 	if err != nil {
-		return nil
+		return nil, errx.Wrap(err, "google tokeninfo: request failed")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil
+		return nil, errx.Newf("google tokeninfo: %s: %s", resp.Status, httpx.ErrorExcerpt(resp.Body))
 	}
 	body, err := httpx.ReadBounded(resp, "google tokeninfo", httpx.MaxTokenResponseBytes)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var info struct {
 		Scope string `json:"scope"`
 	}
 	if err := json.Unmarshal(body, &info); err != nil {
-		return nil
+		return nil, errx.Wrap(err, "google tokeninfo: decoding response")
 	}
 	granted := map[string]bool{}
 	for _, s := range strings.Fields(info.Scope) {
 		granted[s] = true
 	}
-	return granted
+	return granted, nil
 }
 
 func adcHelp(scopes []string, reason string) error {
 	return errx.New(reason).WithHint(
 		"authorize Google access with either:\n"+
-			"  gcloud auth application-default login \\\n    --scopes=%s\nor:\n  munin login google",
+			"  gcloud auth application-default login \\\n    --scopes=%s\nor:\n  mino login google",
 		strings.Join(scopes, ","))
 }
 
@@ -280,7 +284,7 @@ func FromHost(h plugin.Host) Auth {
 func FromBuildContext(bc plugin.BuildContext) (Auth, error) {
 	h, ok := plugin.HostOf(bc)
 	if !ok {
-		return Auth{}, errx.New("google signals require a munin host build context")
+		return Auth{}, errx.New("google signals require a mino host build context")
 	}
 	return FromHost(h), nil
 }

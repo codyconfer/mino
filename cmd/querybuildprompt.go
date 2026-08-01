@@ -10,10 +10,10 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/app/qform"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/app/qform"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 func (f *queryBuildFlags) prompt() error {

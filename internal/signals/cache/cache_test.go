@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (
@@ -21,11 +21,11 @@ const (
 
 func init() {
 	plugin.Register(plugin.Descriptor{
-		ID: "munin.cachetest", Kind: plugin.KindSignal, Signal: cacheableSignal,
+		ID: "mino.cachetest", Kind: plugin.KindSignal, Signal: cacheableSignal,
 		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapCacheable},
 	})
 	plugin.Register(plugin.Descriptor{
-		ID: "munin.cachetestlocal", Kind: plugin.KindSignal, Signal: localSignal,
+		ID: "mino.cachetestlocal", Kind: plugin.KindSignal, Signal: localSignal,
 		Capabilities: []plugin.Capability{plugin.CapQuery},
 	})
 }

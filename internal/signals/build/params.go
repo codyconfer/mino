@@ -3,7 +3,7 @@ package build
 import (
 	"sort"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 type ParamSpec = plugin.ParamSpec
@@ -40,8 +40,8 @@ func ParamSignals() []string { return plugin.ParamSignals() }
 
 func QueryableSignals() []string {
 	var out []string
-	for name, ok := range BuilderSignals() {
-		if ok {
+	for name := range BuilderSignals() {
+		if HasBuilder(name) {
 			out = append(out, name)
 		}
 	}

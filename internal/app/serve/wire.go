@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (

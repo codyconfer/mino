@@ -5,10 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func isolateSettings(t *testing.T) {

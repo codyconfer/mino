@@ -6,14 +6,14 @@ import (
 
 	"github.com/codyconfer/sisyphus/sealed"
 
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 const (
 	namespace      = "tokens"
-	keyringService = "munin"
-	keyName        = "munin-token-key"
+	keyringService = "mino"
+	keyName        = "mino-token-key"
 )
 
 var errUnavailable = errs.New(errs.KindStore, "token store unavailable")
@@ -63,7 +63,10 @@ func (s *Store) Get(ctx context.Context, service string) (auth.Credential, bool,
 	if err != nil {
 		if errors.Is(err, sealed.ErrUndecodable) {
 			return auth.Credential{}, false, errs.Wrapf(errs.KindAuth, err, "read %s token", service).
-				WithHint("the token store cannot be decrypted with the current key: delete tokens.duckdb in the munin data directory and run `munin login %s` again", service)
+				WithHint("the token store cannot be decrypted with the current key: delete tokens.duckdb in the mino data directory and run `mino login %s` again", service)
+		}
+		if errors.Is(err, sealed.ErrUnavailable) {
+			return auth.Credential{}, false, errUnavailable
 		}
 		return auth.Credential{}, ok, errs.Wrap(errs.KindStore, err, "read token")
 	}

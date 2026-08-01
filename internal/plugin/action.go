@@ -3,7 +3,7 @@ package plugin
 import (
 	"context"
 
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 type ActionFunc = pub.ActionFunc

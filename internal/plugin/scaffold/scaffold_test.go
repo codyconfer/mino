@@ -6,7 +6,7 @@ import (
 
 	"github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func TestScaffoldRegister(t *testing.T) {

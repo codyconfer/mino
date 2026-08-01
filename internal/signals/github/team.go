@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 const (
-	orgScopeHint    = "the read:org scope is required; run `gh auth refresh -s read:org` or re-run `munin login github`"
+	orgScopeHint    = "the read:org scope is required; run `gh auth refresh -s read:org` or re-run `mino login github`"
 	teamCacheNS     = "github:team"
 	teamCacheTTL    = 24 * time.Hour
 	teamMemberPages = 20

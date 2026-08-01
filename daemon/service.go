@@ -8,12 +8,12 @@ import (
 
 	"github.com/codyconfer/sisyphus/daemon/service"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/internal/app/serve"
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/internal/app/serve"
+	"github.com/codyconfer/mino/internal/config"
 )
 
-const daemonName = "munin"
+const daemonName = "mino"
 
 type options struct {
 	Flight   string
@@ -45,8 +45,8 @@ func daemonService(flight string, userService bool) (*service.Service, error) {
 func newService(opt options, userService bool) (*service.Service, error) {
 	return service.New(service.Config{
 		Name:        daemonName,
-		DisplayName: "munin",
-		Description: "munin realtime signal watcher",
+		DisplayName: "mino",
+		Description: "mino realtime signal watcher",
 		Arguments:   RunArgs(opt.Flight, opt.Interval, opt.Bell, opt.Desktop, opt.Theme),
 		UserService: userService,
 	}, func(ctx context.Context) error {

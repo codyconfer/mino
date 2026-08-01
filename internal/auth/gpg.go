@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func GPG(ctx context.Context, args ...string) ([]byte, error) {

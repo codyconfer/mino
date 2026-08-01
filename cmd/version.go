@@ -5,17 +5,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 var Version = "dev"
 
-const annoSkipAppLoad = "munin_skip_app_load"
+const annoSkipAppLoad = "mino_skip_app_load"
 
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the munin version",
+		Short: "Print the mino version",
 		Args:  cobra.NoArgs,
 		Annotations: map[string]string{
 			annoSkipOnboarding: "true",
@@ -29,7 +29,7 @@ func newVersionCmd() *cobra.Command {
 }
 
 func versionLine() string {
-	return fmt.Sprintf("%s MUNIN %s", glyph.Brand(), Version)
+	return fmt.Sprintf("%s MINO %s", glyph.Brand(), Version)
 }
 
 func skipsAppLoad(cmd *cobra.Command) bool {

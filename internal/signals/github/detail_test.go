@@ -9,8 +9,8 @@ import (
 
 	"github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestParseRef(t *testing.T) {

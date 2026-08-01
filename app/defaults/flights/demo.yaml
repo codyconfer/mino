@@ -1,7 +1,3 @@
-# Opt-in GitHub showcase flight — live search items with github.com URLs.
-# Not the default: make run / bare munin serve use flights/default.yaml instead.
-# Run with: munin fly demo · munin serve demo · munin deck demo · make run ARGS=demo
-# Synthetic toast spam: flight `notify-smoke`.
 name: demo
 type: flight
 queries: [demo, demo-reviews]

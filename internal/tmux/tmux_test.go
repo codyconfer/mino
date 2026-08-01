@@ -14,8 +14,8 @@ func TestSplitArgs(t *testing.T) {
 	}{
 		{
 			name: "vertical default",
-			opts: SplitOpts{Argv: []string{"munin", "pane", "inbox"}},
-			want: []string{"split-window", "-d", "-P", "-F", "#{pane_id}", "-v", "--", "munin", "pane", "inbox"},
+			opts: SplitOpts{Argv: []string{"mino", "pane", "inbox"}},
+			want: []string{"split-window", "-d", "-P", "-F", "#{pane_id}", "-v", "--", "mino", "pane", "inbox"},
 		},
 		{
 			name: "horizontal with target and absolute size",
@@ -24,17 +24,17 @@ func TestSplitArgs(t *testing.T) {
 		},
 		{
 			name:    "env via -e flag",
-			opts:    SplitOpts{Env: []string{"MUNIN_PANE_OWNER=42"}, Argv: []string{"munin", "pane", "view", "/tmp/a.json"}},
+			opts:    SplitOpts{Env: []string{"MINO_PANE_OWNER=42"}, Argv: []string{"mino", "pane", "view", "/tmp/a.json"}},
 			envFlag: true,
 			want: []string{"split-window", "-d", "-P", "-F", "#{pane_id}", "-v",
-				"-e", "MUNIN_PANE_OWNER=42", "--", "munin", "pane", "view", "/tmp/a.json"},
+				"-e", "MINO_PANE_OWNER=42", "--", "mino", "pane", "view", "/tmp/a.json"},
 		},
 		{
 			name:    "env falls back to env prefix",
-			opts:    SplitOpts{Env: []string{"MUNIN_PANE_OWNER=42"}, Argv: []string{"munin", "pane", "view", "/tmp/a.json"}},
+			opts:    SplitOpts{Env: []string{"MINO_PANE_OWNER=42"}, Argv: []string{"mino", "pane", "view", "/tmp/a.json"}},
 			envFlag: false,
 			want: []string{"split-window", "-d", "-P", "-F", "#{pane_id}", "-v",
-				"--", "env", "MUNIN_PANE_OWNER=42", "munin", "pane", "view", "/tmp/a.json"},
+				"--", "env", "MINO_PANE_OWNER=42", "mino", "pane", "view", "/tmp/a.json"},
 		},
 	}
 	for _, tt := range tests {
@@ -49,10 +49,10 @@ func TestSplitArgs(t *testing.T) {
 
 func TestSplitArgsDoesNotAliasArgv(t *testing.T) {
 	argv := make([]string, 3, 8)
-	copy(argv, []string{"munin", "pane", "inbox"})
+	copy(argv, []string{"mino", "pane", "inbox"})
 	o := SplitOpts{Env: []string{"K=V"}, Argv: argv}
 	SplitArgs(o, false)
-	if !slices.Equal(argv, []string{"munin", "pane", "inbox"}) {
+	if !slices.Equal(argv, []string{"mino", "pane", "inbox"}) {
 		t.Fatalf("SplitArgs mutated caller argv: %q", argv)
 	}
 }

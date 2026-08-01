@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/plugin"
-	_ "github.com/codyconfer/munin/internal/plugin/ntr"
-	_ "github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/plugin"
+	_ "github.com/codyconfer/mino/internal/plugin/ntr"
+	_ "github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 type contextProbe struct{}

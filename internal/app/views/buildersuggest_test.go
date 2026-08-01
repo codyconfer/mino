@@ -10,7 +10,7 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/deck"
+	"github.com/codyconfer/mino/internal/deck"
 )
 
 func (v *builderView) focus(t *testing.T, key string) {

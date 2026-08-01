@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 const namespacePrefix = "signal:"

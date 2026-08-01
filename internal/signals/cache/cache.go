@@ -10,11 +10,11 @@ import (
 
 	"github.com/codyconfer/sisyphus/kv"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const staleGrace = 24 * time.Hour
@@ -274,7 +274,7 @@ func (s *Store) Put(ctx context.Context, namespace, key, value string, expiry ti
 }
 
 var errUnavailable = errs.New(errs.KindStore, "cache store unavailable").
-	WithHint("another munin process may hold the lock on .data/cache.duckdb")
+	WithHint("another mino process may hold the lock on .data/cache.duckdb")
 
 type Stat struct {
 	Namespace string

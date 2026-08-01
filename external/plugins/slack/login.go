@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/codyconfer/munin/external/plugins/internal/slackauth"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/internal/slackauth"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func login(ctx context.Context, h plugin.Host, creds map[string]string, w io.Writer) error {

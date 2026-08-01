@@ -1,15 +1,15 @@
 package plugins
 
 import (
-	"github.com/codyconfer/munin/external/plugins/calendar"
-	"github.com/codyconfer/munin/external/plugins/demo"
-	"github.com/codyconfer/munin/external/plugins/docs"
-	"github.com/codyconfer/munin/external/plugins/drive"
-	"github.com/codyconfer/munin/external/plugins/gmail"
-	"github.com/codyconfer/munin/external/plugins/google"
-	"github.com/codyconfer/munin/external/plugins/slack"
-	"github.com/codyconfer/munin/external/plugins/tasks"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/calendar"
+	"github.com/codyconfer/mino/external/plugins/demo"
+	"github.com/codyconfer/mino/external/plugins/docs"
+	"github.com/codyconfer/mino/external/plugins/drive"
+	"github.com/codyconfer/mino/external/plugins/gmail"
+	"github.com/codyconfer/mino/external/plugins/google"
+	"github.com/codyconfer/mino/external/plugins/slack"
+	"github.com/codyconfer/mino/external/plugins/tasks"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func Register() {

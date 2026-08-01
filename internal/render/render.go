@@ -3,8 +3,8 @@ package render
 import (
 	"io"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type Format string

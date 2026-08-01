@@ -10,10 +10,10 @@ import (
 
 	"github.com/charmbracelet/x/term"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/notify"
-	"github.com/codyconfer/munin/internal/render"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/notify"
+	"github.com/codyconfer/mino/internal/render"
 )
 
 var stdinIsTTY = func() bool { return term.IsTerminal(os.Stdin.Fd()) }

@@ -5,9 +5,9 @@ package daemon
 import (
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 
-	"github.com/codyconfer/munin/cmd"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
+	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
 )
 
 type InstallState int

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestRegisterFilterEngineAndRules(t *testing.T) {

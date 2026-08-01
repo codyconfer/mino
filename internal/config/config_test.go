@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestLoadDefaults(t *testing.T) {
@@ -136,7 +136,7 @@ func TestAuditDefaultsOn(t *testing.T) {
 func TestEnvOverride(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "config.yaml"), "output: terminal\n")
-	t.Setenv("MUNIN_OUTPUT", "json")
+	t.Setenv("MINO_OUTPUT", "json")
 	cfg, err := Load(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -196,9 +196,9 @@ func TestLoadGlobalSettings(t *testing.T) {
 		t.Errorf("missing settings should be zero, got %#v", gs)
 	}
 
-	wantHome := filepath.Join(t.TempDir(), "custom-munin")
-	mkdir(t, filepath.Join(env.ConfigDir, "munin"))
-	write(t, filepath.Join(env.ConfigDir, "munin", "settings.yaml"), "home: "+wantHome+"\ntheme: dracula\n")
+	wantHome := filepath.Join(t.TempDir(), "custom-mino")
+	mkdir(t, filepath.Join(env.ConfigDir, "mino"))
+	write(t, filepath.Join(env.ConfigDir, "mino", "settings.yaml"), "home: "+wantHome+"\ntheme: dracula\n")
 
 	gs := LoadGlobalSettings()
 	if gs.Home != wantHome {
@@ -207,7 +207,7 @@ func TestLoadGlobalSettings(t *testing.T) {
 	if gs.Theme != "dracula" {
 		t.Errorf("global theme = %q, want dracula", gs.Theme)
 	}
-	if p := GlobalSettingsPath(); p != filepath.Join(env.ConfigDir, "munin", "settings.yaml") {
+	if p := GlobalSettingsPath(); p != filepath.Join(env.ConfigDir, "mino", "settings.yaml") {
 		t.Errorf("GlobalSettingsPath = %q", p)
 	}
 }
@@ -266,9 +266,9 @@ func TestHomePrecedence(t *testing.T) {
 		t.Fatalf("DefaultHome = %q, %v; want %q", h, err, wantDefault)
 	}
 
-	mkdir(t, filepath.Join(env.ConfigDir, "munin"))
-	wantGlobal := filepath.Join(t.TempDir(), "custom-munin")
-	write(t, filepath.Join(env.ConfigDir, "munin", "settings.yaml"), "home: "+wantGlobal+"\n")
+	mkdir(t, filepath.Join(env.ConfigDir, "mino"))
+	wantGlobal := filepath.Join(t.TempDir(), "custom-mino")
+	write(t, filepath.Join(env.ConfigDir, "mino", "settings.yaml"), "home: "+wantGlobal+"\n")
 	if h, _ := Home(""); h != wantGlobal {
 		t.Errorf("global home override = %q, want %q", h, wantGlobal)
 	}
@@ -279,7 +279,7 @@ func TestHomePrecedence(t *testing.T) {
 	}
 
 	wantEnv := filepath.Join(t.TempDir(), "from-env")
-	t.Setenv("MUNIN_HOME", wantEnv)
+	t.Setenv("MINO_HOME", wantEnv)
 	if h, _ := Home(""); h != wantEnv {
 		t.Errorf("env override = %q, want %q", h, wantEnv)
 	}
@@ -290,27 +290,27 @@ func TestHomeResolvesRelativeToAbsolute(t *testing.T) {
 	cwd := t.TempDir()
 	t.Chdir(cwd)
 
-	got, err := Home(".munin-rel")
+	got, err := Home(".mino-rel")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := filepath.Abs(filepath.Join(cwd, ".munin-rel"))
+	want, err := filepath.Abs(filepath.Join(cwd, ".mino-rel"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != want {
-		t.Fatalf("Home(.munin-rel) = %q, want absolute %q", got, want)
+		t.Fatalf("Home(.mino-rel) = %q, want absolute %q", got, want)
 	}
 }
 
 func TestHomeExpandsTilde(t *testing.T) {
 	env := testenv.Isolate(t)
 
-	got, err := Home("~/alt-munin")
+	got, err := Home("~/alt-mino")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(env.Home, "alt-munin")
+	want := filepath.Join(env.Home, "alt-mino")
 	if got != want {
 		t.Fatalf("tilde home = %q, want %q", got, want)
 	}
@@ -331,8 +331,8 @@ plugins:
     token_env: FROM_FILE
     limit: 7
 `)
-	t.Setenv("MUNIN_PLUGINS_SLACK_TOKEN_ENV", "FROM_ENV")
-	t.Setenv("MUNIN_PLUGINS_CALENDAR_MAX", "20")
+	t.Setenv("MINO_PLUGINS_SLACK_TOKEN_ENV", "FROM_ENV")
+	t.Setenv("MINO_PLUGINS_CALENDAR_MAX", "20")
 
 	cfg, err := Load(dir)
 	if err != nil {

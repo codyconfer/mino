@@ -9,10 +9,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func roleFor(t *testing.T, kit *Kit, name string) *roleView {

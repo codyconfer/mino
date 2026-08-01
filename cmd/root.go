@@ -6,9 +6,9 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 var (
@@ -24,7 +24,7 @@ var (
 	flagVerbose    bool
 )
 
-const annoReconcile = "munin_reconcile"
+const annoReconcile = "mino_reconcile"
 
 func reconcilePolicyFor(cmd *cobra.Command) (config.ReconcilePolicy, error) {
 	if flagReconcile != "" {
@@ -42,9 +42,9 @@ var shared *app.App
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "munin",
+		Use:   "mino",
 		Short: "Aggregate GitHub, Google, and Slack activity into one view",
-		Long: "munin (Odin's raven of memory) pulls information from GitHub, Google\n" +
+		Long: "mino (the myna — the bird that repeats what it hears) pulls information from GitHub, Google\n" +
 			"Docs, Calendar, Gmail, and Slack and prints it in a nicely formatted way.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -97,7 +97,7 @@ func newRootCmd() *cobra.Command {
 
 	pf := root.PersistentFlags()
 	pf.StringVarP(&flagOutput, "output", "o", "", "output format: terminal or json")
-	pf.StringVar(&flagHome, "home", "", "config directory (default ~/.munin)")
+	pf.StringVar(&flagHome, "home", "", "config directory (default ~/.mino)")
 	pf.StringVar(&flagHome, "dir", "", "alias for --home")
 	_ = pf.MarkHidden("dir")
 	pf.StringVar(&flagConfigFile, "config", "", "use this config file for this session only (not persisted)")

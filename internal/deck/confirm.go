@@ -3,7 +3,7 @@ package deck
 import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func Confirm(title, message, yesLabel, noLabel string) (bool, error) {

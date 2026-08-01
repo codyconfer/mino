@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func newHistoryCmd() *cobra.Command {
@@ -15,7 +15,7 @@ func newHistoryCmd() *cobra.Command {
 		Use:   "history [show <id>]",
 		Short: "Recall past flights and query results from the audit trail",
 		Long: "The audit trail records every flight and query run (with timestamps and\n" +
-			"item counts) in DuckDB. `munin history` lists recent runs; `munin history\n" +
+			"item counts) in DuckDB. `mino history` lists recent runs; `mino history\n" +
 			"show <id>` recalls a run's stored results. This is a record of what you ran\n" +
 			"over time, not a cache.",
 		Args: cobra.NoArgs,

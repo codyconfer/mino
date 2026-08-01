@@ -1,11 +1,11 @@
 package plugin
 
 import (
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func init() {

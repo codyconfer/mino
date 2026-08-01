@@ -12,8 +12,8 @@ import (
 	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/sisyphus/configdb"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 type ReconcilePolicy int
@@ -312,7 +312,7 @@ func (r *Resolver) resolverFor(staged []stagedDirective) (sisyphus.Resolver, err
 			log.Warnf("staged changes ignored; using the stored version (prefer_duckdb): %s", joinNames(pending))
 			return batch(sisyphus.ActionUseDB), nil
 		}
-		log.Warnf("staged changes used for this session only; run `munin apply` to write them to the store: %s", joinNames(pending))
+		log.Warnf("staged changes used for this session only; run `mino apply` to write them to the store: %s", joinNames(pending))
 		return batch(sisyphus.ActionUseFile), nil
 	}
 	act, err := r.promptAll(pending)
@@ -350,7 +350,7 @@ func (r *Resolver) Resolve(rec sisyphus.Reconciliation) (sisyphus.Action, error)
 			log.Warnf("%s: staged changes ignored; using the stored version (prefer_duckdb)", rec.Name)
 			return sisyphus.ActionUseDB, nil
 		}
-		log.Warnf("%s: staged changes used for this session only; run `munin apply %s` to write them to the store", rec.Name, rec.Name)
+		log.Warnf("%s: staged changes used for this session only; run `mino apply %s` to write them to the store", rec.Name, rec.Name)
 		return sisyphus.ActionUseFile, nil
 	}
 	return r.promptAll([]sisyphus.Reconciliation{rec})

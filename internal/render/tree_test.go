@@ -7,9 +7,10 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/codyconfer/viewkit/layout"
+	"github.com/codyconfer/viewkit/tree"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestFlightTreeStructure(t *testing.T) {
@@ -49,6 +50,60 @@ func TestFlightTreeStructure(t *testing.T) {
 	}
 }
 
+func TestFlightTreeDropsRedundantTrunk(t *testing.T) {
+	glyph.SetMode(glyph.ModeNone)
+	const root = "Escalations · Incoming"
+
+	plain := func(rows []tree.Row) string {
+		lines := make([]string, 0, len(rows))
+		for _, r := range rows {
+			lines = append(lines, ansi.Strip(strings.Join(r.Lines, "\n")))
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	t.Run("single section titled like the root", func(t *testing.T) {
+		secs := []signals.Section{
+			{Signal: "github", Title: root, Items: []signals.Item{{Title: "a", URL: "u1"}}},
+		}
+		out := plain(FlightTree(layout.NewFrame(80), root, secs))
+		if n := strings.Count(out, root); n != 1 {
+			t.Fatalf("title rendered %d times, want 1:\n%s", n, out)
+		}
+		first, _, _ := strings.Cut(out, "\n")
+		if !strings.Contains(first, "(1)") {
+			t.Errorf("first row should be the section head with its count, got %q", first)
+		}
+	})
+
+	t.Run("section falling back to its signal name", func(t *testing.T) {
+		secs := []signals.Section{{Signal: "github", Items: []signals.Item{{Title: "a"}}}}
+		out := plain(FlightTree(layout.NewFrame(80), "github", secs))
+		if n := strings.Count(out, "github"); n != 1 {
+			t.Fatalf("signal name rendered %d times, want 1:\n%s", n, out)
+		}
+	})
+
+	t.Run("root differs from the section title", func(t *testing.T) {
+		secs := []signals.Section{{Signal: "github", Title: "Open PRs", Items: []signals.Item{{Title: "a"}}}}
+		out := plain(FlightTree(layout.NewFrame(80), "my-open-prs", secs))
+		if !strings.Contains(out, "my-open-prs") {
+			t.Fatalf("trunk should survive when it says something new:\n%s", out)
+		}
+	})
+
+	t.Run("one of several sections matches the root", func(t *testing.T) {
+		secs := []signals.Section{
+			{Signal: "github", Title: root, Items: []signals.Item{{Title: "a"}}},
+			{Signal: "github", Title: "PRs · Need Review", Items: []signals.Item{{Title: "b"}}},
+		}
+		out := plain(FlightTree(layout.NewFrame(80), root, secs))
+		if n := strings.Count(out, root); n != 2 {
+			t.Fatalf("multi-section trunk should be kept, title rendered %d times, want 2:\n%s", n, out)
+		}
+	})
+}
+
 func TestFlightTreeGapStemContinuesConnectors(t *testing.T) {
 	glyph.SetMode(glyph.ModeNone)
 	secs := []signals.Section{
@@ -86,13 +141,13 @@ func TestFlightTreeGapStemContinuesConnectors(t *testing.T) {
 		t.Fatalf("section GapStem = %q, want %q", sectionStem, "|  ")
 	}
 
-	items := SectionItems(layout.NewFrame(80), "run", secs)
+	items := SectionItems(layout.NewFrame(80), secs)
 	var found bool
 	for _, it := range items {
 		if it.Key == "u1" {
 			found = true
-			if got := ansi.Strip(it.GapStem); got != "|  |  " {
-				t.Fatalf("SectionItems GapStem = %q, want %q", got, "|  |  ")
+			if got := ansi.Strip(it.GapStem); got != "|  " {
+				t.Fatalf("SectionItems GapStem = %q, want %q", got, "|  ")
 			}
 		}
 	}
@@ -126,7 +181,7 @@ func TestFlightTreeCuesTruncatedSections(t *testing.T) {
 		},
 		{
 			name: "serve frame truncation",
-			meta: map[string]string{"munin.truncated": "1300000 byte event exceeds the 1048576 byte frame limit"},
+			meta: map[string]string{"mino.truncated": "1300000 byte event exceeds the 1048576 byte frame limit"},
 			want: "(truncated)",
 		},
 		{

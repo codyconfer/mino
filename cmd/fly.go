@@ -10,9 +10,9 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 const defaultFlight = "default"
@@ -21,9 +21,9 @@ func newFlyCmd() *cobra.Command {
 	var ff formatterFlags
 	c := &cobra.Command{
 		Use:   "fly [flight]",
-		Short: "Send munin flying — run a named flight (a configured set of queries)",
+		Short: "Send mino flying — run a named flight (a configured set of queries)",
 		Long: "Flights live one-per-file under flights/ as named lists of saved query\n" +
-			"names. `munin fly <flight>` runs that flight's queries, in order. With no\n" +
+			"names. `mino fly <flight>` runs that flight's queries, in order. With no\n" +
 			"name, it runs the active role's first flight (or \"default\"); if that is\n" +
 			"undefined it lists the available flights. The active role determines which\n" +
 			"flights and queries are visible.",
@@ -51,7 +51,7 @@ func newFlyCmd() *cobra.Command {
 func runFlightNamed(cmd *cobra.Command, name string, o runOpts) error {
 	fl, ok := shared.Directives.Flights[name]
 	if !ok {
-		return errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix()).WithHint("run `munin fly` with no argument to list available flights")
+		return errs.Newf(errs.KindUsage, "no flight named %q%s", name, availableFlightSuffix()).WithHint("run `mino fly` with no argument to list available flights")
 	}
 	if !access().FlightVisible(name) {
 		return notInRoleError("flight", name)
@@ -100,7 +100,7 @@ func listFlights(cmd *cobra.Command) error {
 	names := visibleFlightNames()
 	if len(names) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(),
-			"no flights visible; define them under `flights:` in config.yaml (see `munin fly --help`)")
+			"no flights visible; define them under `flights:` in config.yaml (see `mino fly --help`)")
 		return nil
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), "available flights:")

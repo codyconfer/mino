@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/deck"
+	"github.com/codyconfer/mino/internal/deck"
 )
 
 func loadedList(t *testing.T, v *recordList) *vkdeck.Model {

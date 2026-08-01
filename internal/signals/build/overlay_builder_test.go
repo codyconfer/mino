@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/signals/build"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/internal/signals/build"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestPublicRegisterSignalWiresHostBuilders(t *testing.T) {

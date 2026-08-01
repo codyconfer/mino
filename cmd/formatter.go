@@ -13,10 +13,10 @@ import (
 	"github.com/codyconfer/viewkit/clipboard"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type formatterFlags struct {
@@ -40,7 +40,7 @@ func (ff *formatterFlags) bindSinks(cmd *cobra.Command) {
 	f.StringVar(&ff.out, "out", "", "write the formatted report to this file")
 }
 
-const envOutput = "MUNIN_OUTPUT"
+const envOutput = "MINO_OUTPUT"
 
 type outputRequest struct {
 	raw      string
@@ -139,7 +139,7 @@ func lookupFormatter(name string) (config.FormatterDef, error) {
 	fd, ok := shared.Directives.Formatters[name]
 	if !ok {
 		return config.FormatterDef{}, errs.Newf(errs.KindUsage, "no formatter named %q%s", name, availableFormatterSuffix()).
-			WithHint("run `munin formatter` to list available formatters")
+			WithHint("run `mino formatter` to list available formatters")
 	}
 	if !access().FormatterVisible(name) {
 		return config.FormatterDef{}, notInRoleError("formatter", name)
@@ -169,7 +169,7 @@ func newFormatterCmd() *cobra.Command {
 		Long: "A formatter is a `type: formatter` document holding a Go text/template that\n" +
 			"turns a flight's or query's results into text — a standup post, a triage\n" +
 			"digest, a canned response. Attach one with `formatter: <name>` on a query or\n" +
-			"flight, or ad-hoc with `munin fly --formatter <name>`.\n\n" +
+			"flight, or ad-hoc with `mino fly --formatter <name>`.\n\n" +
 			"A formatter replaces the normal output, so it pipes cleanly. The active role\n" +
 			"determines which formatters are visible.",
 		Args:              cobra.MaximumNArgs(1),
@@ -218,8 +218,8 @@ func newFormatterRenderCmd() *cobra.Command {
 		Long: "Render a formatter against results. With a flight name, that flight runs\n" +
 			"first; with none, the active role's first flight (or \"default\") runs.\n\n" +
 			"With --stdin, no queries run: a JSON section array (the `-o json` wire\n" +
-			"format) is read from stdin instead, so `munin fly -o json > f.json` then\n" +
-			"`munin formatter render standup --stdin < f.json` gives a zero-latency\n" +
+			"format) is read from stdin instead, so `mino fly -o json > f.json` then\n" +
+			"`mino formatter render standup --stdin < f.json` gives a zero-latency\n" +
 			"edit loop while writing a template.",
 		Args:              cobra.RangeArgs(1, 2),
 		ValidArgsFunction: completeFormatterNames,
@@ -256,7 +256,7 @@ func renderFormatterStdin(cmd *cobra.Command, o runOpts, label string) error {
 	var sections []signals.Section
 	if err := json.Unmarshal(data, &sections); err != nil {
 		return errs.Wrap(errs.KindUsage, err, "parsing stdin as a JSON section array").
-			WithHint("pipe the output of `munin fly -o json`")
+			WithHint("pipe the output of `mino fly -o json`")
 	}
 	o.kind = "query"
 	groups := []flightGroup{{Query: label, Title: label, Sections: sections}}
@@ -267,7 +267,7 @@ func listFormatters(cmd *cobra.Command) error {
 	out := cmd.OutOrStdout()
 	names := visibleFormatterNames()
 	if len(names) == 0 {
-		fmt.Fprintln(out, "no formatters visible (check --role, or add a YAML file with a `template:` under ~/.munin/formatters)")
+		fmt.Fprintln(out, "no formatters visible (check --role, or add a YAML file with a `template:` under ~/.mino/formatters)")
 		return nil
 	}
 	for _, n := range names {
@@ -282,7 +282,7 @@ func showFormatter(cmd *cobra.Command, name string) error {
 	fd, ok := shared.Directives.Formatters[name]
 	if !ok {
 		return errs.Newf(errs.KindUsage, "no formatter named %q%s", name, availableFormatterSuffix()).
-			WithHint("run `munin formatter` to list saved formatters")
+			WithHint("run `mino formatter` to list saved formatters")
 	}
 	data, err := yaml.Marshal(fd)
 	if err != nil {

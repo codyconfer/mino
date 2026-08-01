@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-const OwnerEnv = "MUNIN_PANE_OWNER"
+const OwnerEnv = "MINO_PANE_OWNER"
 
 func OwnerPID() int {
 	pid, err := strconv.Atoi(os.Getenv(OwnerEnv))

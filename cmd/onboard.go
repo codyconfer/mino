@@ -7,13 +7,13 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/errs"
-	gh "github.com/codyconfer/munin/internal/signals/github"
+	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/errs"
+	gh "github.com/codyconfer/mino/internal/signals/github"
 )
 
-const annoSkipOnboarding = "munin_skip_onboarding"
+const annoSkipOnboarding = "mino_skip_onboarding"
 
 func isCompletion(cmd *cobra.Command) bool {
 	switch cmd.Name() {
@@ -45,7 +45,7 @@ func enforceOnboarding(cmd *cobra.Command) error {
 	if onboard.IsOnboarded() {
 		return nil
 	}
-	return errs.New(errs.KindOnboarding, "munin is not onboarded yet").WithHint("%s", onboard.Hint())
+	return errs.New(errs.KindOnboarding, "mino is not onboarded yet").WithHint("%s", onboard.Hint())
 }
 
 func requireOnboarding(cmd *cobra.Command) error {
@@ -63,9 +63,9 @@ func newOnboardCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "onboard",
 		Short: "Guided setup: GitHub auth + a GitHub-verified GPG signing key",
-		Long: "Walks through the checks munin requires before it will run: GitHub\n" +
+		Long: "Walks through the checks mino requires before it will run: GitHub\n" +
 			"authentication and a GPG signing key that git uses and GitHub has verified.\n" +
-			"munin only inspects your setup and prints the commands to fix any gaps.",
+			"mino only inspects your setup and prints the commands to fix any gaps.",
 		Args:         cobra.NoArgs,
 		Annotations:  map[string]string{annoSkipOnboarding: "true"},
 		SilenceUsage: true,

@@ -1,5 +1,3 @@
-# Companion to queries/demo.yaml — review requests with live github.com URLs.
-# References the filter-only document in queries/no-bots.yaml by name.
 name: demo-reviews
 type: query
 signal: github

@@ -3,9 +3,9 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 type filterFlags struct {
@@ -27,7 +27,7 @@ func (ff *filterFlags) compile() ([]filter.Compiled, error) {
 		f, ok := shared.Directives.LookupFilter(n)
 		if !ok {
 			return nil, errs.Newf(errs.KindUsage, "unknown filter %q", n).
-				WithHint("see `munin filter list`")
+				WithHint("see `mino filter list`")
 		}
 		sets = append(sets, f)
 	}

@@ -14,9 +14,9 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func settingsLabels(kit *Kit) []string {
@@ -441,7 +441,7 @@ func TestSetvSaveAppearanceError(t *testing.T) {
 	app := setvStack(kit, kit.setvAppearanceView())
 	setvBreakConfigDir(t)
 
-	if cmd := kit.setvSaveAppearance(app, map[string]any{"theme": "munin", "keys": "munin"}); cmd == nil {
+	if cmd := kit.setvSaveAppearance(app, map[string]any{"theme": "mino", "keys": "mino"}); cmd == nil {
 		t.Fatal("setvSaveAppearance returned nil cmd on error")
 	}
 	if body := setvBody(app); !strings.Contains(body, "global settings") {

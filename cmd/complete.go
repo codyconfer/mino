@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app/suggest"
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/app/suggest"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 type completer func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective)

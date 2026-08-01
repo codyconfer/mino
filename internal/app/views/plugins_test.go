@@ -10,10 +10,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals/build"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals/build"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 var pluginsAnsi = regexp.MustCompile("\x1b\\[[0-9;]*m")
@@ -55,9 +55,9 @@ func TestPluginsMenuSmoke(t *testing.T) {
 func TestPluginsListsInternalAsBuiltIn(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
-	id := "munin.ntr"
+	id := "mino.ntr"
 	if _, ok := plugin.Lookup(id); !ok {
-		t.Skip("munin.ntr not linked")
+		t.Skip("mino.ntr not linked")
 	}
 	page := kit.Plugins().(*pluginsPage)
 	if len(page.rows) == 0 {
@@ -138,9 +138,9 @@ func TestPluginsListsInternalFirst(t *testing.T) {
 func TestPluginsDisableKeepsRow(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
-	id := "munin.ntr"
+	id := "mino.ntr"
 	if _, ok := plugin.Lookup(id); !ok {
-		t.Skip("munin.ntr not linked")
+		t.Skip("mino.ntr not linked")
 	}
 
 	page := kit.Plugins().(*pluginsPage)
@@ -280,9 +280,9 @@ func TestPluginsUninstallRemovesExternalFromListAndReinstallRestores(t *testing.
 func TestPluginsUninstallIgnoredForInternal(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
-	id := "munin.ntr"
+	id := "mino.ntr"
 	if _, ok := plugin.Lookup(id); !ok {
-		t.Skip("munin.ntr not linked")
+		t.Skip("mino.ntr not linked")
 	}
 	page := kit.Plugins().(*pluginsPage)
 	for i, row := range page.rows {
@@ -306,9 +306,9 @@ func TestPluginsUninstallIgnoredForInternal(t *testing.T) {
 func TestPluginsTogglePersists(t *testing.T) {
 	pluginsTestEnv(t)
 	kit := testKit(t)
-	id := "munin.demo"
+	id := "mino.demo"
 	if _, ok := plugin.Lookup(id); !ok {
-		t.Skip("munin.demo not linked")
+		t.Skip("mino.demo not linked")
 	}
 
 	page := kit.Plugins().(*pluginsPage)
@@ -428,8 +428,8 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 	if !strings.Contains(strings.ToLower(pickerBody), "install") {
 		t.Fatalf("expected install picker:\n%s", pickerBody)
 	}
-	if strings.Contains(pickerBody, "munin.ntr") {
-		t.Fatalf("built-in munin.ntr must not appear in install picker:\n%s", pickerBody)
+	if strings.Contains(pickerBody, "mino.ntr") {
+		t.Fatalf("built-in mino.ntr must not appear in install picker:\n%s", pickerBody)
 	}
 
 	home := kit.d.App.Cfg.Home

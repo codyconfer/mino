@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/plugin/scaffold"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin/scaffold"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 func newPluginsCmd() *cobra.Command {
@@ -24,13 +24,13 @@ There is no runtime .so / plugin.Open loading.
   list                     — registered plugins and enablement (CLI discovery)
   enable / disable         — runtime activation via disabled_plugins (keeps installed)
   install / uninstall      — add/remove from installed_plugins plus provision or remove
-                           example directive seeds into the munin home; disable alone
+                           example directive seeds into the mino home; disable alone
                            does not uninstall. Overlays may register seeds via
-                           munin/plugin.RegisterSeeds
+                           mino/plugin.RegisterSeeds
   scaffold                 — generate an overlay-friendly plugin package from the
-                           canonical template (public munin/plugin SDK)
+                           canonical template (public mino/plugin SDK)
 
-Use munin install for the home scaffold, and munin daemon install for the OS service.`,
+Use mino install for the home scaffold, and mino daemon install for the OS service.`,
 	}
 	cmd.AddCommand(
 		newPluginsListCmd(),
@@ -115,13 +115,13 @@ func newPluginsInstallCmd() *cobra.Command {
 		Use:   "install <plugin-id>",
 		Short: "Install a plugin (managed set), enable it, and provision seeds",
 		Long: `Add a compile-time registered plugin to installed_plugins, enable it, and
-write its example queries/flights (and similar) into the munin home directory.
+write its example queries/flights (and similar) into the mino home directory.
 
 This is config/seed install only — it does not download or dynamically load
 plugin binaries. Unknown ids (not linked into this binary) are rejected.
 
 Seeds match examples/ for stock plugins; overlays register extras with
-github.com/codyconfer/munin/plugin.RegisterSeeds. Existing files are left
+github.com/codyconfer/mino/plugin.RegisterSeeds. Existing files are left
 unchanged unless --force.`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completePluginIDs,
@@ -209,7 +209,7 @@ func newPluginsScaffoldCmd() *cobra.Command {
 			annoSkipOnboarding: "true",
 			annoSkipAppLoad:    "true",
 		},
-		Long: `Write a CapQuery plugin package into --dir using the public munin/plugin SDK.
+		Long: `Write a CapQuery plugin package into --dir using the public mino/plugin SDK.
 
 The generated package includes:
   plugin.go       — RegisterSignal, glyph, RegisterContext, RegisterFilterEngine
@@ -217,11 +217,11 @@ The generated package includes:
   queries/*.yaml  — example query seed referencing the filter engine
 
 Import the package from app.Options.RegisterPlugins in an overlay binary.
-This does not link the plugin into the running munin binary — compile-time
+This does not link the plugin into the running mino binary — compile-time
 registration is still required.
 
 Example:
-  munin plugins scaffold team.example --dir ./plugins/example`,
+  mino plugins scaffold team.example --dir ./plugins/example`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := strings.TrimSpace(args[0])

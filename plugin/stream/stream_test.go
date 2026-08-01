@@ -1,16 +1,16 @@
-package active
+package stream
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestPollStepGetsDeadline(t *testing.T) {
 	seen := make(chan time.Duration, 1)
-	step := func(ctx context.Context) ([]signals.Item, error) {
+	step := func(ctx context.Context) ([]plugin.Item, error) {
 		dl, ok := ctx.Deadline()
 		if !ok {
 			seen <- 0
@@ -41,10 +41,10 @@ func TestPollStepGetsDeadline(t *testing.T) {
 
 func TestPollShortIntervalStillLetsAStepFinish(t *testing.T) {
 	const work = 300 * time.Millisecond
-	step := func(ctx context.Context) ([]signals.Item, error) {
+	step := func(ctx context.Context) ([]plugin.Item, error) {
 		select {
 		case <-time.After(work):
-			return []signals.Item{{Title: "done"}}, nil
+			return []plugin.Item{{Title: "done"}}, nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -68,7 +68,7 @@ func TestPollShortIntervalStillLetsAStepFinish(t *testing.T) {
 
 func TestPollAdaptiveStepGetsDeadline(t *testing.T) {
 	seen := make(chan bool, 1)
-	step := func(ctx context.Context) ([]signals.Item, time.Duration, error) {
+	step := func(ctx context.Context) ([]plugin.Item, time.Duration, error) {
 		_, ok := ctx.Deadline()
 		seen <- ok
 		return nil, 0, nil
@@ -87,7 +87,7 @@ func TestPollAdaptiveStepGetsDeadline(t *testing.T) {
 }
 
 func TestPollBlockedStepEmitsError(t *testing.T) {
-	step := func(ctx context.Context) ([]signals.Item, error) {
+	step := func(ctx context.Context) ([]plugin.Item, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}

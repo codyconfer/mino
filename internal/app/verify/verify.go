@@ -16,17 +16,17 @@ import (
 	"github.com/codyconfer/sisyphus/redact"
 	"github.com/codyconfer/sisyphus/secret"
 
-	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/format"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals/build"
-	gh "github.com/codyconfer/munin/internal/signals/github"
+	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/format"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals/build"
+	gh "github.com/codyconfer/mino/internal/signals/github"
 )
 
 type Finding struct {

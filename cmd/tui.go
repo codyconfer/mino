@@ -10,20 +10,20 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/viewkit/clipboard"
-	muninterm "github.com/codyconfer/viewkit/term"
+	minoterm "github.com/codyconfer/viewkit/term"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
-	"github.com/codyconfer/munin/internal/app/pane"
-	"github.com/codyconfer/munin/internal/app/statusstrip"
-	"github.com/codyconfer/munin/internal/app/verify"
-	"github.com/codyconfer/munin/internal/app/views"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/build"
-	"github.com/codyconfer/munin/internal/tmux"
+	"github.com/codyconfer/mino/internal/app/pane"
+	"github.com/codyconfer/mino/internal/app/statusstrip"
+	"github.com/codyconfer/mino/internal/app/verify"
+	"github.com/codyconfer/mino/internal/app/views"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/build"
+	"github.com/codyconfer/mino/internal/tmux"
 )
 
 func newDeckCmd() *cobra.Command {
@@ -83,11 +83,11 @@ func newDeckCmd() *cobra.Command {
 func launchTmuxDeck(args []string) error {
 	if !tmux.Available() {
 		return errs.New(errs.KindUsage, "--tmux needs tmux on PATH").
-			WithHint("install tmux, or run `munin deck` without --tmux")
+			WithHint("install tmux, or run `mino deck` without --tmux")
 	}
-	self, err := muninterm.Self()
+	self, err := minoterm.Self()
 	if err != nil {
-		return errs.Wrap(errs.KindInternal, err, "locate munin binary")
+		return errs.Wrap(errs.KindInternal, err, "locate mino binary")
 	}
 	argv := append([]string{"deck"}, args...)
 	argv = append(argv, "--tmux")
@@ -113,7 +113,7 @@ func deckPanes(useTmux bool, flight string) (*pane.Manager, error) {
 	}
 	if !tmux.Available() {
 		return nil, errs.New(errs.KindUsage, "--tmux needs tmux on PATH").
-			WithHint("install tmux, or run `munin deck` without --tmux")
+			WithHint("install tmux, or run `mino deck` without --tmux")
 	}
 	pane.CleanupSnapshots(shared.Cfg.Home)
 	return pane.NewManager(shared.Cfg.Home, flight)

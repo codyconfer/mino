@@ -5,8 +5,8 @@ import (
 
 	"github.com/codyconfer/sisyphus/configdb"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func storeDB() (*configdb.Store, error) {
@@ -34,11 +34,11 @@ func newExportCmd() *cobra.Command {
 			"onto disk. <directive> is one of: config, directives, all.\n" +
 			"config is written as config.yaml/config.json at the root; directives are\n" +
 			"restored at the home-relative paths they were imported from, nesting included,\n" +
-			"creating parent directories as needed. Defaults to the munin home directory.\n" +
+			"creating parent directories as needed. Defaults to the mino home directory.\n" +
 			"queries, flights, and roles are deprecated aliases for directives.\n" +
 			"Secret values in config are masked unless --include-secrets is set. A masked\n" +
 			"config is a copy for sharing, not a working config, so it is never written into\n" +
-			"the munin home: exporting config there needs --out <other-dir> for the masked\n" +
+			"the mino home: exporting config there needs --out <other-dir> for the masked\n" +
 			"copy, or --include-secrets to materialize the real values.",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeDirectives,
@@ -54,7 +54,7 @@ func newExportCmd() *cobra.Command {
 			return config.Export(cmd.OutOrStdout(), db, out, shared.Cfg.Home, args[0], includeSecrets)
 		},
 	}
-	c.Flags().StringVar(&out, "out", "", "output directory (default: munin home; a masked config export requires a directory other than the munin home)")
+	c.Flags().StringVar(&out, "out", "", "output directory (default: mino home; a masked config export requires a directory other than the mino home)")
 	bindFlagCompletion(c, "out", completeDirs)
 	c.Flags().BoolVar(&includeSecrets, "include-secrets", false, "write secret values in cleartext (default: masked; cleartext is not safe to share)")
 	return c
@@ -66,7 +66,7 @@ func newImportCmd() *cobra.Command {
 		Aliases: []string{"import"},
 		Short:   "Apply staged config changes: write on-disk files into the DuckDB store",
 		Long: "Reads the root config file and every directive file found anywhere under the\n" +
-			"munin home directory, and writes them into the DuckDB store as a new current\n" +
+			"mino home directory, and writes them into the DuckDB store as a new current\n" +
 			"version (archiving any prior version). Directives are stored keyed by their\n" +
 			"home-relative path, so a later export round-trips the same layout. Never\n" +
 			"prompts, so it is safe in scripts and hooks.\n" +

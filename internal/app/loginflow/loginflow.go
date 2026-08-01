@@ -5,9 +5,9 @@ import (
 	"io"
 	"slices"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 type CredField struct {

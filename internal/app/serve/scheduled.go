@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/active"
-	"github.com/codyconfer/munin/internal/signals/build"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/active"
+	"github.com/codyconfer/mino/internal/signals/build"
 )
 
 func (s *Server) scheduledEvents(ctx context.Context, flight string, names []string, state *active.State) <-chan signals.Event {

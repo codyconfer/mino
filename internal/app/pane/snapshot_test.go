@@ -8,7 +8,7 @@ import (
 
 	"github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestSnapshotRoundTripSections(t *testing.T) {

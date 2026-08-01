@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 const (
 	bin         = "tmux"
-	SessionName = "munin"
+	SessionName = "mino"
 )
 
 type PaneID string

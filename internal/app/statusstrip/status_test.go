@@ -10,13 +10,13 @@ import (
 	"github.com/codyconfer/sisyphus/sealed"
 	vkglyph "github.com/codyconfer/viewkit/glyph"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/auth"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/deck"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/role"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/role"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestProviderIncludesRoleStatusChips(t *testing.T) {
@@ -82,13 +82,13 @@ func TestProviderOmitsDisabledPluginAuthChips(t *testing.T) {
 	plugin.LoadEnabled()
 	registerAcmeProvider(t)
 
-	for _, id := range []string{"munin.github", "external.acme"} {
+	for _, id := range []string{"mino.github", "external.acme"} {
 		if err := plugin.SetEnabled(id, false); err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Cleanup(func() {
-		for _, id := range []string{"munin.github", "external.acme"} {
+		for _, id := range []string{"mino.github", "external.acme"} {
 			_ = plugin.SetEnabled(id, true)
 		}
 	})
@@ -207,7 +207,7 @@ func TestProviderSurfacesAnUnreadableCredentialStore(t *testing.T) {
 		}
 	}
 	if chip == nil {
-		t.Fatalf("status strip hides an undecryptable credential store, so munin still says 'not logged in': %v", serviceNames(info.Services))
+		t.Fatalf("status strip hides an undecryptable credential store, so mino still says 'not logged in': %v", serviceNames(info.Services))
 	}
 	if chip.Level != deck.StatusBad {
 		t.Errorf("credentials chip level = %v, want bad", chip.Level)

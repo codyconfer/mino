@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	sconfig "github.com/codyconfer/sisyphus/config"
+
 	"github.com/codyconfer/viewkit/theme"
 )
 
@@ -89,7 +91,7 @@ func ClearConsole() {
 }
 
 func SetFileSink(path string) (io.Closer, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	f, err := sconfig.OpenAppend(path)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +164,7 @@ func logf(l Level, format string, args ...any) {
 	mu.Lock()
 	enabled := l <= level
 	tag := tags[l]
-	prefix := dimSt("munin ▸")
+	prefix := dimSt("mino ▸")
 	cw := console
 	fw := file
 	mu.Unlock()
@@ -174,7 +176,7 @@ func logf(l Level, format string, args ...any) {
 		fmt.Fprintln(cw, prefix+" "+tag+" "+msg)
 	}
 	if fw != nil {
-		fmt.Fprintln(fw, "munin ▸ "+plainTags[l]+" "+msg)
+		fmt.Fprintln(fw, "mino ▸ "+plainTags[l]+" "+msg)
 	}
 }
 

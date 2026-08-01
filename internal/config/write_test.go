@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func TestSetValuesMergesAndPreservesSections(t *testing.T) {
@@ -68,7 +68,7 @@ func TestSetValuesKeepsCommentsAndKeyOrder(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(envHome, dir)
 
-	src := "# munin config, hand written\n" +
+	src := "# mino config, hand written\n" +
 		"output: terminal\n" +
 		"\n" +
 		"# github access\n" +
@@ -92,7 +92,7 @@ func TestSetValuesKeepsCommentsAndKeyOrder(t *testing.T) {
 	}
 	got := string(raw)
 	for _, want := range []string{
-		"# munin config, hand written",
+		"# mino config, hand written",
 		"# github access",
 		"# capped on purpose",
 	} {
@@ -317,7 +317,7 @@ func TestSetValuesResolvesAYAMLAlias(t *testing.T) {
 	}
 
 	if _, err := SetValues("", map[string]any{"github.max": 99}); err != nil {
-		t.Fatalf("SetValues refused a config that uses a YAML alias, so `munin login` cannot write its client id: %v", err)
+		t.Fatalf("SetValues refused a config that uses a YAML alias, so `mino login` cannot write its client id: %v", err)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, "config.yaml"))
 	if err != nil {

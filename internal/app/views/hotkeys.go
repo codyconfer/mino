@@ -8,11 +8,11 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/plugin/ntr"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/plugin/ntr"
 )
 
 type roleLifecycleSettleMsg struct{ gen uint64 }

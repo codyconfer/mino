@@ -3,7 +3,7 @@ package filter
 import (
 	"testing"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func items() []signals.Item {

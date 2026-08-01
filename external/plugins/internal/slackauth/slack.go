@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/codyconfer/munin/external/plugins/internal/errx"
-	"github.com/codyconfer/munin/external/plugins/internal/httpx"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/external/plugins/internal/errx"
+	"github.com/codyconfer/mino/external/plugins/internal/httpx"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const DefaultUserScopes = "channels:history,channels:read,groups:history,groups:read"
@@ -45,7 +45,7 @@ func tokenFor(store plugin.CredentialStore, envName, defaultEnv, credKey, notAva
 func UserToken(store plugin.CredentialStore, envName string) (string, error) {
 	return tokenFor(store, envName, "SLACK_TOKEN", "slack",
 		"no Slack token available",
-		"export a user token ($%s=xoxp-…) or run `munin login slack`")
+		"export a user token ($%s=xoxp-…) or run `mino login slack`")
 }
 
 func AppToken(store plugin.CredentialStore, envName string) (string, error) {
@@ -63,7 +63,7 @@ func BotToken(store plugin.CredentialStore, envName string) (string, error) {
 func Login(ctx context.Context, sa Auth, w io.Writer) error {
 	if sa.ClientID == "" || sa.ClientSecret == "" {
 		return errx.New("missing Slack OAuth app client credentials").
-			WithHint("set `plugins.slack.oauth_client_id` and `plugins.slack.oauth_client_secret` in config to use `munin login slack`")
+			WithHint("set `plugins.slack.oauth_client_id` and `plugins.slack.oauth_client_secret` in config to use `mino login slack`")
 	}
 	scopes := sa.UserScopes
 	if scopes == "" {
@@ -186,7 +186,7 @@ func FromHost(h plugin.Host) Config {
 func FromBuildContext(bc plugin.BuildContext) (Config, error) {
 	h, ok := plugin.HostOf(bc)
 	if !ok {
-		return Config{}, errx.New("slack signals require a munin host build context")
+		return Config{}, errx.New("slack signals require a mino host build context")
 	}
 	return FromHost(h), nil
 }

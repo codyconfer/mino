@@ -11,11 +11,11 @@ import (
 
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/audit"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/audit"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func testServer(t *testing.T, home string) (*Server, *audit.Store) {
@@ -47,6 +47,7 @@ func oneItemEvent(i int) signals.Event {
 func TestWatchRecordsAllEventsBeforeRollUp(t *testing.T) {
 	home := t.TempDir()
 	s, st := testServer(t, home)
+	shrinkAuditGraces(t, auditEnqueueGrace, 60*time.Second, auditAbortGrace)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	in := make(chan signals.Event)
@@ -67,7 +68,7 @@ func TestWatchRecordsAllEventsBeforeRollUp(t *testing.T) {
 	cancel()
 	select {
 	case <-done:
-	case <-time.After(60 * time.Second):
+	case <-time.After(auditDrainGrace + 30*time.Second):
 		t.Fatal("watch did not return after cancel")
 	}
 

@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/testenv"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/testenv"
 )
 
 func TestInstallPermissions(t *testing.T) {
-	home := filepath.Join(t.TempDir(), "munin")
+	home := filepath.Join(t.TempDir(), "mino")
 	if _, err := Install(home, false); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestInstallPermissions(t *testing.T) {
 }
 
 func TestInstallExistingConfigHint(t *testing.T) {
-	home := filepath.Join(t.TempDir(), "munin")
+	home := filepath.Join(t.TempDir(), "mino")
 	if _, err := Install(home, false); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestInstallForceDoesNotMisreportExists(t *testing.T) {
 	if err := os.WriteFile(parent, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := Install(filepath.Join(parent, "munin"), true)
+	_, err := Install(filepath.Join(parent, "mino"), true)
 	if err == nil {
 		t.Fatal("expected install failure")
 	}
@@ -75,7 +75,7 @@ func TestInstallForceDoesNotMisreportExists(t *testing.T) {
 
 func TestNukeRemovesHomeWithoutReinstall(t *testing.T) {
 	testenv.Isolate(t)
-	home := filepath.Join(t.TempDir(), "munin")
+	home := filepath.Join(t.TempDir(), "mino")
 	if _, err := Install(home, false); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestNukeRemovesHomeWithoutReinstall(t *testing.T) {
 	if gs := config.LoadGlobalSettings(); gs.Home != "" {
 		t.Fatalf("settings home should be cleared, got %q", gs.Home)
 	}
-	if !strings.Contains(buf.String(), "munin install") {
+	if !strings.Contains(buf.String(), "mino install") {
 		t.Fatalf("nuke output should point at install, got %q", buf.String())
 	}
 }

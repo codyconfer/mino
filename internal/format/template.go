@@ -11,7 +11,7 @@ import (
 
 	"github.com/codyconfer/viewkit/timefmt"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 type Bucket struct {

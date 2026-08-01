@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func TestVersionLine(t *testing.T) {
@@ -13,7 +13,7 @@ func TestVersionLine(t *testing.T) {
 	t.Cleanup(func() { Version = prev })
 	Version = "v1.2.3-test"
 	got := versionLine()
-	wantPrefix := glyph.Brand() + " MUNIN "
+	wantPrefix := glyph.Brand() + " MINO "
 	if !strings.HasPrefix(got, wantPrefix) {
 		t.Fatalf("versionLine = %q, want prefix %q", got, wantPrefix)
 	}
@@ -38,7 +38,7 @@ func TestVersionCmd(t *testing.T) {
 		t.Fatalf("version: %v\n%s", err, out.String())
 	}
 	got := strings.TrimSpace(out.String())
-	want := glyph.Brand() + " MUNIN v9.9.9"
+	want := glyph.Brand() + " MINO v9.9.9"
 	if got != want {
 		t.Fatalf("output = %q, want %q", got, want)
 	}

@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/codyconfer/sisyphus/daemon"
 
-	muninapp "github.com/codyconfer/munin/app"
-	"github.com/codyconfer/munin/cmd"
-	plugins "github.com/codyconfer/munin/external/plugins"
+	minoapp "github.com/codyconfer/mino/app"
+	"github.com/codyconfer/mino/app/defaults"
+	"github.com/codyconfer/mino/cmd"
+	plugins "github.com/codyconfer/mino/external/plugins"
 )
 
 func main() {
@@ -18,7 +18,8 @@ func main() {
 	ctx, stop := daemon.Context(context.Background())
 	defer stop()
 
-	err := muninapp.Run(muninapp.Options{
+	err := minoapp.Run(minoapp.Options{
+		Defaults:        defaults.FS,
 		RegisterPlugins: plugins.Register,
 		CLI: func(_ context.Context, args []string) error {
 			root := cmd.Root()
@@ -27,7 +28,6 @@ func main() {
 		},
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		cmd.Shutdown()
 		os.Exit(1)
 	}

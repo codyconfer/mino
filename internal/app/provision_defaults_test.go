@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,7 +10,8 @@ import (
 
 	"github.com/codyconfer/sisyphus/lifecycle"
 
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/app/defaults"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func TestMergeFileSeedsOverlayWins(t *testing.T) {
@@ -125,6 +127,34 @@ func TestStockSeedsLoadAsTypedDirectives(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestEmbeddedDefaultsFSMatchesStockSeeds(t *testing.T) {
+	SetDefaultsFS(nil)
+	stock := installSpec(t.TempDir(), true).Files
+	SetDefaultsFS(defaults.FS)
+	t.Cleanup(func() { SetDefaultsFS(nil) })
+	wired := installSpec(t.TempDir(), true).Files
+	if len(wired) != len(stock) {
+		t.Fatalf("wired seed count = %d, want %d (stock=%v wired=%v)", len(wired), len(stock), seedPaths(stock), seedPaths(wired))
+	}
+	for i := range stock {
+		if wired[i].RelPath != stock[i].RelPath {
+			t.Fatalf("seed %d: RelPath = %q, want %q", i, wired[i].RelPath, stock[i].RelPath)
+		}
+		if !bytes.Equal(wired[i].Content, stock[i].Content) {
+			t.Fatalf("seed %s: embedded content drifted from inline seed:\n--- inline ---\n%s\n--- embedded ---\n%s",
+				stock[i].RelPath, stock[i].Content, wired[i].Content)
+		}
+	}
+}
+
+func seedPaths(files []lifecycle.FileSeed) []string {
+	out := make([]string, len(files))
+	for i, f := range files {
+		out[i] = f.RelPath
+	}
+	return out
 }
 
 func TestMergeFileSeedsNormalizesSeparators(t *testing.T) {

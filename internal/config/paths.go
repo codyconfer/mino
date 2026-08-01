@@ -2,13 +2,13 @@ package config
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/codyconfer/sisyphus"
+	sconfig "github.com/codyconfer/sisyphus/config"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 const (
 	ServeSocket  = "serve.sock"
-	SocketPrefix = "munin"
+	SocketPrefix = "mino"
 )
 
 func ServeSocketPath(home string) string { return filepath.Join(home, ServeSocket) }
@@ -34,13 +34,15 @@ func PanesDir(home string) string { return filepath.Join(DataDir(home), DirPanes
 
 func DataPath(home, name string) string {
 	dir := DataDir(home)
-	_ = os.MkdirAll(dir, 0o700)
+	if err := sconfig.EnsureDir(dir); err != nil {
+		log.Warnf("data dir unavailable: %v", err)
+	}
 	return filepath.Join(dir, name)
 }
 
 func OpenStore(ctx context.Context, home string) (*sisyphus.Manager, error) {
-	if err := os.MkdirAll(DataDir(home), 0o700); err != nil {
-		return nil, errs.Wrapf(errs.KindStore, err, "create %s", DataDir(home))
+	if err := sconfig.EnsureDir(DataDir(home)); err != nil {
+		return nil, errs.Wrap(errs.KindStore, err, "open store")
 	}
 	mgr, err := sisyphus.Open(ctx, home, sisyphus.Options{
 		Mode:         sisyphus.ModeBoth,

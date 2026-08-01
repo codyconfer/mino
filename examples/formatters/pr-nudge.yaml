@@ -1,7 +1,7 @@
 # A canned response, ready to paste into a PR comment or Slack thread. This is
 # what `--copy` is for — render straight to the clipboard, then paste:
-#   munin query review-requested --formatter pr-nudge --copy
-#   munin fly triage --formatter pr-nudge --out nudge.md
+#   mino query review-requested --formatter pr-nudge --copy
+#   mino fly triage --formatter pr-nudge --out nudge.md
 name: pr-nudge
 type: formatter
 title: PR Nudge
@@ -18,4 +18,4 @@ template: |
   {{ end }}
   Thanks!
 
-  — munin · {{ .Name }} · {{ now | date "2006-01-02 15:04" }}
+  — mino · {{ .Name }} · {{ now | date "2006-01-02 15:04" }}

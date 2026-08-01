@@ -5,8 +5,8 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
-	"github.com/codyconfer/munin/internal/app/pane"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/app/pane"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type PaneSource interface {

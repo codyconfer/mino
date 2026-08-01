@@ -9,9 +9,9 @@ import (
 
 	"github.com/codyconfer/sisyphus/kv"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/render"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/render"
 )
 
 func openCLI(ctx context.Context, home, role string) (*Store, error) {

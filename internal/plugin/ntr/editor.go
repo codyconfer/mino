@@ -12,9 +12,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/codyconfer/munin/internal/keymap"
-	"github.com/codyconfer/munin/internal/render"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (
@@ -113,7 +113,7 @@ func (c *recordCore) Run() (string, func() vkdeck.Results, error) {
 	home, role, kind := c.home, c.role, c.kind
 	label := SignalName + " · " + role
 	return label, func() vkdeck.Results {
-		return render.SectionResults{Label: label, Sections: recordRun(home, role, kind, label)}
+		return render.SectionResults{Sections: recordRun(home, role, kind, label)}
 	}, nil
 }
 

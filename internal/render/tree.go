@@ -9,38 +9,64 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 	"github.com/codyconfer/viewkit/tree"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.Row {
-	th := theme.Cur()
-	c := tree.DefaultConnectors()
-
 	label := signals.CleanLine(root)
 	if label == "" {
 		label = "flight"
 	}
+	if trunkIsRedundant(label, sections) {
+		return SectionRows(f, sections)
+	}
+
+	th := theme.Cur()
+	c := tree.DefaultConnectors()
+
 	rows := make([]tree.Row, 0, len(sections)+1)
 	rows = append(rows, tree.Row{Lines: []string{
 		th.Title.Render(glyph.Lead(c.Trunk) + label),
 	}})
-
 	for i, s := range sections {
 		last := i == len(sections)-1
 		_, spad := c.Edge(last)
-
-		title := s.Title
-		if title == "" {
-			title = s.Signal
-		}
-		title = fmt.Sprintf("%s  (%s)", signals.CleanLine(title), sectionCount(s))
-		icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
-
-		rows = append(rows, tree.Branch(c, last, []string{icon + th.Title.Render(title) + staleChip(th, s)}, ""))
+		rows = append(rows, tree.Branch(c, last, []string{sectionHead(th, i, s)}, ""))
 		rows = append(rows, sectionLeaves(f, th, c, spad, s)...)
 	}
 	return rows
+}
+
+func SectionRows(f layout.Frame, sections []signals.Section) []tree.Row {
+	th := theme.Cur()
+	c := tree.DefaultConnectors()
+
+	rows := make([]tree.Row, 0, len(sections))
+	for i, s := range sections {
+		rows = append(rows, tree.Row{Lines: []string{sectionHead(th, i, s)}})
+		rows = append(rows, sectionLeaves(f, th, c, "", s)...)
+	}
+	return rows
+}
+
+// trunkIsRedundant reports whether the trunk row would only repeat the single
+// section head hanging beneath it.
+func trunkIsRedundant(label string, sections []signals.Section) bool {
+	return len(sections) == 1 && signals.CleanLine(sectionTitle(sections[0])) == label
+}
+
+func sectionTitle(s signals.Section) string {
+	if s.Title == "" {
+		return s.Signal
+	}
+	return s.Title
+}
+
+func sectionHead(th *theme.Theme, i int, s signals.Section) string {
+	title := fmt.Sprintf("%s  (%s)", signals.CleanLine(sectionTitle(s)), sectionCount(s))
+	icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
+	return icon + th.Title.Render(title) + staleChip(th, s)
 }
 
 func staleChip(th *theme.Theme, s signals.Section) string {
@@ -98,7 +124,7 @@ func sectionLeaves(f layout.Frame, th *theme.Theme, c tree.Connectors, spad stri
 		}
 		return []tree.Row{tree.Leaf(c, spad, true, body, "")}
 	case len(s.Items) == 0:
-		body := []string{th.Dim.Render(c.Empty + "nothing to show")}
+		body := []string{th.Dim.Render(glyph.Lead(strings.TrimRight(c.Empty, " ")) + "nothing to show")}
 		return []tree.Row{tree.Leaf(c, spad, true, body, "")}
 	default:
 		lf := layout.NewFrame(f.Width - c.Indent(spad))

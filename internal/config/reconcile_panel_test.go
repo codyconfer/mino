@@ -13,7 +13,7 @@ import (
 	"github.com/codyconfer/sisyphus/configdb"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
 func collectionBlob(t *testing.T, files map[string]string) []byte {

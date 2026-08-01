@@ -4,12 +4,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
-const DefaultThemeKey = "munin"
+const DefaultThemeKey = "mino"
 
-var muninPalette = theme.Palette{
+var minoPalette = theme.Palette{
 	Accent:   lipgloss.Color("#ff8c42"),
 	Border:   lipgloss.Color("#33405a"),
 	Muted:    lipgloss.Color("#7d8aa3"),
@@ -25,7 +25,7 @@ var muninPalette = theme.Palette{
 }
 
 func init() {
-	plugin.RegisterTheme("", DefaultThemeKey, "Munin", muninPalette)
+	plugin.RegisterTheme("", DefaultThemeKey, "Mino", minoPalette)
 }
 
 func InstallDefaultTheme() {

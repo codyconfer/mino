@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/plugin"
 )
 
 type Signal struct {
@@ -70,7 +70,7 @@ func (s Signal) Fetch(_ context.Context) ([]plugin.Section, error) {
 				Meta: map[string]string{"author": "alice"},
 			},
 			{
-				Kind: "message", Title: "CI passed on munin#42",
+				Kind: "message", Title: "CI passed on mino#42",
 				Subtitle: "#eng-standup", Body: "all checks green",
 				URL: "https://example.com/2", Timestamp: base.Add(-30 * time.Minute),
 				Meta: map[string]string{"author": "deploy-bot"},

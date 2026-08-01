@@ -2,12 +2,11 @@ package demo
 
 import (
 	"context"
+	"regexp"
 	"testing"
-
-	"github.com/codyconfer/munin/internal/filter"
 )
 
-func TestFetchFilterDemoDropsBots(t *testing.T) {
+func TestFetchYieldsExactlyOneBotAndOneHumanItem(t *testing.T) {
 	secs, err := Signal{}.Fetch(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -16,24 +15,21 @@ func TestFetchFilterDemoDropsBots(t *testing.T) {
 		t.Fatalf("Fetch = %+v", secs)
 	}
 
-	c, err := filter.Compile(filter.Filter{
-		Name: "demo",
-		Rules: []filter.Rule{{
-			Field:   "meta.author",
-			Exclude: "(?i)bot$",
-		}},
-	})
-	if err != nil {
-		t.Fatal(err)
+	bot := regexp.MustCompile("(?i)bot$")
+	var kept []int
+	for i, it := range secs[0].Items {
+		if !bot.MatchString(it.Meta["author"]) {
+			kept = append(kept, i)
+		}
 	}
-	got := c.Apply(secs[0].Items)
-	if len(got) != 1 {
-		t.Fatalf("filtered = %d items, want 1", len(got))
+	if len(kept) != 1 {
+		t.Fatalf("non-bot items = %d, want 1 so the filter demo has exactly one bot to drop", len(kept))
 	}
-	if got[0].Meta["author"] != "alice" {
-		t.Fatalf("kept author = %q, want alice", got[0].Meta["author"])
+	human := secs[0].Items[kept[0]]
+	if human.Meta["author"] != "alice" {
+		t.Fatalf("non-bot author = %q, want alice", human.Meta["author"])
 	}
-	if got[0].Title != "Deploy finished for api-gateway" {
-		t.Fatalf("kept title = %q", got[0].Title)
+	if human.Title != "Deploy finished for api-gateway" {
+		t.Fatalf("non-bot title = %q", human.Title)
 	}
 }

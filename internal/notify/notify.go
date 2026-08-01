@@ -9,7 +9,7 @@ import (
 	"github.com/codyconfer/viewkit/panels"
 	"github.com/codyconfer/viewkit/theme"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func FromEvent(ev signals.Event) (vnotify.Notification, bool) {

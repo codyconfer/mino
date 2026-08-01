@@ -1,8 +1,3 @@
-# Opt-in demo query — live GitHub search; each item carries a github.com html_url.
-# Pair with flight/role `demo` (`munin fly demo` / `munin --role demo query demo`).
-# Synthetic notify toasts live in flight `notify-smoke` (`signal: demo`).
-# Its rules apply to its own results; to share them, use a `type: filter`
-# document instead (see queries/no-bots.yaml).
 name: demo
 type: query
 signal: github

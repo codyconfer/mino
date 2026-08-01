@@ -3,7 +3,7 @@ package format
 import (
 	"time"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type Report struct {

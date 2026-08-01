@@ -1,10 +1,10 @@
-# Munin
+# Mino
 
-Munin is a command-line assistant for the signals you check at the start of —
+Mino is a command-line assistant for the signals you check at the start of —
 and throughout — an SRE shift. It pulls **GitHub** PRs and review requests,
 **Google** Calendar / Gmail / Docs / Drive / Tasks, and **Slack** activity into
 one consistently formatted view. Query a single signal ad-hoc, save reusable
-**queries** and **filters** and recall them by name, or send Munin on a named
+**queries** and **filters** and recall them by name, or send Mino on a named
 **flight** that fetches a whole set concurrently. Everything runs against your
 existing credentials and prints as terminal panels or JSON — or through a
 **formatter**, a template that turns a run into a report you can paste.
@@ -14,60 +14,60 @@ existing credentials and prints as terminal panels or JSON — or through a
 Build (or install) the binary:
 
 ```sh
-go build -o munin .
-# or: go install github.com/codyconfer/munin@latest
+go build -o mino .
+# or: go install github.com/codyconfer/mino@latest
 ```
 
 Bootstrap a config directory (with a sample query, filter, and flight), then run:
 
 ```sh
-munin install                 # create ~/.munin with defaults
-munin onboard                 # one-time: GitHub auth + a GitHub-verified GPG key
-munin fly                     # run the default flight
-munin github query            # ad-hoc: your open PRs + review requests
-munin fly morning -o json | jq .
+mino install                 # create ~/.mino with defaults
+mino onboard                 # one-time: GitHub auth + a GitHub-verified GPG key
+mino fly                     # run the default flight
+mino github query            # ad-hoc: your open PRs + review requests
+mino fly morning -o json | jq .
 ```
 
-On first use Munin guides you through [onboarding](#onboarding) — GitHub auth plus a
-GitHub-verified signing key. How it gates depends on the mode: `munin deck` runs the
-guided flow; a bare `munin <directive>` prompts to authenticate when you're
+On first use Mino guides you through [onboarding](#onboarding) — GitHub auth plus a
+GitHub-verified signing key. How it gates depends on the mode: `mino deck` runs the
+guided flow; a bare `mino <directive>` prompts to authenticate when you're
 unauthenticated, and otherwise warns about any remaining gaps and continues. A
 binary compiled with `ALL_OR_NOTHING_AUTH=1` instead blocks ordinary cli
 directives while the authenticated account remains unauthorized. Domain locking
 can add an authorization requirement, but does not enable blocking by itself.
 `login`, `verify`, and `--help` are always available.
 
-Munin reuses tools you already have for authentication — the `gh` CLI, `gcloud`
-ADC, `$SLACK_TOKEN` — and falls back to `munin login <service>` when they are
+Mino reuses tools you already have for authentication — the `gh` CLI, `gcloud`
+ADC, `$SLACK_TOKEN` — and falls back to `mino login <service>` when they are
 absent. See [Authentication](#authentication) for the full resolution order and
 required scopes.
 
 ## Operating modes
 
-Munin runs in one of four modes over the same engine. Each has a `munin` command,
+Mino runs in one of four modes over the same engine. Each has a `mino` command,
 a matching `make` target (which builds the binary, then runs it — pass runtime
 arguments via `ARGS="…"`), and a fixed stdin/stdout/stderr contract:
 
 | Mode | Command | `make` | What it does | stdout | Logs |
 |---|---|---|---|---|---|
-| **cli** | `munin <directive>` (`fly`, `query`, `github query`, …) | `make command ARGS="fly work"` | Run a directive and print the result | [viewkit](https://github.com/codyconfer/viewkit) panels (color on a TTY, plain when piped, JSON with `-o json`) | log dir |
-| **serve** | `munin serve [flight]` | `make serve ARGS="work"` | Foreground realtime watcher in the current shell (Ctrl-C exits); **no OS service / tray** | live notification stream | shell **and** log dir |
-| **daemon** *(experimental, `-tags daemon`)* | `munin daemon [flight]` | `make daemon ARGS="work"` | Install the OS service if missing, then start it (idempotent); optional system tray via `daemon.tray` | — | OS logging (journald / launchd / Windows service) |
-| **deck** | `munin deck [flight]` (`--tmux` for a multi-pane workspace) | `make run` | Full-screen TUI only; attaches to a running daemon, else starts a **silent** background `serve` that dies with the deck session | TUI | log dir |
+| **cli** | `mino <directive>` (`fly`, `query`, `github query`, …) | `make command ARGS="fly work"` | Run a directive and print the result | [viewkit](https://github.com/codyconfer/viewkit) panels (color on a TTY, plain when piped, JSON with `-o json`) | log dir |
+| **serve** | `mino serve [flight]` | `make serve ARGS="work"` | Foreground realtime watcher in the current shell (Ctrl-C exits); **no OS service / tray** | live notification stream | shell **and** log dir |
+| **daemon** *(experimental, `-tags daemon`)* | `mino daemon [flight]` | `make daemon ARGS="work"` | Install the OS service if missing, then start it (idempotent); optional system tray via `daemon.tray` | — | OS logging (journald / launchd / Windows service) |
+| **deck** | `mino deck [flight]` (`--tmux` for a multi-pane workspace) | `make run` | Full-screen TUI only; attaches to a running daemon, else starts a **silent** background `serve` that dies with the deck session | TUI | log dir |
 
-`make run` is deck only — it does not leave a serve process behind. `munin deck` is
-the interactive front-end (formerly `munin tui`, still accepted as a hidden alias):
+`make run` is deck only — it does not leave a serve process behind. `mino deck` is
+the interactive front-end (formerly `mino tui`, still accepted as a hidden alias):
 a main menu, run **history**, **query** and **flight** builders that build, run,
 validate, save, and delete in one view each, a **directives** browser for roles,
 **Notes** (notes/tasks/reminders, on those same builders), a **Plugins**
 enable/disable screen, accounts, an ad-hoc read-only **audit query** screen, and
-**settings**. `munin deck <flight>` jumps straight to a flight; `munin settings`
+**settings**. `mino deck <flight>` jumps straight to a flight; `mino settings`
 opens just the settings screens. When the background daemon is installed, its
 status strip shows whether it is running.
 
-### tmux workspace (`munin deck --tmux`)
+### tmux workspace (`mino deck --tmux`)
 
-`munin deck --tmux` runs the deck inside a tmux session (named `munin`) so it can
+`mino deck --tmux` runs the deck inside a tmux session (named `mino`) so it can
 split off auxiliary panes on demand. Outside tmux it creates-or-attaches the
 session; inside tmux it uses the current pane. Requires `tmux` on `PATH`.
 
@@ -89,15 +89,15 @@ keybinds:
   alt+x: pane.close   # close the most recently opened pane
 ```
 
-Splits are width-aware: munin splits side-by-side only when both panes would
+Splits are width-aware: mino splits side-by-side only when both panes would
 still clear the deck's 80-column minimum, otherwise it stacks them. Panes are
 killed when the deck exits, and they exit on their own within ~2s if the deck is
 `SIGKILL`ed.
 
 Flight and query results render as a **git-style tree** — the run is the trunk,
 each signal a branch, each item a leaf — in both cli output and the deck. The
-trunk is labelled with what you ran: the flight name for `munin fly morning`, the
-query name for `munin query my-prs`, the signal for `munin github query`.
+trunk is labelled with what you ran: the flight name for `mino fly morning`, the
+query name for `mino query my-prs`, the signal for `mino github query`.
 
 ## How it works
 
@@ -116,67 +116,67 @@ rest. Every run is recorded to a local audit trail (see
 
 Every directive document declares its kind with a required `type:` — one of
 `query`, `filter`, `flight`, `role`, `formatter` — and may live in any file at
-any depth under `~/.munin/`. A `type: query` document is a signal, its parameters, and the
+any depth under `~/.mino/`. A `type: query` document is a signal, its parameters, and the
 filters to apply. A `type: filter` document is an ordered set of regex
 include/exclude rules targeting a field, plus any aliases it exposes; a query
-may also carry its own rules inline. `munin install` still creates `queries/`,
+may also carry its own rules inline. `mino install` still creates `queries/`,
 `flights/`, and `formatters/`, and saved documents still land there by default, but that is now
 a convention — the directory a file sits in no longer decides what it is.
 
 Documents may sit one-per-file or share a file (`---`-separated YAML documents,
 a top-level YAML list, or a JSON array), so a filter can live right next to the
-query that uses it. Recall a query by name (`munin query <name>`), or apply
+query that uses it. Recall a query by name (`mino query <name>`), or apply
 filters ad-hoc with `--include` / `--exclude` / `--filter`.
 
 → [How to create query and filter config](#create-a-query-and-filter-config)
 
 ## Flights
 
-A **flight** ("fly" plays on the raven) is a named, ordered list of saved query
-names run concurrently — your whole shift-start sweep in one command. `munin fly
-<name>` runs one; bare `munin fly` runs the active role's first flight (or
+A **flight** ("fly" plays on the bird) is a named, ordered list of saved query
+names run concurrently — your whole shift-start sweep in one command. `mino fly
+<name>` runs one; bare `mino fly` runs the active role's first flight (or
 `default`), or lists what's available.
 
 The seeded `default` flight stays a clean `my-open-prs` sweep. Opt-in showcase
 flights (also under [`examples/`](../examples/)): **`demo`** is live GitHub
 (`signal: github` items with `github.com` URLs); **`notify-smoke`** streams
 synthetic toasts (`signal: demo`) for desktop/notify smoke — keep it off the
-default path. Try `munin fly demo`, `munin serve notify-smoke`, or
+default path. Try `mino fly demo`, `mino serve notify-smoke`, or
 `make run ARGS=demo`.
 
 → [How to create a flight config](#create-a-flight-config)
 
 ## Roles
 
-**Roles** scope what Munin shows so you see only what's relevant to the hat
+**Roles** scope what Mino shows so you see only what's relevant to the hat
 you're wearing. A role names the flights and queries it surfaces (filters are
 queries, so one `queries:` list covers both); while
-that role is active, lists and the TUI show only those, and a bare `munin fly`
+that role is active, lists and the TUI show only those, and a bare `mino fly`
 runs the role's first flight. **Directives → Queries** and **Directives → Flights**
-both honour the active role, so the two lists stay consistent with `munin list`.
+both honour the active role, so the two lists stay consistent with `mino list`.
 
 **No role means everything.** With no active role, every query, filter, and
 flight is listed. That is a first-class position in the role ring, not just the
 startup default: `alt+]` / `alt+[` in the deck cycle *through* no-role, so you can
 step off a role — even the only one you have defined — and see everything again.
 Leaving it also runs the role's `exit` hooks and clears its status chips. Set the
-active role with `--role`, `$MUNIN_ROLE`, or `role:` in config, and inspect your
-context with `munin role` (which prints `(none)` when no role is active).
+active role with `--role`, `$MINO_ROLE`, or `role:` in config, and inspect your
+context with `mino role` (which prints `(none)` when no role is active).
 
 → [How to create a role config](#create-a-role-config)
 
 ## Plugins & notes
 
 Plugins are **compile-time linked** Go packages — there is no runtime `.so` /
-`plugin.Open` loading. Stock munin registers **GitHub** plus Notes / Tasks /
-Reminders (`munin.ntr`) — nothing else. Google (Calendar / Gmail / Docs / Drive /
+`plugin.Open` loading. Stock mino registers **GitHub** plus Notes / Tasks /
+Reminders (`mino.ntr`) — nothing else. Google (Calendar / Gmail / Docs / Drive /
 Tasks), Slack, and the demo signal are plugins in this repo's
 [`external/plugins`](../external/plugins/) module; team distributions add more in
 their own **overlay** binary.
 
 **Public SDK.** Overlay code imports
-[`github.com/codyconfer/munin/plugin`](../plugin/) (and the thin
-[`munin/app`](../app/) entrypoint) — not `munin/internal`. Register contributions
+[`github.com/codyconfer/mino/plugin`](../plugin/) (and the thin
+[`mino/app`](../app/) entrypoint) — not `mino/internal`. Register contributions
 from `app.Options.RegisterPlugins`, then build that binary. Mark contributions
 that belong only to serve/daemon mode with `plugin.WithServiceOnly()` (or
 `Descriptor.ServiceOnly`); interactive UI lists hide them unless a live
@@ -188,8 +188,8 @@ against the public SDK, with `overlay/main.go` as a reference host:
 ```text
 external/plugins/            # calendar, gmail, docs, drive, tasks, slack, demo, google login
 external/plugins/overlay/    # thin binary: RegisterPlugins → plugins.Register
-../munin-plugins-external/   # other external.* packages (gcx, kubectl, …)
-../munin-overlay-template/   # thin binary for those siblings
+../mino-plugins-external/   # other external.* packages (gcx, kubectl, …)
+../mino-overlay-template/   # thin binary for those siblings
 ```
 
 ```sh
@@ -197,8 +197,8 @@ cd external/plugins && go build ./... && go run ./overlay calendar query
 # or from the repo root: make build-overlay · make test-overlay
 ```
 
-Stock `munin` registers none of these. Beyond signals, a plugin can contribute a
-**login provider** (`plugin.RegisterLoginProvider`, so `munin login google` works
+Stock `mino` registers none of these. Beyond signals, a plugin can contribute a
+**login provider** (`plugin.RegisterLoginProvider`, so `mino login google` works
 again), **query params** (`plugin.RegisterQueryParams`), a **backup destination**
 (`plugin.RegisterBackupDestination`, which is where `backup.destination: gdrive`
 comes from), CLI **commands** (`cmd.RegisterCommand` + `cmd.SignalCmd`), filter
@@ -208,17 +208,17 @@ engines, views, themes, and status chips. Each reads its own settings from
 [`examples/README.md`](../examples/README.md).
 
 ```sh
-munin plugins list
-munin plugins enable|disable <id>          # runtime activation (settings)
-munin plugins install|uninstall <id>       # enable/disable + example directive seeds
-munin plugins scaffold team.example --dir ./plugins/example
-munin notes ui                             # Notes/Tasks TUI; Reminders when a serve/daemon is attached (`ntr` is an alias)
+mino plugins list
+mino plugins enable|disable <id>          # runtime activation (settings)
+mino plugins install|uninstall <id>       # enable/disable + example directive seeds
+mino plugins scaffold team.example --dir ./plugins/example
+mino notes ui                             # Notes/Tasks TUI; Reminders when a serve/daemon is attached (`ntr` is an alias)
 ```
 
 `install` / `uninstall` provision or remove unmodified example directives into
-`~/.munin` — they do not download or dynamically load plugin code. The deck
+`~/.mino` — they do not download or dynamically load plugin code. The deck
 **Plugins** screen toggles enablement; **Notes** opens the same views as
-`munin notes ui` — one screen each for **Notes**, **Tasks**, and **Reminders**,
+`mino notes ui` — one screen each for **Notes**, **Tasks**, and **Reminders**,
 each a list of records with **New** first and one builder/editor behind every
 row, on the same scheme as the directive screens (see
 [Build notes, tasks, and reminders the same way](#build-notes-tasks-and-reminders-the-same-way)).
@@ -232,30 +232,30 @@ Signals come in two flavors: **passive** (REST, pulled on demand — the default
 `fly`/`query` path) and **active** (a live stream). Two modes consume active
 signals — a foreground watcher and a managed OS service:
 
-- **`munin serve [flight]`** runs a long-running watcher in the **current shell**
+- **`mino serve [flight]`** runs a long-running watcher in the **current shell**
   (Ctrl-C exits): it opens every active signal in the flight, fans their events
   into one loop, and emits a notification per new item. Flags: `--interval`,
   `--bell`, `--desktop` (OS desktop notifications), `--theme`. It does **not**
   install an OS service or own the system tray — its lifecycle is the shell it
   runs in, and it logs to that shell and the log dir.
-- **`munin daemon [flight]`** — **experimental and off by default**; present only
+- **`mino daemon [flight]`** — **experimental and off by default**; present only
   in builds made with `-tags daemon` (see
   [the daemon build tag](#the-os-service-daemon-is-experimental-tagsdaemon)).
-  Runs Munin as a background **OS service** (systemd
+  Runs Mino as a background **OS service** (systemd
   user unit on Linux, launchd agent on macOS, Windows service), which logs through
   the OS logging facility. Set `daemon.tray: true` for a system-tray icon on that
-  service. Bare `munin daemon` is idempotent: it installs the service if it isn't
+  service. Bare `mino daemon` is idempotent: it installs the service if it isn't
   installed (after a confirmation; `--yes`/`--system` to script it), then starts
   it if it isn't running. Manage it explicitly with the subcommands:
 
 ```sh
-munin daemon                              # install (if needed), then start
-munin daemon install [flight] [--system]  # install only
-munin daemon start | stop | restart | status | uninstall
-munin daemon attach                       # attach a live-notification TUI to the running daemon
+mino daemon                              # install (if needed), then start
+mino daemon install [flight] [--system]  # install only
+mino daemon start | stop | restart | status | uninstall
+mino daemon attach                       # attach a live-notification TUI to the running daemon
 ```
 
-`munin deck` / `make run` ties these together: attach to a running daemon if one
+`mino deck` / `make run` ties these together: attach to a running daemon if one
 exists, otherwise start a **silent** session-owned background `serve` (stdio
 discarded; logs still go to the log dir). That serve dies with the deck session —
 including unexpected death on Unix (lifeline pipe). An installed daemon or a
@@ -269,17 +269,17 @@ and nothing else. Slack Socket Mode needs an app-level `xapp-` token + a bot
 `xoxb-` token (env-var names configurable via `plugins.slack.app_token_env` /
 `plugins.slack.bot_token_env`); without them Slack is skipped.
 
-Desktop/notification icons are embedded (raven, dark + light — pick with `--theme`)
-and overridable by dropping `~/.munin/icons/<state>.png`. Realtime defaults live
+Desktop/notification icons are embedded (bird, dark + light — pick with `--theme`)
+and overridable by dropping `~/.mino/icons/<state>.png`. Realtime defaults live
 under `daemon:` in config and are overridden by flags.
 
 ## Create a query and filter config
 
-A directive file is any `.yaml`/`.yml`/`.json` file under `~/.munin/`, at any
+A directive file is any `.yaml`/`.yml`/`.json` file under `~/.mino/`, at any
 depth: `queries/no-bots.yaml`, `queries/gh/prs.yaml`, and `team/oncall.yaml` all
 load. Every document in it needs a `type:`.
 
-A **filter set** (`~/.munin/queries/no-bots.yaml`) is an ordered list of regex
+A **filter set** (`~/.mino/queries/no-bots.yaml`) is an ordered list of regex
 rules and no signal. An item is kept only if it satisfies every `include` rule
 and matches no `exclude` rule; exclusion wins on conflict. Rules target a field:
 `title`, `subtitle`, `body` (default), or `meta.<key>`. Without a signal there is
@@ -295,7 +295,7 @@ rules:
     include: "deploy|incident|blocker"
 ```
 
-A **query** (`~/.munin/queries/slack-standup.yaml`) bundles a signal, its params,
+A **query** (`~/.mino/queries/slack-standup.yaml`) bundles a signal, its params,
 and the filters to apply — a saved filter set by name, or an inline rule. The
 examples below use `signal: slack`, which comes from the
 [`external/plugins`](../external/plugins/) overlay; a stock binary has `github`,
@@ -331,7 +331,7 @@ Put both in one file with `---` when a filter is only interesting next to its
 query. Every document in a multi-document file needs its own `name`:
 
 ```yaml
-# ~/.munin/queries/standup.yaml
+# ~/.mino/queries/standup.yaml
 name: no-bots
 type: filter
 rules:
@@ -353,7 +353,7 @@ a flight can sit in `queries/` next to the queries it composes and a filter can
 sit in `flights/`:
 
 ```yaml
-# ~/.munin/queries/triage.yaml
+# ~/.mino/queries/triage.yaml
 name: triage
 type: flight
 queries: [incidents, loki-errors]
@@ -385,19 +385,19 @@ Discovery skips dot-directories (`.data/`, `.plugins/`, `.archive/`), `logs/`,
 and the root `config.yaml`/`config.yml`/`config.json` — that name is reserved
 only at the root, so a nested `team/config.yaml` is an ordinary directive file.
 
-`name` stays the invocable identifier (`munin query slack-standup`) and the audit
-key; `title` is only what you read. When set, `munin fly` heads that query's
+`name` stays the invocable identifier (`mino query slack-standup`) and the audit
+key; `title` is only what you read. When set, `mino fly` heads that query's
 results panel with the title instead of the name — rename it freely without
 breaking flights, roles, or history.
 
 ```sh
-munin query slack-standup       # run it
-munin query show slack-standup  # inspect the definition
-munin list queries              # queries the active role can see
-munin list filters              # filters the active role can see
-munin list formatters           # formatters the active role can see
-munin list --all                # everything, ignoring the active role
-munin filter list               # saved filters plus plugin filter engines
+mino query slack-standup       # run it
+mino query show slack-standup  # inspect the definition
+mino list queries              # queries the active role can see
+mino list filters              # filters the active role can see
+mino list formatters           # formatters the active role can see
+mino list --all                # everything, ignoring the active role
+mino filter list               # saved filters plus plugin filter engines
 ```
 
 Every file may be YAML (`.yaml`/`.yml`) or JSON (`.json`) — the two mix freely.
@@ -488,10 +488,10 @@ pairs rather than being dropped.
 The same thing from the shell:
 
 ```sh
-munin query build --signal github --param query="is:open is:pr author:@me"
-munin query build --signal slack --param channel=eng-standup --filter no-bots
-munin query build --signal github --param query="is:open" --exclude "(?i)wip" --dry-run
-munin query build --signal gmail --param query="is:unread" --save unread-now
+mino query build --signal github --param query="is:open is:pr author:@me"
+mino query build --signal slack --param channel=eng-standup --filter no-bots
+mino query build --signal github --param query="is:open" --exclude "(?i)wip" --dry-run
+mino query build --signal gmail --param query="is:unread" --save unread-now
 ```
 
 `--param` and `--filter` repeat. `--include`/`--exclude`/`--field` add one inline
@@ -499,14 +499,14 @@ rule. `--dry-run` prints the query document instead of running it, which is the
 quickest way to get a starting point for a file you will hand-edit. Without
 `--save` nothing is written — the query runs and is forgotten.
 
-Params are per-signal; `munin query build --help` lists the ones munin knows.
+Params are per-signal; `mino query build --help` lists the ones mino knows.
 Anything else you pass through `--param` (or the builder's `extra params` field)
 reaches the signal untouched, which is how plugin-defined params work.
 
 Saving writes the YAML file **and** imports the `directives` row into DuckDB, so a
-saved query is immediately runnable by name — no `munin apply` or restart. Because
+saved query is immediately runnable by name — no `mino apply` or restart. Because
 the store versions every directive file as one row, that import also commits any
-other staged edits sitting anywhere under `~/.munin/`.
+other staged edits sitting anywhere under `~/.mino/`.
 
 ## Build notes, tasks, and reminders the same way
 
@@ -546,21 +546,21 @@ The rest of the deltas against the directive builders:
 - On a list, `enter` edits the row, `x` toggles done (tasks) or marks done
   (reminders, which then drop off the list of open ones), and `r` refreshes. The
   list also refreshes itself when you come back from an editor that saved or
-  deleted. It does **not** currently notice a `munin notes add` run by another
+  deleted. It does **not** currently notice a `mino notes add` run by another
   process — press `r` for that.
 - A multiline note body cannot take a typed newline in the TUI — a pre-existing
-  viewkit form limitation, not a new one. Use `munin notes add <title> <body>` or
-  `munin notes update <id> <title> <body>` when the body needs more than one line.
+  viewkit form limitation, not a new one. Use `mino notes add <title> <body>` or
+  `mino notes update <id> <title> <body>` when the body needs more than one line.
 
 ## Create a flight config
 
 A flight is a `type: flight` document — a named, ordered list of saved query
-names. New flights land in `~/.munin/flights/`, one per file, but any file under
-`~/.munin/` will do:
+names. New flights land in `~/.mino/flights/`, one per file, but any file under
+`~/.mino/` will do:
 
 ```yaml
-# ~/.munin/flights/triage.yaml
-name: triage                 # run by `munin fly triage`
+# ~/.mino/flights/triage.yaml
+name: triage                 # run by `mino fly triage`
 type: flight
 queries: [incidents, my-open-prs]
 ```
@@ -575,11 +575,11 @@ A **formatter** is a `type: formatter` document holding one Go
 [`text/template`](https://pkg.go.dev/text/template) that turns a run's results
 into a text report — a standup post, a triage digest, a canned PR or Slack reply.
 The rendered text **replaces** the git-tree panels (or the JSON) on stdout, so it
-pipes cleanly. New formatters land in `~/.munin/formatters/`, one per file, but
-like every directive one may live anywhere under `~/.munin/`:
+pipes cleanly. New formatters land in `~/.mino/formatters/`, one per file, but
+like every directive one may live anywhere under `~/.mino/`:
 
 ```yaml
-# ~/.munin/formatters/standup.yaml
+# ~/.mino/formatters/standup.yaml
 name: standup
 type: formatter
 title: Daily Standup         # optional display label
@@ -595,14 +595,14 @@ Attach one with a `formatter: <name>` field on a query or flight, or choose one
 per run with `--formatter`:
 
 ```sh
-munin fly triage --formatter triage-summary        # ad-hoc
-munin fly morning --formatter standup --copy       # render to the clipboard
-munin query my-open-prs --formatter pr-nudge --out nudge.md
-munin github query -F pr-nudge                     # ad-hoc single-signal query
-munin formatter                                    # list what the role can see
-munin formatter show standup                       # print the definition
-munin formatter render standup morning             # run flight `morning`, render it
-munin fly morning -o json | munin formatter render standup --stdin
+mino fly triage --formatter triage-summary        # ad-hoc
+mino fly morning --formatter standup --copy       # render to the clipboard
+mino query my-open-prs --formatter pr-nudge --out nudge.md
+mino github query -F pr-nudge                     # ad-hoc single-signal query
+mino formatter                                    # list what the role can see
+mino formatter show standup                       # print the definition
+mino formatter render standup morning             # run flight `morning`, render it
+mino fly morning -o json | mino formatter render standup --stdin
 ```
 
 `--formatter` beats the directive's own `formatter:` field. Without `--copy` or
@@ -612,7 +612,7 @@ instead of running anything, so a captured result can be re-rendered.
 
 Within a flight, per-query `formatter:` fields are **ignored** — the flight's
 formatter sees the whole result set, so exactly one template renders a run.
-`munin serve` and the streaming path ignore formatters entirely: a stream never
+`mino serve` and the streaming path ignore formatters entirely: a stream never
 has "all the results".
 
 In the deck, formatters and the reports they produce are one screen:
@@ -686,20 +686,20 @@ formatters are visible with `formatters:`. Copy-paste starters live in
 
 ## Create a role config
 
-A role is a `type: role` document. `munin install` writes them loose at the top of
-`~/.munin/`, one per file, but — like every directive — a role may live anywhere
+A role is a `type: role` document. `mino install` writes them loose at the top of
+`~/.mino/`, one per file, but — like every directive — a role may live anywhere
 under the home dir. The active role is set in `config.yaml` (or `--role` /
-`$MUNIN_ROLE`):
+`$MINO_ROLE`):
 
 ```yaml
 # config.yaml — the active role
 role: triage
 ```
 ```yaml
-# ~/.munin/triage.yaml — a role definition
+# ~/.mino/triage.yaml — a role definition
 name: triage
 type: role
-flights: [triage]            # bare `munin fly` runs the first of these
+flights: [triage]            # bare `mino fly` runs the first of these
 queries: [incidents, loki-errors, my-open-prs, no-bots]
 formatters: [triage-summary] # a role listing no formatters sees none
 # Optional enter/exit shell hooks (bash on Unix, PowerShell on Windows).
@@ -719,23 +719,23 @@ should be able to run. While a role is active, only the flights,
 queries, and formatters it names appear in lists, completion, and the TUI; with
 no active role, everything is listed. Asking for a
 query or flight the active role doesn't name reports why. Validate references and
-enums with `munin verify`. On a role switch, munin runs the previous role’s exit
+enums with `mino verify`. On a role switch, mino runs the previous role’s exit
 hooks, then the new role’s enter hooks (see `examples/README.md`).
 
 ## Configuration
 
-Config lives under `~/.munin/`:
+Config lives under `~/.mino/`:
 
 ```
-~/.munin/
+~/.mino/
   config.yaml          # global settings + per-signal defaults — the only mandated name/location
-  *.yaml               # directives: roles (what `munin install` writes here)
+  *.yaml               # directives: roles (what `mino install` writes here)
   queries/*.yaml       # directives: queries and filters (one or many per file)
   flights/*.yaml       # directives: flights (one per file)
   formatters/*.yaml    # directives: formatters — templated reports (one per file)
   team/gh/prs.yaml     # directives may nest arbitrarily; `type:` decides the kind
   icons/*.png          # optional per-state tray/notification icon overrides
-  logs/munin.log       # rotating command/serve/deck log sink (cleanable/nukable)
+  logs/mino.log       # rotating command/serve/deck log sink (cleanable/nukable)
   .data/config.duckdb  # versioned store: source of truth for config + directives
   .data/audit.duckdb   # run history (see Audit trail)
   .data/tokens.duckdb  # cached OAuth credentials
@@ -747,7 +747,7 @@ Config lives under `~/.munin/`:
 required name and place. Everything else is discovered by walking the home dir:
 any `.yaml`/`.yml`/`.json` file at any depth is read as directives, keyed by its
 path relative to the home dir. `queries/`, `flights/`, and `formatters/` are
-created by `munin install` and are where new documents are saved, so they stay
+created by `mino install` and are where new documents are saved, so they stay
 the convention, but they carry no meaning of their own. Skipped while walking: dot-directories
 (`.data/`, `.plugins/`, `.archive/`), `logs/`, and the root config file — a nested
 `team/config.yaml` is just another directive file.
@@ -756,10 +756,10 @@ Every DuckDB file lives under `.data/` so the config dir itself stays readable
 (and diffable) — the loose files are `config.yaml` and whatever directives you put
 beside it.
 
-**Several munin processes can share one home.** DuckDB allows a single read-write
-process per file, so munin holds each database only around the work that needs it
+**Several mino processes can share one home.** DuckDB allows a single read-write
+process per file, so mino holds each database only around the work that needs it
 and releases it in between. A second process asking for a database that is in use
-is handed it within a few milliseconds, which means you can run `munin apply`, or
+is handed it within a few milliseconds, which means you can run `mino apply`, or
 anything else, in one terminal while a deck is open in another.
 
 A running deck notices this: it polls a revision marker beside the store roughly
@@ -768,22 +768,22 @@ place. New and changed flights, queries, filters, formatters, and roles appear
 without restarting. Changes to `config.yaml` itself — keybinds, theme, timeouts —
 still need a restart.
 
-**Config directory resolution** (highest wins): `--home`/`--dir` → `$MUNIN_HOME` →
-`home:` in `~/.config/munin/settings.yaml` → `~/.munin`. Bootstrap a fresh
-directory with `munin install`, archive its files with `munin clean`, or wipe it
-with `munin nuke` and run `munin install` again (nuke clears a matching
-`settings.yaml` `home:` so install falls back to `~/.munin`).
+**Config directory resolution** (highest wins): `--home`/`--dir` → `$MINO_HOME` →
+`home:` in `~/.config/mino/settings.yaml` → `~/.mino`. Bootstrap a fresh
+directory with `mino install`, archive its files with `mino clean`, or wipe it
+with `mino nuke` and run `mino install` again (nuke clears a matching
+`settings.yaml` `home:` so install falls back to `~/.mino`).
 
 **Logs.** Diagnostic logs go to a file so they never corrupt command output or the
 deck's alt-screen: **cli** and **deck** log to the file only, **serve** logs to both
 the shell and the file, and **daemon** logs through the OS logging facility (not the
-file). The log dir resolves as `$MUNIN_LOG_DIR` → `log_dir:` in `settings.yaml` →
-`<home>/logs`; `munin clean` archives it and `munin nuke` removes it.
+file). The log dir resolves as `$MINO_LOG_DIR` → `log_dir:` in `settings.yaml` →
+`<home>/logs`; `mino clean` archives it and `mino nuke` removes it.
 
 **DuckDB is the source of truth.** `.data/config.duckdb` is the store holding the
 live state, in two rows: `config` (the root config file) and `directives` (every
 directive file, as a map of home-relative path → content, so nesting round-trips
-exactly). On startup Munin hash-compares each row against what is on disk:
+exactly). On startup Mino hash-compares each row against what is on disk:
 
 - **match** → load DuckDB (no change).
 - **differ** → the files are treated as **staged changes**. On a terminal you get a
@@ -804,23 +804,23 @@ prompt|apply|session|ignore` picks an answer up front, which is what you want in
 scripts, hooks, and cron.
 
 Nothing is auto-imported; imports happen only when you choose them, and every
-import archives the prior version. **`munin apply [directive]`** (alias `munin
+import archives the prior version. **`mino apply [directive]`** (alias `mino
 import`) is the non-interactive way to write staged files into the store — it never
-prompts, takes `config`, `directives`, or `all`, and defaults to `all`. **`munin
+prompts, takes `config`, `directives`, or `all`, and defaults to `all`. **`mino
 export <directive>`** goes the other way, restoring each directive file at the
 home-relative path it was imported from and creating parent directories as needed.
 The old `queries`/`flights`/`roles` arguments still work on both, as deprecated
-aliases for `directives`. Inspect current/prior config with `munin config` /
-`munin config history`. `--config <file>` uses a config file for **this session
+aliases for `directives`. Inspect current/prior config with `mino config` /
+`mino config history`. `--config <file>` uses a config file for **this session
 only** (never persisted) — the non-interactive form of "use this session". Any file
-value can be overridden per-run by a `MUNIN_*` env var (e.g. `MUNIN_OUTPUT=json`) or
+value can be overridden per-run by a `MINO_*` env var (e.g. `MINO_OUTPUT=json`) or
 a flag; overrides are never persisted.
 
-**Theme** is a global setting: `theme:` in `~/.config/munin/settings.yaml` (or
-`$MUNIN_THEME`) selects a viewkit theme (default `retro-dark`); `munin verify`
+**Theme** is a global setting: `theme:` in `~/.config/mino/settings.yaml` (or
+`$MINO_THEME`) selects a viewkit theme (default `retro-dark`); `mino verify`
 validates the key.
 
-**Plugin settings** live under `plugins:`, namespaced per plugin — stock munin's own
+**Plugin settings** live under `plugins:`, namespaced per plugin — stock mino's own
 knobs (`github:`, `cache:`, `daemon:`, `backup:`, `audit:`) stay at the top level, and
 everything a plugin reads goes under `plugins.<namespace>.<key>`, reached through
 `plugin.Host.Settings`:
@@ -843,8 +843,8 @@ plugins:
     limit: 50
 ```
 
-Leaves take `MUNIN_*` env overrides like any other key
-(`MUNIN_PLUGINS_CALENDAR_MAX=20`). Signals that used to read a top-level section —
+Leaves take `MINO_*` env overrides like any other key
+(`MINO_PLUGINS_CALENDAR_MAX=20`). Signals that used to read a top-level section —
 `calendar:`, `gmail:`, `docs:`, `drive:`, `tasks:`, `slack:`, `google:` — now read
 these namespaces instead, because they ship in
 [`external/plugins`](../external/plugins/) rather than the stock binary; move those
@@ -861,7 +861,7 @@ See [`examples/`](../examples/) for copy-paste starters.
 ### Onboarding
 
 Onboarding requires GitHub authenticated **and** a GPG (or SSH) signing key that git
-uses and GitHub has verified. Munin classifies you as **unauthenticated** (no GitHub
+uses and GitHub has verified. Mino classifies you as **unauthenticated** (no GitHub
 auth at all), **unauthorized** (authed but a signing/scope/verification gap), or
 **authorized**, and gates each mode differently:
 
@@ -873,16 +873,16 @@ auth at all), **unauthorized** (authed but a signing/scope/verification gap), or
 | **deck** | run the guided onboarding flow, then continue | run the guided flow, then continue | run |
 
 ```sh
-munin onboard            # guided check + fix instructions, loops until ready
-munin onboard --status   # print the checklist without changing anything
-munin onboard --reset    # clear the marker (re-onboard on the next run)
+mino onboard            # guided check + fix instructions, loops until ready
+mino onboard --status   # print the checklist without changing anything
+mino onboard --reset    # clear the marker (re-onboard on the next run)
 ```
 
 `onboard` checks four things and, for any gap, prints the exact commands to fix it
 (it never generates keys or edits your git config): (1) GitHub auth — `gh` CLI or a
 cached token; (2) `git config user.signingkey` is set; (3) that secret key is in
 your local GPG keyring; (4) the key's public half is registered on your GitHub
-account, so signed commits show **Verified**. `munin verify onboarding` reports the
+account, so signed commits show **Verified**. `mino verify onboarding` reports the
 same checklist. `login`, `verify`, `install`/`clean`/`nuke`, and `--help` skip the
 gate entirely. The onboarded state lives in `settings.yaml`.
 
@@ -896,7 +896,7 @@ make package EMAIL_DOMAIN=example.com   # only unlocks for @example.com identiti
 This adds a fifth onboarding check (a verified `@example.com` email on the
 registered key) and stamps the domain into the marker, so a binary built for one
 domain won't accept an onboarding done by an unrestricted build. Built without the
-flag, Munin has no domain restriction. Note this is a distribution-policy control,
+flag, Mino has no domain restriction. Note this is a distribution-policy control,
 not a hardened security boundary — `settings.yaml` is user-writable.
 
 #### All-or-nothing auth (`ALL_OR_NOTHING_AUTH`)
@@ -918,7 +918,7 @@ This switch is deliberately narrow:
 
 - It changes only the **cli + unauthorized** case.
 - It does not change `serve`, `daemon`, or `deck` behavior.
-- It does not change unauthenticated cli behavior: Munin still launches guided
+- It does not change unauthenticated cli behavior: Mino still launches guided
   authentication, and an authentication/onboarding error already blocks.
 - It does not block gate-exempt recovery commands such as `login`, `verify`,
   `install`, `clean`, `nuke`, or `--help`.
@@ -928,20 +928,20 @@ This switch is deliberately narrow:
 ### Authentication
 
 Every signal resolves auth as **CLI/ADC → token → OAuth**, so it works whether or
-not the usual CLI is installed; when nothing is configured Munin explains the
+not the usual CLI is installed; when nothing is configured Mino explains the
 options instead of failing opaquely.
 
 | Signal | Primary | Fallbacks |
 |---|---|---|
-| **GitHub** (stock) | `gh` CLI (`gh auth login`) | `$GITHUB_TOKEN` / `$GH_TOKEN` → `munin login github` (device flow) |
-| **Calendar / Gmail / Docs / Drive / Tasks** (overlay) | `gcloud` ADC | `munin login google` (browser OAuth) |
-| **Slack** (overlay) | `$SLACK_TOKEN` (xoxp-…) | `munin login slack` (browser OAuth) |
+| **GitHub** (stock) | `gh` CLI (`gh auth login`) | `$GITHUB_TOKEN` / `$GH_TOKEN` → `mino login github` (device flow) |
+| **Calendar / Gmail / Docs / Drive / Tasks** (overlay) | `gcloud` ADC | `mino login google` (browser OAuth) |
+| **Slack** (overlay) | `$SLACK_TOKEN` (xoxp-…) | `mino login slack` (browser OAuth) |
 
-`munin login <provider>` runs that provider's OAuth flow and caches a token in the
+`mino login <provider>` runs that provider's OAuth flow and caches a token in the
 DuckDB credential store (`.data/tokens.duckdb`, one row per service); later runs
-use the signal's direct API client. Stock munin ships the `github` provider only;
+use the signal's direct API client. Stock mino ships the `github` provider only;
 `google` and `slack` are contributed by the overlay plugins through
-`plugin.RegisterLoginProvider`, along with the signal aliases (`munin login
+`plugin.RegisterLoginProvider`, along with the signal aliases (`mino login
 calendar` → Google). Each needs its OAuth app credentials in config — GitHub under
 `github.oauth_client_id`, contributed providers under
 `plugins.<namespace>.oauth_client_id` / `_secret`. GitHub uses the device flow (no
@@ -952,7 +952,7 @@ auto-refresh.
   `https://ghe.example.com/api/v3`) so the REST fallback targets your instance.
   Device-flow scopes are `github.oauth_scopes` (default `repo read:org`).
 - **Google scopes** — a plain `gcloud auth application-default login` does *not*
-  grant the read scopes. Munin preflight-checks them and reprints the exact
+  grant the read scopes. Mino preflight-checks them and reprints the exact
   `gcloud … --scopes=…` command to run if any are missing.
 
 ### Result cache
@@ -964,14 +964,14 @@ filtering, so one fetch serves several differently-filtered queries.
 
 ```yaml
 cache:
-  ttl: 60s              # "0" disables; MUNIN_CACHE_TTL overrides
-  detail_ttl: 5m        # per-item details (see `munin show`); "0" disables
+  ttl: 60s              # "0" disables; MINO_CACHE_TTL overrides
+  detail_ttl: 5m        # per-item details (see `mino show`); "0" disables
   signals:
-    github: 5m          # per-signal override; MUNIN_CACHE_SIGNALS_GITHUB
+    github: 5m          # per-signal override; MINO_CACHE_SIGNALS_GITHUB
     calendar: 30s       # works for overlay signals too
 ```
 
-Item details — the body, checks, reviews and comments behind `munin show` and the
+Item details — the body, checks, reviews and comments behind `mino show` and the
 deck's details view — are cached separately under `cache.detail_ttl`, because they
 are fetched per item rather than per signal. The value resolves local-first:
 `cache.detail_ttl` in this home's config, else `detail_cache_ttl` in the global
@@ -979,11 +979,11 @@ are fetched per item rather than per signal. The value resolves local-first:
 `--cache-ttl 0` disables detail caching along with everything else.
 
 ```sh
-munin fly work --refresh      # fetch live, then re-warm the cache
-munin fly work --no-cache     # read nothing, write nothing
-munin fly work --cache-ttl 5m # override the TTL for this run
-munin cache stats             # what is cached, and how much is still fresh
-munin cache clear github      # drop one signal; no argument drops everything
+mino fly work --refresh      # fetch live, then re-warm the cache
+mino fly work --no-cache     # read nothing, write nothing
+mino fly work --cache-ttl 5m # override the TTL for this run
+mino cache stats             # what is cached, and how much is still fresh
+mino cache clear github      # drop one signal; no argument drops everything
 ```
 
 Only signals advertising the `cacheable` capability are cached, so signals reading
@@ -991,10 +991,10 @@ local state (`ntr`) always show writes immediately. An explicit `cache.signals`
 entry overrides that either way — a duration turns caching on for any signal, `"0"`
 turns it off.
 
-If a fetch fails and a cached copy is less than 24h old, munin serves the cached
+If a fetch fails and a cached copy is less than 24h old, mino serves the cached
 results and marks the section `(stale <age>)` instead of showing an error; JSON
 output carries the same information in the section's `meta` object. Errors are
-never cached. The cache is regenerable, so it is excluded from `munin backup`.
+never cached. The cache is regenerable, so it is excluded from `mino backup`.
 
 ### Audit trail
 
@@ -1004,8 +1004,8 @@ audit trail for tracking your workflow and metrics over time, **not a cache**:
 results are never read back to answer a live query.
 
 ```sh
-munin history                 # list recent runs (flights, queries, writes)
-munin history show 12         # recall a past run's stored results
+mino history                 # list recent runs (flights, queries, writes)
+mino history show 12         # recall a past run's stored results
 ```
 
 The file is queryable directly for ad-hoc metrics:
@@ -1015,22 +1015,22 @@ SELECT name, kind, count(*) AS runs, coalesce(sum(count), 0) AS items
 FROM runs GROUP BY name, kind ORDER BY runs DESC;
 ```
 
-Disable the trail with `audit.enabled: false` (or `MUNIN_AUDIT_ENABLED=false`).
+Disable the trail with `audit.enabled: false` (or `MINO_AUDIT_ENABLED=false`).
 Config versioning is separate — tracked in `.data/config.duckdb` and surfaced via
-`munin config history`.
+`mino config history`.
 
 ### Encrypted backups
 
-`munin backup` bundles the DuckDB databases (`config`, `audit`, `tokens`) into a
+`mino backup` bundles the DuckDB databases (`config`, `audit`, `tokens`) into a
 tar and encrypts it with AES-256-GCM. The key is escrowed in a **secret
 manager** — `secret_backend: auto` uses the **Bitwarden** (`bw`) or **1Password**
 (`op`) CLI when configured, otherwise the **OS keyring**; if none is available it
 errors rather than writing an unrecoverable backup.
 
 ```sh
-munin backup                 # → ./munin-backup-<ts>.tar.enc  (key escrowed)
-munin backup --out /secure   # write elsewhere
-munin restore <file>         # decrypt + write the databases back into <home>/.data
+mino backup                 # → ./mino-backup-<ts>.tar.enc  (key escrowed)
+mino backup --out /secure   # write elsewhere
+mino restore <file>         # decrypt + write the databases back into <home>/.data
 ```
 
 `backup.keep: N` retains only the newest N backups (`0` = keep all).
@@ -1038,7 +1038,7 @@ munin restore <file>         # decrypt + write the databases back into <home>/.d
 plugin-contributed destination: with the overlay's Drive plugin registered,
 `gdrive` uploads the encrypted file to the app's private Google Drive
 `appDataFolder`. An unknown destination names the ones actually registered.
-`munin restore`
+`mino restore`
 doesn't depend on opening `.data/config.duckdb`, so it recovers even a corrupted config
 DB.
 
@@ -1046,38 +1046,38 @@ DB.
 
 | Command | Description |
 |---|---|
-| `munin fly [flight]` | **cli**: run a named flight (defaults to the role's flight / `default`); `--formatter`/`--copy`/`--out` render it through a formatter. |
-| `munin query [name]` | **cli**: run a saved query by name; no name lists saved queries. Takes the same `--formatter`/`--copy`/`--out`. |
-| `munin serve [flight]` | **serve**: foreground realtime watcher in the current shell; `--desktop`/`--interval`/`--bell`/`--theme`. |
-| `munin daemon [flight]` | **daemon**: install (if needed) then start the OS service; idempotent. |
-| `munin daemon install/uninstall/start/stop/restart/status/attach` | Manage the OS service (systemd user unit / launchd agent / Windows service). |
-| `munin deck [flight]` | **deck**: open the interactive TUI (daemon if running, else silent session-owned serve that dies with deck). Alias: `tui`. |
-| `munin query show <name>` | Show a saved query's definition. |
-| `munin formatter [name]` | List the formatters the active role can see; with a name, show its definition. |
-| `munin formatter show <name>` / `render <name> [flight]` | Print a formatter's YAML / run a flight and render it (`--stdin` renders a `-o json` section array instead). |
-| `munin <signal> query` | Ad-hoc one-off query against a single signal. |
-| `munin notes …` / `notes ui` | Notes/Tasks/Reminders CLI and TUI (`ntr` is an alias). |
-| `munin version` | Print brand glyph + `MUNIN` + build version (git describe / tag). |
-| `munin history` / `history show <id>` | List past runs / recall a run's results. |
-| `munin config` / `config history` | Show the active (DB-backed) config / prior versions. |
-| `munin backup` / `restore <file>` | Write / restore an encrypted backup of the DuckDB databases. |
-| `munin verify [target]` | Validate config/roles/flights/queries/formatters/onboarding (colorized, masks secrets). |
-| `munin onboard [--status\|--reset]` | One-time setup gate: GitHub auth + a GitHub-verified GPG signing key. |
-| `munin install` | Create the config directory and initialize it with defaults. |
-| `munin plugins list` | List compile-time registered plugins and enablement state. |
-| `munin plugins enable/disable <id>` | Runtime activation only (`disabled_plugins` in settings). |
-| `munin plugins install/uninstall <id>` | Enable/disable plus provision or remove example directive seeds (not dynamic `.so` loading). |
-| `munin plugins scaffold <id>` | Generate an overlay-friendly plugin package (public `munin/plugin` SDK). |
-| `munin clean` | Archive the config file, `logs/`, and every directive file into `.archive/<timestamp>/`. |
-| `munin nuke [--yes]` | Delete the config directory and DuckDB (run `munin install` to recreate defaults). |
-| `munin role` | Show the active role and defined roles. |
-| `munin login <service>` | OAuth login for github, plus any provider a plugin contributes (google/slack with the overlay). |
-| `munin list [queries\|filters\|flights\|roles\|formatters]` | List what the active role can see (`--all` to ignore the role). |
-| `munin filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
-| `munin query build --signal <name>` | Compose and run an ad-hoc query; `--save <name>` keeps it, `--dry-run` just prints it. |
-| `munin export <directive>` | Materialize DuckDB → files (`config`, `directives`, `all`); directives land at their stored relative paths. |
-| `munin apply [directive]` | Write staged files → DuckDB (`config`, `directives`, `all`). Never prompts; defaults to `all`. Alias: `munin import`. |
-| `munin settings` | Open just the settings screens of the deck. |
+| `mino fly [flight]` | **cli**: run a named flight (defaults to the role's flight / `default`); `--formatter`/`--copy`/`--out` render it through a formatter. |
+| `mino query [name]` | **cli**: run a saved query by name; no name lists saved queries. Takes the same `--formatter`/`--copy`/`--out`. |
+| `mino serve [flight]` | **serve**: foreground realtime watcher in the current shell; `--desktop`/`--interval`/`--bell`/`--theme`. |
+| `mino daemon [flight]` | **daemon**: install (if needed) then start the OS service; idempotent. |
+| `mino daemon install/uninstall/start/stop/restart/status/attach` | Manage the OS service (systemd user unit / launchd agent / Windows service). |
+| `mino deck [flight]` | **deck**: open the interactive TUI (daemon if running, else silent session-owned serve that dies with deck). Alias: `tui`. |
+| `mino query show <name>` | Show a saved query's definition. |
+| `mino formatter [name]` | List the formatters the active role can see; with a name, show its definition. |
+| `mino formatter show <name>` / `render <name> [flight]` | Print a formatter's YAML / run a flight and render it (`--stdin` renders a `-o json` section array instead). |
+| `mino <signal> query` | Ad-hoc one-off query against a single signal. |
+| `mino notes …` / `notes ui` | Notes/Tasks/Reminders CLI and TUI (`ntr` is an alias). |
+| `mino version` | Print brand glyph + `MINO` + build version (git describe / tag). |
+| `mino history` / `history show <id>` | List past runs / recall a run's results. |
+| `mino config` / `config history` | Show the active (DB-backed) config / prior versions. |
+| `mino backup` / `restore <file>` | Write / restore an encrypted backup of the DuckDB databases. |
+| `mino verify [target]` | Validate config/roles/flights/queries/formatters/onboarding (colorized, masks secrets). |
+| `mino onboard [--status\|--reset]` | One-time setup gate: GitHub auth + a GitHub-verified GPG signing key. |
+| `mino install` | Create the config directory and initialize it with defaults. |
+| `mino plugins list` | List compile-time registered plugins and enablement state. |
+| `mino plugins enable/disable <id>` | Runtime activation only (`disabled_plugins` in settings). |
+| `mino plugins install/uninstall <id>` | Enable/disable plus provision or remove example directive seeds (not dynamic `.so` loading). |
+| `mino plugins scaffold <id>` | Generate an overlay-friendly plugin package (public `mino/plugin` SDK). |
+| `mino clean` | Archive the config file, `logs/`, and every directive file into `.archive/<timestamp>/`. |
+| `mino nuke [--yes]` | Delete the config directory and DuckDB (run `mino install` to recreate defaults). |
+| `mino role` | Show the active role and defined roles. |
+| `mino login <service>` | OAuth login for github, plus any provider a plugin contributes (google/slack with the overlay). |
+| `mino list [queries\|filters\|flights\|roles\|formatters]` | List what the active role can see (`--all` to ignore the role). |
+| `mino filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
+| `mino query build --signal <name>` | Compose and run an ad-hoc query; `--save <name>` keeps it, `--dry-run` just prints it. |
+| `mino export <directive>` | Materialize DuckDB → files (`config`, `directives`, `all`); directives land at their stored relative paths. |
+| `mino apply [directive]` | Write staged files → DuckDB (`config`, `directives`, `all`). Never prompts; defaults to `all`. Alias: `mino import`. |
+| `mino settings` | Open just the settings screens of the deck. |
 
 ### Common flags
 
@@ -1102,7 +1102,7 @@ DB.
 | Signal | Ships in | Command(s) | Access | Write restrictions |
 |---|---|---|---|---|
 | GitHub | stock | `github query` | Read-only | — |
-| Notes / Tasks / Reminders | stock | `munin notes` | **Read + write** | Local DuckDB store under `<home>/.data`. |
+| Notes / Tasks / Reminders | stock | `mino notes` | **Read + write** | Local DuckDB store under `<home>/.data`. |
 | Google Calendar | overlay | `calendar query` (`cal`) | Read-only | — |
 | Gmail | overlay | `gmail query` | Read-only | — |
 | Google Docs | overlay | `docs query` | Read-only | — |
@@ -1145,7 +1145,7 @@ issues and pull requests this way; draft (note) cards are not searchable.
 
 Reading a project needs the **`read:project`** scope, which is not in the default
 device-flow scope set: `gh auth refresh -s read:project`, or add it to
-`github.oauth_scopes` before `munin login github`.
+`github.oauth_scopes` before `mino login github`.
 
 Each item carries the field value in `meta.status`, so filter rules can narrow
 further (`field: meta.status`, `field: meta.labels`, `field: meta.assignees`).
@@ -1189,16 +1189,16 @@ scope set). Without `team:`, `meta.last_comment_team` is absent and the chip
 renders dim — so a missing key always means "not configured", never "external".
 `meta.last_comment_at` is unaffected by `team:` and present either way.
 
-The write restriction is Munin policy enforced in `cmd/tasks.go:resolveWriteTarget`
+The write restriction is Mino policy enforced in `cmd/tasks.go:resolveWriteTarget`
 before the API call — the OAuth token itself grants broader write access, so the
-guardrail is Munin's, not the scope's. Writes are recorded in the audit trail as
+guardrail is Mino's, not the scope's. Writes are recorded in the audit trail as
 `write` runs.
 
 ```sh
-munin tasks add "review the RFC" --due 2026-07-25 --notes "focus on the API"
-munin tasks add "oops" --list "Someone Else's List"   # → rejected: read-only
-munin drive add "notes.txt" --content "hello" --mime text/plain
-munin drive add "x" --dir "Some Other Folder"         # → rejected: read-only
+mino tasks add "review the RFC" --due 2026-07-25 --notes "focus on the API"
+mino tasks add "oops" --list "Someone Else's List"   # → rejected: read-only
+mino drive add "notes.txt" --content "hello" --mime text/plain
+mino drive add "x" --dir "Some Other Folder"         # → rejected: read-only
 ```
 
 ## Development & internals
@@ -1207,7 +1207,7 @@ munin drive add "x" --dir "Some Other Folder"         # → rejected: read-only
 
 The reusable machinery behind config, storage, backup, and secrets lives in a
 standalone, app-agnostic module, **sisyphus**
-(`github.com/codyconfer/sisyphus`) — no munin-specific types. Munin defines its
+(`github.com/codyconfer/sisyphus`) — no mino-specific types. Mino defines its
 own config schema and thin adapters over it: `internal/token` (credentials over
 `sisyphus/kv`) and `internal/audit` (flights/queries over `sisyphus/journal`).
 
@@ -1215,7 +1215,7 @@ own config schema and thin adapters over it: `internal/token` (credentials over
 
 ```sh
 make build          # go build ./...
-make install        # build munin into GOBIN (or GOPATH/bin), replacing any existing binary
+make install        # build mino into GOBIN (or GOPATH/bin), replacing any existing binary
 make check          # build + fmt-check + lint + govulncheck + test (CI gate is `make ci`)
 make test           # go test ./...
 ```
@@ -1250,14 +1250,14 @@ make build TAGS=daemon        # or opt in explicitly
 go build -tags daemon .       # or straight from the toolchain
 ```
 
-Default builds have no `daemon` command at all — `munin daemon` reports `unknown
-command`. The whole feature lives in `github.com/codyconfer/munin/daemon` and is
+Default builds have no `daemon` command at all — `mino daemon` reports `unknown
+command`. The whole feature lives in `github.com/codyconfer/mino/daemon` and is
 linked by exactly one file, `experimental_daemon.go`, a blank import behind the
 tag. That package's `init()` registers the `daemon` command tree with `cmd`, the
 daemon status chip with `statusstrip`, and the `daemon.tray` setting plus the
 `daemon` status-bar entry with `views`; nothing in core refers back to it.
 
-What the tag adds: `munin daemon` and its
+What the tag adds: `mino daemon` and its
 `install/uninstall/start/stop/restart/status/attach` subcommands, the system
 tray, the daemon status chip in `deck`, the `daemon.tray` setting, and the
 `kardianos/service` + systray dependencies. Verify the default build carries
@@ -1269,7 +1269,7 @@ go list -deps -tags daemon . | grep -E 'kardianos|systray'   # both present
 ```
 
 What works either way — the tag changes nothing here: every cli directive,
-`deck`, and `munin serve` (the foreground realtime watcher) with its event
+`deck`, and `mino serve` (the foreground realtime watcher) with its event
 socket, desktop notifications, scheduled delivery, the attach notification
 inbox, and `deck`'s silent background serve provider. Service-only plugin
 contributions also stay available: `plugin.ServiceAttached` keys off the serve
@@ -1287,7 +1287,7 @@ provider is already listening, `deck` starts `serve` as a silent session-owned
 background process (stdio discarded; logs still go to the log dir; dies with
 deck).
 
-Munin's reusable foundations are the public modules
+Mino's reusable foundations are the public modules
 [`github.com/codyconfer/sisyphus`](https://github.com/codyconfer/sisyphus) and
 [`github.com/codyconfer/viewkit`](https://github.com/codyconfer/viewkit). CI and
 published consumers build against the versions pinned in `go.mod`, using the
@@ -1296,17 +1296,17 @@ standard Go module proxy and checksum database with no private credentials or
 
 #### Local multi-repo development (`go.work`)
 
-For simultaneous edits across munin / sisyphus / viewkit (and optionally the
+For simultaneous edits across mino / sisyphus / viewkit (and optionally the
 overlay siblings), use an **uncommitted** `go.work` in this repo (gitignored; do
 not commit — committed `replace` is rejected). A common local pattern is
 `go.work.local` (also gitignored) activated with `GOWORK=go.work.local`:
 
 ```sh
-# from the munin checkout, with sisyphus and viewkit as siblings:
+# from the mino checkout, with sisyphus and viewkit as siblings:
 go work init . ../sisyphus ../viewkit
 # or: go work use ../sisyphus ../viewkit
 # optional overlay siblings:
-#   go work use ../munin-plugins-external ../munin-overlay-template
+#   go work use ../mino-plugins-external ../mino-overlay-template
 ```
 
 Published consumers and CI ignore `go.work` and resolve the pinned module
@@ -1320,5 +1320,5 @@ Copyright (c) 2026 Cody Confer
 
 Licensed under the GNU Affero General Public License v3.0 — see [LICENSE](../LICENSE).
 
-Munin depends on [sisyphus](https://github.com/codyconfer/sisyphus) and
+Mino depends on [sisyphus](https://github.com/codyconfer/sisyphus) and
 [viewkit](https://github.com/codyconfer/viewkit), both MIT.

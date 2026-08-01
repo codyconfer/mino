@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type fakeGraphQL struct {
@@ -442,6 +442,9 @@ func (c *cursorBackend) GraphQL(ctx context.Context, query string, vars map[stri
 		entered <- after
 		<-release
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !ok {
 		return nil, errors.New("no page for cursor " + after)
 	}
@@ -566,6 +569,60 @@ func TestProjectFetchSharesAWalkBetweenConcurrentQueries(t *testing.T) {
 	}
 	if len(leadSecs[0].Items) != 1 || len(followSecs[0].Items) != 1 {
 		t.Fatalf("lead=%d follow=%d items, want 1 each", len(leadSecs[0].Items), len(followSecs[0].Items))
+	}
+}
+
+func TestProjectFetchSurvivesLeaderCancellation(t *testing.T) {
+	lead := newCursorBackend(map[string]string{"": searchPageOf(10, false, "", incoming("one"))})
+	lead.entered, lead.release = make(chan string), make(chan struct{})
+	follow := newCursorBackend(map[string]string{"": searchPageOf(10, false, "", incoming("one"))})
+
+	spec := ProjectSpec{Owner: "acme", Number: 17, Filter: "status:Incoming"}
+	leadCtx, cancelLead := context.WithCancel(context.Background())
+	defer cancelLead()
+	leadErr := make(chan error, 1)
+	go func() {
+		_, err := NewProject(spec, lead, 30, nil).Fetch(leadCtx)
+		leadErr <- err
+	}()
+	<-lead.entered
+
+	followDone := make(chan []signals.Section, 1)
+	go func() {
+		secs, err := NewProject(spec, follow, 30, nil).Fetch(context.Background())
+		if err != nil {
+			t.Error(err)
+		}
+		followDone <- secs
+	}()
+
+	select {
+	case <-time.After(100 * time.Millisecond):
+	case <-followDone:
+		t.Fatal("follower finished before the leader — walk was not shared")
+	}
+
+	cancelLead()
+	select {
+	case err := <-leadErr:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("leader err = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("leader did not observe its own cancelation")
+	}
+
+	close(lead.release)
+	select {
+	case secs := <-followDone:
+		if len(secs[0].Items) != 1 {
+			t.Fatalf("follower items = %d, want 1", len(secs[0].Items))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("follower never got the shared walk's result")
+	}
+	if follow.calls != 0 {
+		t.Errorf("follower ran its own walk (%d pages)", follow.calls)
 	}
 }
 

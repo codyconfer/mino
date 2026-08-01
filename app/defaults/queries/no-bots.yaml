@@ -1,5 +1,3 @@
-# A filter-only document: no signal, so it is not runnable on its own.
-# Reference it from any query's `filters:` list.
 name: no-bots
 type: filter
 rules:

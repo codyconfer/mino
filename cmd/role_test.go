@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
 )
 
 func roleSubcommand(t *testing.T, name string) *cobra.Command {
@@ -122,7 +122,7 @@ func TestRoleHelpDocumentsTransientFlag(t *testing.T) {
 	if role == nil {
 		t.Fatal("missing role command")
 	}
-	for _, want := range []string{"role use", "--role", "MUNIN_ROLE", "no hooks"} {
+	for _, want := range []string{"role use", "--role", "MINO_ROLE", "no hooks"} {
 		if !strings.Contains(role.Long, want) {
 			t.Errorf("role help does not mention %q:\n%s", want, role.Long)
 		}

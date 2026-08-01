@@ -11,12 +11,12 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/log"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
-const projectScopeHint = "the read:project scope is required; run `gh auth refresh -s read:project` or re-run `munin login github`"
+const projectScopeHint = "the read:project scope is required; run `gh auth refresh -s read:project` or re-run `mino login github`"
 
 const (
 	searchPageSize  = 50
@@ -156,17 +156,32 @@ func (p *projectSignal) searchNodes(ctx context.Context, search string, keeps fu
 		strconv.Itoa(p.max),
 		search,
 	}, "\x00")
-	res, err, shared := searchWalks.Do(key, func() (any, error) {
-		return p.walk(ctx, search, keeps)
+	ch := searchWalks.DoChan(key, func() (any, error) {
+		walkCtx, cancel := detachWalkContext(ctx)
+		defer cancel()
+		return p.walk(walkCtx, search, keeps)
 	})
-	if err != nil {
-		return nil, err
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-ch:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		nodes, _ := res.Val.([]searchNode)
+		if res.Shared {
+			log.Debugf("github: reused in-flight search walk for %q (%d nodes)", search, len(nodes))
+		}
+		return nodes, nil
 	}
-	nodes, _ := res.([]searchNode)
-	if shared {
-		log.Debugf("github: reused in-flight search walk for %q (%d nodes)", search, len(nodes))
+}
+
+func detachWalkContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	detached := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(detached, deadline)
 	}
-	return nodes, nil
+	return context.WithCancel(detached)
 }
 
 func (p *projectSignal) walk(ctx context.Context, search string, keeps func(searchNode) bool) ([]searchNode, error) {
@@ -570,7 +585,7 @@ func (p *projectSignal) viewerLogin(ctx context.Context) (string, error) {
 	}
 	if resp.Data.Viewer == nil || resp.Data.Viewer.Login == "" {
 		return "", errs.New(errs.KindAuth, "github: cannot resolve @me — no authenticated user").
-			WithHint("run `gh auth login` or `munin login github`")
+			WithHint("run `gh auth login` or `mino login github`")
 	}
 	return resp.Data.Viewer.Login, nil
 }

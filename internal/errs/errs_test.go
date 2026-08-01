@@ -5,7 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/plugin"
 )
 
 const hostileBody = "\x1b]0;pwned\a\x1b[2J\x1b[32mall checks passed\x1b[0m\x7f rate limit"
@@ -59,7 +60,35 @@ func renderedMark(t *testing.T) string {
 	return mark
 }
 
-func TestRenderKeepsMuninsOwnMessagesByteForByte(t *testing.T) {
+func TestRenderPluginErrorHintOnceInErrsStyle(t *testing.T) {
+	mark := renderedMark(t)
+	err := plugin.NewError("no Slack token available").WithHint("run `mino login slack`")
+	want := mark + " no Slack token available\n  hint: run `mino login slack`\n"
+	got := errs.Render(err)
+	if got != want {
+		t.Fatalf("Render mismatch\n got: %q\nwant: %q", got, want)
+	}
+	if strings.Count(got, "hint:") != 1 {
+		t.Fatalf("hint rendered more than once: %q", got)
+	}
+}
+
+func TestRenderWrappedPluginErrorJoinsHints(t *testing.T) {
+	inner := plugin.NewError("no Slack token available").WithHint("export a user token")
+	outer := plugin.WrapError(inner, "slack authentication").WithHint("set SLACK_TOKEN")
+	got := errs.Render(outer)
+	if strings.Count(got, "hint:") != 1 {
+		t.Fatalf("want exactly one hint marker, got %q", got)
+	}
+	if !strings.Contains(got, "set SLACK_TOKEN") || !strings.Contains(got, "export a user token") {
+		t.Fatalf("Render dropped a chained hint: %q", got)
+	}
+	if !strings.Contains(got, "slack authentication: no Slack token available\n") {
+		t.Fatalf("Render dropped the message chain: %q", got)
+	}
+}
+
+func TestRenderKeepsMinosOwnMessagesByteForByte(t *testing.T) {
 	mark := renderedMark(t)
 	cases := []struct {
 		name string
@@ -68,14 +97,14 @@ func TestRenderKeepsMuninsOwnMessagesByteForByte(t *testing.T) {
 	}{
 		{
 			name: "kind and hint",
-			err:  errs.New(errs.KindConfig, "missing Google OAuth desktop-app client credentials").WithHint("set `google.oauth_client_id` and `google.oauth_client_secret` in config to use `munin login google`"),
-			want: " [config] missing Google OAuth desktop-app client credentials\n  hint: set `google.oauth_client_id` and `google.oauth_client_secret` in config to use `munin login google`\n",
+			err:  errs.New(errs.KindConfig, "missing Google OAuth desktop-app client credentials").WithHint("set `google.oauth_client_id` and `google.oauth_client_secret` in config to use `mino login google`"),
+			want: " [config] missing Google OAuth desktop-app client credentials\n  hint: set `google.oauth_client_id` and `google.oauth_client_secret` in config to use `mino login google`\n",
 		},
 		{
 			name: "multiline hint",
 			err: errs.New(errs.KindAuth, "no Application Default Credentials found").WithHint(
-				"authorize Google access with either:\n  gcloud auth application-default login \\\n    --scopes=%s\nor:\n  munin login google", "openid,email"),
-			want: " [auth] no Application Default Credentials found\n  hint: authorize Google access with either:\n  gcloud auth application-default login \\\n    --scopes=openid,email\nor:\n  munin login google\n",
+				"authorize Google access with either:\n  gcloud auth application-default login \\\n    --scopes=%s\nor:\n  mino login google", "openid,email"),
+			want: " [auth] no Application Default Credentials found\n  hint: authorize Google access with either:\n  gcloud auth application-default login \\\n    --scopes=openid,email\nor:\n  mino login google\n",
 		},
 		{
 			name: "wrapped cause",

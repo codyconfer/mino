@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/filter"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestQueryDisplayPrefersTitle(t *testing.T) {

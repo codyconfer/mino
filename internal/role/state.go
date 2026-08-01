@@ -4,7 +4,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/codyconfer/munin/internal/config"
+	sconfig "github.com/codyconfer/sisyphus/config"
+
+	"github.com/codyconfer/mino/internal/config"
 )
 
 const activeRoleFile = "active-role"
@@ -24,12 +26,9 @@ func SaveActive(home, role string) error {
 	if home == "" {
 		return nil
 	}
-	path := config.DataPath(home, activeRoleFile)
 	if role == "" {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
+		return sconfig.RemoveItem(config.DataPath(home, activeRoleFile))
 	}
-	return os.WriteFile(path, []byte(role+"\n"), 0o600)
+	_, err := sconfig.WriteItem(config.DataDir(home), activeRoleFile, []byte(role+"\n"))
+	return err
 }

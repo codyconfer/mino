@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 const maxGitHubRetryAfter = time.Hour
 
-const githubScopeHint = "your GitHub token may be missing or lack scopes; run `munin login github` or set $GITHUB_TOKEN"
+const githubScopeHint = "your GitHub token may be missing or lack scopes; run `mino login github` or set $GITHUB_TOKEN"
 
 func classifyGitHubStatus(resp *http.Response, msg string) error {
 	statusErr := func(kind errs.Kind) *errs.Error {

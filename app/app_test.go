@@ -8,9 +8,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/codyconfer/munin/app/defaults"
-	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/plugin"
+	"github.com/codyconfer/mino/app/defaults"
+	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/plugin"
 )
 
 func TestApplyBuildPolicy(t *testing.T) {
@@ -140,7 +140,7 @@ func TestRunSurvivesPanickingPluginRegistration(t *testing.T) {
 	ran := false
 	opts := Options{
 		Args:            []string{"--help"},
-		RegisterPlugins: func() { panic(`plugin: duplicate signal ref "github" (munin.github and bad.dup)`) },
+		RegisterPlugins: func() { panic(`plugin: duplicate signal ref "github" (mino.github and bad.dup)`) },
 		CLI: func(context.Context, []string) error {
 			ran = true
 			return nil

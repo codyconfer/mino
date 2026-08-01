@@ -5,18 +5,18 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/plugin"
-	"github.com/codyconfer/munin/internal/signals"
-	"github.com/codyconfer/munin/internal/signals/cache"
-	"github.com/codyconfer/munin/internal/token"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/plugin"
+	"github.com/codyconfer/mino/internal/signals"
+	"github.com/codyconfer/mino/internal/signals/cache"
+	"github.com/codyconfer/mino/internal/token"
 )
 
 func DetailSignals() []string {
 	var out []string
-	for name, ok := range BuilderSignals() {
-		if ok && plugin.HasCapability(name, plugin.CapDetail) {
+	for name := range BuilderSignals() {
+		if HasBuilder(name) && plugin.HasCapability(name, plugin.CapDetail) {
 			out = append(out, name)
 		}
 	}
@@ -35,7 +35,7 @@ func Detail(ctx context.Context, signal string, it signals.Item, cfg *config.Con
 		}
 		return signals.ItemDetail{}, err
 	}
-	q, err := plugin.BuildQuery(signal, hostBuildCtx{signal: signal, cfg: cfg, tokens: tokens, cache: results})
+	q, err := plugin.BuildQuery(signal, newHostBuildCtx(signal, nil, cfg, tokens, nil, results))
 	if err != nil {
 		return signals.ItemDetail{}, err
 	}

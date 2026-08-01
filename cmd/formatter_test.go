@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/config"
-	"github.com/codyconfer/munin/internal/errs"
+	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/errs"
 )
 
 func useFormatterTestApp(t *testing.T, output string) {
@@ -33,7 +33,7 @@ func flyTestRoot(t *testing.T) *cobra.Command {
 	orig := flagOutput
 	t.Cleanup(func() { flagOutput = orig })
 	root := &cobra.Command{
-		Use:           "munin",
+		Use:           "mino",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(*cobra.Command, []string) error {
@@ -86,11 +86,11 @@ func TestEnvOutputBeatsAConfigFormatter(t *testing.T) {
 
 	out, _ := runFly(t, "demo")
 	if strings.Contains(out, "Standup") {
-		t.Fatalf("MUNIN_OUTPUT=json rendered the config formatter instead of JSON, so "+
-			"`MUNIN_OUTPUT=json munin fly | jq` gets a text report:\n%s", out)
+		t.Fatalf("MINO_OUTPUT=json rendered the config formatter instead of JSON, so "+
+			"`MINO_OUTPUT=json mino fly | jq` gets a text report:\n%s", out)
 	}
 	if !json.Valid([]byte(out)) {
-		t.Fatalf("MUNIN_OUTPUT=json did not emit JSON:\n%s", out)
+		t.Fatalf("MINO_OUTPUT=json did not emit JSON:\n%s", out)
 	}
 }
 
@@ -100,13 +100,13 @@ func TestEnvOutputWithAnExplicitFormatterIsAUsageError(t *testing.T) {
 
 	out, err := runFly(t, "--formatter", "standup", "plain")
 	if err == nil {
-		t.Fatalf("--formatter under MUNIN_OUTPUT=json exited 0:\n%s", out)
+		t.Fatalf("--formatter under MINO_OUTPUT=json exited 0:\n%s", out)
 	}
 	if errs.KindOf(err) != errs.KindUsage {
 		t.Errorf("kind = %v, want KindUsage (err: %v)", errs.KindOf(err), err)
 	}
-	if !strings.Contains(err.Error(), "MUNIN_OUTPUT=json") {
-		t.Errorf("err = %v, want it to name MUNIN_OUTPUT as the thing to change", err)
+	if !strings.Contains(err.Error(), "MINO_OUTPUT=json") {
+		t.Errorf("err = %v, want it to name MINO_OUTPUT as the thing to change", err)
 	}
 }
 

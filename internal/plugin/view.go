@@ -3,7 +3,7 @@ package plugin
 import (
 	"github.com/codyconfer/viewkit/deck"
 
-	pub "github.com/codyconfer/munin/plugin"
+	pub "github.com/codyconfer/mino/plugin"
 )
 
 func RegisterView(parentID, viewID string, ctor func() deck.View, opts ...Option) {

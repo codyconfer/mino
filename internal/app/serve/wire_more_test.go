@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func manyItemEvent(items int) signals.Event {
@@ -58,7 +58,7 @@ func TestBoundEventDoesNotOverwriteAnUpstreamMoreCount(t *testing.T) {
 	out := boundEvent(ev, len(raw))
 	if got := out.Section.Meta[signals.MetaMore]; got != "9000" {
 		t.Errorf("more = %q; the signal's own count of unfetched upstream results must survive frame "+
-			"truncation, because it means something different from the count munin dropped", got)
+			"truncation, because it means something different from the count mino dropped", got)
 	}
 }
 

@@ -11,8 +11,8 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 	"github.com/codyconfer/viewkit/timefmt"
 
-	"github.com/codyconfer/munin/internal/render/glyph"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/render/glyph"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 type ItemRef struct {

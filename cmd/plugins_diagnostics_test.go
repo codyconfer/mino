@@ -7,13 +7,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/munin/internal/plugin"
+	"github.com/codyconfer/mino/internal/plugin"
 )
 
 func runPluginsList(t *testing.T) string {
 	t.Helper()
 	var out bytes.Buffer
-	root := &cobra.Command{Use: "munin", SilenceUsage: true, SilenceErrors: true}
+	root := &cobra.Command{Use: "mino", SilenceUsage: true, SilenceErrors: true}
 	root.AddCommand(newPluginsCmd())
 	root.SetOut(&out)
 	root.SetErr(&out)

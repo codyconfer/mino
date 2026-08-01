@@ -6,7 +6,7 @@ import (
 
 	vnotify "github.com/codyconfer/viewkit/notify"
 
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 func TestFromEventReminderAlert(t *testing.T) {
@@ -51,29 +51,29 @@ func TestAlreadyAuthed(t *testing.T) {
 }
 
 func TestPluginToggled(t *testing.T) {
-	on := PluginToggled("munin.demo", true)
-	if on.Tone != vnotify.TonePositive || on.Title != "plugins" || on.Message != "munin.demo enabled" {
+	on := PluginToggled("mino.demo", true)
+	if on.Tone != vnotify.TonePositive || on.Title != "plugins" || on.Message != "mino.demo enabled" {
 		t.Fatalf("enabled toast = %+v", on)
 	}
-	off := PluginToggled("munin.demo", false)
-	if off.Tone != vnotify.ToneNeutral || off.Message != "munin.demo disabled" {
+	off := PluginToggled("mino.demo", false)
+	if off.Tone != vnotify.ToneNeutral || off.Message != "mino.demo disabled" {
 		t.Fatalf("disabled toast = %+v", off)
 	}
 }
 
 func TestPluginInstalled(t *testing.T) {
-	n := PluginInstalled("munin.ntr", 2, 0)
+	n := PluginInstalled("mino.ntr", 2, 0)
 	if n.Tone != vnotify.TonePositive || n.Title != "plugins" {
 		t.Fatalf("toast = %+v", n)
 	}
-	if n.Message != "munin.ntr installed (wrote 2, skipped 0)" {
+	if n.Message != "mino.ntr installed (wrote 2, skipped 0)" {
 		t.Fatalf("message = %q", n.Message)
 	}
 }
 
 func TestPluginUninstalled(t *testing.T) {
-	n := PluginUninstalled("munin.ntr", 1, 1)
-	if n.Tone != vnotify.ToneNeutral || n.Message != "munin.ntr uninstalled (removed 1, kept 1)" {
+	n := PluginUninstalled("mino.ntr", 1, 1)
+	if n.Tone != vnotify.ToneNeutral || n.Message != "mino.ntr uninstalled (removed 1, kept 1)" {
 		t.Fatalf("toast = %+v", n)
 	}
 }

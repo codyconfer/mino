@@ -7,8 +7,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/codyconfer/munin/internal/errs"
-	"github.com/codyconfer/munin/internal/signals"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 var testNow = time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
@@ -289,8 +289,8 @@ func TestFuncRel(t *testing.T) {
 
 func TestFuncMeta(t *testing.T) {
 	meta := FuncMap(fixedNow)["meta"].(func(string, map[string]string) string)
-	m := map[string]string{"repo": "munin"}
-	if got := meta("repo", m); got != "munin" {
+	m := map[string]string{"repo": "mino"}
+	if got := meta("repo", m); got != "mino" {
 		t.Errorf("meta hit = %q", got)
 	}
 	if got := meta("nope", m); got != "" {

@@ -8,10 +8,12 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+	"sync"
 
-	internalapp "github.com/codyconfer/munin/internal/app"
-	"github.com/codyconfer/munin/internal/app/onboard"
-	"github.com/codyconfer/munin/plugin"
+	internalapp "github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/plugin"
 )
 
 var ErrNoCLI = errors.New("app: Options.CLI is required (wire cmd.Root().ExecuteContext)")
@@ -39,7 +41,18 @@ type Options struct {
 	AfterRun func(context.Context, error)
 }
 
-func Run(opts Options) (err error) {
+var bootstrapOnce sync.Once
+
+func Run(opts Options) error {
+	bootstrapOnce.Do(internalapp.Bootstrap)
+	err := run(opts)
+	if err != nil {
+		fmt.Fprint(os.Stderr, errs.Render(err))
+	}
+	return err
+}
+
+func run(opts Options) (err error) {
 	if opts.CLI == nil {
 		return ErrNoCLI
 	}
@@ -74,9 +87,9 @@ func Run(opts Options) (err error) {
 }
 
 // EnvPluginDiagnostics suppresses the stderr plugin-problem report when set to
-// one of 0/off/false/quiet/none. Diagnostics stay available in `munin plugins
+// one of 0/off/false/quiet/none. Diagnostics stay available in `mino plugins
 // list`.
-const EnvPluginDiagnostics = "MUNIN_PLUGIN_DIAGNOSTICS"
+const EnvPluginDiagnostics = "MINO_PLUGIN_DIAGNOSTICS"
 
 // registerPlugins is defence in depth: every SDK entry point now skips a bad
 // contribution with a diagnostic instead of panicking, so nothing here should
@@ -129,7 +142,7 @@ func ReportPluginDiagnostics(w io.Writer) {
 		return
 	}
 	for _, d := range plugin.Diagnostics() {
-		fmt.Fprintf(w, "munin: plugin problem: %s\n", d)
+		fmt.Fprintf(w, "mino: plugin problem: %s\n", d)
 	}
 }
 
