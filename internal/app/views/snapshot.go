@@ -17,10 +17,7 @@ import (
 	"github.com/codyconfer/mino/internal/render"
 )
 
-const (
-	snapshotPollInterval  = 500 * time.Millisecond
-	snapshotChromeReserve = 7
-)
+const snapshotPollInterval = 500 * time.Millisecond
 
 type snapshotLoadedMsg struct {
 	snap pane.Snapshot
@@ -38,9 +35,7 @@ type SnapshotView struct {
 	mod     time.Time
 	loadErr error
 
-	scroll layout.ScrollState
-	total  int
-	rows   int
+	scroll vkdeck.ScrollBody
 }
 
 func NewSnapshotView(path string) *SnapshotView {
@@ -73,10 +68,6 @@ func (v *SnapshotView) pollCmd() tea.Cmd {
 
 func (v *SnapshotView) Update(_ *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch t := msg.(type) {
-	case tea.WindowSizeMsg:
-		v.rows = max(t.Height-snapshotChromeReserve, 1)
-		v.scroll.Scroll(0, v.total, layout.ViewportContentRows(v.rows))
-		return nil
 	case snapshotLoadedMsg:
 		v.loadErr = t.err
 		if t.err == nil {
@@ -104,16 +95,10 @@ func (v *SnapshotView) handleKey(k tea.KeyMsg) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	rows := layout.ViewportContentRows(v.rows)
+	if v.scroll.Handle(act) {
+		return nil
+	}
 	switch act {
-	case keys.Up:
-		v.scroll.Scroll(-1, v.total, rows)
-	case keys.Down:
-		v.scroll.Scroll(1, v.total, rows)
-	case keys.PageUp:
-		v.scroll.Scroll(-max(rows, 1), v.total, rows)
-	case keys.PageDown:
-		v.scroll.Scroll(max(rows, 1), v.total, rows)
 	case keys.Open:
 		if u := v.url(); u != "" {
 			return openURL(u)
@@ -162,28 +147,25 @@ func (v *SnapshotView) render(width int) string {
 }
 
 func (v *SnapshotView) Body(width, height int) string {
-	body := v.render(width)
-	v.total = layout.CountLines(body)
-	v.rows = max(height, 1)
-	return layout.Viewport(body, height, v.scroll.Offset)
+	return v.scroll.View(v.render(width), height)
 }
 
-func (v *SnapshotView) Hints() [][2]string {
+func (v *SnapshotView) Hints() []keys.Hint {
 	km := keymap.ItemList()
-	hints := [][2]string{km.HintLabeled(keys.Up, "scroll"), km.HintLabeled(keys.PageUp, "page")}
+	hints := []keys.Hint{km.HintLabeled(keys.Up, "scroll"), km.HintLabeled(keys.PageUp, "page")}
 	if v.url() != "" {
 		hints = append(hints, km.HintLabeled(keys.Open, "open"))
 	}
 	return hints
 }
 
-func (v *SnapshotView) Context() [][2]string {
-	var cues [][2]string
+func (v *SnapshotView) Context() []keys.Hint {
+	var cues []keys.Hint
 	if v.snap.Origin != "" {
-		cues = append(cues, [2]string{"from", v.snap.Origin})
+		cues = append(cues, keys.Hint{Key: "from", Label: v.snap.Origin})
 	}
 	if !v.mod.IsZero() {
-		cues = append(cues, [2]string{"updated", v.mod.Format("15:04:05")})
+		cues = append(cues, keys.Hint{Key: "updated", Label: v.mod.Format("15:04:05")})
 	}
 	return cues
 }

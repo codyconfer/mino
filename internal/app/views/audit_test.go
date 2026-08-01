@@ -13,6 +13,7 @@ import (
 
 	"github.com/codyconfer/sisyphus/configdb"
 	"github.com/codyconfer/sisyphus/kv"
+	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 
 	"github.com/codyconfer/mino/internal/audit"
@@ -284,23 +285,44 @@ func TestAuditBackspaceKeepsMultiByteRunesIntact(t *testing.T) {
 	}
 }
 
+// auditTestHeight is the body height handed to Body in the scroll tests; the
+// db selector, sql editor and rule take three of those lines.
+const (
+	auditTestHeight     = 20
+	auditTestHeadLines  = 3
+	auditTestViewHeight = auditTestHeight - auditTestHeadLines
+)
+
+func auditWindowRows() int {
+	return max(layout.ViewportContentRows(auditTestViewHeight), 1)
+}
+
 func auditScrollView(rows int) *auditView {
 	data := make([][]string, rows)
 	for i := range data {
 		data[i] = []string{fmt.Sprintf("r%02d", i), "value"}
 	}
-	return &auditView{
-		ready:  true,
-		width:  120,
-		height: 20,
+	me := &auditView{
 		result: auditResult{ran: true, cols: []string{"id", "val"}, rows: data},
+	}
+	me.Body(120, auditTestHeight) // prime the scroll row math from the body height
+	return me
+}
+
+func auditScrollBy(me *auditView, delta int) {
+	act := keys.Down
+	if delta < 0 {
+		act, delta = keys.Up, -delta
+	}
+	for range delta {
+		me.scroll.Handle(act)
 	}
 }
 
 func TestAuditScrollClamping(t *testing.T) {
 	me := auditScrollView(50)
-	total := layout.CountLines(me.results(me.frame()))
-	window := me.windowRows()
+	total := layout.CountLines(me.results(layout.NewFrame(120)))
+	window := auditWindowRows()
 	if total != 53 {
 		t.Fatalf("total lines = %d, want 53", total)
 	}
@@ -309,30 +331,30 @@ func TestAuditScrollClamping(t *testing.T) {
 		t.Fatalf("window %d does not scroll for %d lines", window, total)
 	}
 
-	me.scrollBy(-1)
+	auditScrollBy(me, -1)
 	if me.scroll.Offset != 0 {
 		t.Fatalf("scroll up at top = %d, want 0", me.scroll.Offset)
 	}
 
-	me.scrollBy(5)
+	auditScrollBy(me, 5)
 	if me.scroll.Offset != 5 {
 		t.Fatalf("mid scroll = %d, want 5", me.scroll.Offset)
 	}
-	first := strings.Split(layout.Viewport(me.results(me.frame()), me.height, me.scroll.Offset), "\n")[0]
+	first := strings.Split(layout.Viewport(me.results(layout.NewFrame(120)), auditTestViewHeight, me.scroll.Offset), "\n")[0]
 	if !strings.Contains(first, "r03") {
 		t.Fatalf("first visible line at offset 5 = %q", first)
 	}
 
-	me.scrollBy(1000)
+	auditScrollBy(me, 1000)
 	if me.scroll.Offset != bottom {
 		t.Fatalf("scroll down past end = %d, want %d", me.scroll.Offset, bottom)
 	}
-	me.scrollBy(1)
+	auditScrollBy(me, 1)
 	if me.scroll.Offset != bottom {
 		t.Fatalf("scroll down at bottom = %d, want %d", me.scroll.Offset, bottom)
 	}
 
-	me.scrollBy(-1000)
+	auditScrollBy(me, -1000)
 	if me.scroll.Offset != 0 {
 		t.Fatalf("scroll up past start = %d, want 0", me.scroll.Offset)
 	}
@@ -340,16 +362,16 @@ func TestAuditScrollClamping(t *testing.T) {
 
 func TestAuditScrollShorterThanWindow(t *testing.T) {
 	me := auditScrollView(2)
-	body := me.results(me.frame())
-	if layout.CountLines(body) >= me.windowRows() {
+	body := me.results(layout.NewFrame(120))
+	if layout.CountLines(body) >= auditWindowRows() {
 		t.Fatalf("fixture is not shorter than the window")
 	}
 
-	me.scrollBy(1000)
+	auditScrollBy(me, 1000)
 	if me.scroll.Offset != 0 {
 		t.Fatalf("offset = %d, want 0 for content shorter than window", me.scroll.Offset)
 	}
-	if got := layout.Viewport(body, me.height, me.scroll.Offset); got != body {
+	if got := layout.Viewport(body, auditTestViewHeight, me.scroll.Offset); got != body {
 		t.Fatalf("short body was windowed:\n%q\nwant\n%q", got, body)
 	}
 }
@@ -369,8 +391,8 @@ func TestAuditScrollKeysAndRunReset(t *testing.T) {
 		t.Fatalf("offset after up = %d, want 2", me.scroll.Offset)
 	}
 	me.Update(nil, tea.KeyMsg{Type: tea.KeyPgDown})
-	if me.scroll.Offset != 2+me.windowRows() {
-		t.Fatalf("offset after pgdown = %d, want %d", me.scroll.Offset, 2+me.windowRows())
+	if me.scroll.Offset != 2+auditWindowRows() {
+		t.Fatalf("offset after pgdown = %d, want %d", me.scroll.Offset, 2+auditWindowRows())
 	}
 	me.Update(nil, tea.KeyMsg{Type: tea.KeyPgUp})
 	if me.scroll.Offset != 2 {
@@ -386,22 +408,23 @@ func TestAuditScrollKeysAndRunReset(t *testing.T) {
 	}
 }
 
-func TestAuditScrollNotReady(t *testing.T) {
-	me := auditScrollView(50)
-	me.ready = false
-	me.scrollBy(10)
+func TestAuditScrollBeforeFirstRenderStaysPut(t *testing.T) {
+	me := &auditView{result: auditResult{ran: true, cols: []string{"id"}, rows: [][]string{{"r00"}}}}
+	me.scroll.Handle(keys.Down)
 	if me.scroll.Offset != 0 {
-		t.Fatalf("offset before first size msg = %d, want 0", me.scroll.Offset)
+		t.Fatalf("offset before first render = %d, want 0", me.scroll.Offset)
 	}
 }
 
-func TestAuditWindowSizeClampsOffset(t *testing.T) {
+func TestAuditTallerBodyClampsOffset(t *testing.T) {
 	me := auditScrollView(50)
-	me.scrollBy(1000)
+	auditScrollBy(me, 1000)
 	tall := me.scroll.Offset
-	me.Update(nil, tea.WindowSizeMsg{Width: 120, Height: 200})
+	me.Body(120, 200)
+	auditScrollBy(me, 0)
+	me.scroll.Handle(keys.Up)
 	if me.scroll.Offset >= tall {
-		t.Fatalf("offset %d not clamped after growing the window (was %d)", me.scroll.Offset, tall)
+		t.Fatalf("offset %d not clamped after growing the body (was %d)", me.scroll.Offset, tall)
 	}
 	if me.scroll.Offset != 0 {
 		t.Fatalf("offset = %d, want 0 once the body fits", me.scroll.Offset)

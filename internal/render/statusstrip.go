@@ -20,7 +20,7 @@ func StatusStripLine(brand, role string, contexts []string, contribs []vkglyph.S
 		if c.Glyph == "" {
 			continue
 		}
-		rightParts = append(rightParts, theme.StripText(theme.SeverityColor(c.Tone), c.Glyph))
+		rightParts = append(rightParts, theme.StripText(theme.SeverityColor(c.Severity), c.Glyph))
 	}
 	return strings.Join(strip.Left, " "), strings.Join(rightParts, " ")
 }

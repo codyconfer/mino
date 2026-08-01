@@ -31,10 +31,6 @@ var (
 	sharedClient    = &http.Client{Transport: sharedTransport, Timeout: Timeout}
 )
 
-func init() {
-	sauth.OpenURL = browser.Open
-}
-
 var OpenBrowser = browser.Open
 
 func Client() *http.Client { return sharedClient }

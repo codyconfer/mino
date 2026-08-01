@@ -19,7 +19,7 @@ func newConfigCmd() *cobra.Command {
 			if shared.Mgr == nil {
 				return errs.New(errs.KindStore, "config DB unavailable")
 			}
-			return config.PrintCurrentConfig(cmd.OutOrStdout(), shared.Mgr.DB())
+			return config.PrintCurrentConfig(cmd.OutOrStdout(), shared.Mgr)
 		},
 	}
 
@@ -31,7 +31,7 @@ func newConfigCmd() *cobra.Command {
 			if shared.Mgr == nil {
 				return errs.New(errs.KindStore, "config DB unavailable")
 			}
-			return config.PrintConfigHistory(cmd.OutOrStdout(), shared.Mgr.DB())
+			return config.PrintConfigHistory(cmd.OutOrStdout(), shared.Mgr)
 		},
 	})
 	return c

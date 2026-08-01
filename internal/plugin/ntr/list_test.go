@@ -9,6 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/list"
 
 	"github.com/codyconfer/mino/internal/deck"
 )
@@ -20,17 +22,17 @@ func loadedList(t *testing.T, v *recordList) *vkdeck.Model {
 	return settle(app, v.Init())
 }
 
-func hintLabels(hints [][2]string) []string {
+func hintLabels(hints []keys.Hint) []string {
 	out := make([]string, 0, len(hints))
 	for _, h := range hints {
-		out = append(out, h[1])
+		out = append(out, h.Label)
 	}
 	return out
 }
 
-func hasLabel(hints [][2]string, label string) bool {
+func hasLabel(hints []keys.Hint, label string) bool {
 	for _, h := range hints {
-		if h[1] == label {
+		if h.Label == label {
 			return true
 		}
 	}
@@ -104,7 +106,7 @@ func TestListNewRowPushesBuilder(t *testing.T) {
 	v := newNotesList(home, "r")
 	app := loadedList(t, v)
 
-	settle(app, v.OnSelect(app, recordNewKey))
+	settle(app, v.OnSelect(app, list.Item{Key: recordNewKey}))
 	top, ok := app.Top().(*noteView)
 	if !ok {
 		t.Fatalf("top view = %T, want a *noteView", app.Top())
@@ -124,10 +126,18 @@ func TestListRowPushesEditorSeeded(t *testing.T) {
 	app := loadedList(t, v)
 
 	key := strconv.FormatInt(n.ID, 10)
-	if _, ok := v.rows[key]; !ok {
-		t.Fatalf("list rows = %v, want the seeded note under %q", v.rows, key)
+	set := listRecords(home, "r", kindNote)
+	rows := recordRows(120, kindNote, set.recs, set.err)
+	var target list.Item
+	for _, it := range rows {
+		if it.Key == key {
+			target = it
+		}
 	}
-	settle(app, v.OnSelect(app, key))
+	if target.Key == "" {
+		t.Fatalf("list rows = %v, want the seeded note under %q", rows, key)
+	}
+	settle(app, v.OnSelect(app, target))
 
 	top, ok := app.Top().(*noteView)
 	if !ok {
@@ -196,7 +206,7 @@ func TestListReloadsAfterSave(t *testing.T) {
 		t.Fatalf("fetches after load = %d, want 1", fetches)
 	}
 
-	settle(app, v.OnSelect(app, recordNewKey))
+	settle(app, v.OnSelect(app, list.Item{Key: recordNewKey}))
 	editor, ok := app.Top().(*noteView)
 	if !ok {
 		t.Fatalf("top view = %T, want a *noteView", app.Top())

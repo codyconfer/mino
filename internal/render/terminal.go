@@ -26,13 +26,13 @@ func (tr *TerminalRenderer) Render(w io.Writer, sections []signals.Section) erro
 }
 
 func RenderTerminalStringTitled(root string, sections []signals.Section) string {
-	return treeString(FlightTree(layout.NewFrame(theme.BodyWidth), root, sections))
+	return treeString(FlightTree(layout.DocumentFrame(), root, sections))
 }
 
 // RenderTerminalString renders sections without a trunk row, for views whose
 // chrome already shows the title.
 func RenderTerminalString(sections []signals.Section) string {
-	return treeString(SectionRows(layout.NewFrame(theme.BodyWidth), sections))
+	return treeString(SectionRows(layout.DocumentFrame(), sections))
 }
 
 func treeString(rows []tree.Row) string {
@@ -75,16 +75,11 @@ func SectionItems(f layout.Frame, sections []signals.Section) []list.Item {
 	rows := SectionRows(f, sections)
 	items := make([]list.Item, 0, len(rows))
 	for _, r := range rows {
-		block := strings.Join(r.Lines, "\n")
+		it := r.Item()
 		if !r.Selectable {
-			block = layout.IndentLines(block, 2)
+			it.Block = layout.IndentLines(it.Block, 2)
 		}
-		items = append(items, list.Item{
-			Block:      block,
-			Key:        r.Key,
-			Selectable: r.Selectable,
-			GapStem:    r.GapStem,
-		})
+		items = append(items, it)
 	}
 	return items
 }
@@ -137,7 +132,7 @@ func Success(msg string) string { return theme.Success(msg) }
 func Bullet(msg string) string { return theme.Bullet(msg) }
 
 func LoadingPanel(title, status string) string {
-	return TitledBox(layout.NewFrame(theme.BodyWidth), false, title, theme.Cur().Dim.Render(status))
+	return TitledBox(layout.DocumentFrame(), false, title, theme.Cur().Dim.Render(status))
 }
 
 func lastCommentTime(it signals.Item) (time.Time, bool) {
@@ -148,7 +143,7 @@ func lastCommentTime(it signals.Item) (time.Time, bool) {
 	return t, true
 }
 
-func lastCommentChip(th *theme.Theme, it signals.Item) string {
+func lastCommentChip(th theme.Theme, it signals.Item) string {
 	last := it.Meta["last_comment_by"]
 	if last == "" {
 		return ""
@@ -170,7 +165,7 @@ func lastCommentChip(th *theme.Theme, it signals.Item) string {
 	}
 }
 
-func itemLines(f layout.Frame, th *theme.Theme, it signals.Item) []string {
+func itemLines(f layout.Frame, th theme.Theme, it signals.Item) []string {
 	it = signals.CleanItem(it)
 
 	icon := theme.SeverityStyle(glyph.ClassifyItem(it)).Render(glyph.Lead(glyph.ForItem(it)))

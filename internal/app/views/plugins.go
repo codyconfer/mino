@@ -181,22 +181,22 @@ func (p *pluginsPage) selected() (pluginRow, bool) {
 }
 
 func (p *pluginsPage) Title() string        { return "plugins" }
-func (p *pluginsPage) Context() [][2]string { return p.kit.menuCtx() }
+func (p *pluginsPage) Context() []keys.Hint { return p.kit.menuCtx() }
 func (p *pluginsPage) Init() tea.Cmd        { return nil }
 
-func (p *pluginsPage) Hints() [][2]string {
+func (p *pluginsPage) Hints() []keys.Hint {
 	if p.confirm != nil {
-		return [][2]string{{"←/→", "choose"}, {"enter", "confirm"}}
+		return []keys.Hint{{Key: "←/→", Label: "choose"}, {Key: "enter", Label: "confirm"}}
 	}
-	hints := [][2]string{
-		{"↑/↓", "move"},
-		{"enter/d", "enable/disable"},
-		{"i", "install…"},
+	hints := []keys.Hint{
+		{Key: "↑/↓", Label: "move"},
+		{Key: "enter/d", Label: "enable/disable"},
+		{Key: "i", Label: "install…"},
 	}
 	if row, ok := p.selected(); ok && !plugin.IsInternal(row.id) {
-		hints = append(hints, [2]string{"u", "uninstall"})
+		hints = append(hints, keys.Hint{Key: "u", Label: "uninstall"})
 	}
-	return append(hints, [2]string{"esc", "back"})
+	return append(hints, keys.Hint{Key: "esc", Label: "back"})
 }
 
 func (p *pluginsPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
@@ -323,7 +323,7 @@ func (k *Kit) pluginsInstallPicker() vkdeck.View {
 			items = append(items, vkdeck.MenuItem{
 				Label: c.Label,
 				Desc:  c.Desc,
-				Do: func(a *vkdeck.Model) tea.Cmd {
+				OnSelect: func(a *vkdeck.Model) tea.Cmd {
 					return a.Push(vkdeck.NewMessage("install plugin",
 						theme.Cur().Cant.Render(c.Label+": "+c.Reason), k.menuCtx()))
 				},
@@ -333,7 +333,7 @@ func (k *Kit) pluginsInstallPicker() vkdeck.View {
 		items = append(items, vkdeck.MenuItem{
 			Label: c.Label,
 			Desc:  c.Desc,
-			Do: func(a *vkdeck.Model) tea.Cmd {
+			OnSelect: func(a *vkdeck.Model) tea.Cmd {
 				resize := a.Pop()
 				return tea.Batch(resize, func() tea.Msg {
 					res, err := plugin.InstallCandidateEntry(home, c, plugin.InstallOptions{})
@@ -354,7 +354,7 @@ func (k *Kit) pluginsInstallPicker() vkdeck.View {
 			Desc:  "register plugins or add seed packs under .plugins/",
 		})
 	}
-	ctx := append(k.menuCtx(), [2]string{"dir", plugin.PluginsDir(home)})
+	ctx := append(k.menuCtx(), keys.Hint{Key: "dir", Label: plugin.PluginsDir(home)})
 	return vkdeck.NewMenu("install plugin", ctx, items...)
 }
 

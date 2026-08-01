@@ -20,8 +20,8 @@ type kvProbeJob struct{}
 
 func (kvProbeJob) Name() string { return "kvscopeprobe" }
 
-func (kvProbeJob) Next(context.Context, time.Time) (time.Time, bool, error) {
-	return time.Time{}, false, nil
+func (kvProbeJob) Next(context.Context, time.Time) (time.Time, error) {
+	return time.Time{}, nil
 }
 
 func (kvProbeJob) Fetch(context.Context) ([]signals.Section, error) { return nil, nil }

@@ -36,8 +36,8 @@ type typedNilScheduled struct{ name string }
 
 func (s *typedNilScheduled) Name() string { return s.name }
 
-func (s *typedNilScheduled) Next(context.Context, time.Time) (time.Time, bool, error) {
-	return time.Time{}, true, nil
+func (s *typedNilScheduled) Next(_ context.Context, now time.Time) (time.Time, error) {
+	return now, nil
 }
 
 func (s *typedNilScheduled) Fetch(context.Context) ([]plugin.Section, error) {

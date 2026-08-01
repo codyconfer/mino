@@ -40,12 +40,12 @@ func DataPath(home, name string) string {
 	return filepath.Join(dir, name)
 }
 
-func OpenStore(ctx context.Context, home string) (*sisyphus.Manager, error) {
+func OpenStore(ctx context.Context, home string) (*sisyphus.ConfigStore, error) {
 	if err := sconfig.EnsureDir(DataDir(home)); err != nil {
 		return nil, errs.Wrap(errs.KindStore, err, "open store")
 	}
 	mgr, err := sisyphus.Open(ctx, home, sisyphus.Options{
-		Mode:         sisyphus.ModeBoth,
+		Backend:      sisyphus.BackendBoth,
 		ConfigDBName: filepath.Join(DirData, ConfigDB),
 	})
 	if err != nil {
@@ -55,16 +55,12 @@ func OpenStore(ctx context.Context, home string) (*sisyphus.Manager, error) {
 	return mgr, nil
 }
 
-func dropLegacyRows(ctx context.Context, mgr *sisyphus.Manager) {
-	db := mgr.DB()
-	if db == nil {
-		return
-	}
+func dropLegacyRows(ctx context.Context, mgr *sisyphus.ConfigStore) {
 	for _, name := range LegacyDirectiveRows() {
-		if _, ok, err := db.Current(ctx, name); err != nil || !ok {
+		if _, ok, err := mgr.Current(ctx, name); err != nil || !ok {
 			continue
 		}
-		if err := db.Forget(ctx, name); err != nil {
+		if err := mgr.Forget(ctx, name); err != nil {
 			log.Debugf("dropping legacy %s row: %v", name, err)
 		}
 	}

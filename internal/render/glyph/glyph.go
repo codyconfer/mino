@@ -20,7 +20,7 @@ func SetMode(m Mode) { vk.SetMode(m) }
 
 func CurrentMode() Mode { return vk.CurrentMode() }
 
-func Resolve() { vk.Detect(os.Stdout, os.Getenv("MINO_ICONS")) }
+func Resolve() { vk.DetectMode(os.Stdout, os.Getenv("MINO_ICONS")) }
 
 func Pad(s string) string { return vk.Pad(s) }
 

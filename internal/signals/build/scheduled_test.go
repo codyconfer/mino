@@ -15,8 +15,8 @@ import (
 type hostScheduled struct{ name string }
 
 func (s hostScheduled) Name() string { return s.name }
-func (s hostScheduled) Next(context.Context, time.Time) (time.Time, bool, error) {
-	return time.Time{}, true, nil
+func (s hostScheduled) Next(_ context.Context, now time.Time) (time.Time, error) {
+	return now, nil
 }
 func (s hostScheduled) Fetch(context.Context) ([]plugin.Section, error) {
 	return []plugin.Section{{Signal: s.name, Title: "fired"}}, nil

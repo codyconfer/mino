@@ -50,6 +50,10 @@ func gate(cmd *cobra.Command) error {
 		return nil
 	}
 	m := mode.Mode(gateMode(cmd))
+	policy := mode.PolicyWarn
+	if onboard.AllOrNothingAuth == "true" {
+		policy = mode.PolicyBlock
+	}
 	err := mode.Gate(cmd.Context(), m, mode.GateHooks{
 		Classify:           classifyAuth,
 		CLIUnauthenticated: func(ctx context.Context) error { return cliGuidedAuth(cmd) },
@@ -60,7 +64,7 @@ func gate(cmd *cobra.Command) error {
 			gateWarn(cmd, onboardHint())
 			return nil
 		},
-		AllOrNothingAuth: onboard.AllOrNothingAuth == "true",
+		UnauthorizedPolicy: policy,
 		ServeUnauthorized: func(ctx context.Context) error {
 			gateWarn(cmd, "serve: "+onboardHint())
 			return nil

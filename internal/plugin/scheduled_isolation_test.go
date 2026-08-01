@@ -16,13 +16,13 @@ type blockingJob struct {
 
 func (b *blockingJob) Name() string { return b.name }
 
-func (b *blockingJob) Next(ctx context.Context, _ time.Time) (time.Time, bool, error) {
+func (b *blockingJob) Next(ctx context.Context, now time.Time) (time.Time, error) {
 	select {
 	case b.entered <- struct{}{}:
 	default:
 	}
 	<-ctx.Done()
-	return time.Time{}, false, ctx.Err()
+	return time.Time{}, ctx.Err()
 }
 
 func (b *blockingJob) Fetch(ctx context.Context) ([]signals.Section, error) {
@@ -37,8 +37,8 @@ type readyJob struct {
 
 func (r *readyJob) Name() string { return r.name }
 
-func (r *readyJob) Next(context.Context, time.Time) (time.Time, bool, error) {
-	return time.Time{}, true, nil
+func (r *readyJob) Next(_ context.Context, now time.Time) (time.Time, error) {
+	return now, nil
 }
 
 func (r *readyJob) Fetch(context.Context) ([]signals.Section, error) {
@@ -99,8 +99,8 @@ type ackObs struct {
 
 func (a *ackProbe) Name() string { return "ackprobe" }
 
-func (a *ackProbe) Next(context.Context, time.Time) (time.Time, bool, error) {
-	return time.Time{}, true, nil
+func (a *ackProbe) Next(_ context.Context, now time.Time) (time.Time, error) {
+	return now, nil
 }
 
 func (a *ackProbe) Fetch(context.Context) ([]signals.Section, error) {

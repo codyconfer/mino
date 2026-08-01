@@ -7,7 +7,6 @@ import (
 	"time"
 
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
-	minoterm "github.com/codyconfer/viewkit/term"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/log"
@@ -18,7 +17,7 @@ func (s *Server) EnsureLiveProvider(ctx context.Context, flight string, selfArgs
 	if sysdaemon.IsListening(config.SocketPrefix, s.SocketPath()) {
 		return stop
 	}
-	self, err := minoterm.Self()
+	self, err := os.Executable()
 	if err != nil {
 		log.Debugf("deck: cannot locate mino binary to start a serve provider: %v", err)
 		return stop

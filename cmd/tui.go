@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/viewkit/clipboard"
-	minoterm "github.com/codyconfer/viewkit/term"
 
 	sconfig "github.com/codyconfer/sisyphus/config"
 
@@ -85,7 +84,7 @@ func launchTmuxDeck(args []string) error {
 		return errs.New(errs.KindUsage, "--tmux needs tmux on PATH").
 			WithHint("install tmux, or run `mino deck` without --tmux")
 	}
-	self, err := minoterm.Self()
+	self, err := os.Executable()
 	if err != nil {
 		return errs.Wrap(errs.KindInternal, err, "locate mino binary")
 	}
@@ -230,7 +229,7 @@ func exportDirectivesToFiles() ([]string, error) {
 	if shared.Mgr == nil {
 		return nil, errs.New(errs.KindInternal, "config DB unavailable")
 	}
-	return config.ExportAllToFiles(shared.Mgr.DB(), shared.Cfg.Home)
+	return config.ExportAllToFiles(shared.Mgr, shared.Cfg.Home)
 }
 
 func statusProvider() deck.StatusFunc {

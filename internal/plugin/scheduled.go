@@ -74,8 +74,8 @@ func scheduleJob(j Scheduled, onFire func(name string, sections []signals.Sectio
 		Next: func(ctx context.Context, now time.Time) (daemon.Due, error) {
 			ctx, cancel := context.WithTimeout(ctx, nextTimeout)
 			defer cancel()
-			at, ready, err := j.Next(ctx, now)
-			return daemon.Due{At: at, Ready: ready}, err
+			at, err := j.Next(ctx, now)
+			return daemon.Due{At: at}, err
 		},
 		Run: func(ctx context.Context) error {
 			secs, err := fetchOnce(ctx, j)

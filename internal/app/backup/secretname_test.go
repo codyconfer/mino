@@ -22,31 +22,31 @@ func TestBackupSpecNeverSendsAnEmptySecretName(t *testing.T) {
 		{Backup: config.BackupConfig{SecretName: ""}},
 	} {
 		spec := backupSpec(cfg, []string{"a.duckdb"})
-		if spec.SecretName != want {
-			t.Errorf("backupSpec(%+v).SecretName = %q, want %q: an empty name lets sisyphus fall back to %q and "+
-				"mint a fresh key, orphaning every prior backup", cfg.Backup, spec.SecretName, want,
+		if spec.Secret.Name != want {
+			t.Errorf("backupSpec(%+v).Secret.Name = %q, want %q: an empty name lets sisyphus fall back to %q and "+
+				"mint a fresh key, orphaning every prior backup", cfg.Backup, spec.Secret.Name, want,
 				sisyphusDefaultKeyName)
 		}
 		rspec := restoreSpec(cfg, []byte("sealed"), t.TempDir())
-		if rspec.SecretName != want {
-			t.Errorf("restoreSpec(%+v).SecretName = %q, want %q: restore must look for the same key backup wrote",
-				cfg.Backup, rspec.SecretName, want)
+		if rspec.Secret.Name != want {
+			t.Errorf("restoreSpec(%+v).Secret.Name = %q, want %q: restore must look for the same key backup wrote",
+				cfg.Backup, rspec.Secret.Name, want)
 		}
-		if rspec.SecretName != spec.SecretName {
-			t.Errorf("backup and restore disagree on the key name: %q vs %q", spec.SecretName, rspec.SecretName)
+		if rspec.Secret.Name != spec.Secret.Name {
+			t.Errorf("backup and restore disagree on the key name: %q vs %q", spec.Secret.Name, rspec.Secret.Name)
 		}
 	}
 
 	cfg := &config.Config{Backup: config.BackupConfig{SecretBackend: "keyring"}}
-	if spec := backupSpec(cfg, []string{"a.duckdb"}); spec.SecretService != secretService {
-		t.Errorf("backupSpec.SecretService = %q, want %q", spec.SecretService, secretService)
+	if spec := backupSpec(cfg, []string{"a.duckdb"}); spec.Secret.Service != secretService {
+		t.Errorf("backupSpec.Secret.Service = %q, want %q", spec.Secret.Service, secretService)
 	}
 
 	explicit := &config.Config{Backup: config.BackupConfig{SecretName: "my-key"}}
-	if got := backupSpec(explicit, []string{"a.duckdb"}).SecretName; got != "my-key" {
+	if got := backupSpec(explicit, []string{"a.duckdb"}).Secret.Name; got != "my-key" {
 		t.Errorf("backupSpec with an explicit name = %q, want %q; coercion must not override the user", got, "my-key")
 	}
-	if got := restoreSpec(explicit, []byte("sealed"), t.TempDir()).SecretName; got != "my-key" {
+	if got := restoreSpec(explicit, []byte("sealed"), t.TempDir()).Secret.Name; got != "my-key" {
 		t.Errorf("restoreSpec with an explicit name = %q, want %q", got, "my-key")
 	}
 }

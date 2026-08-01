@@ -47,7 +47,9 @@ type Action interface {
 
 type Scheduled interface {
 	Name() string
-	Next(ctx context.Context, now time.Time) (due time.Time, ready bool, err error)
+	// Next reports when the job should next run. A zero due means nothing is
+	// scheduled; a due at or before now runs immediately.
+	Next(ctx context.Context, now time.Time) (due time.Time, err error)
 	Fetch(ctx context.Context) ([]Section, error)
 }
 

@@ -14,12 +14,12 @@ import (
 
 func TestNTRViewsRegistered(t *testing.T) {
 	for _, id := range []string{"ntr.home", "ntr.notes", "ntr.tasks", "ntr.reminders"} {
-		if _, ok := vkdeck.LookupView(id); !ok {
-			t.Fatalf("missing view %s (have %v)", id, vkdeck.ViewIDs())
+		if _, ok := vkdeck.NamedView(id); !ok {
+			t.Fatalf("missing view %s (have %v)", id, vkdeck.ViewKeys())
 		}
 	}
-	if !strings.Contains(strings.Join(vkdeck.ViewIDs(), ","), "ntr.") {
-		t.Fatal(vkdeck.ViewIDs())
+	if !strings.Contains(strings.Join(vkdeck.ViewKeys(), ","), "ntr.") {
+		t.Fatal(vkdeck.ViewKeys())
 	}
 }
 

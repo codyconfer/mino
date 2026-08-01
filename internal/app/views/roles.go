@@ -9,6 +9,7 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/suggest"
@@ -19,24 +20,24 @@ import (
 	"github.com/codyconfer/mino/internal/signals"
 )
 
-func (kit *Kit) rolesCtx() [][2]string {
-	return append(kit.menuCtx(), [2]string{"directive", "Roles"})
+func (kit *Kit) rolesCtx() []keys.Hint {
+	return append(kit.menuCtx(), keys.Hint{Key: "directive", Label: "Roles"})
 }
 
 func (kit *Kit) Roles() vkdeck.View {
 	items := []vkdeck.MenuItem{{
-		Label: "New",
-		Desc:  "compose, dry-run, and save a new role",
-		Icon:  glyph.Builder(),
-		Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.RoleBuilder()) },
+		Label:    "New",
+		Desc:     "compose, dry-run, and save a new role",
+		Icon:     glyph.Builder(),
+		OnSelect: func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.RoleBuilder()) },
 	}}
 	d := kit.d.App.Dirs()
 	for _, n := range d.RoleNames() {
 		rd := d.Roles[n]
 		items = append(items, vkdeck.MenuItem{
-			Label: n,
-			Desc:  roleSummary(rd),
-			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.RoleEditor(n)) },
+			Label:    n,
+			Desc:     roleSummary(rd),
+			OnSelect: func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.RoleEditor(n)) },
 		})
 	}
 	return vkdeck.NewMenu("roles", kit.rolesCtx(), items...)
@@ -98,10 +99,10 @@ func (v *roleView) editorTitle() string {
 	return "build role"
 }
 
-func (v *roleView) editorCtx() [][2]string {
+func (v *roleView) editorCtx() []keys.Hint {
 	ctx := v.kit.rolesCtx()
 	if v.orig != "" {
-		ctx = append(ctx, [2]string{"item", v.orig})
+		ctx = append(ctx, keys.Hint{Key: "item", Label: v.orig})
 	}
 	return ctx
 }

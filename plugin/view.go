@@ -30,6 +30,6 @@ func RegisterView(parentID, viewID string, ctor func() deck.View, opts ...Option
 }
 
 func HasView(viewID string) bool {
-	_, ok := deck.LookupView(viewID)
+	_, ok := deck.NamedView(viewID)
 	return ok
 }

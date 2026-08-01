@@ -131,40 +131,6 @@ func TestDetailPanelLinesFitTheFrame(t *testing.T) {
 	}
 }
 
-func TestItemIndexKeysByURL(t *testing.T) {
-	sections := []signals.Section{
-		{
-			Signal: "github",
-			Title:  "Open PRs",
-			Meta:   map[string]string{"cache": "stale"},
-			Items: []signals.Item{
-				{Title: "one", URL: "https://github.com/acme/tools/pull/1"},
-				{Title: "no url"},
-				{Title: "dupe", URL: "https://github.com/acme/tools/pull/1"},
-			},
-		},
-		{Signal: "slack", Title: "Threads", Items: []signals.Item{{Title: "two", URL: "https://slack.example/2"}}},
-	}
-	index := ItemIndex(sections)
-
-	if len(index) != 2 {
-		t.Fatalf("index = %d entries, want 2 (URL-less and duplicate items dropped)", len(index))
-	}
-	pr, ok := index["https://github.com/acme/tools/pull/1"]
-	if !ok {
-		t.Fatal("missing the PR entry")
-	}
-	if pr.Signal != "github" || pr.Item.Title != "one" {
-		t.Errorf("entry = %+v, want the first item and its signal", pr)
-	}
-	if pr.Meta["cache"] != "stale" {
-		t.Errorf("entry should carry its section meta, got %v", pr.Meta)
-	}
-	if index["https://slack.example/2"].Signal != "slack" {
-		t.Error("slack entry lost its signal")
-	}
-}
-
 func TestItemLabelAndScope(t *testing.T) {
 	cases := []struct {
 		name  string

@@ -100,14 +100,14 @@ func Defaults() *Config {
 
 func ConfigBasenames() []string { return []string{"config.yaml", "config.yml", "config.json"} }
 
-func formatOfBasename(name string) string {
+func formatOfBasename(name string) sconfig.Format {
 	if strings.EqualFold(filepath.Ext(name), ".json") {
-		return "json"
+		return sconfig.FormatJSON
 	}
-	return "yaml"
+	return sconfig.FormatYAML
 }
 
-func readConfigFileNamed(homeOverride string) (home, name string, raw []byte, format string, err error) {
+func readConfigFileNamed(homeOverride string) (home, name string, raw []byte, format sconfig.Format, err error) {
 	home, err = Home(homeOverride)
 	if err != nil {
 		return "", "", nil, "", err
@@ -125,7 +125,7 @@ func readConfigFileNamed(homeOverride string) (home, name string, raw []byte, fo
 	return home, "", nil, "", nil
 }
 
-func ReadConfigFile(homeOverride string) (home string, raw []byte, format string, err error) {
+func ReadConfigFile(homeOverride string) (home string, raw []byte, format sconfig.Format, err error) {
 	home, _, raw, format, err = readConfigFileNamed(homeOverride)
 	return home, raw, format, err
 }
@@ -145,7 +145,7 @@ func ConfigFilePath(homeOverride string) (string, error) {
 		WithHint("expected config.yaml, config.yml, or config.json; create one from Settings or run `mino install`")
 }
 
-func ParseConfig(home string, raw []byte, format string) (*Config, error) {
+func ParseConfig(home string, raw []byte, format sconfig.Format) (*Config, error) {
 	cfg := Defaults()
 	cfg.Home = home
 	if err := sconfig.ParseInto(cfg, raw, format, envPrefix, sconfig.WithEnvSectionWarning(warnEnvSection)); err != nil {

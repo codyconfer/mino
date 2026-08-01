@@ -66,8 +66,8 @@ func recordNewDesc(kind string) string {
 	}
 }
 
-func recordListCtx(role, kind string) [][2]string {
-	return [][2]string{{"role", role}, {"notes", recordScreen(kind)}}
+func recordListCtx(role, kind string) []keys.Hint {
+	return []keys.Hint{{Key: "role", Label: role}, {Key: "notes", Label: recordScreen(kind)}}
 }
 
 type recordSet struct {
@@ -81,33 +81,33 @@ type recordList struct {
 	home   string
 	role   string
 	kind   string
-	rows   map[string]record
 	toggle *keys.Map
 	stale  bool
 }
 
 func newRecordList(home, role, kind string) *recordList {
-	v := &recordList{home: home, role: role, kind: kind, rows: map[string]record{}}
-	v.ItemList = vkdeck.NewItemList(recordListTitle(kind), recordListCtx(role, kind),
-		func() any { return listRecords(home, role, kind) },
-		func(width int, fetched any) []list.Item {
+	v := &recordList{home: home, role: role, kind: kind}
+	v.ItemList = vkdeck.NewItemList(vkdeck.ItemListSpec{
+		Title: recordListTitle(kind),
+		Ctx:   recordListCtx(role, kind),
+		Fetch: func() any { return listRecords(home, role, kind) },
+		Bind: func(width int, fetched any) []list.Item {
 			set, _ := fetched.(recordSet)
-			v.rows = recordIndex(set.recs)
 			return recordRows(width, kind, set.recs, set.err)
 		},
-	)
-	v.ReloadHint = "refresh"
+		ReloadHint: "refresh",
+	})
 	v.OnOpen = func(string) error { return nil }
-	v.OnSelect = func(h *vkdeck.Model, key string) tea.Cmd { return v.open(h, key) }
+	v.OnSelect = func(h *vkdeck.Model, it list.Item) tea.Cmd { return v.open(h, it) }
 	if kind != kindNote {
-		v.toggle = keys.NewMap(keymap.ToggleBinding())
+		v.toggle = keys.MapFor(keymap.Toggle)
 	}
 	return v
 }
 
-func (v *recordList) Hints() [][2]string {
+func (v *recordList) Hints() []keys.Hint {
 	nav := recordListKeys()
-	hints := [][2]string{
+	hints := []keys.Hint{
 		nav.HintLabeled(keys.Up, "row"),
 		nav.HintLabeled(keys.Confirm, "edit"),
 	}
@@ -139,11 +139,11 @@ func (v *recordList) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	return v.ItemList.Update(h, msg)
 }
 
-func (v *recordList) open(h *vkdeck.Model, key string) tea.Cmd {
-	if key == recordNewKey {
+func (v *recordList) open(h *vkdeck.Model, it list.Item) tea.Cmd {
+	if it.Key == recordNewKey {
 		return h.Push(v.build(record{Kind: v.kind}))
 	}
-	rec, ok := v.rows[key]
+	rec, ok := it.Payload.(record)
 	if !ok {
 		return nil
 	}
@@ -163,10 +163,10 @@ func (v *recordList) build(rec record) vkdeck.View {
 
 func (v *recordList) setDone(h *vkdeck.Model) tea.Cmd {
 	it, ok := v.Selected()
-	if !ok || it.Key == "" || it.Key == recordNewKey {
+	if !ok || it.Key == recordNewKey {
 		return nil
 	}
-	rec, ok := v.rows[it.Key]
+	rec, ok := it.Payload.(record)
 	if !ok {
 		return nil
 	}
@@ -204,14 +204,6 @@ func recordToggleLabel(kind string) string {
 	return "toggle"
 }
 
-func recordIndex(recs []record) map[string]record {
-	out := make(map[string]record, len(recs))
-	for _, rec := range recs {
-		out[strconv.FormatInt(rec.ID, 10)] = rec
-	}
-	return out
-}
-
 func recordRows(width int, kind string, recs []record, err error) []list.Item {
 	th := theme.Cur()
 	f := layout.ScreenFrame(max(width-recordIndent, 1))
@@ -231,6 +223,7 @@ func recordRows(width int, kind string, recs []record, err error) []list.Item {
 			Block:      f.Spread(th.Val.Render(recordRowLabel(rec)), th.Dim.Render(recordRowMeta(rec))),
 			Key:        strconv.FormatInt(rec.ID, 10),
 			Selectable: true,
+			Payload:    rec,
 		})
 	}
 	return items

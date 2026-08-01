@@ -29,7 +29,7 @@ func (k *Kit) ntrMenuItem() vkdeck.MenuItem {
 		Desc:  desc,
 		Icon:  glyph.Notes(),
 		Hue:   6,
-		Do: func(a *vkdeck.Model) tea.Cmd {
+		OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.NTR())
 		},
 	}

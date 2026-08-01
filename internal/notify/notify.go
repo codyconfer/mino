@@ -3,11 +3,9 @@ package notify
 import (
 	"fmt"
 
-	"github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/layout"
 	vnotify "github.com/codyconfer/viewkit/notify"
 	"github.com/codyconfer/viewkit/panels"
-	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -32,24 +30,11 @@ func FromEvent(ev signals.Event) (vnotify.Notification, bool) {
 	if n := len(sec.Items); n > 1 {
 		msg = fmt.Sprintf("%s (+%d more)", msg, n-1)
 	}
-	return vnotify.Note(toneFor(signals.ClassifyKind(first.Kind)), signals.CleanLine(title), signals.CleanLine(msg)), true
-}
-
-func toneFor(sev glyph.Severity) vnotify.Tone {
-	switch sev {
-	case glyph.SeverityWarning:
-		return vnotify.ToneWarning
-	case glyph.SeverityPositive:
-		return vnotify.TonePositive
-	case glyph.SeverityNegative:
-		return vnotify.ToneNegative
-	default:
-		return vnotify.ToneNeutral
-	}
+	return vnotify.Note(signals.ClassifyKind(first.Kind), signals.CleanLine(title), signals.CleanLine(msg)), true
 }
 
 func Render(n vnotify.Notification) string {
-	return panels.NotificationToast(layout.NewFrame(theme.BodyWidth), n)
+	return panels.NotificationToast(layout.DocumentFrame(), n)
 }
 
 func AlreadyAuthed(label string) vnotify.Notification {

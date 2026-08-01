@@ -14,7 +14,7 @@ import (
 func main() {
 	defer cmd.Shutdown()
 
-	ctx, stop := daemon.Context(context.Background())
+	ctx, stop := daemon.SignalContext(context.Background())
 	defer stop()
 
 	err := minoapp.Run(minoapp.Options{

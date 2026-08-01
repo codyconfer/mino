@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
-	"github.com/codyconfer/sisyphus/configdb"
 
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/log"
@@ -43,16 +42,7 @@ func ParseReconcilePolicy(s string) (ReconcilePolicy, error) {
 	return ReconcilePrompt, errs.Newf(errs.KindUsage, "unknown reconcile policy %q: want one of %v", s, ReconcilePolicyNames())
 }
 
-type stagedDirective struct {
-	name    string
-	content []byte
-	format  string
-	hasFile bool
-	rec     sisyphus.Reconciliation
-	pending bool
-}
-
-func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePolicy, interactive bool, in io.Reader, out io.Writer) (*Config, *Directives, *sisyphus.Manager, error) {
+func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePolicy, interactive bool, in io.Reader, out io.Writer) (*Config, *Directives, *sisyphus.ConfigStore, error) {
 	home, err := Home(homeOverride)
 	if err != nil {
 		return nil, nil, nil, err
@@ -60,7 +50,7 @@ func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePo
 	gs := LoadGlobalSettings()
 	res := &Resolver{home: home, preferDB: gs.PreferDB, policy: policy, interactive: interactive, in: in, out: out}
 
-	var mgr *sisyphus.Manager
+	var mgr *sisyphus.ConfigStore
 	if m, err := OpenStore(context.Background(), home); err != nil {
 		if sconfig.Exists(DataPath(home, ConfigDB)) {
 			log.Warnf("store DB unavailable: %v; reading from files instead", err)
@@ -96,28 +86,32 @@ func LoadConfigAndDirectives(homeOverride, configFile string, policy ReconcilePo
 		return cfg, directives, nil, nil
 	}
 
-	staged, err := collectStaged(context.Background(), mgr, home, homeOverride)
+	ctx := context.Background()
+	cfgItem, dirItem, err := stagedItems(home, homeOverride)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	resolver, err := res.resolverFor(staged)
+	plan, err := mgr.Plan(ctx, cfgItem, dirItem)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	byName := map[string]stagedDirective{}
-	for _, st := range staged {
-		byName[st.name] = st
-	}
-	cfg, err := applyConfigStage(context.Background(), mgr, resolver, home, byName[ConfigDirective])
+	resolved, err := res.applyPlan(ctx, mgr, plan)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	blob, err := applyCollectionStage(context.Background(), mgr, resolver, byName[DirectivesDirective])
+	cfgDoc, err := effectiveFor(ctx, mgr, resolved, cfgItem)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	directives, err := NewDirectives(blob)
+	cfg, err := ParseConfig(home, cfgDoc.content, cfgDoc.format)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	dirDoc, err := effectiveFor(ctx, mgr, resolved, dirItem)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	directives, err := NewDirectives(dirDoc.content)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -159,7 +153,7 @@ func LoadConfigAndDirectivesFromFiles(homeOverride, configFile string) (*Config,
 	return cfg, directives, nil
 }
 
-func loadDirectives(mgr *sisyphus.Manager, res *Resolver, home string) (*Directives, error) {
+func loadDirectives(mgr *sisyphus.ConfigStore, res *Resolver, home string) (*Directives, error) {
 	if mgr == nil {
 		return LoadDirectivesFromFiles(home)
 	}
@@ -170,7 +164,7 @@ func loadDirectives(mgr *sisyphus.Manager, res *Resolver, home string) (*Directi
 	return NewDirectives(blob)
 }
 
-func ReloadDirectives(mgr *sisyphus.Manager, home string, policy ReconcilePolicy) (*Directives, error) {
+func ReloadDirectives(mgr *sisyphus.ConfigStore, home string, policy ReconcilePolicy) (*Directives, error) {
 	if mgr == nil {
 		return LoadDirectivesFromFiles(home)
 	}
@@ -184,78 +178,57 @@ func ReloadDirectives(mgr *sisyphus.Manager, home string, policy ReconcilePolicy
 	return loadDirectives(mgr, res, home)
 }
 
-func collectStaged(ctx context.Context, mgr *sisyphus.Manager, home, homeOverride string) ([]stagedDirective, error) {
+type effectiveDoc struct {
+	content []byte
+	format  sconfig.Format
+}
+
+func stagedItems(home, homeOverride string) (cfg, dir sisyphus.Item, err error) {
 	_, raw, format, err := ReadConfigFile(homeOverride)
 	if err != nil {
-		return nil, err
+		return sisyphus.Item{}, sisyphus.Item{}, err
 	}
-	out := make([]stagedDirective, 0, 2)
-	cfgStage, err := stageOne(ctx, mgr, ConfigDirective, raw, format, len(raw) > 0)
+	cfg = sisyphus.Item{Name: ConfigDirective, FileContent: raw, FileFormat: format}
+	blob, _, err := SerializeDirectives(home)
 	if err != nil {
-		return nil, err
+		return sisyphus.Item{}, sisyphus.Item{}, err
 	}
-	out = append(out, cfgStage)
-	blob, has, err := SerializeDirectives(home)
-	if err != nil {
-		return nil, err
-	}
-	st, err := stageOne(ctx, mgr, DirectivesDirective, blob, "collection", has)
-	if err != nil {
-		return nil, err
-	}
-	return append(out, st), nil
+	dir = sisyphus.Item{Name: DirectivesDirective, FileContent: blob, FileFormat: "collection"}
+	return cfg, dir, nil
 }
 
-func stageOne(ctx context.Context, mgr *sisyphus.Manager, name string, content []byte, format string, hasFile bool) (stagedDirective, error) {
-	st := stagedDirective{name: name, content: content, format: format, hasFile: hasFile}
-	rec, pending, err := pendingReconciliation(ctx, mgr, name, content, format, hasFile)
-	if err != nil {
-		return st, err
+func effectiveFor(ctx context.Context, mgr *sisyphus.ConfigStore, resolved map[string]effectiveDoc, it sisyphus.Item) (effectiveDoc, error) {
+	if doc, ok := resolved[it.Name]; ok {
+		return doc, nil
 	}
-	st.rec = rec
-	st.pending = pending
-	return st, nil
+	content, format, err := mgr.Effective(ctx, it)
+	return effectiveDoc{content: content, format: format}, err
 }
 
-func pendingReconciliation(ctx context.Context, mgr *sisyphus.Manager, name string, content []byte, format string, hasFile bool) (sisyphus.Reconciliation, bool, error) {
-	if mgr == nil || mgr.Mode() != sisyphus.ModeBoth || !hasFile {
-		return sisyphus.Reconciliation{}, false, nil
-	}
-	cur, hasCur, err := mgr.Current(ctx, name)
-	if err != nil {
-		return sisyphus.Reconciliation{}, false, err
-	}
-	if !hasCur || cur.Hash == configdb.Hash(format, content) {
-		return sisyphus.Reconciliation{}, false, nil
-	}
-	return sisyphus.Reconciliation{
-		Name:        name,
-		FileContent: content,
-		FileFormat:  format,
-		DB:          cur,
-		HasDB:       hasCur,
-	}, true, nil
-}
-
-func applyConfigStage(ctx context.Context, mgr *sisyphus.Manager, res sisyphus.Resolver, home string, st stagedDirective) (*Config, error) {
-	eff, effFormat, err := mgr.Reconcile(ctx, st.name, st.content, st.format, st.hasFile, res)
+func reconcileDirectives(mgr *sisyphus.ConfigStore, res *Resolver, home string) ([]byte, error) {
+	blob, _, err := SerializeDirectives(home)
 	if err != nil {
 		return nil, err
 	}
-	return ParseConfig(home, eff, effFormat)
-}
-
-func applyCollectionStage(ctx context.Context, mgr *sisyphus.Manager, res sisyphus.Resolver, st stagedDirective) ([]byte, error) {
-	eff, _, err := mgr.Reconcile(ctx, st.name, st.content, st.format, st.hasFile, res)
-	return eff, err
-}
-
-func reconcileDirectives(mgr *sisyphus.Manager, res sisyphus.Resolver, home string) ([]byte, error) {
-	blob, has, err := SerializeDirectives(home)
+	ctx := context.Background()
+	it := sisyphus.Item{Name: DirectivesDirective, FileContent: blob, FileFormat: "collection"}
+	plan, err := mgr.Plan(ctx, it)
 	if err != nil {
 		return nil, err
 	}
-	eff, _, err := mgr.Reconcile(context.Background(), DirectivesDirective, blob, "collection", has, res)
+	if len(plan) == 0 {
+		eff, _, err := mgr.Effective(ctx, it)
+		return eff, err
+	}
+	rec := plan[0]
+	act := sisyphus.ActionUseDB
+	if rec.HasFile() {
+		act, err = res.Resolve(rec)
+		if err != nil {
+			return nil, err
+		}
+	}
+	eff, _, err := mgr.Apply(ctx, rec, act)
 	return eff, err
 }
 
@@ -268,58 +241,63 @@ type Resolver struct {
 	out         io.Writer
 }
 
-type batchActionResolver struct {
-	act      sisyphus.Action
-	names    map[string]bool
-	fallback sisyphus.Resolver
-}
-
-func (b batchActionResolver) Resolve(rec sisyphus.Reconciliation) (sisyphus.Action, error) {
-	if b.names[rec.Name] {
-		return b.act, nil
-	}
-	return b.fallback.Resolve(rec)
-}
-
-func (r *Resolver) resolverFor(staged []stagedDirective) (sisyphus.Resolver, error) {
-	pending := make([]sisyphus.Reconciliation, 0, len(staged))
-	names := map[string]bool{}
-	for _, st := range staged {
-		if st.pending {
-			pending = append(pending, st.rec)
-			names[st.rec.Name] = true
+// applyPlan resolves every planned reconciliation with a single batch
+// decision. Items that exist on only one side never prompt: a file with
+// nothing stored yet is imported, and a stored version with no file wins.
+func (r *Resolver) applyPlan(ctx context.Context, mgr *sisyphus.ConfigStore, plan []sisyphus.Reconciliation) (map[string]effectiveDoc, error) {
+	pending := make([]sisyphus.Reconciliation, 0, len(plan))
+	for _, rec := range plan {
+		if rec.HasDB() && rec.HasFile() {
+			pending = append(pending, rec)
 		}
 	}
-	if len(pending) == 0 {
-		return r, nil
+	var batchAct sisyphus.Action
+	if len(pending) > 0 {
+		act, err := r.decideAll(pending)
+		if err != nil {
+			return nil, err
+		}
+		batchAct = act
 	}
-	batch := func(act sisyphus.Action) sisyphus.Resolver {
-		return batchActionResolver{act: act, names: names, fallback: r}
+	out := make(map[string]effectiveDoc, len(plan))
+	for _, rec := range plan {
+		act := batchAct
+		switch {
+		case !rec.HasDB():
+			act = sisyphus.ActionImport
+		case !rec.HasFile():
+			act = sisyphus.ActionUseDB
+		}
+		content, format, err := mgr.Apply(ctx, rec, act)
+		if err != nil {
+			return nil, err
+		}
+		out[rec.Name] = effectiveDoc{content: content, format: format}
 	}
+	return out, nil
+}
+
+func (r *Resolver) decideAll(pending []sisyphus.Reconciliation) (sisyphus.Action, error) {
 	switch r.policy {
 	case ReconcileApply:
 		log.Infof("applied staged changes to the store (%s)", joinNames(pending))
-		return batch(sisyphus.ActionImport), nil
+		return sisyphus.ActionImport, nil
 	case ReconcileSession:
 		log.Debugf("using staged changes for this session (%s)", joinNames(pending))
-		return batch(sisyphus.ActionUseFile), nil
+		return sisyphus.ActionUseFile, nil
 	case ReconcileIgnore:
 		log.Debugf("staged changes ignored; using the stored version (%s)", joinNames(pending))
-		return batch(sisyphus.ActionUseDB), nil
+		return sisyphus.ActionUseDB, nil
 	}
 	if !r.interactive {
 		if r.preferDB {
 			log.Warnf("staged changes ignored; using the stored version (prefer_duckdb): %s", joinNames(pending))
-			return batch(sisyphus.ActionUseDB), nil
+			return sisyphus.ActionUseDB, nil
 		}
 		log.Warnf("staged changes used for this session only; run `mino apply` to write them to the store: %s", joinNames(pending))
-		return batch(sisyphus.ActionUseFile), nil
+		return sisyphus.ActionUseFile, nil
 	}
-	act, err := r.promptAll(pending)
-	if err != nil {
-		return nil, err
-	}
-	return batch(act), nil
+	return r.promptAll(pending)
 }
 
 func joinNames(recs []sisyphus.Reconciliation) string {
@@ -331,7 +309,7 @@ func joinNames(recs []sisyphus.Reconciliation) string {
 }
 
 func (r *Resolver) Resolve(rec sisyphus.Reconciliation) (sisyphus.Action, error) {
-	if !rec.HasDB {
+	if !rec.HasDB() {
 		return sisyphus.ActionImport, nil
 	}
 	switch r.policy {

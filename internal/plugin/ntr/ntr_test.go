@@ -2,13 +2,21 @@ package ntr
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/codyconfer/mino/internal/keymap"
 	"github.com/codyconfer/mino/internal/plugin"
 )
+
+func TestMain(m *testing.M) {
+	keymap.Register()
+	keymap.UseNamed(keymap.DefaultSchemeKey)
+	os.Exit(m.Run())
+}
 
 func TestStoreCRUDAndReminders(t *testing.T) {
 	ctx := context.Background()
@@ -88,9 +96,10 @@ func TestReminderJobCatchUp(t *testing.T) {
 	st.Close()
 
 	job := ReminderJob{Home: home, Role: "r", Now: time.Now}
-	_, ready, err := job.Next(ctx, time.Now())
-	if err != nil || !ready {
-		t.Fatalf("Next ready=%v err=%v", ready, err)
+	now := time.Now()
+	nextAt, err := job.Next(ctx, now)
+	if err != nil || nextAt.After(now) {
+		t.Fatalf("Next due=%v err=%v, want due now", nextAt, err)
 	}
 	secs, err := job.Fetch(ctx)
 	if err != nil || len(secs[0].Items) != 1 {

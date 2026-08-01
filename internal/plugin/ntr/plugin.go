@@ -110,20 +110,20 @@ func (r ReminderJob) now() time.Time {
 	return time.Now()
 }
 
-func (r ReminderJob) Next(ctx context.Context, now time.Time) (due time.Time, ready bool, err error) {
+func (r ReminderJob) Next(ctx context.Context, now time.Time) (due time.Time, err error) {
 	st, err := Open(ctx, r.Home, r.Role)
 	if err != nil {
-		return time.Time{}, false, err
+		return time.Time{}, err
 	}
 	defer st.Close()
 	dueList, err := st.DueReminders(ctx, now)
 	if err != nil {
-		return time.Time{}, false, err
+		return time.Time{}, err
 	}
 	if len(dueList) > 0 {
-		return time.Time{}, true, nil
+		return now, nil
 	}
-	return now.Add(time.Minute), false, nil
+	return now.Add(time.Minute), nil
 }
 
 func (r ReminderJob) Fetch(ctx context.Context) ([]signals.Section, error) {

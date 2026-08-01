@@ -95,7 +95,7 @@ func TestResultsHintsAdvertiseDetailsWhenSelectable(t *testing.T) {
 	_, withSelect := loadedResults(t, func(*vkdeck.Model, render.ItemRef) tea.Cmd { return nil })
 	labels := map[string]bool{}
 	for _, h := range withSelect.Hints() {
-		labels[h[1]] = true
+		labels[h.Label] = true
 	}
 	if !labels["details"] || !labels["open"] {
 		t.Errorf("hints = %v, want both details and open", withSelect.Hints())
@@ -104,7 +104,7 @@ func TestResultsHintsAdvertiseDetailsWhenSelectable(t *testing.T) {
 	_, plain := loadedResults(t, nil)
 	labels = map[string]bool{}
 	for _, h := range plain.Hints() {
-		labels[h[1]] = true
+		labels[h.Label] = true
 	}
 	if labels["details"] {
 		t.Errorf("hints = %v, should not promise details without an OnSelect", plain.Hints())

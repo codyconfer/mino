@@ -7,6 +7,7 @@ import (
 
 	"github.com/codyconfer/viewkit/clipboard"
 	"github.com/codyconfer/viewkit/forms"
+	"github.com/codyconfer/viewkit/keys"
 )
 
 const remindDueSeed = "+1h"
@@ -54,10 +55,10 @@ func (v *remindView) Title() string {
 	return "edit " + v.label()
 }
 
-func (v *remindView) Context() [][2]string {
+func (v *remindView) Context() []keys.Hint {
 	ctx := v.recordCore.Context()
 	if v.base.Done {
-		return append(ctx, [2]string{"done", "yes"})
+		return append(ctx, keys.Hint{Key: "done", Label: "yes"})
 	}
 	return ctx
 }

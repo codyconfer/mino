@@ -9,17 +9,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/codyconfer/sisyphus/configdb"
+	"github.com/codyconfer/sisyphus"
 	"github.com/codyconfer/sisyphus/redact"
 )
 
 const exportTestConfig = "output: terminal\nbackup:\n  secret_backend: keyring\n  secret_name: mino-backup-key\ngoogle:\n  oauth_client_secret: super-secret-value\n"
 
-func exportTestStore(t *testing.T, home, content string) *configdb.Store {
+func exportTestStore(t *testing.T, home, content string) *sisyphus.ConfigStore {
 	t.Helper()
-	db, err := configdb.Open(context.Background(), DataPath(home, ConfigDB))
+	db, err := OpenStore(context.Background(), home)
 	if err != nil {
-		t.Fatalf("configdb.Open: %v", err)
+		t.Fatalf("OpenStore: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	if err := db.Import(context.Background(), ConfigDirective, []byte(content), "yaml"); err != nil {
@@ -206,7 +206,7 @@ func TestSamePath(t *testing.T) {
 	}
 }
 
-func importDirectiveRows(t *testing.T, db *configdb.Store, rows map[string]string) {
+func importDirectiveRows(t *testing.T, db *sisyphus.ConfigStore, rows map[string]string) {
 	t.Helper()
 	blob, err := json.Marshal(rows)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/forms"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/mino/internal/app/verify"
 	"github.com/codyconfer/mino/internal/config"
@@ -20,22 +21,22 @@ import (
 
 const reportNoFlight = "(none — save only)"
 
-func (kit *Kit) reportsCtx() [][2]string {
-	return append(kit.menuCtx(), [2]string{"directive", "Reports"})
+func (kit *Kit) reportsCtx() []keys.Hint {
+	return append(kit.menuCtx(), keys.Hint{Key: "directive", Label: "Reports"})
 }
 
 func (kit *Kit) Reports() vkdeck.View {
 	items := []vkdeck.MenuItem{{
-		Label: "New",
-		Desc:  "compose, render, and save a new report",
-		Icon:  glyph.Builder(),
-		Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.ReportBuilder()) },
+		Label:    "New",
+		Desc:     "compose, render, and save a new report",
+		Icon:     glyph.Builder(),
+		OnSelect: func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.ReportBuilder()) },
 	}}
 	for _, n := range kit.d.App.VisibleFormatters() {
 		items = append(items, vkdeck.MenuItem{
-			Label: n,
-			Desc:  formatterSummary(kit.d.App.Dirs().Formatters[n]),
-			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.ReportEditor(n)) },
+			Label:    n,
+			Desc:     formatterSummary(kit.d.App.Dirs().Formatters[n]),
+			OnSelect: func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.ReportEditor(n)) },
 		})
 	}
 	return vkdeck.NewMenu("reports", kit.reportsCtx(), items...)
@@ -101,13 +102,13 @@ func (v *reportView) editorTitle() string {
 	return "build report"
 }
 
-func (v *reportView) editorCtx() [][2]string {
+func (v *reportView) editorCtx() []keys.Hint {
 	ctx := v.kit.reportsCtx()
 	if v.orig != "" {
-		ctx = append(ctx, [2]string{"item", v.orig})
+		ctx = append(ctx, keys.Hint{Key: "item", Label: v.orig})
 	}
 	if fl := v.flight(); fl != "" {
-		ctx = append(ctx, [2]string{"on", fl})
+		ctx = append(ctx, keys.Hint{Key: "on", Label: fl})
 	}
 	return ctx
 }

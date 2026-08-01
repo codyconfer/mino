@@ -9,6 +9,7 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/mino/internal/app/qform"
 	"github.com/codyconfer/mino/internal/app/verify"
@@ -28,23 +29,23 @@ const (
 
 var builderTypes = []string{"(infer)", string(config.TypeQuery), string(config.TypeFilter)}
 
-func (kit *Kit) queriesCtx() [][2]string {
-	return append(kit.menuCtx(), [2]string{"directive", "Queries"})
+func (kit *Kit) queriesCtx() []keys.Hint {
+	return append(kit.menuCtx(), keys.Hint{Key: "directive", Label: "Queries"})
 }
 
 func (kit *Kit) Queries() vkdeck.View {
 	items := []vkdeck.MenuItem{{
-		Label: "New",
-		Desc:  "build, run, and save a new query or filter",
-		Icon:  glyph.Builder(),
-		Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.QueryBuilder()) },
+		Label:    "New",
+		Desc:     "build, run, and save a new query or filter",
+		Icon:     glyph.Builder(),
+		OnSelect: func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.QueryBuilder()) },
 	}}
 	for _, n := range kit.d.App.VisibleQueries() {
 		n := n
 		items = append(items, vkdeck.MenuItem{
-			Label: n,
-			Desc:  querySummary(kit.d.App.Dirs().Queries[n]),
-			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.QueryEditor(n)) },
+			Label:    n,
+			Desc:     querySummary(kit.d.App.Dirs().Queries[n]),
+			OnSelect: func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.QueryEditor(n)) },
 		})
 	}
 	return vkdeck.NewMenu("queries", kit.queriesCtx(), items...)
@@ -229,13 +230,13 @@ func (v *builderView) editorTitle() string {
 	return verb
 }
 
-func (v *builderView) editorCtx() [][2]string {
+func (v *builderView) editorCtx() []keys.Hint {
 	ctx := v.kit.queriesCtx()
 	if v.orig != "" {
-		ctx = append(ctx, [2]string{"item", v.orig})
+		ctx = append(ctx, keys.Hint{Key: "item", Label: v.orig})
 	}
 	if sig := v.signal(); sig != "" {
-		ctx = append(ctx, [2]string{"signal", sig})
+		ctx = append(ctx, keys.Hint{Key: "signal", Label: sig})
 	}
 	return ctx
 }

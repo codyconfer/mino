@@ -12,8 +12,8 @@ import (
 type testScheduled struct{ name string }
 
 func (s testScheduled) Name() string { return s.name }
-func (s testScheduled) Next(context.Context, time.Time) (time.Time, bool, error) {
-	return time.Time{}, true, nil
+func (s testScheduled) Next(_ context.Context, now time.Time) (time.Time, error) {
+	return now, nil
 }
 func (s testScheduled) Fetch(context.Context) ([]plugin.Section, error) {
 	return []plugin.Section{{Signal: s.name, Title: "fired"}}, nil

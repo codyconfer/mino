@@ -29,7 +29,7 @@ func assertUnbound(t *testing.T, m *keys.Map, key string) {
 }
 
 func TestFormDefaultSchemeKeepsOnlyMultiRuneKeys(t *testing.T) {
-	useScheme(t, keys.Default())
+	useScheme(t, keys.Default().WithDefaults(minoBindings()...))
 	m := Form()
 
 	bound := map[string]keys.Action{
@@ -124,8 +124,8 @@ func TestBuilderBindingsFollowTheActiveScheme(t *testing.T) {
 		keys.Binding{Keys: []string{"ctrl+e"}, Action: Run, Glyph: "ctrl+e", Label: "run"},
 	))
 
-	if got := RunBinding().Keys; len(got) != 1 || got[0] != "ctrl+e" {
-		t.Fatalf("RunBinding().Keys = %v, want the scheme's ctrl+e", got)
+	if got := keys.Cur().Binding(Run).Keys; len(got) != 1 || got[0] != "ctrl+e" {
+		t.Fatalf("Binding(Run).Keys = %v, want the scheme's ctrl+e", got)
 	}
 	m := Form(BuilderBindings()...)
 	assertBound(t, m, "ctrl+e", Run)
@@ -133,23 +133,24 @@ func TestBuilderBindingsFollowTheActiveScheme(t *testing.T) {
 	assertBound(t, m, "ctrl+t", Validate)
 }
 
-func TestBuilderBindingsFallBackWhenASchemeOmitsThem(t *testing.T) {
-	useScheme(t, keys.Default())
+func TestWithDefaultsFillsBindingsASchemeOmits(t *testing.T) {
+	useScheme(t, keys.Default().WithDefaults(minoBindings()...))
 
 	for _, tc := range []struct {
-		binding keys.Binding
-		key     string
+		action keys.Action
+		key    string
 	}{
-		{RunBinding(), "ctrl+r"},
-		{SaveBinding(), "ctrl+s"},
-		{ValidateBinding(), "ctrl+t"},
-		{DeleteBinding(), "ctrl+x"},
-		{CopyBinding(), "ctrl+g"},
-		{WriteBinding(), "ctrl+w"},
+		{Run, "ctrl+r"},
+		{Save, "ctrl+s"},
+		{Validate, "ctrl+t"},
+		{Delete, "ctrl+x"},
+		{Copy, "ctrl+g"},
+		{Write, "ctrl+w"},
 	} {
-		if len(tc.binding.Keys) == 0 || tc.binding.Keys[0] != tc.key {
+		b := keys.Cur().Binding(tc.action)
+		if len(b.Keys) == 0 || b.Keys[0] != tc.key {
 			t.Errorf("%q binding = %v, want the mino default %q so the editor stays usable",
-				tc.binding.Action, tc.binding.Keys, tc.key)
+				tc.action, b.Keys, tc.key)
 		}
 	}
 }

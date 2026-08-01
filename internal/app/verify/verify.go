@@ -156,7 +156,8 @@ func Config(cfg *config.Config, directives *config.Directives) []Finding {
 		check("github.api_url", err == nil, fmt.Sprintf("api_url=%q must be an https URL", cfg.GitHub.APIURL), "github:\n  api_url: "+cfg.GitHub.APIURL)
 	}
 
-	check("backup.secret_backend", secret.ValidBackend(cfg.Backup.SecretBackend),
+	_, validBackend := secret.ParseBackend(cfg.Backup.SecretBackend)
+	check("backup.secret_backend", validBackend,
 		fmt.Sprintf("unknown backend %q (have: %s)", cfg.Backup.SecretBackend, strings.Join(secret.Backends(), ", ")),
 		toYAML(cfg.Backup))
 	switch cfg.Backup.Destination {

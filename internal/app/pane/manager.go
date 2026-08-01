@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"sync"
 
-	minoterm "github.com/codyconfer/viewkit/term"
 	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/mino/internal/config"
@@ -64,7 +63,7 @@ func NewManager(home, flight string) (*Manager, error) {
 	if !tmux.Inside() {
 		return nil, errs.New(errs.KindInternal, "pane manager requires a tmux session")
 	}
-	self, err := minoterm.Self()
+	self, err := os.Executable()
 	if err != nil {
 		return nil, errs.Wrap(errs.KindInternal, err, "locate mino binary")
 	}

@@ -4,6 +4,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/render/glyph"
@@ -43,7 +44,7 @@ func NewHomeView(home, role string) *HomeView {
 			Desc:  "build, edit, and delete notes",
 			Icon:  glyph.Notes(),
 			Hue:   recordHue(kindNote),
-			Do: func(h *vkdeck.Model) tea.Cmd {
+			OnSelect: func(h *vkdeck.Model) tea.Cmd {
 				return h.Push(newNotesList(home, role))
 			},
 		},
@@ -52,7 +53,7 @@ func NewHomeView(home, role string) *HomeView {
 			Desc:  "build, edit, complete, and delete tasks",
 			Icon:  glyph.Check(),
 			Hue:   recordHue(kindTask),
-			Do: func(h *vkdeck.Model) tea.Cmd {
+			OnSelect: func(h *vkdeck.Model) tea.Cmd {
 				return h.Push(newTasksList(home, role))
 			},
 		},
@@ -63,12 +64,12 @@ func NewHomeView(home, role string) *HomeView {
 			Desc:  "build, edit, and complete reminders",
 			Icon:  glyph.Clock(),
 			Hue:   recordHue(kindReminder),
-			Do: func(h *vkdeck.Model) tea.Cmd {
+			OnSelect: func(h *vkdeck.Model) tea.Cmd {
 				return h.Push(newRemindersList(home, role))
 			},
 		})
 	}
-	v.menu = vkdeck.NewMenu("notes", [][2]string{{"role", role}}, items...)
+	v.menu = vkdeck.NewMenu("notes", []keys.Hint{{Key: "role", Label: role}}, items...)
 	return v
 }
 
@@ -92,5 +93,5 @@ func (v *HomeView) Title() string                             { return v.menu.Ti
 func (v *HomeView) Init() tea.Cmd                             { return v.menu.Init() }
 func (v *HomeView) Update(h *vkdeck.Model, m tea.Msg) tea.Cmd { return v.menu.Update(h, m) }
 func (v *HomeView) Body(w, ht int) string                     { return v.menu.Body(w, ht) }
-func (v *HomeView) Hints() [][2]string                        { return v.menu.Hints() }
-func (v *HomeView) Context() [][2]string                      { return v.menu.Context() }
+func (v *HomeView) Hints() []keys.Hint                        { return v.menu.Hints() }
+func (v *HomeView) Context() []keys.Hint                      { return v.menu.Context() }

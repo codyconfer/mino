@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	vkglyph "github.com/codyconfer/viewkit/glyph"
+
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/onboard"
 	"github.com/codyconfer/mino/internal/auth"
@@ -60,10 +62,10 @@ func credentialStoreChip() (deck.ServiceStatus, bool) {
 		return deck.ServiceStatus{}, false
 	}
 	return deck.ServiceStatus{
-		ID:     "credentials",
-		Name:   "credentials",
-		Detail: auth.CredUnreadable.String(),
-		Level:  deck.StatusBad,
+		ID:       "credentials",
+		Name:     "credentials",
+		Detail:   auth.CredUnreadable.String(),
+		Severity: vkglyph.SeverityNegative,
 	}, true
 }
 
@@ -71,7 +73,7 @@ func githubStatus(ctx context.Context, a *app.App, apiURL string) (user string, 
 	svc = deck.ServiceStatus{Name: "github"}
 	raw, err := auth.GHAPIGet(ctx, a.Tokens, apiURL, "user")
 	if err != nil {
-		svc.Level = deck.StatusBad
+		svc.Severity = vkglyph.SeverityNegative
 		return "", svc, false
 	}
 	var u struct {
@@ -81,17 +83,17 @@ func githubStatus(ctx context.Context, a *app.App, apiURL string) (user string, 
 
 	limit, remaining, rateOK := githubRate(ctx, a, apiURL)
 	if !rateOK {
-		svc.Level = deck.StatusOK
+		svc.Severity = vkglyph.SeverityPositive
 		return u.Login, svc, true
 	}
 	svc.Detail = fmt.Sprintf("%d/%d", remaining, limit)
 	switch {
 	case remaining == 0:
-		svc.Level = deck.StatusBad
+		svc.Severity = vkglyph.SeverityNegative
 	case remaining*5 < limit:
-		svc.Level = deck.StatusWarn
+		svc.Severity = vkglyph.SeverityWarning
 	default:
-		svc.Level = deck.StatusOK
+		svc.Severity = vkglyph.SeverityPositive
 	}
 	return u.Login, svc, true
 }
@@ -130,11 +132,11 @@ func providerStatuses(a *app.App) []deck.ServiceStatus {
 		if !providerEnabled(p) {
 			continue
 		}
-		level := deck.StatusMuted
+		level := vkglyph.SeverityNeutral
 		if p.Authed != nil && p.Authed(pluginhost.ForLogin(a.Cfg, a.Tokens, p)) {
-			level = deck.StatusOK
+			level = vkglyph.SeverityPositive
 		}
-		out = append(out, deck.ServiceStatus{ID: p.Key, Name: p.Key, Level: level})
+		out = append(out, deck.ServiceStatus{ID: p.Key, Name: p.Key, Severity: level})
 	}
 	return out
 }

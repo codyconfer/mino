@@ -367,7 +367,7 @@ func DefaultDirectivePath(kind DirectiveType, name string) string {
 	return path.Join(DirQueries, name+".yaml")
 }
 
-func SaveDirective(mgr *sisyphus.Manager, home, rel string, kind DirectiveType, name string, doc any) (string, bool, error) {
+func SaveDirective(mgr *sisyphus.ConfigStore, home, rel string, kind DirectiveType, name string, doc any) (string, bool, error) {
 	derived := strings.TrimSpace(rel) == ""
 	if derived {
 		rel = DefaultDirectivePath(kind, name)
@@ -504,7 +504,7 @@ func RemoveDirective(home, rel string) ([]string, error) {
 	return []string{target}, nil
 }
 
-func SyncDirectives(mgr *sisyphus.Manager, home string) (bool, error) {
+func SyncDirectives(mgr *sisyphus.ConfigStore, home string) (bool, error) {
 	if mgr == nil {
 		return false, nil
 	}

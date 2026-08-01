@@ -21,11 +21,11 @@ func SetValues(homeOverride string, values map[string]any) (string, error) {
 	}
 	if name == "" {
 		name = "config.yaml"
-		format = "yaml"
+		format = sconfig.FormatYAML
 	}
 
 	var out []byte
-	if format == "json" {
+	if format == sconfig.FormatJSON {
 		out, err = setJSONValues(raw, values)
 	} else {
 		out, err = setYAMLValues(name, raw, values)

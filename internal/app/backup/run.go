@@ -11,7 +11,7 @@ import (
 
 	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
-	"github.com/codyconfer/sisyphus/store"
+	"github.com/codyconfer/sisyphus/duckfile"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
@@ -31,22 +31,26 @@ func secretName(cfg *config.Config) string {
 	return config.Defaults().Backup.SecretName
 }
 
+func secretRef(cfg *config.Config) sisyphus.SecretRef {
+	return sisyphus.SecretRef{
+		Backend: cfg.Backup.SecretBackend,
+		Name:    secretName(cfg),
+		Service: secretService,
+	}
+}
+
 func backupSpec(cfg *config.Config, files []string) sisyphus.BackupSpec {
 	return sisyphus.BackupSpec{
-		Files:         files,
-		SecretBackend: cfg.Backup.SecretBackend,
-		SecretName:    secretName(cfg),
-		SecretService: secretService,
+		Files:  files,
+		Secret: secretRef(cfg),
 	}
 }
 
 func restoreSpec(cfg *config.Config, sealed []byte, dest string) sisyphus.RestoreSpec {
 	return sisyphus.RestoreSpec{
-		Sealed:        sealed,
-		SecretBackend: cfg.Backup.SecretBackend,
-		SecretName:    secretName(cfg),
-		SecretService: secretService,
-		DestDir:       dest,
+		Sealed:  sealed,
+		Secret:  secretRef(cfg),
+		DestDir: dest,
 	}
 }
 
@@ -60,7 +64,7 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), 
 		config.DataPath(home, config.AuditDB),
 		config.DataPath(home, config.TokensDB),
 	}
-	files = append(files, store.BackupPaths()...)
+	files = append(files, duckfile.BackupPaths()...)
 	files = append(files, plugin.DataPaths(home)...)
 
 	sealed, storeName, err := sisyphus.Backup(ctx, backupSpec(cfg, files))

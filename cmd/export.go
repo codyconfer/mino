@@ -3,21 +3,17 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/codyconfer/sisyphus/configdb"
+	"github.com/codyconfer/sisyphus"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 )
 
-func storeDB() (*configdb.Store, error) {
+func storeDB() (*sisyphus.ConfigStore, error) {
 	if shared.Mgr == nil {
 		return nil, errs.New(errs.KindStore, "store DB unavailable")
 	}
-	db := shared.Mgr.DB()
-	if db == nil {
-		return nil, errs.New(errs.KindStore, "store DB unavailable")
-	}
-	return db, nil
+	return shared.Mgr, nil
 }
 
 func validateDirectiveArg(name string) error {

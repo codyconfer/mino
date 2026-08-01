@@ -21,22 +21,6 @@ type ItemRef struct {
 	Meta   map[string]string
 }
 
-func ItemIndex(sections []signals.Section) map[string]ItemRef {
-	index := map[string]ItemRef{}
-	for _, s := range sections {
-		for _, it := range s.Items {
-			if it.URL == "" {
-				continue
-			}
-			if _, seen := index[it.URL]; seen {
-				continue
-			}
-			index[it.URL] = ItemRef{Signal: s.Signal, Item: it, Meta: s.Meta}
-		}
-	}
-	return index
-}
-
 func ItemLabel(it signals.Item) string {
 	kind := signals.CleanLine(it.Kind)
 	if kind == "" {
@@ -152,7 +136,7 @@ func detailBody(d *signals.ItemDetail, it signals.Item) string {
 	return strings.TrimSpace(it.Body)
 }
 
-func detailChips(th *theme.Theme, d *signals.ItemDetail) string {
+func detailChips(th theme.Theme, d *signals.ItemDetail) string {
 	if d == nil || len(d.Chips) == 0 {
 		return ""
 	}
@@ -163,7 +147,7 @@ func detailChips(th *theme.Theme, d *signals.ItemDetail) string {
 	return strings.Join(parts, th.Dim.Render(" · "))
 }
 
-func detailRows(f layout.Frame, th *theme.Theme, ref ItemRef, d *signals.ItemDetail) []string {
+func detailRows(f layout.Frame, th theme.Theme, ref ItemRef, d *signals.ItemDetail) []string {
 	rows := localRows(ref)
 	if d != nil && len(d.Rows) > 0 {
 		rows = d.Rows
@@ -187,7 +171,7 @@ func localRows(ref ItemRef) [][2]string {
 	return rows
 }
 
-func gutter(f layout.Frame, th *theme.Theme, rows [][2]string) []string {
+func gutter(f layout.Frame, th theme.Theme, rows [][2]string) []string {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -209,7 +193,7 @@ func gutter(f layout.Frame, th *theme.Theme, rows [][2]string) []string {
 	return out
 }
 
-func detailSection(f, cf layout.Frame, th *theme.Theme, s signals.DetailSection) string {
+func detailSection(f, cf layout.Frame, th theme.Theme, s signals.DetailSection) string {
 	var lines []string
 	if len(s.Rows) > 0 {
 		lines = append(lines, gutter(cf, th, s.Rows)...)

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
-	"github.com/codyconfer/sisyphus/configdb"
 	"github.com/codyconfer/sisyphus/redact"
 
 	"github.com/codyconfer/mino/internal/errs"
@@ -45,7 +45,7 @@ func ValidateDirectiveArg(name string) error {
 	return err
 }
 
-func PrintCurrentConfig(w io.Writer, db *configdb.Store) error {
+func PrintCurrentConfig(w io.Writer, db *sisyphus.ConfigStore) error {
 	cur, ok, err := db.Current(context.Background(), ConfigDirective)
 	if err != nil {
 		return err
@@ -56,11 +56,11 @@ func PrintCurrentConfig(w io.Writer, db *configdb.Store) error {
 	}
 	fmt.Fprintf(w, "# active config (%s, applied %s, version %s)\n\n",
 		cur.Format, cur.At.Format("2006-01-02 15:04:05"), shortHash(cur.Hash))
-	fmt.Fprintln(w, redact.Config([]byte(cur.Content), cur.Format))
+	fmt.Fprintln(w, redact.Document([]byte(cur.Content), string(cur.Format)))
 	return nil
 }
 
-func PrintConfigHistory(w io.Writer, db *configdb.Store) error {
+func PrintConfigHistory(w io.Writer, db *sisyphus.ConfigStore) error {
 	versions, err := db.History(context.Background(), ConfigDirective, 50)
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func shortHash(h string) string {
 	return h
 }
 
-func Export(w io.Writer, db *configdb.Store, out, liveHome, directive string, includeSecrets bool) error {
+func Export(w io.Writer, db *sisyphus.ConfigStore, out, liveHome, directive string, includeSecrets bool) error {
 	directive, err := ResolveDirectiveArg(directive)
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func resolvePath(p string) string {
 	return p
 }
 
-func exportConfig(w io.Writer, db *configdb.Store, out, liveHome string, single, includeSecrets bool) error {
+func exportConfig(w io.Writer, db *sisyphus.ConfigStore, out, liveHome string, single, includeSecrets bool) error {
 	v, ok, err := db.Current(context.Background(), ConfigDirective)
 	if err != nil {
 		return errs.Wrap(errs.KindStore, err, "reading config from store")
@@ -145,7 +145,7 @@ func exportConfig(w io.Writer, db *configdb.Store, out, liveHome string, single,
 				WithHint("masked exports are for sharing only: pass --out <other-dir> to write the masked copy elsewhere, " +
 					"or --include-secrets to materialize the real config back into the mino home")
 		}
-		content = redact.Config([]byte(v.Content), v.Format)
+		content = redact.Document([]byte(v.Content), string(v.Format))
 		fmt.Fprintf(w, "warning: secret values are replaced with %q and comments and key order are lost; this copy is for sharing, not a working config\n", redact.Mask)
 	}
 	path, err := sconfig.WriteConfigFile(out, []byte(content), v.Format)
@@ -156,7 +156,7 @@ func exportConfig(w io.Writer, db *configdb.Store, out, liveHome string, single,
 	return nil
 }
 
-func exportDirectives(w io.Writer, db *configdb.Store, out string, single bool) error {
+func exportDirectives(w io.Writer, db *sisyphus.ConfigStore, out string, single bool) error {
 	v, ok, err := db.Current(context.Background(), DirectivesDirective)
 	if err != nil {
 		return errs.Wrap(errs.KindStore, err, "reading directives from store")
@@ -177,7 +177,7 @@ func exportDirectives(w io.Writer, db *configdb.Store, out string, single bool) 
 	return nil
 }
 
-func ExportAllToFiles(db *configdb.Store, home string) ([]string, error) {
+func ExportAllToFiles(db *sisyphus.ConfigStore, home string) ([]string, error) {
 	var plan *directivePlan
 	cur, hasDirectives, err := db.Current(context.Background(), DirectivesDirective)
 	if err != nil {
@@ -211,7 +211,7 @@ func ExportAllToFiles(db *configdb.Store, home string) ([]string, error) {
 	return written, nil
 }
 
-func Import(w io.Writer, db *configdb.Store, home, directive string) error {
+func Import(w io.Writer, db *sisyphus.ConfigStore, home, directive string) error {
 	directive, err := ResolveDirectiveArg(directive)
 	if err != nil {
 		return err
@@ -229,7 +229,7 @@ func Import(w io.Writer, db *configdb.Store, home, directive string) error {
 	}
 }
 
-func importConfig(w io.Writer, db *configdb.Store, home string, required bool) error {
+func importConfig(w io.Writer, db *sisyphus.ConfigStore, home string, required bool) error {
 	_, raw, format, err := ReadConfigFile(home)
 	if err != nil {
 		return errs.Wrap(errs.KindConfig, err, "reading config file")
@@ -249,7 +249,7 @@ func importConfig(w io.Writer, db *configdb.Store, home string, required bool) e
 	return nil
 }
 
-func importDirectives(w io.Writer, db *configdb.Store, home string, required bool) error {
+func importDirectives(w io.Writer, db *sisyphus.ConfigStore, home string, required bool) error {
 	blob, has, err := SerializeDirectives(home)
 	if err != nil {
 		return errs.Wrap(errs.KindConfig, err, "reading directive files")

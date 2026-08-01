@@ -4,6 +4,8 @@ package daemon
 
 import (
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
+	"github.com/codyconfer/sisyphus/daemon/service"
+	vkglyph "github.com/codyconfer/viewkit/glyph"
 
 	"github.com/codyconfer/mino/cmd"
 	"github.com/codyconfer/mino/internal/config"
@@ -30,7 +32,7 @@ func classifyInstall(opt options) InstallState {
 	switch {
 	case sErr != nil:
 		return InstallNotInstalled
-	case st == "running":
+	case st == service.StateRunning:
 		return InstallRunning
 	default:
 		return InstallStopped
@@ -43,9 +45,9 @@ func statusChip() (deck.ServiceStatus, bool) {
 	}
 	switch classifyInstall(configOptions(cmd.DefaultFlight())) {
 	case InstallRunning:
-		return deck.ServiceStatus{Name: "daemon", Detail: "running", Level: deck.StatusOK}, true
+		return deck.ServiceStatus{Name: "daemon", Detail: "running", Severity: vkglyph.SeverityPositive}, true
 	case InstallStopped:
-		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Level: deck.StatusWarn}, true
+		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Severity: vkglyph.SeverityWarning}, true
 	default:
 		return deck.ServiceStatus{}, false
 	}

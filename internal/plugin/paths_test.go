@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/codyconfer/sisyphus/store"
+	"github.com/codyconfer/sisyphus/duckfile"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/plugin"
@@ -32,7 +32,7 @@ func TestDataPathsJoinsOpenBackupPaths(t *testing.T) {
 	}
 	st.Close()
 
-	openPaths := store.BackupPaths()
+	openPaths := duckfile.BackupPaths()
 	foundOpen := false
 	for _, p := range openPaths {
 		if p == want {
@@ -41,6 +41,6 @@ func TestDataPathsJoinsOpenBackupPaths(t *testing.T) {
 		}
 	}
 	if !foundOpen {
-		t.Fatalf("after Open, store.BackupPaths missing %q: %v", want, openPaths)
+		t.Fatalf("after Open, duckfile.BackupPaths missing %q: %v", want, openPaths)
 	}
 }

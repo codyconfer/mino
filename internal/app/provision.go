@@ -180,10 +180,10 @@ func walkDefaults(fsys fs.FS) []lifecycle.FileSeed {
 func seedStores(home string, created *[]string) error {
 	if mgr, err := config.OpenStore(context.Background(), home); err == nil {
 		if raw, format, err := sconfig.ReadFile(home); err == nil && len(raw) > 0 {
-			_ = mgr.DB().Import(context.Background(), "config", raw, format)
+			_ = mgr.Import(context.Background(), "config", raw, format)
 		}
 		if blob, has, err := config.SerializeDirectives(home); err == nil && has {
-			_ = mgr.DB().Import(context.Background(), config.DirectivesDirective, blob, "collection")
+			_ = mgr.Import(context.Background(), config.DirectivesDirective, blob, "collection")
 		}
 		_ = mgr.Close()
 		*created = append(*created, config.DataPath(home, config.ConfigDB))

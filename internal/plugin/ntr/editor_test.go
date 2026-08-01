@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/codyconfer/viewkit/forms"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/mino/internal/deck"
 )
@@ -52,9 +53,9 @@ func fieldKinds(fields []forms.Field) []forms.FieldKind {
 	return out
 }
 
-func hasHint(hints [][2]string, glyph string) bool {
+func hasHint(hints []keys.Hint, glyph string) bool {
 	for _, h := range hints {
-		if h[0] == glyph {
+		if h.Key == glyph {
 			return true
 		}
 	}
@@ -250,7 +251,7 @@ func TestRemindEditorFields(t *testing.T) {
 	}
 	found := false
 	for _, c := range saved.Context() {
-		if c[0] == "done" && c[1] == "yes" {
+		if c.Key == "done" && c.Label == "yes" {
 			found = true
 		}
 	}

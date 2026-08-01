@@ -7,6 +7,7 @@ import (
 	"time"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
@@ -25,14 +26,15 @@ const (
 type editorShell = vkdeck.Editor
 
 func recordKeys() vkdeck.EditorKeys {
+	sc := keys.Cur()
 	return vkdeck.EditorKeys{
 		Map: keymap.Form(
-			keymap.RunBinding(),
-			keymap.ValidateBinding(),
-			keymap.PreviewBinding(),
-			keymap.DeleteBinding(),
-			keymap.FocusBinding(),
-			keymap.CopyBinding(),
+			sc.Binding(keymap.Run),
+			sc.Binding(keymap.Validate),
+			sc.Binding(keymap.Preview),
+			sc.Binding(keymap.Delete),
+			sc.Binding(keymap.Focus),
+			sc.Binding(keymap.Copy),
 		),
 		Confirm:  keymap.ConfirmMap(),
 		Run:      keymap.Run,
@@ -64,10 +66,10 @@ type recordCore struct {
 
 func (c *recordCore) Kind() string { return c.kind }
 
-func (c *recordCore) Context() [][2]string {
-	ctx := [][2]string{{"role", c.role}, {"notes", recordScreen(c.kind)}}
+func (c *recordCore) Context() []keys.Hint {
+	ctx := []keys.Hint{{Key: "role", Label: c.role}, {Key: "notes", Label: recordScreen(c.kind)}}
 	if c.id != 0 {
-		ctx = append(ctx, [2]string{"item", c.label()})
+		ctx = append(ctx, keys.Hint{Key: "item", Label: c.label()})
 	}
 	return ctx
 }

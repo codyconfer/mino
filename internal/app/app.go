@@ -27,7 +27,7 @@ type App struct {
 	Audit      *audit.Store
 	Tokens     *token.Store
 	Cache      *cache.Store
-	Mgr        *sisyphus.Manager
+	Mgr        *sisyphus.ConfigStore
 
 	mu            sync.RWMutex
 	roleTransient bool
@@ -211,7 +211,7 @@ func Load(opts Options) (*App, error) {
 	return a, nil
 }
 
-func loadConfig(opts Options) (*config.Config, *config.Directives, *sisyphus.Manager, error) {
+func loadConfig(opts Options) (*config.Config, *config.Directives, *sisyphus.ConfigStore, error) {
 	if opts.Thin {
 		cfg, directives, err := config.LoadConfigAndDirectivesFromFiles(opts.Home, opts.ConfigFile)
 		return cfg, directives, nil, err
@@ -325,7 +325,7 @@ func (a *App) StoreRevision() (string, bool) {
 	if a == nil || a.Mgr == nil {
 		return "", false
 	}
-	return a.Mgr.DB().Revision()
+	return a.Mgr.Generation()
 }
 
 const DefaultSignalTimeout = 30 * time.Second

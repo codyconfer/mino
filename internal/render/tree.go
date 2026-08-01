@@ -63,17 +63,17 @@ func sectionTitle(s signals.Section) string {
 	return s.Title
 }
 
-func sectionHead(th *theme.Theme, i int, s signals.Section) string {
+func sectionHead(th theme.Theme, i int, s signals.Section) string {
 	title := fmt.Sprintf("%s  (%s)", signals.CleanLine(sectionTitle(s)), sectionCount(s))
 	icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(s)))
 	return icon + th.Title.Render(title) + staleChip(th, s)
 }
 
-func staleChip(th *theme.Theme, s signals.Section) string {
+func staleChip(th theme.Theme, s signals.Section) string {
 	return staleCue(th, s.Meta) + truncationCue(th, s.Meta)
 }
 
-func truncationCue(th *theme.Theme, meta map[string]string) string {
+func truncationCue(th theme.Theme, meta map[string]string) string {
 	if !isTruncated(meta) {
 		return ""
 	}
@@ -97,7 +97,7 @@ func isTruncated(meta map[string]string) bool {
 	return true
 }
 
-func staleCue(th *theme.Theme, meta map[string]string) string {
+func staleCue(th theme.Theme, meta map[string]string) string {
 	if meta["cache"] != "stale" {
 		return ""
 	}
@@ -114,7 +114,7 @@ func sectionCount(s signals.Section) string {
 	return strconv.Itoa(len(s.Items))
 }
 
-func sectionLeaves(f layout.Frame, th *theme.Theme, c tree.Connectors, spad string, s signals.Section) []tree.Row {
+func sectionLeaves(f layout.Frame, th theme.Theme, c tree.Connectors, spad string, s signals.Section) []tree.Row {
 	switch {
 	case s.Err != nil:
 		errLines := strings.Split(signals.Clean(s.Err.Error()), "\n")
@@ -130,7 +130,9 @@ func sectionLeaves(f layout.Frame, th *theme.Theme, c tree.Connectors, spad stri
 		lf := layout.NewFrame(f.Width - c.Indent(spad))
 		rows := make([]tree.Row, 0, len(s.Items))
 		for j, it := range s.Items {
-			rows = append(rows, tree.Leaf(c, spad, j == len(s.Items)-1, itemLines(lf, th, it), it.URL))
+			row := tree.Leaf(c, spad, j == len(s.Items)-1, itemLines(lf, th, it), it.URL)
+			row.Payload = ItemRef{Signal: s.Signal, Item: it, Meta: s.Meta}
+			rows = append(rows, row)
 		}
 		return rows
 	}

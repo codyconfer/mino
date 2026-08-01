@@ -50,7 +50,7 @@ func TestPluginServicesAppearInStatusStrip(t *testing.T) {
 
 	info := StatusInfo{
 		GitHubUser: "cody",
-		Services:   append([]ServiceStatus{{Name: "github", Level: StatusOK}}, svcs...),
+		Services:   append([]ServiceStatus{{Name: "github", Severity: vkglyph.SeverityPositive}}, svcs...),
 	}
 	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
 	app := New(menu, WithStatus(func(context.Context) StatusInfo { return info }))
@@ -107,9 +107,9 @@ func TestServiceChipLogoDetailSpacing(t *testing.T) {
 
 func TestAdaptStatusUsesToolLogos(t *testing.T) {
 	info := StatusInfo{Services: []ServiceStatus{
-		{Name: "github", Detail: "1/2", Level: StatusOK},
-		{Name: "slack", Level: StatusOK},
-		{ID: "google", Name: "google", Level: StatusMuted},
+		{Name: "github", Detail: "1/2", Severity: vkglyph.SeverityPositive},
+		{Name: "slack", Severity: vkglyph.SeverityPositive},
+		{ID: "google", Name: "google", Severity: vkglyph.SeverityNeutral},
 	}}
 	got := adaptStatus(info)
 	if len(got.Services) != 3 {
@@ -134,10 +134,10 @@ func TestAdaptStatusHidesConfiguredEntries(t *testing.T) {
 	}
 
 	info := StatusInfo{Services: []ServiceStatus{
-		{Name: "github", Level: StatusOK},
-		{Name: "slack", Level: StatusOK},
-		{ID: "mino.hide.test", Name: "SECRET-LOGO", Level: StatusOK, Glyph: "G"},
-		{ID: "mino.show.test", Name: "notes", Level: StatusOK, Glyph: "N"},
+		{Name: "github", Severity: vkglyph.SeverityPositive},
+		{Name: "slack", Severity: vkglyph.SeverityPositive},
+		{ID: "mino.hide.test", Name: "SECRET-LOGO", Severity: vkglyph.SeverityPositive, Glyph: "G"},
+		{ID: "mino.show.test", Name: "notes", Severity: vkglyph.SeverityPositive, Glyph: "N"},
 	}}
 	got := adaptStatus(info)
 	if len(got.Services) != 2 {
@@ -161,8 +161,8 @@ func TestAdaptStatusHidesGoogleViaLegacyKey(t *testing.T) {
 	}
 
 	info := StatusInfo{Services: []ServiceStatus{
-		{Name: "github", Level: StatusOK},
-		{ID: "google", Name: "google", Level: StatusOK},
+		{Name: "github", Severity: vkglyph.SeverityPositive},
+		{ID: "google", Name: "google", Severity: vkglyph.SeverityPositive},
 	}}
 	got := adaptStatus(info)
 	if len(got.Services) != 1 || got.Services[0].Name != glyph.GitHub() {
@@ -180,7 +180,7 @@ func TestRoleServicesAppearInStatusStrip(t *testing.T) {
 		t.Fatalf("RoleServices = %+v", svcs)
 	}
 
-	info := StatusInfo{Services: append([]ServiceStatus{{Name: "slack", Level: StatusOK}}, svcs...)}
+	info := StatusInfo{Services: append([]ServiceStatus{{Name: "slack", Severity: vkglyph.SeverityPositive}}, svcs...)}
 	got := adaptStatus(info)
 	if len(got.Services) != 2 {
 		t.Fatalf("adaptStatus services = %+v", got.Services)

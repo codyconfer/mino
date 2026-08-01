@@ -56,7 +56,7 @@ func applyFromAnotherProcess(t *testing.T, kit *Kit) {
 	if err != nil || !has {
 		t.Fatalf("serialize directives = has %v, err %v", has, err)
 	}
-	if err := kit.d.App.Mgr.DB().Import(context.Background(), config.DirectivesDirective, blob, "collection"); err != nil {
+	if err := kit.d.App.Mgr.Import(context.Background(), config.DirectivesDirective, blob, "collection"); err != nil {
 		t.Fatalf("import: %v", err)
 	}
 }

@@ -383,7 +383,7 @@ func TestSecretBackendMatchesSisyphus(t *testing.T) {
 	if f.OK {
 		t.Fatal("an unknown backend was accepted")
 	}
-	for _, want := range []string{"bw", "op", "keyring"} {
+	for _, want := range []string{"bitwarden", "1password", "keyring"} {
 		if !strings.Contains(f.Msg, want) {
 			t.Errorf("Msg = %q, want it to list %q", f.Msg, want)
 		}

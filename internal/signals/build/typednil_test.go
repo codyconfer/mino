@@ -37,8 +37,8 @@ type hostTypedNilJob struct{ name string }
 
 func (j *hostTypedNilJob) Name() string { return j.name }
 
-func (j *hostTypedNilJob) Next(context.Context, time.Time) (time.Time, bool, error) {
-	return time.Time{}, true, nil
+func (j *hostTypedNilJob) Next(_ context.Context, now time.Time) (time.Time, error) {
+	return now, nil
 }
 
 func (j *hostTypedNilJob) Fetch(context.Context) ([]signals.Section, error) {

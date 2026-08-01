@@ -44,12 +44,12 @@ func TestMaskSecrets(t *testing.T) {
 
 func TestSecretKey(t *testing.T) {
 	for _, k := range []string{"oauth_client_secret", "password", "access_token", "refresh_token"} {
-		if !redact.Key(k) {
+		if !redact.IsSecretKey(k) {
 			t.Errorf("%q should be treated as secret", k)
 		}
 	}
 	for _, k := range []string{"oauth_client_id", "token_env", "query", "name"} {
-		if redact.Key(k) {
+		if redact.IsSecretKey(k) {
 			t.Errorf("%q should NOT be treated as secret", k)
 		}
 	}

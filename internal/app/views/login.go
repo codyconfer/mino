@@ -39,7 +39,7 @@ func (k *Kit) Login() vkdeck.View {
 			Desc:  k.loginStatus(p),
 			Icon:  loginIcon(p.Key),
 			Hue:   i,
-			Do: func(a *vkdeck.Model) tea.Cmd {
+			OnSelect: func(a *vkdeck.Model) tea.Cmd {
 				if p.Authed(k.d.App) {
 					return func() tea.Msg { return loginAlreadyAuthedMsg{label: p.Label} }
 				}
@@ -52,8 +52,8 @@ func (k *Kit) Login() vkdeck.View {
 }
 
 func (p *loginPage) Title() string        { return p.menu.Title() }
-func (p *loginPage) Context() [][2]string { return p.menu.Context() }
-func (p *loginPage) Hints() [][2]string   { return p.menu.Hints() }
+func (p *loginPage) Context() []keys.Hint { return p.menu.Context() }
+func (p *loginPage) Hints() []keys.Hint   { return p.menu.Hints() }
 func (p *loginPage) Init() tea.Cmd        { return p.menu.Init() }
 
 func (p *loginPage) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
@@ -135,14 +135,14 @@ func (k *Kit) loginFlow(p loginflow.Provider) vkdeck.View {
 }
 
 func (v *loginFlowView) Title() string        { return "accounts: " + strings.ToLower(v.prov.Label) }
-func (v *loginFlowView) Context() [][2]string { return v.kit.menuCtx() }
+func (v *loginFlowView) Context() []keys.Hint { return v.kit.menuCtx() }
 
-func (v *loginFlowView) Hints() [][2]string {
+func (v *loginFlowView) Hints() []keys.Hint {
 	switch v.step {
 	case loginStepForm:
-		return [][2]string{{"↑/↓", "field"}, {"ctrl+s", "continue"}, {"esc", "cancel"}}
+		return []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "ctrl+s", Label: "continue"}, {Key: "esc", Label: "cancel"}}
 	case loginStepDone:
-		return [][2]string{{"enter", "back"}}
+		return []keys.Hint{{Key: "enter", Label: "back"}}
 	default:
 		return nil
 	}

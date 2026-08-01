@@ -68,7 +68,7 @@ func (h *activeSignal) step(ctx context.Context) func(context.Context) ([]signal
 		if res.notModified {
 			return nil, res.next, nil
 		}
-		return seen.Fresh(ctx, res.items, notificationKey), res.next, nil
+		return seen.Unseen(ctx, res.items, notificationKey), res.next, nil
 	}
 }
 

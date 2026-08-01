@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/codyconfer/sisyphus"
+	sconfig "github.com/codyconfer/sisyphus/config"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/theme"
 
@@ -136,7 +137,7 @@ func stagedSummary(rec sisyphus.Reconciliation) string {
 }
 
 func storedSummary(rec sisyphus.Reconciliation) string {
-	if !rec.HasDB {
+	if !rec.HasDB() {
 		return "nothing stored yet"
 	}
 	return fmt.Sprintf("%s · applied %s", shortHash(rec.DB.Hash), rec.DB.At.Local().Format("2006-01-02 15:04"))
@@ -158,12 +159,12 @@ type changeEntry struct {
 func changeEntries(rec sisyphus.Reconciliation) []changeEntry {
 	staged, ok := collectionFiles(rec.FileContent, rec.FileFormat)
 	if !ok {
-		if !rec.HasDB {
+		if !rec.HasDB() {
 			return nil
 		}
 		return []changeEntry{{base: rec.Name, kind: changeMod}}
 	}
-	if !rec.HasDB {
+	if !rec.HasDB() {
 		var entries []changeEntry
 		for name := range staged {
 			entries = append(entries, changeEntry{trimExt(name), changeAdd})
@@ -227,7 +228,7 @@ func changePlain(e changeEntry) string {
 	}
 }
 
-func changeStyled(th *theme.Theme, warn lipgloss.Style, e changeEntry) string {
+func changeStyled(th theme.Theme, warn lipgloss.Style, e changeEntry) string {
 	switch e.kind {
 	case changeAdd:
 		return th.Can.Render("+" + e.base)
@@ -238,7 +239,7 @@ func changeStyled(th *theme.Theme, warn lipgloss.Style, e changeEntry) string {
 	}
 }
 
-func collectionFiles(blob []byte, format string) (map[string]string, bool) {
+func collectionFiles(blob []byte, format sconfig.Format) (map[string]string, bool) {
 	if format != "collection" {
 		return nil, false
 	}

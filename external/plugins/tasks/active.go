@@ -62,7 +62,7 @@ func (h *activeTasks) Stream(ctx context.Context) (<-chan plugin.Event, error) {
 				items = append(items, taskToItem(t, tl.Title))
 			}
 		}
-		return seen.Fresh(ctx, items, taskKey), nil
+		return seen.Unseen(ctx, items, taskKey), nil
 	}
 
 	return stream.Poll(ctx, "tasks", h.interval, step), nil

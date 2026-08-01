@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/codyconfer/sisyphus/store"
+	"github.com/codyconfer/sisyphus/duckfile"
+	"github.com/codyconfer/sisyphus/tabular"
 
 	"github.com/codyconfer/mino/internal/config"
 )
@@ -45,7 +44,7 @@ CREATE SEQUENCE IF NOT EXISTS ntr_id_seq;
 `
 
 type Store struct {
-	db   *store.DB
+	db   *duckfile.DB
 	role string
 }
 
@@ -54,10 +53,13 @@ func Open(ctx context.Context, home, role string) (*Store, error) {
 		role = "default"
 	}
 	path := config.DataPath(home, dbName)
-	db, err := store.Open(ctx, path, schema)
+	db, err := duckfile.Open(ctx, path, schema)
 	if err != nil {
 		return nil, err
 	}
+	// Registration is explicit since duckfile.Open no longer registers paths
+	// itself; without this the ntr database would drop out of `mino backup`.
+	duckfile.RegisterBackupPath(path)
 	return &Store{db: db, role: role}, nil
 }
 
@@ -75,14 +77,10 @@ func (s *Store) nextID(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("ntr id: %w", err)
 	}
-	return idFromRows(res.Rows)
-}
-
-func idFromRows(rows [][]string) (int64, error) {
-	if len(rows) == 0 || len(rows[0]) == 0 {
+	if len(res.Rows) == 0 || len(res.Rows[0]) == 0 {
 		return 0, ErrNoID
 	}
-	id, err := strconv.ParseInt(rows[0][0], 10, 64)
+	id, err := res.Row(0).Int64(0)
 	if err != nil {
 		return 0, fmt.Errorf("ntr id: %w", err)
 	}
@@ -128,8 +126,9 @@ func (s *Store) ListNotes(ctx context.Context) ([]Note, error) {
 	}
 	out := make([]Note, 0, len(res.Rows))
 	for _, r := range res.Rows {
-		id, _ := strconv.ParseInt(r[0], 10, 64)
-		out = append(out, Note{ID: id, Title: r[1], Body: r[2]})
+		row := tabular.Row(r)
+		id, _ := row.Int64(0)
+		out = append(out, Note{ID: id, Title: row.Str(1), Body: row.Str(2)})
 	}
 	return out, nil
 }
@@ -162,8 +161,10 @@ func (s *Store) ListTasks(ctx context.Context, includeDone bool) ([]Task, error)
 	}
 	out := make([]Task, 0, len(res.Rows))
 	for _, r := range res.Rows {
-		id, _ := strconv.ParseInt(r[0], 10, 64)
-		out = append(out, Task{ID: id, Title: r[1], Done: truthy(r[2]), Due: parseTime(r[3])})
+		row := tabular.Row(r)
+		id, _ := row.Int64(0)
+		due, _ := row.Time(3)
+		out = append(out, Task{ID: id, Title: row.Str(1), Done: row.Bool(2), Due: due})
 	}
 	return out, nil
 }
@@ -197,8 +198,10 @@ func (s *Store) DueReminders(ctx context.Context, now time.Time) ([]Reminder, er
 	}
 	out := make([]Reminder, 0, len(res.Rows))
 	for _, r := range res.Rows {
-		id, _ := strconv.ParseInt(r[0], 10, 64)
-		out = append(out, Reminder{ID: id, Title: r[1], Due: parseTime(r[2]), Done: truthy(r[3])})
+		row := tabular.Row(r)
+		id, _ := row.Int64(0)
+		due, _ := row.Time(2)
+		out = append(out, Reminder{ID: id, Title: row.Str(1), Due: due, Done: row.Bool(3)})
 	}
 	return out, nil
 }
@@ -215,8 +218,10 @@ func (s *Store) ListReminders(ctx context.Context, includeDone bool) ([]Reminder
 	}
 	out := make([]Reminder, 0, len(res.Rows))
 	for _, r := range res.Rows {
-		id, _ := strconv.ParseInt(r[0], 10, 64)
-		out = append(out, Reminder{ID: id, Title: r[1], Due: parseTime(r[2]), Done: truthy(r[3])})
+		row := tabular.Row(r)
+		id, _ := row.Int64(0)
+		due, _ := row.Time(2)
+		out = append(out, Reminder{ID: id, Title: row.Str(1), Due: due, Done: row.Bool(3)})
 	}
 	return out, nil
 }
@@ -235,8 +240,8 @@ func (s *Store) DueTodayCount(ctx context.Context, now time.Time) (int, error) {
 	if err != nil || len(res.Rows) == 0 {
 		return 0, err
 	}
-	n, _ := strconv.Atoi(res.Rows[0][0])
-	return n, nil
+	n, _ := res.Row(0).Int64(0)
+	return int(n), nil
 }
 
 func (s *Store) UpdateNote(ctx context.Context, id int64, title, body string) error {
@@ -283,37 +288,4 @@ func nullTime(t time.Time) any {
 		return nil
 	}
 	return t.UTC()
-}
-
-var timeLayouts = []string{
-	time.RFC3339Nano,
-	time.RFC3339,
-	"2006-01-02 15:04:05.999999999 -0700 MST",
-	"2006-01-02 15:04:05.999999999 -0700",
-	"2006-01-02 15:04:05",
-	"2006-01-02",
-}
-
-func parseTime(s string) time.Time {
-	s = strings.TrimSpace(s)
-	if s == "" || strings.EqualFold(s, "NULL") {
-		return time.Time{}
-	}
-	if i := strings.Index(s, " m="); i > 0 {
-		s = s[:i]
-	}
-	for _, layout := range timeLayouts {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t.UTC()
-		}
-	}
-	return time.Time{}
-}
-
-func truthy(s string) bool {
-	switch strings.ToLower(s) {
-	case "true", "t", "1":
-		return true
-	}
-	return false
 }

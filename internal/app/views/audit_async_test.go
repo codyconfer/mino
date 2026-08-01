@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 )
 
@@ -21,11 +22,8 @@ func TestAuditSlowQueryDoesNotBlockUpdate(t *testing.T) {
 	})
 
 	me := &auditView{
-		home:   t.TempDir(),
-		sql:    "SELECT count(*) FROM runs a, runs b",
-		ready:  true,
-		width:  120,
-		height: 20,
+		home: t.TempDir(),
+		sql:  "SELECT count(*) FROM runs a, runs b",
 		exec: func(string, string) auditResult {
 			<-release
 			return auditResult{ran: true, cols: []string{"n"}, rows: [][]string{{"1"}}}
@@ -50,7 +48,7 @@ func TestAuditSlowQueryDoesNotBlockUpdate(t *testing.T) {
 	if body := me.Body(120, 20); !strings.Contains(body, "running") {
 		t.Fatalf("body draws no running state:\n%s", body)
 	}
-	if got := me.Context(); len(got) < 2 || got[1] != [2]string{"state", "running"} {
+	if got := me.Context(); len(got) < 2 || got[1] != (keys.Hint{Key: "state", Label: "running"}) {
 		t.Errorf("context does not advertise the run: %v", got)
 	}
 

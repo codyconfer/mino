@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/app/pane"
@@ -51,26 +52,26 @@ type Kit struct {
 
 func New(d Deps) *Kit { return &Kit{d: d} }
 
-func (k *Kit) menuCtx() [][2]string {
+func (k *Kit) menuCtx() []keys.Hint {
 	if role := k.d.App.Role(); role != "" {
-		return [][2]string{{"role", role}}
+		return []keys.Hint{{Key: "role", Label: role}}
 	}
 	return nil
 }
 
 func (k *Kit) mainMenuItems() []vkdeck.MenuItem {
 	return []vkdeck.MenuItem{
-		{Label: "Directives", Desc: "flights, queries, roles, reports, history", Icon: glyph.Directives(), Hue: 0, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Directives", Desc: "flights, queries, roles, reports, history", Icon: glyph.Directives(), Hue: 0, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Directives())
 		}},
 		k.ntrMenuItem(),
-		{Label: "Query DuckDB", Desc: "ad-hoc SQL over DuckDB", Icon: glyph.Audit(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Query DuckDB", Desc: "ad-hoc SQL over DuckDB", Icon: glyph.Audit(), Hue: 4, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.AuditQuery())
 		}},
-		{Label: "Tooling", Desc: "accounts, plugins, settings", Icon: glyph.Settings(), Hue: 2, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Tooling", Desc: "accounts, plugins, settings", Icon: glyph.Settings(), Hue: 2, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Tooling())
 		}},
-		{Label: "Quit", Desc: "back to shell", Icon: glyph.Quit(), Hue: 3, Do: func(*vkdeck.Model) tea.Cmd {
+		{Label: "Quit", Desc: "back to shell", Icon: glyph.Quit(), Hue: 3, OnSelect: func(*vkdeck.Model) tea.Cmd {
 			return tea.Quit
 		}},
 	}
@@ -82,21 +83,21 @@ func (k *Kit) Directives() vkdeck.View {
 
 func (k *Kit) directiveMenuItems() []vkdeck.MenuItem {
 	items := []vkdeck.MenuItem{
-		{Label: "Flights", Desc: "build, run, save, and manage flights", Icon: glyph.Flight(), Hue: 1, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Flights", Desc: "build, run, save, and manage flights", Icon: glyph.Flight(), Hue: 1, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Flights())
 		}},
-		{Label: "Queries", Desc: "build, run, save, and manage queries and filters", Icon: glyph.Builder(), Hue: 3, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Queries", Desc: "build, run, save, and manage queries and filters", Icon: glyph.Builder(), Hue: 3, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Queries())
 		}},
-		{Label: "Roles", Desc: "build, dry-run, save, and manage roles", Icon: glyph.Role(), Hue: 4, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Roles", Desc: "build, dry-run, save, and manage roles", Icon: glyph.Role(), Hue: 4, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Roles())
 		}},
-		{Label: "Reports", Desc: "build, render, copy, save, and manage reports", Icon: glyph.Directives(), Hue: 2, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Reports", Desc: "build, render, copy, save, and manage reports", Icon: glyph.Directives(), Hue: 2, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Reports())
 		}},
 	}
 	if k.hasHistory() {
-		items = append(items, vkdeck.MenuItem{Label: "History", Desc: "recall or drop past runs", Icon: glyph.History(), Hue: 6, Do: func(a *vkdeck.Model) tea.Cmd {
+		items = append(items, vkdeck.MenuItem{Label: "History", Desc: "recall or drop past runs", Icon: glyph.History(), Hue: 6, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.History())
 		}})
 	}
@@ -109,13 +110,13 @@ func (k *Kit) Tooling() vkdeck.View {
 
 func (k *Kit) toolingMenuItems() []vkdeck.MenuItem {
 	return []vkdeck.MenuItem{
-		{Label: "Accounts", Desc: "authenticate signal providers", Icon: glyph.Login(), Hue: 1, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Accounts", Desc: "authenticate signal providers", Icon: glyph.Login(), Hue: 1, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Login())
 		}},
-		{Label: "Plugins", Desc: "install, enable/disable, or uninstall managed plugins", Icon: glyph.Plugins(), Hue: 0, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Plugins", Desc: "install, enable/disable, or uninstall managed plugins", Icon: glyph.Plugins(), Hue: 0, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Plugins())
 		}},
-		{Label: "Settings", Desc: "config, import, export", Icon: glyph.Settings(), Hue: 5, Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Settings", Desc: "config, import, export", Icon: glyph.Settings(), Hue: 5, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Settings())
 		}},
 	}
@@ -154,10 +155,10 @@ func (k *Kit) MainMenu() vkdeck.View {
 }
 
 func (k *Kit) Home() vkdeck.View {
-	ctx := func() [][2]string {
+	ctx := func() []keys.Hint {
 		cues := k.menuCtx()
 		if name := k.homeFlightName(); name != "" {
-			cues = append(cues, [2]string{"home", name})
+			cues = append(cues, keys.Hint{Key: "home", Label: name})
 		}
 		return cues
 	}
@@ -185,7 +186,7 @@ func (k *Kit) homeFlightName() string {
 }
 
 func (k *Kit) FlightResults(name string) vkdeck.View {
-	ctx := append(k.menuCtx(), [2]string{"flight", name})
+	ctx := append(k.menuCtx(), keys.Hint{Key: "flight", Label: name})
 	var held sectionHolder
 	lst := deck.NewResults("flight: "+name, ctx, func() []signals.Section {
 		sections := k.d.FetchFlightAudited(name)

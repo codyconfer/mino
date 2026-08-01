@@ -22,13 +22,13 @@ func RunFlight(ctx context.Context, tasks []Task) error {
 		run := t.Run
 		w[i] = vkdeck.Job{
 			Label: label,
-			Do: func(ctx context.Context) (vkdeck.Content, error) {
+			Run: func(ctx context.Context) (vkdeck.Content, error) {
 				sections := run(ctx)
 				return vkdeck.Text(render.RenderTerminalStringTitled(label, sections)), nil
 			},
 		}
 	}
-	if err := w.Run(ctx); err != nil {
+	if err := w.RunInteractive(ctx); err != nil {
 		return errs.Wrap(errs.KindInternal, err, "run flight view")
 	}
 	return nil

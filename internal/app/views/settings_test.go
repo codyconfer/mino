@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	vkglyph "github.com/codyconfer/viewkit/glyph"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/theme"
 
@@ -81,7 +82,7 @@ func setvBreakConfigDir(t *testing.T) {
 
 func setvKeepAppearance(t *testing.T) {
 	t.Helper()
-	th, sc := *theme.Cur(), keys.Cur()
+	th, sc := theme.Cur(), keys.Cur()
 	t.Cleanup(func() {
 		theme.Use(th)
 		keys.Use(sc)
@@ -148,8 +149,8 @@ func TestSettingsStatusBarFormTogglesVisibility(t *testing.T) {
 	kit := testKit(t)
 
 	info := deck.StatusInfo{Services: []deck.ServiceStatus{
-		{Name: "github", Level: deck.StatusOK},
-		{Name: "slack", Level: deck.StatusOK},
+		{Name: "github", Severity: vkglyph.SeverityPositive},
+		{Name: "slack", Severity: vkglyph.SeverityPositive},
 	}}
 	app := deck.New(kit.setvStatusBarView(), deck.WithStatus(func(context.Context) deck.StatusInfo {
 		return info
@@ -236,7 +237,7 @@ func TestSettingsOpenConfigInEditorRequiresFileAndEditor(t *testing.T) {
 	var open func(*vkdeck.Model) tea.Cmd
 	for _, it := range kit.settingsMenuItems() {
 		if it.Label == "Open config in editor" {
-			open = it.Do
+			open = it.OnSelect
 			break
 		}
 	}
@@ -334,11 +335,11 @@ func TestSetvEditConfigFormFields(t *testing.T) {
 	if got := v.Title(); got != "edit config" {
 		t.Errorf("title = %q, want edit config", got)
 	}
-	if got := v.Hints(); len(got) != 3 || got[2][0] != "ctrl+s" {
+	if got := v.Hints(); len(got) != 3 || got[2].Key != "ctrl+s" {
 		t.Errorf("hints = %v, want explicit field/change/ctrl+s legend", got)
 	}
 	for _, h := range v.Hints() {
-		if strings.ContainsAny(h[0], "jk") {
+		if strings.ContainsAny(h.Key, "jk") {
 			t.Errorf("hints advertise unbound single-char keys: %v", v.Hints())
 		}
 	}
@@ -459,7 +460,7 @@ func TestSetvStatusBarFormFields(t *testing.T) {
 	if body := setvRender(v); !strings.Contains(strings.ToUpper(body), "SHOW = VISIBLE CHIP") {
 		t.Fatalf("panel caption lost: %q", body)
 	}
-	if got := v.Hints(); len(got) != 3 || got[1][1] != "show/hide" {
+	if got := v.Hints(); len(got) != 3 || got[1].Label != "show/hide" {
 		t.Errorf("hints = %v, want show/hide legend", got)
 	}
 }

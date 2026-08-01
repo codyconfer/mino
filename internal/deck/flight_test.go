@@ -26,7 +26,7 @@ func TestFlightTaskAdaptsSectionsToContent(t *testing.T) {
 		label, run := task.Label, task.Run
 		w[i] = vkdeck.Job{
 			Label: label,
-			Do: func(ctx context.Context) (vkdeck.Content, error) {
+			Run: func(ctx context.Context) (vkdeck.Content, error) {
 				sections := run(ctx)
 				body := ""
 				if len(sections) > 0 {
@@ -36,7 +36,7 @@ func TestFlightTaskAdaptsSectionsToContent(t *testing.T) {
 			},
 		}
 	}
-	out, err := w.Execute(context.Background())
+	out, err := w.Collect(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

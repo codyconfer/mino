@@ -26,25 +26,13 @@ func stepTimeout(interval time.Duration) time.Duration {
 }
 
 func Poll(ctx context.Context, name string, interval time.Duration, step func(ctx context.Context) ([]plugin.Item, error)) <-chan plugin.Event {
-	timeout := stepTimeout(interval)
-	bounded := func(ctx context.Context) ([]plugin.Item, error) {
-		sctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		return step(sctx)
-	}
-	em := daemon.Poll(ctx, interval, bounded)
-	return emit(ctx, name, em)
+	src := daemon.Source[plugin.Item]{Interval: interval, StepTimeout: stepTimeout(interval), Step: step}
+	return emit(ctx, name, src.Run(ctx))
 }
 
 func PollAdaptive(ctx context.Context, name string, interval time.Duration, step func(ctx context.Context) ([]plugin.Item, time.Duration, error)) <-chan plugin.Event {
-	timeout := stepTimeout(interval)
-	bounded := func(ctx context.Context) ([]plugin.Item, time.Duration, error) {
-		sctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		return step(sctx)
-	}
-	em := daemon.PollAdaptive(ctx, interval, bounded)
-	return emit(ctx, name, em)
+	src := daemon.Source[plugin.Item]{Interval: interval, StepTimeout: stepTimeout(interval), StepAdaptive: step}
+	return emit(ctx, name, src.Run(ctx))
 }
 
 func emit(ctx context.Context, name string, em <-chan daemon.Emission[plugin.Item]) <-chan plugin.Event {
@@ -112,7 +100,7 @@ type Seen struct {
 
 func newSeen() *Seen { return &Seen{} }
 
-func (s *Seen) Fresh(ctx context.Context, items []plugin.Item, key func(plugin.Item) string) []plugin.Item {
+func (s *Seen) Unseen(ctx context.Context, items []plugin.Item, key func(plugin.Item) string) []plugin.Item {
 	if s.d == nil {
 		if s.kv != nil {
 			s.d = daemon.NewPersistentDeduper(ctx, key, s.kv, s.ns)
@@ -120,5 +108,5 @@ func (s *Seen) Fresh(ctx context.Context, items []plugin.Item, key func(plugin.I
 			s.d = daemon.NewDeduper(key)
 		}
 	}
-	return s.d.Fresh(ctx, items)
+	return s.d.Unseen(ctx, items)
 }

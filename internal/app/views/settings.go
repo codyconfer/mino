@@ -30,42 +30,42 @@ func (k *Kit) Settings() vkdeck.View {
 
 func (k *Kit) settingsMenuItems() []vkdeck.MenuItem {
 	items := []vkdeck.MenuItem{
-		{Label: "Edit config", Desc: "output, audit, timeout, backup", Do: func(a *vkdeck.Model) tea.Cmd {
+		{Label: "Edit config", Desc: "output, audit, timeout, backup", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.setvEditConfigView())
 		}},
 	}
 	if k.setvHasConfigFile() {
 		items = append(items,
-			vkdeck.MenuItem{Label: "Delete config", Desc: "remove config.yaml/.yml/.json", Do: func(a *vkdeck.Model) tea.Cmd {
+			vkdeck.MenuItem{Label: "Delete config", Desc: "remove config.yaml/.yml/.json", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 				return a.Push(k.setvDeleteConfirmView())
 			}},
-			vkdeck.MenuItem{Label: "Import config", Desc: "overwrite DuckDB with on-disk config", Do: func(a *vkdeck.Model) tea.Cmd {
+			vkdeck.MenuItem{Label: "Import config", Desc: "overwrite DuckDB with on-disk config", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 				return a.Push(k.setvImportConfirmView())
 			}},
 		)
 	} else {
 		items = append(items, vkdeck.MenuItem{
-			Label: "Create config",
-			Desc:  "write a default config.yaml",
-			Do:    k.setvCreateConfig,
+			Label:    "Create config",
+			Desc:     "write a default config.yaml",
+			OnSelect: k.setvCreateConfig,
 		})
 	}
 	items = append(items,
-		vkdeck.MenuItem{Label: "Export config", Desc: "write DuckDB stores back to disk", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "Export config", Desc: "write DuckDB stores back to disk", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.setvExportConfirmView())
 		}},
-		vkdeck.MenuItem{Label: "Open config in editor", Desc: "open on-disk config with $EDITOR", Do: k.setvOpenConfigInEditor},
-		vkdeck.MenuItem{Label: "Appearance", Desc: "theme and key scheme", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "Open config in editor", Desc: "open on-disk config with $EDITOR", OnSelect: k.setvOpenConfigInEditor},
+		vkdeck.MenuItem{Label: "Appearance", Desc: "theme and key scheme", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.setvAppearanceView())
 		}},
-		vkdeck.MenuItem{Label: "Status bar", Desc: "hide or show chips; plugins stay enabled", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "Status bar", Desc: "hide or show chips; plugins stay enabled", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.setvStatusBarView())
 		}},
 	)
 	return items
 }
 
-func (k *Kit) setvCtx() [][2]string {
+func (k *Kit) setvCtx() []keys.Hint {
 	return k.menuCtx()
 }
 
@@ -113,7 +113,7 @@ func (k *Kit) setvEditConfigView() vkdeck.View {
 		Fields:      fields,
 		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
 		ContextFunc: k.setvCtx,
-		Hints:       [][2]string{{"↑/↓", "field"}, {"←/→", "change"}, {"ctrl+s", "save"}},
+		Hints:       []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "←/→", Label: "change"}, {Key: "ctrl+s", Label: "save"}},
 		OnSubmit:    k.setvSaveConfig,
 	})
 }
@@ -160,7 +160,7 @@ func (k *Kit) setvAppearanceView() vkdeck.View {
 		},
 		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
 		ContextFunc: k.setvCtx,
-		Hints:       [][2]string{{"↑/↓", "field"}, {"←/→", "change"}, {"ctrl+s", "save"}},
+		Hints:       []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "←/→", Label: "change"}, {Key: "ctrl+s", Label: "save"}},
 		OnSubmit:    k.setvSaveAppearance,
 	})
 }
@@ -175,9 +175,7 @@ func (k *Kit) setvSaveAppearance(a *vkdeck.Model, vals map[string]any) tea.Cmd {
 	if t, ok := theme.Named(gs.Theme); ok {
 		theme.Use(t)
 	}
-	if sc, ok := keys.Named(gs.Keys); ok {
-		keys.Use(sc)
-	}
+	keymap.UseNamed(gs.Keys)
 	body := "theme: " + theme.DisplayName(gs.Theme) + "\nkeys:  " + keys.DisplayName(gs.Keys)
 	pop := a.Pop()
 	push := a.Push(vkdeck.NewMessage("appearance", body, k.setvCtx()))
@@ -237,7 +235,7 @@ func (k *Kit) setvStatusBarView() vkdeck.View {
 		Fields:      fields,
 		Keys:        vkdeck.FormKeys{Map: keymap.Form(), Save: keymap.Save},
 		ContextFunc: k.setvCtx,
-		Hints:       [][2]string{{"↑/↓", "field"}, {"←/→", "show/hide"}, {"ctrl+s", "save"}},
+		Hints:       []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "←/→", Label: "show/hide"}, {Key: "ctrl+s", Label: "save"}},
 		OnSubmit: func(a *vkdeck.Model, vals map[string]any) tea.Cmd {
 			return k.setvSaveStatusBar(a, entries, vals)
 		},
@@ -286,10 +284,10 @@ func (k *Kit) setvCreateConfig(a *vkdeck.Model) tea.Cmd {
 
 func (k *Kit) setvDeleteConfirmView() vkdeck.View {
 	return vkdeck.NewMenu("delete config?", k.setvCtx(),
-		vkdeck.MenuItem{Label: "No, keep it", Desc: "keep the config file", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "No, keep it", Desc: "keep the config file", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Pop()
 		}},
-		vkdeck.MenuItem{Label: "Yes, delete", Desc: "remove config.yaml/.yml/.json", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "Yes, delete", Desc: "remove config.yaml/.yml/.json", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			removed := setvDeleteConfigFiles(k.setvHome())
 			body := "no config file found"
 			if len(removed) > 0 {
@@ -307,10 +305,10 @@ func setvDeleteConfigFiles(home string) []string {
 
 func (k *Kit) setvImportConfirmView() vkdeck.View {
 	return vkdeck.NewMenu("import config?", k.setvCtx(),
-		vkdeck.MenuItem{Label: "No, cancel", Desc: "leave DuckDB unchanged", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "No, cancel", Desc: "leave DuckDB unchanged", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Pop()
 		}},
-		vkdeck.MenuItem{Label: "Yes, import", Desc: "overwrite DuckDB with on-disk config", Do: k.setvImportConfig},
+		vkdeck.MenuItem{Label: "Yes, import", Desc: "overwrite DuckDB with on-disk config", OnSelect: k.setvImportConfig},
 	)
 }
 
@@ -326,7 +324,7 @@ func (k *Kit) setvImportConfig(a *vkdeck.Model) tea.Cmd {
 	if len(raw) == 0 {
 		return a.Push(k.setvRed("import config", "no config file on disk"))
 	}
-	if err := mgr.DB().Import(context.Background(), "config", raw, format); err != nil {
+	if err := mgr.Import(context.Background(), "config", raw, format); err != nil {
 		return a.Push(k.setvRed("import config", err.Error()))
 	}
 	return k.setvFinish(a, 2, "import config", "imported config into DuckDB")
@@ -334,10 +332,10 @@ func (k *Kit) setvImportConfig(a *vkdeck.Model) tea.Cmd {
 
 func (k *Kit) setvExportConfirmView() vkdeck.View {
 	return vkdeck.NewMenu("export config?", k.setvCtx(),
-		vkdeck.MenuItem{Label: "No, cancel", Desc: "leave files unchanged", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "No, cancel", Desc: "leave files unchanged", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Pop()
 		}},
-		vkdeck.MenuItem{Label: "Yes, export", Desc: "write DuckDB stores back to disk", Do: k.setvExportDirectives},
+		vkdeck.MenuItem{Label: "Yes, export", Desc: "write DuckDB stores back to disk", OnSelect: k.setvExportDirectives},
 	)
 }
 
@@ -377,8 +375,8 @@ type setvEditorDoneMsg struct {
 }
 
 func (v *setvEditorView) Title() string        { return "open config" }
-func (v *setvEditorView) Context() [][2]string { return v.k.setvCtx() }
-func (v *setvEditorView) Hints() [][2]string   { return nil }
+func (v *setvEditorView) Context() []keys.Hint { return v.k.setvCtx() }
+func (v *setvEditorView) Hints() []keys.Hint   { return nil }
 
 func (v *setvEditorView) Init() tea.Cmd {
 	return tea.ExecProcess(v.cmd, func(err error) tea.Msg {

@@ -14,7 +14,7 @@ import (
 func homeItems() []vkdeck.MenuItem {
 	return []vkdeck.MenuItem{
 		{Label: "Run a flight", Desc: "aggregate saved queries"},
-		{Label: "Quit", Do: func(*vkdeck.Model) tea.Cmd { return tea.Quit }},
+		{Label: "Quit", OnSelect: func(*vkdeck.Model) tea.Cmd { return tea.Quit }},
 	}
 }
 
@@ -36,7 +36,7 @@ func TestHomeMenuOnly(t *testing.T) {
 		t.Error("menu-only home should not render a flight panel")
 	}
 	for _, h := range home.Hints() {
-		if h[0] == "tab" {
+		if h.Key == "tab" {
 			t.Error("menu-only home should not offer a tab/focus hint")
 		}
 	}
@@ -76,7 +76,7 @@ func TestHomeLoadsFlightAndTogglesFocus(t *testing.T) {
 	}
 	sawMenuHint := false
 	for _, h := range home.Hints() {
-		if strings.HasPrefix(h[0], "tab") && h[1] == "menu" {
+		if strings.HasPrefix(h.Key, "tab") && h.Label == "menu" {
 			sawMenuHint = true
 		}
 	}
@@ -94,7 +94,7 @@ func TestHomeMenuNavigationRunsItem(t *testing.T) {
 	ran := false
 	items := []vkdeck.MenuItem{
 		{Label: "First"},
-		{Label: "Second", Do: func(*vkdeck.Model) tea.Cmd { ran = true; return nil }},
+		{Label: "Second", OnSelect: func(*vkdeck.Model) tea.Cmd { ran = true; return nil }},
 	}
 	home := NewHome("home", nil, items, nil, nil, nil)
 	app := New(home)

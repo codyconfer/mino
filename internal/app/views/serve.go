@@ -2,7 +2,6 @@ package views
 
 import (
 	"fmt"
-	"slices"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,9 +21,11 @@ import (
 )
 
 const (
-	serveInboxTTL      = 5 * time.Minute
-	serveRingCap       = 200
-	serveChromeReserve = 5
+	serveInboxTTL = 5 * time.Minute
+	serveRingCap  = 200
+	// servePanelChrome is the events panel's own framing (border + title)
+	// inside the half of the body height the list receives.
+	servePanelChrome = 4
 )
 
 type serveEventMsg struct{ ev signals.Event }
@@ -40,10 +41,9 @@ type ServeView struct {
 
 	FetchDetail func(signal string, it signals.Item) (*signals.ItemDetail, error)
 
-	refs   []render.ItemRef
-	lst    list.Model
-	width  int
-	height int
+	refs  []render.ItemRef
+	lst   list.Model
+	width int
 }
 
 func NewServeView(flight string, events <-chan signals.Event) *ServeView {
@@ -73,20 +73,20 @@ func (v *ServeView) rebind() {
 	for _, r := range v.refs {
 		items = append(items, r.Item)
 	}
-	v.lst.SetItemsKeepingCursor(render.ItemRows(layout.ScreenFrame(v.width), items))
+	rows := render.ItemRows(layout.ScreenFrame(v.width), items)
+	for i := range rows {
+		rows[i].Payload = v.refs[i]
+	}
+	v.lst.SetItemsKeepingCursor(rows)
 }
 
 func (v *ServeView) selected() (render.ItemRef, bool) {
 	it, ok := v.lst.Selected()
-	if !ok || it.Key == "" {
+	if !ok {
 		return render.ItemRef{}, false
 	}
-	for _, r := range slices.Backward(v.refs) {
-		if r.Item.URL == it.Key {
-			return r, true
-		}
-	}
-	return render.ItemRef{}, false
+	ref, ok := it.Payload.(render.ItemRef)
+	return ref, ok
 }
 
 func (v *ServeView) Title() string { return "serve" }
@@ -111,11 +111,10 @@ func (v *ServeView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	}
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
-		if m.Width == v.width && m.Height == v.height {
+		if m.Width == v.width {
 			return nil
 		}
-		v.width, v.height = m.Width, m.Height
-		v.lst.SetSize(m.Width, max(m.Height/2-serveChromeReserve, 1))
+		v.width = m.Width
 		v.rebind()
 		return nil
 	case serveEventMsg:
@@ -178,12 +177,10 @@ func (v *ServeView) Body(width, height int) string {
 	for i := len(ns) - 1; i >= 0; i-- {
 		recent = append(recent, ns[i])
 	}
-	max := height / 2
-	if max < 1 {
-		max = 1
-	}
-	if len(recent) > max {
-		recent = recent[:max]
+	// The inbox panel and the events list split the body height evenly.
+	half := max(height/2, 1)
+	if len(recent) > half {
+		recent = recent[:half]
 	}
 	title := fmt.Sprintf("inbox · %d live · %d total", len(ns), v.count)
 	if v.closed {
@@ -193,22 +190,23 @@ func (v *ServeView) Body(width, height int) string {
 	if len(v.refs) == 0 {
 		return inbox
 	}
+	v.lst.SetSize(width, max(half-servePanelChrome, 1))
 	return layout.Stack(inbox, f.Panel(fmt.Sprintf("events · %d", len(v.refs)), v.lst.View()))
 }
 
-func (v *ServeView) Hints() [][2]string {
+func (v *ServeView) Hints() []keys.Hint {
 	km := keymap.ItemList()
-	hints := [][2]string{km.HintLabeled(keys.Up, "move")}
+	hints := []keys.Hint{km.HintLabeled(keys.Up, "move")}
 	if v.FetchDetail != nil {
 		hints = append(hints, km.HintLabeled(keys.Confirm, "details"))
 	}
 	return append(hints, km.HintLabeled(keys.Open, "open"))
 }
 
-func (v *ServeView) Context() [][2]string {
-	cues := [][2]string{{"flight", v.flight}}
+func (v *ServeView) Context() []keys.Hint {
+	cues := []keys.Hint{{Key: "flight", Label: v.flight}}
 	if v.last != "" {
-		cues = append(cues, [2]string{"last", v.last})
+		cues = append(cues, keys.Hint{Key: "last", Label: v.last})
 	}
 	return cues
 }

@@ -208,7 +208,7 @@ func (k *Kit) ntrHomeRole() (home, role string) {
 	return home, role
 }
 
-func (k *Kit) hotkeyHints() [][2]string {
+func (k *Kit) hotkeyHints() []keys.Hint {
 	binds := k.keybinds()
 	if len(binds) == 0 {
 		return nil
@@ -222,14 +222,14 @@ func (k *Kit) hotkeyHints() [][2]string {
 		{keymap.TargetRolePrev, "prev role"},
 		{keymap.TargetRoleNext, "next role"},
 	}
-	var out [][2]string
+	var out []keys.Hint
 	for _, o := range order {
 		if o.target == keymap.TargetRemindNew && !ntr.RemindersUIVisible() {
 			continue
 		}
 		for key, target := range binds {
 			if target == o.target {
-				out = append(out, [2]string{keys.Normalize(key), o.label})
+				out = append(out, keys.Hint{Key: keys.Normalize(key), Label: o.label})
 				break
 			}
 		}

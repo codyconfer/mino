@@ -15,7 +15,7 @@ func TestScaffoldRegister(t *testing.T) {
 	if !ok || d.Signal != SignalName {
 		t.Fatalf("lookup = %+v ok=%v", d, ok)
 	}
-	if _, ok := glyph.Lookup(GlyphID); !ok {
+	if _, ok := glyph.Named(GlyphID); !ok {
 		t.Fatal("glyph not registered")
 	}
 	secs, err := Signal{}.Fetch(context.Background())

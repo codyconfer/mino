@@ -141,7 +141,7 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 	if len(calls) != 0 {
 		t.Fatalf("hooks during burst = %v", calls)
 	}
-	if ctx := kit.menuCtx(); len(ctx) == 0 || ctx[0][1] != "weekly" {
+	if ctx := kit.menuCtx(); len(ctx) == 0 || ctx[0].Label != "weekly" {
 		t.Fatalf("menuCtx after burst = %v", ctx)
 	}
 	if len(settleCmds) < 2 {
@@ -290,7 +290,7 @@ func TestRemindHotkeyHiddenWithoutService(t *testing.T) {
 	kit := testKit(t)
 	kit.d.App.Cfg.Keybinds = config.DefaultKeybinds()
 	for _, h := range kit.hotkeyHints() {
-		if h[1] == "new reminder" {
+		if h.Label == "new reminder" {
 			t.Fatalf("reminder hint present while detached: %v", kit.hotkeyHints())
 		}
 	}
@@ -321,7 +321,7 @@ func TestRemindHotkeyWorksWithService(t *testing.T) {
 	kit.d.App.Cfg.Keybinds = config.DefaultKeybinds()
 	found := false
 	for _, h := range kit.hotkeyHints() {
-		if h[1] == "new reminder" {
+		if h.Label == "new reminder" {
 			found = true
 			break
 		}

@@ -62,8 +62,8 @@ func TestChangedSummary(t *testing.T) {
 			"queries/edited.yaml": "new body",
 			"team/gh/added.yaml":  "brand new",
 		}),
-		HasDB: true,
-		DB: configdb.Version{
+		DB: configdb.Snapshot{
+			Hash:   "0123456789abcdef",
 			Format: "collection",
 			Content: string(collectionBlob(t, map[string]string{
 				"kept.yaml":           "same",
@@ -103,8 +103,7 @@ func TestChangedSummaryTruncates(t *testing.T) {
 		Name:        DirectivesDirective,
 		FileFormat:  "collection",
 		FileContent: collectionBlob(t, staged),
-		HasDB:       true,
-		DB:          configdb.Version{Format: "collection", Content: string(collectionBlob(t, map[string]string{}))},
+		DB:          configdb.Snapshot{Hash: "0123456789abcdef", Format: "collection", Content: string(collectionBlob(t, map[string]string{}))},
 	}
 	got := changedSummary(rec, 24)
 	if !strings.Contains(got, "more") {
@@ -117,8 +116,7 @@ func TestRenderReconcilePanelMentionsEveryChoice(t *testing.T) {
 		Name:        DirectivesDirective,
 		FileFormat:  "collection",
 		FileContent: collectionBlob(t, map[string]string{"queries/a.yaml": "one"}),
-		HasDB:       true,
-		DB: configdb.Version{
+		DB: configdb.Snapshot{
 			Hash:    "abcdef0123456789",
 			Format:  "collection",
 			Content: string(collectionBlob(t, map[string]string{"queries/a.yaml": "two"})),
@@ -146,15 +144,13 @@ func TestRenderReconcileBatchPanelListsAllDirectives(t *testing.T) {
 			Name:        ConfigDirective,
 			FileFormat:  "yaml",
 			FileContent: []byte("output: json\n"),
-			HasDB:       true,
-			DB:          configdb.Version{Hash: "aaaaaaaaaaaaaaaa", Format: "yaml", Content: "output: text\n"},
+			DB:          configdb.Snapshot{Hash: "aaaaaaaaaaaaaaaa", Format: "yaml", Content: "output: text\n"},
 		},
 		{
 			Name:        DirectivesDirective,
 			FileFormat:  "collection",
 			FileContent: collectionBlob(t, map[string]string{"queries/a.yaml": "one", "team/b.yaml": "x"}),
-			HasDB:       true,
-			DB: configdb.Version{
+			DB: configdb.Snapshot{
 				Hash:    "bbbbbbbbbbbbbbbb",
 				Format:  "collection",
 				Content: string(collectionBlob(t, map[string]string{"queries/a.yaml": "two", "team/b.yaml": "y"})),

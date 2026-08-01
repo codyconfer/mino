@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	vnotify "github.com/codyconfer/viewkit/notify"
+	vkglyph "github.com/codyconfer/viewkit/glyph"
 
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -26,8 +26,8 @@ func TestFromEventReminderAlert(t *testing.T) {
 	if !ok {
 		t.Fatal("expected notification")
 	}
-	if n.Tone != vnotify.ToneWarning {
-		t.Fatalf("tone = %v, want warning for reminder alert", n.Tone)
+	if n.Severity != vkglyph.SeverityWarning {
+		t.Fatalf("tone = %v, want warning for reminder alert", n.Severity)
 	}
 	if n.Title != "reminders" || n.Message == "" {
 		t.Fatalf("note = %+v", n)
@@ -42,8 +42,8 @@ func TestFromEventEmptySkipped(t *testing.T) {
 
 func TestAlreadyAuthed(t *testing.T) {
 	n := AlreadyAuthed("GitHub")
-	if n.Tone != vnotify.ToneNeutral {
-		t.Fatalf("tone = %v, want neutral", n.Tone)
+	if n.Severity != vkglyph.SeverityNeutral {
+		t.Fatalf("tone = %v, want neutral", n.Severity)
 	}
 	if n.Title != "accounts" || n.Message != "GitHub already authorized" {
 		t.Fatalf("note = %+v", n)
@@ -52,18 +52,18 @@ func TestAlreadyAuthed(t *testing.T) {
 
 func TestPluginToggled(t *testing.T) {
 	on := PluginToggled("mino.demo", true)
-	if on.Tone != vnotify.TonePositive || on.Title != "plugins" || on.Message != "mino.demo enabled" {
+	if on.Severity != vkglyph.SeverityPositive || on.Title != "plugins" || on.Message != "mino.demo enabled" {
 		t.Fatalf("enabled toast = %+v", on)
 	}
 	off := PluginToggled("mino.demo", false)
-	if off.Tone != vnotify.ToneNeutral || off.Message != "mino.demo disabled" {
+	if off.Severity != vkglyph.SeverityNeutral || off.Message != "mino.demo disabled" {
 		t.Fatalf("disabled toast = %+v", off)
 	}
 }
 
 func TestPluginInstalled(t *testing.T) {
 	n := PluginInstalled("mino.ntr", 2, 0)
-	if n.Tone != vnotify.TonePositive || n.Title != "plugins" {
+	if n.Severity != vkglyph.SeverityPositive || n.Title != "plugins" {
 		t.Fatalf("toast = %+v", n)
 	}
 	if n.Message != "mino.ntr installed (wrote 2, skipped 0)" {
@@ -73,7 +73,7 @@ func TestPluginInstalled(t *testing.T) {
 
 func TestPluginUninstalled(t *testing.T) {
 	n := PluginUninstalled("mino.ntr", 1, 1)
-	if n.Tone != vnotify.ToneNeutral || n.Message != "mino.ntr uninstalled (removed 1, kept 1)" {
+	if n.Severity != vkglyph.SeverityNeutral || n.Message != "mino.ntr uninstalled (removed 1, kept 1)" {
 		t.Fatalf("toast = %+v", n)
 	}
 }

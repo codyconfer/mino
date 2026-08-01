@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/codyconfer/sisyphus/store"
+	"github.com/codyconfer/sisyphus/duckfile"
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/panels"
@@ -27,10 +27,7 @@ var auditvDefaultSQL = map[string]string{
 	"tokens": "SELECT namespace, key, updated_at, expiry IS NOT NULL AS has_expiry FROM kv ORDER BY namespace, key",
 }
 
-const (
-	auditvChrome  = 10
-	auditvTimeout = 30 * time.Second
-)
+const auditvTimeout = 30 * time.Second
 
 type auditResult struct {
 	cols []string
@@ -50,10 +47,8 @@ type auditView struct {
 
 	exec func(path, query string) auditResult
 
-	scroll layout.ScrollState
-	height int
-	ready  bool
-	width  int
+	keys   *keys.Map
+	scroll vkdeck.ScrollBody
 }
 
 func (k *Kit) AuditQuery() vkdeck.View {
@@ -66,38 +61,30 @@ func (me *auditView) Title() string { return "query · " + me.db() }
 
 func (me *auditView) Init() tea.Cmd { return nil }
 
-func (me *auditView) Context() [][2]string {
-	cues := [][2]string{{"db", me.db()}}
+func (me *auditView) Context() []keys.Hint {
+	cues := []keys.Hint{{Key: "db", Label: me.db()}}
 	if me.running {
-		cues = append(cues, [2]string{"state", "running"})
+		cues = append(cues, keys.Hint{Key: "state", Label: "running"})
 	}
 	return cues
 }
 
-func (me *auditView) Hints() [][2]string {
-	return [][2]string{{"←/→", "db"}, {"enter", "run"}, {"↑/↓", "scroll"}}
+func (me *auditView) Hints() []keys.Hint {
+	return []keys.Hint{{Key: "←/→", Label: "db"}, {Key: "enter", Label: "run"}, {Key: "↑/↓", Label: "scroll"}}
 }
 
 func (me *auditView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
-	case tea.WindowSizeMsg:
-		me.width = m.Width
-		h := m.Height - auditvChrome
-		if h < 1 {
-			h = 1
-		}
-		me.height = h
-		me.ready = true
-		me.scrollBy(0)
-		return nil
 	case auditRanMsg:
 		me.running = false
 		me.result = m.result
 		me.scroll.Offset = 0
-		me.scrollBy(0)
 		return nil
 	case tea.KeyMsg:
-		act, ok := keymap.Form(keys.Binding{Keys: []string{"tab"}, Action: keys.Right}).Action(m.String())
+		if me.keys == nil {
+			me.keys = keymap.Form(keys.Binding{Keys: []string{"tab"}, Action: keys.Right})
+		}
+		act, ok := me.keys.Action(m.String())
 		if !ok {
 			if m.String() == " " {
 				me.sql += " "
@@ -122,35 +109,12 @@ func (me *auditView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 				me.sql = string(r[:len(r)-1])
 			}
 			return nil
-		case keys.Up:
-			me.scrollBy(-1)
-		case keys.Down:
-			me.scrollBy(1)
-		case keys.PageUp:
-			me.scrollBy(-me.windowRows())
-		case keys.PageDown:
-			me.scrollBy(me.windowRows())
+		case keys.Up, keys.Down, keys.PageUp, keys.PageDown:
+			me.scroll.Handle(act)
 		}
 	}
 	return nil
 }
-
-func (me *auditView) windowRows() int {
-	rows := layout.ViewportContentRows(me.height)
-	if rows < 1 {
-		rows = 1
-	}
-	return rows
-}
-
-func (me *auditView) scrollBy(delta int) {
-	if !me.ready {
-		return
-	}
-	me.scroll.Scroll(delta, layout.CountLines(me.results(me.frame())), me.windowRows())
-}
-
-func (me *auditView) frame() layout.Frame { return layout.NewFrame(me.width) }
 
 func (me *auditView) cycle(delta int) {
 	n := len(auditvDBs)
@@ -207,7 +171,7 @@ func (me *auditView) execFn() func(path, query string) auditResult {
 func auditExec(path, query string) auditResult {
 	ctx, cancel := context.WithTimeout(context.Background(), auditvTimeout)
 	defer cancel()
-	res, err := store.Query(ctx, path, query)
+	res, err := duckfile.Query(ctx, path, query)
 	if err != nil {
 		return auditResult{err: err.Error(), ran: true}
 	}
@@ -249,10 +213,8 @@ func (me *auditView) Body(width, height int) string {
 	}
 	editor := f.Row("sql", shown+th.Accent.Render("▉"))
 
-	results := me.results(f)
-	if me.ready {
-		results = layout.Viewport(results, me.height, me.scroll.Offset)
-	}
+	head := layout.StackTight(selector, editor, f.Rule())
+	results := me.scroll.View(me.results(f), height-layout.CountLines(head))
 
-	return layout.StackTight(selector, editor, f.Rule(), results)
+	return layout.StackTight(head, results)
 }

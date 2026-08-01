@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/glyph"
+	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/mino/plugin"
@@ -28,8 +29,8 @@ func (guardView) Title() string                       { return "guard" }
 func (guardView) Init() tea.Cmd                       { return nil }
 func (guardView) Update(*deck.Model, tea.Msg) tea.Cmd { return nil }
 func (guardView) Body(int, int) string                { return "body" }
-func (guardView) Hints() [][2]string                  { return nil }
-func (guardView) Context() [][2]string                { return nil }
+func (guardView) Hints() []keys.Hint                  { return nil }
+func (guardView) Context() []keys.Hint                { return nil }
 
 func TestRegisterThemeWithoutKeyIsDiagnosticNotPanic(t *testing.T) {
 	const id = "guard.theme.nokey"

@@ -16,8 +16,8 @@ type scopeProbeJob struct{}
 
 func (scopeProbeJob) Name() string { return "hostscopeprobe" }
 
-func (scopeProbeJob) Next(context.Context, time.Time) (time.Time, bool, error) {
-	return time.Time{}, false, nil
+func (scopeProbeJob) Next(context.Context, time.Time) (time.Time, error) {
+	return time.Time{}, nil
 }
 
 func (scopeProbeJob) Fetch(context.Context) ([]signals.Section, error) { return nil, nil }

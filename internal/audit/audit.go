@@ -40,7 +40,7 @@ func (s *Store) StartFlightContext(ctx context.Context, name, role string) int64
 	if s == nil {
 		return 0
 	}
-	id, _ := s.j.Begin(ctx, "flight", name, roleAttrs(role))
+	id, _ := s.j.StartRun(ctx, "flight", name, roleAttrs(role))
 	return id
 }
 
@@ -52,7 +52,7 @@ func (s *Store) FinishFlightContext(ctx context.Context, id int64) {
 	if s == nil {
 		return
 	}
-	_ = s.j.RollUp(ctx, id)
+	_ = s.j.FinishRun(ctx, id)
 }
 
 func (s *Store) RecordQuery(parentID int64, label, role string, started, finished time.Time, sections []signals.Section) {

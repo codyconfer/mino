@@ -16,22 +16,8 @@ import (
 	"github.com/codyconfer/mino/internal/role"
 )
 
-type StatusLevel = vkglyph.Severity
-
-const (
-	StatusMuted = vkglyph.SeverityNeutral
-	StatusOK    = vkglyph.SeverityPositive
-	StatusWarn  = vkglyph.SeverityWarning
-	StatusBad   = vkglyph.SeverityNegative
-)
-
-type ServiceStatus struct {
-	ID     string
-	Name   string
-	Detail string
-	Level  StatusLevel
-	Glyph  string
-}
+// ServiceStatus is viewkit's chip type; severity uses glyph.Severity directly.
+type ServiceStatus = vkdeck.ServiceStatus
 
 type StatusInfo struct {
 	GitHubUser      string
@@ -73,7 +59,7 @@ func PluginServicesContext(ctx context.Context, home, roleName string) []Service
 			}
 			done <- slot{
 				idx: idx,
-				svc: ServiceStatus{ID: id, Name: name, Level: tone, Glyph: g},
+				svc: ServiceStatus{ID: id, Name: name, Severity: tone, Glyph: g},
 				ok:  true,
 			}
 		}(i, e.PluginID, e.Contrib)
@@ -125,32 +111,27 @@ func RoleServices() []ServiceStatus {
 	out := make([]ServiceStatus, 0, len(chips))
 	for _, c := range chips {
 		out = append(out, ServiceStatus{
-			ID:     fmt.Sprintf("role-status-%d", c.Index),
-			Name:   c.Glyph,
-			Detail: c.Text,
-			Level:  StatusOK,
+			ID:       fmt.Sprintf("role-status-%d", c.Index),
+			Name:     c.Glyph,
+			Detail:   c.Text,
+			Severity: vkglyph.SeverityPositive,
 		})
 	}
 	return out
 }
 
+// adaptStatus applies mino policy to the raw chips: drops user-hidden ones,
+// swaps known tool names for their logos, and renders the identity segment.
+// Glyph/color resolution from severity is viewkit's job now.
 func adaptStatus(info StatusInfo) vkdeck.StatusInfo {
 	out := vkdeck.StatusInfo{Identity: identity(info)}
 	for _, s := range info.Services {
 		if statusBarHidden(s) {
 			continue
 		}
-		g := s.Glyph
-		if g == "" {
-			g = theme.SeverityGlyph(s.Level)
-		}
-		name, detail := serviceChip(s.Name, s.Detail)
-		out.Services = append(out.Services, vkdeck.ServiceStatus{
-			Name:   name,
-			Detail: detail,
-			Glyph:  glyph.Lead(g),
-			Color:  theme.SeverityColor(s.Level),
-		})
+		s.Name, s.Detail = serviceChip(s.Name, s.Detail)
+		s.Glyph = glyph.Lead(s.Glyph)
+		out.Services = append(out.Services, s)
 	}
 	return out
 }

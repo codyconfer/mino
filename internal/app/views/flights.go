@@ -9,6 +9,7 @@ import (
 	"github.com/codyconfer/viewkit/forms"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/mino/internal/app/suggest"
 	"github.com/codyconfer/mino/internal/app/verify"
@@ -18,23 +19,23 @@ import (
 	"github.com/codyconfer/mino/internal/signals"
 )
 
-func (kit *Kit) flightsCtx() [][2]string {
-	return append(kit.menuCtx(), [2]string{"directive", "Flights"})
+func (kit *Kit) flightsCtx() []keys.Hint {
+	return append(kit.menuCtx(), keys.Hint{Key: "directive", Label: "Flights"})
 }
 
 func (kit *Kit) Flights() vkdeck.View {
 	items := []vkdeck.MenuItem{{
-		Label: "New",
-		Desc:  "compose, run, and save a new flight",
-		Icon:  glyph.Builder(),
-		Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.FlightBuilder()) },
+		Label:    "New",
+		Desc:     "compose, run, and save a new flight",
+		Icon:     glyph.Builder(),
+		OnSelect: func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.FlightBuilder()) },
 	}}
 	for _, n := range kit.d.App.VisibleFlights() {
 		n := n
 		items = append(items, vkdeck.MenuItem{
-			Label: n,
-			Desc:  flightSummary(kit.d.App.Dirs().Flights[n]),
-			Do:    func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.FlightEditor(n)) },
+			Label:    n,
+			Desc:     flightSummary(kit.d.App.Dirs().Flights[n]),
+			OnSelect: func(a *vkdeck.Model) tea.Cmd { return a.Push(kit.FlightEditor(n)) },
 		})
 	}
 	return vkdeck.NewMenu("flights", kit.flightsCtx(), items...)
@@ -85,10 +86,10 @@ func (v *flightView) editorTitle() string {
 	return "build flight"
 }
 
-func (v *flightView) editorCtx() [][2]string {
+func (v *flightView) editorCtx() []keys.Hint {
 	ctx := v.kit.flightsCtx()
 	if v.orig != "" {
-		ctx = append(ctx, [2]string{"item", v.orig})
+		ctx = append(ctx, keys.Hint{Key: "item", Label: v.orig})
 	}
 	return ctx
 }

@@ -40,38 +40,14 @@ func minoBindings() []keys.Binding {
 	}
 }
 
-func binding(a keys.Action) keys.Binding {
-	if b := keys.Cur().Binding(a); len(b.Keys) > 0 {
-		return b
-	}
-	for _, b := range minoBindings() {
-		if b.Action == a {
-			return b
-		}
-	}
-	return keys.Binding{Action: a}
-}
-
-func RunBinding() keys.Binding      { return binding(Run) }
-func DeleteBinding() keys.Binding   { return binding(Delete) }
-func ValidateBinding() keys.Binding { return binding(Validate) }
-func PreviewBinding() keys.Binding  { return binding(Preview) }
-func FocusBinding() keys.Binding    { return binding(Focus) }
-func CopyBinding() keys.Binding     { return binding(Copy) }
-func WriteBinding() keys.Binding    { return binding(Write) }
-func SaveBinding() keys.Binding     { return binding(Save) }
-func ToggleBinding() keys.Binding   { return binding(Toggle) }
-
 func BuilderBindings() []keys.Binding {
-	return []keys.Binding{
-		RunBinding(),
-		ValidateBinding(),
-		PreviewBinding(),
-		DeleteBinding(),
-		FocusBinding(),
-		CopyBinding(),
-		WriteBinding(),
+	sc := keys.Cur()
+	actions := []keys.Action{Run, Validate, Preview, Delete, Focus, Copy, Write}
+	out := make([]keys.Binding, 0, len(actions))
+	for _, a := range actions {
+		out = append(out, sc.Binding(a))
 	}
+	return out
 }
 
 func minoScheme() keys.Scheme {
@@ -85,6 +61,17 @@ func Register() {
 	keys.Register(DefaultSchemeKey, "Mino", minoScheme())
 }
 
+// UseNamed activates the registered scheme for key, grafting mino's app
+// bindings onto it so every action keymap defines stays reachable.
+func UseNamed(key string) bool {
+	sc, ok := keys.Named(key)
+	if !ok {
+		return false
+	}
+	keys.Use(sc.WithDefaults(minoBindings()...))
+	return true
+}
+
 func Install() {
 	Register()
 	keys.Use(minoScheme())
@@ -95,20 +82,11 @@ func Install() {
 	if key == "" || key == DefaultSchemeKey {
 		return
 	}
-	if sc, ok := keys.Named(key); ok {
-		keys.Use(sc)
-	}
+	UseNamed(key)
 }
 
 func Menu() *keys.Map {
-	sc := keys.Cur()
-	return keys.NewMap(
-		sc.Binding(keys.Up),
-		sc.Binding(keys.Down),
-		sc.Binding(keys.Confirm),
-		sc.Binding(keys.Cancel),
-		sc.Binding(keys.Quit),
-	)
+	return keys.MapFor(keys.Up, keys.Down, keys.Confirm, keys.Cancel, keys.Quit)
 }
 
 func Plugins() *keys.Map {
@@ -123,46 +101,21 @@ func Plugins() *keys.Map {
 		confirm,
 		sc.Binding(keys.Cancel),
 		sc.Binding(keys.Quit),
-		binding(PluginInstall),
-		binding(PluginUninstall),
+		sc.Binding(PluginInstall),
+		sc.Binding(PluginUninstall),
 	)
 }
 
 func Detail() *keys.Map {
-	sc := keys.Cur()
-	return keys.NewMap(
-		sc.Binding(keys.Up),
-		sc.Binding(keys.Down),
-		sc.Binding(keys.PageUp),
-		sc.Binding(keys.PageDown),
-		sc.Binding(keys.Open),
-		sc.Binding(keys.Cancel),
-		sc.Binding(keys.Quit),
-	)
+	return keys.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Open, keys.Cancel, keys.Quit)
 }
 
 func ItemList() *keys.Map {
-	sc := keys.Cur()
-	return keys.NewMap(
-		sc.Binding(keys.Up),
-		sc.Binding(keys.Down),
-		sc.Binding(keys.PageUp),
-		sc.Binding(keys.PageDown),
-		sc.Binding(keys.Confirm),
-		sc.Binding(keys.Open),
-		sc.Binding(keys.Cancel),
-		sc.Binding(keys.Quit),
-	)
+	return keys.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Confirm, keys.Open, keys.Cancel, keys.Quit)
 }
 
 func ConfirmMap() *keys.Map {
-	sc := keys.Cur()
-	return keys.NewMap(
-		sc.Binding(keys.Left),
-		sc.Binding(keys.Right),
-		sc.Binding(keys.Confirm),
-		sc.Binding(keys.Cancel),
-	)
+	return keys.MapFor(keys.Left, keys.Right, keys.Confirm, keys.Cancel)
 }
 
 func Form(extra ...keys.Binding) *keys.Map {
@@ -172,6 +125,8 @@ func Form(extra ...keys.Binding) *keys.Map {
 		keys.Up, keys.Down, keys.Left, keys.Right,
 		keys.Confirm, keys.Cancel, keys.Erase, keys.PageUp, keys.PageDown,
 	)
-	bs = append(bs, SaveBinding())
+	if b := sc.Binding(Save); len(b.Keys) > 0 {
+		bs = append(bs, b)
+	}
 	return keys.NewMap(append(bs, extra...)...)
 }

@@ -60,7 +60,7 @@ func TestDetailViewTitleAndContext(t *testing.T) {
 	}
 	cues := map[string]string{}
 	for _, c := range v.Context() {
-		cues[c[0]] = c[1]
+		cues[c.Key] = c.Label
 	}
 	if cues["repo"] != "acme/tools" {
 		t.Errorf("context = %v, want repo=acme/tools", cues)
@@ -164,7 +164,7 @@ func TestDetailViewHintsMatchItsBindings(t *testing.T) {
 	v := detailView(t, nil)
 	labels := map[string]bool{}
 	for _, h := range v.Hints() {
-		labels[h[1]] = true
+		labels[h.Label] = true
 	}
 	for _, want := range []string{"scroll", "page", "open"} {
 		if !labels[want] {
@@ -176,7 +176,7 @@ func TestDetailViewHintsMatchItsBindings(t *testing.T) {
 	noURL.Item.URL = ""
 	bare := &DetailView{ref: noURL}
 	for _, h := range bare.Hints() {
-		if h[1] == "open" {
+		if h.Label == "open" {
 			t.Error("an item without a URL should not advertise open")
 		}
 	}
@@ -210,8 +210,8 @@ func TestDetailViewScrolls(t *testing.T) {
 	if v.scroll.Offset <= before {
 		t.Error("offset should advance toward the end")
 	}
-	if v.scroll.Offset >= v.total {
-		t.Errorf("offset %d should stay clamped below total %d", v.scroll.Offset, v.total)
+	if v.scroll.Offset >= v.scroll.Total() {
+		t.Errorf("offset %d should stay clamped below total %d", v.scroll.Offset, v.scroll.Total())
 	}
 }
 

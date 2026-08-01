@@ -72,7 +72,7 @@ func newDaemonCmd() *cobra.Command {
 				fmt.Fprintln(w, render.Success(fmt.Sprintf("installed and started mino daemon (%s) watching flight %q", svc.Platform(), name)))
 				return nil
 			}
-			if st != "running" {
+			if st != service.StateRunning {
 				if err := svc.Start(); err != nil {
 					return errs.Wrap(errs.KindInternal, err, "starting service")
 				}

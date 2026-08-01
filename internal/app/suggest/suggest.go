@@ -129,23 +129,23 @@ func Durations() []string {
 }
 
 func Queries(a *app.App) forms.Suggester {
-	return forms.From(func() []string { return QueryNames(a) })
+	return forms.SuggestFunc(func() []string { return QueryNames(a) })
 }
 
 func Filters(a *app.App) forms.Suggester {
-	return forms.From(func() []string { return FilterNames(a) })
+	return forms.SuggestFunc(func() []string { return FilterNames(a) })
 }
 
 func Flights(a *app.App) forms.Suggester {
-	return forms.From(func() []string { return FlightNames(a) })
+	return forms.SuggestFunc(func() []string { return FlightNames(a) })
 }
 
 func Formatters(a *app.App) forms.Suggester {
-	return forms.From(func() []string { return FormatterNames(a) })
+	return forms.SuggestFunc(func() []string { return FormatterNames(a) })
 }
 
 func Roles(a *app.App) forms.Suggester {
-	return forms.From(func() []string { return RoleNames(a) })
+	return forms.SuggestFunc(func() []string { return RoleNames(a) })
 }
 
 func ParamKeys(signal string) forms.Suggester {

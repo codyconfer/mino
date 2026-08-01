@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/deck"
@@ -600,10 +601,10 @@ func TestBuilderHintsOmitDeleteForUnsavedAndDoNotDuplicateBack(t *testing.T) {
 
 	fresh := builderFor(t, kit)
 	for _, h := range fresh.Hints() {
-		if h[1] == "delete" {
+		if h.Label == "delete" {
 			t.Error("an unsaved builder should not advertise delete")
 		}
-		if h[0] == "esc" {
+		if h.Key == "esc" {
 			t.Error("esc/back is added by the deck chrome; the view should not repeat it")
 		}
 	}
@@ -611,7 +612,7 @@ func TestBuilderHintsOmitDeleteForUnsavedAndDoNotDuplicateBack(t *testing.T) {
 	saved, _ := kit.QueryEditor("q1").(*builderView)
 	found := false
 	for _, h := range saved.Hints() {
-		if h[1] == "delete" {
+		if h.Label == "delete" {
 			found = true
 		}
 	}
@@ -1204,10 +1205,10 @@ func TestBuilderErrorRunShowsTheErrorNotNoItems(t *testing.T) {
 	}
 }
 
-func hintLabels(hints [][2]string) string {
+func hintLabels(hints []keys.Hint) string {
 	var parts []string
 	for _, h := range hints {
-		parts = append(parts, h[1])
+		parts = append(parts, h.Label)
 	}
 	return strings.Join(parts, " ")
 }

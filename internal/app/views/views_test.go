@@ -3,6 +3,7 @@ package views
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,11 +19,18 @@ import (
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/filter"
+	"github.com/codyconfer/mino/internal/keymap"
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/signals"
 	"github.com/codyconfer/mino/internal/testenv"
 	pub "github.com/codyconfer/mino/plugin"
 )
+
+func TestMain(m *testing.M) {
+	keymap.Register()
+	keymap.UseNamed(keymap.DefaultSchemeKey)
+	os.Exit(m.Run())
+}
 
 func testKit(t *testing.T) *Kit {
 	t.Helper()
@@ -86,7 +94,7 @@ func TestMenuCtxOmitsDeckAndConditionalRole(t *testing.T) {
 
 	kit.d.App.Cfg.Role = "triage"
 	got := kit.menuCtx()
-	if len(got) != 1 || got[0][0] != "role" || got[0][1] != "triage" {
+	if len(got) != 1 || got[0].Key != "role" || got[0].Label != "triage" {
 		t.Errorf("menuCtx = %v, want a single role=triage cue and no deck cue", got)
 	}
 }

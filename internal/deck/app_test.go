@@ -10,6 +10,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	vkglyph "github.com/codyconfer/viewkit/glyph"
+	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/theme"
 
 	"github.com/codyconfer/mino/internal/keymap"
@@ -40,9 +42,9 @@ func key(s string) tea.KeyMsg {
 }
 
 func TestAppRendersChromeAndMenu(t *testing.T) {
-	menu := vkdeck.NewMenu("", [][2]string{{"role", "triage"}},
+	menu := vkdeck.NewMenu("", []keys.Hint{{Key: "role", Label: "triage"}},
 		vkdeck.MenuItem{Label: "Alpha", Desc: "first"},
-		vkdeck.MenuItem{Label: "Beta", Desc: "second", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "Beta", Desc: "second", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(vkdeck.NewMessage("beta screen", "hello from beta", nil))
 		}},
 	)
@@ -63,7 +65,7 @@ func TestAppRendersChromeAndMenu(t *testing.T) {
 func TestAppNavigation(t *testing.T) {
 	menu := vkdeck.NewMenu("main", nil,
 		vkdeck.MenuItem{Label: "Alpha"},
-		vkdeck.MenuItem{Label: "Beta", Do: func(a *vkdeck.Model) tea.Cmd {
+		vkdeck.MenuItem{Label: "Beta", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(vkdeck.NewMessage("beta screen", "body", nil))
 		}},
 	)
@@ -90,9 +92,9 @@ func TestAppRendersStatusFromProvider(t *testing.T) {
 		GitHubUser:      "cody",
 		SigningVerified: true,
 		Services: []ServiceStatus{
-			{Name: "github", Detail: "4998/5000", Level: StatusOK},
-			{Name: "slack", Level: StatusOK},
-			{ID: "google", Name: "google", Level: StatusMuted},
+			{Name: "github", Detail: "4998/5000", Severity: vkglyph.SeverityPositive},
+			{Name: "slack", Severity: vkglyph.SeverityPositive},
+			{ID: "google", Name: "google", Severity: vkglyph.SeverityNeutral},
 		},
 	}
 	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha"})
@@ -146,7 +148,7 @@ func TestAppUnverifiedSigningGlyph(t *testing.T) {
 }
 
 func TestAppHeaderBreadcrumbs(t *testing.T) {
-	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha", Do: func(a *vkdeck.Model) tea.Cmd {
+	menu := vkdeck.NewMenu("main", nil, vkdeck.MenuItem{Label: "Alpha", OnSelect: func(a *vkdeck.Model) tea.Cmd {
 		return a.Push(vkdeck.NewMessage("details", "body", nil))
 	}})
 	app := New(menu)
@@ -198,7 +200,7 @@ func TestAppPinsFooterToBottom(t *testing.T) {
 
 func TestAppEvenHorizontalMargins(t *testing.T) {
 	const width = 100
-	menu := vkdeck.NewMenu("", [][2]string{{"role", "triage"}},
+	menu := vkdeck.NewMenu("", []keys.Hint{{Key: "role", Label: "triage"}},
 		vkdeck.MenuItem{Label: "Alpha", Desc: "first"},
 		vkdeck.MenuItem{Label: "Beta", Desc: "second"},
 	)

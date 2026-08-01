@@ -27,9 +27,7 @@ type DetailView struct {
 	detail  *signals.ItemDetail
 	err     error
 	loading bool
-	scroll  layout.ScrollState
-	total   int
-	rows    int
+	scroll  vkdeck.ScrollBody
 }
 
 func (k *Kit) Detail(ref render.ItemRef) vkdeck.View {
@@ -53,10 +51,6 @@ func (v *DetailView) Init() tea.Cmd {
 
 func (v *DetailView) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
-	case tea.WindowSizeMsg:
-		v.rows = max(m.Height-detailChromeReserve, 1)
-		v.scroll.Scroll(0, v.total, layout.ViewportContentRows(v.rows))
-		return nil
 	case detailLoadedMsg:
 		v.detail, v.err, v.loading = m.detail, m.err, false
 		return nil
@@ -66,23 +60,15 @@ func (v *DetailView) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-const detailChromeReserve = 7
-
 func (v *DetailView) handleKey(h *vkdeck.Model, m tea.KeyMsg) tea.Cmd {
 	act, ok := keymap.Detail().Action(m.String())
 	if !ok {
 		return nil
 	}
-	rows := layout.ViewportContentRows(v.rows)
+	if v.scroll.Handle(act) {
+		return nil
+	}
 	switch act {
-	case keys.Up:
-		v.scroll.Scroll(-1, v.total, rows)
-	case keys.Down:
-		v.scroll.Scroll(1, v.total, rows)
-	case keys.PageUp:
-		v.scroll.Scroll(-max(rows, 1), v.total, rows)
-	case keys.PageDown:
-		v.scroll.Scroll(max(rows, 1), v.total, rows)
 	case keys.Open:
 		return v.openItem()
 	case keys.Cancel:
@@ -119,14 +105,12 @@ func (v *DetailView) Body(width, height int) string {
 	if v.err != nil {
 		body = theme.Cur().Cant.Render(signals.Clean(v.err.Error())) + "\n" + body
 	}
-	v.total = layout.CountLines(body)
-	v.rows = max(height, 1)
-	return layout.Viewport(body, height, v.scroll.Offset)
+	return v.scroll.View(body, height)
 }
 
-func (v *DetailView) Hints() [][2]string {
+func (v *DetailView) Hints() []keys.Hint {
 	km := keymap.Detail()
-	hints := [][2]string{
+	hints := []keys.Hint{
 		km.HintLabeled(keys.Up, "scroll"),
 		km.HintLabeled(keys.PageUp, "page"),
 	}
@@ -152,21 +136,21 @@ func (v *DetailView) PaneSnapshot() (pane.Snapshot, bool) {
 	}, true
 }
 
-func (v *DetailView) Context() [][2]string {
-	var cues [][2]string
+func (v *DetailView) Context() []keys.Hint {
+	var cues []keys.Hint
 	if scope := render.ItemScope(v.ref.Item); scope != "" {
-		cues = append(cues, [2]string{"repo", scope})
+		cues = append(cues, keys.Hint{Key: "repo", Label: scope})
 	} else if v.ref.Signal != "" {
-		cues = append(cues, [2]string{"signal", v.ref.Signal})
+		cues = append(cues, keys.Hint{Key: "signal", Label: v.ref.Signal})
 	}
 	switch {
 	case v.loading:
-		cues = append(cues, [2]string{"detail", "loading…"})
+		cues = append(cues, keys.Hint{Key: "detail", Label: "loading…"})
 	case v.err != nil:
-		cues = append(cues, [2]string{"detail", "unavailable"})
+		cues = append(cues, keys.Hint{Key: "detail", Label: "unavailable"})
 	}
 	if v.ref.Meta["cache"] == "stale" {
-		cues = append(cues, [2]string{"cache", "stale " + signals.CleanLine(v.ref.Meta["age"])})
+		cues = append(cues, keys.Hint{Key: "cache", Label: "stale " + signals.CleanLine(v.ref.Meta["age"])})
 	}
 	return cues
 }

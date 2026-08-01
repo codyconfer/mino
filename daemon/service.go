@@ -43,12 +43,16 @@ func daemonService(flight string, userService bool) (*service.Service, error) {
 }
 
 func newService(opt options, userService bool) (*service.Service, error) {
+	scope := service.ScopeSystem
+	if userService {
+		scope = service.ScopeUser
+	}
 	return service.New(service.Config{
 		Name:        daemonName,
 		DisplayName: "mino",
 		Description: "mino realtime signal watcher",
 		Arguments:   RunArgs(opt.Flight, opt.Interval, opt.Bell, opt.Desktop, opt.Theme),
-		UserService: userService,
+		Scope:       scope,
 	}, func(ctx context.Context) error {
 		return watch(ctx, opt)
 	})

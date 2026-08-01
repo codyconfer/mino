@@ -22,25 +22,24 @@ import (
 const historyLimit = 50
 
 func (k *Kit) History() vkdeck.View {
-	rows := map[string]audit.AuditRow{}
-	lst := vkdeck.NewItemList("history", k.menuCtx(),
-		func() any { return k.recentRuns() },
-		func(width int, fetched any) []list.Item {
+	return vkdeck.NewItemList(vkdeck.ItemListSpec{
+		Title: "history",
+		Ctx:   k.menuCtx(),
+		Fetch: func() any { return k.recentRuns() },
+		Bind: func(width int, fetched any) []list.Item {
 			runs, _ := fetched.([]audit.AuditRow)
-			rows = runIndex(runs)
 			return historyItems(width, runs)
 		},
-	)
-	lst.ReloadHint = "refresh"
-	lst.OnOpen = func(string) error { return nil }
-	lst.OnSelect = func(a *vkdeck.Model, key string) tea.Cmd {
-		r, ok := rows[key]
-		if !ok {
-			return nil
-		}
-		return a.Push(k.historyRun(r))
-	}
-	return lst
+		ReloadHint: "refresh",
+		OnOpen:     func(string) error { return nil },
+		OnSelect: func(a *vkdeck.Model, it list.Item) tea.Cmd {
+			r, ok := it.Payload.(audit.AuditRow)
+			if !ok {
+				return nil
+			}
+			return a.Push(k.historyRun(r))
+		},
+	})
 }
 
 func (k *Kit) recentRuns() []audit.AuditRow {
@@ -53,14 +52,6 @@ func (k *Kit) recentRuns() []audit.AuditRow {
 		return nil
 	}
 	return runs
-}
-
-func runIndex(runs []audit.AuditRow) map[string]audit.AuditRow {
-	out := make(map[string]audit.AuditRow, len(runs))
-	for _, r := range runs {
-		out[strconv.FormatInt(r.ID, 10)] = r
-	}
-	return out
 }
 
 func historyItems(width int, runs []audit.AuditRow) []list.Item {
@@ -76,6 +67,7 @@ func historyItems(width int, runs []audit.AuditRow) []list.Item {
 			Block:      layout.StackTight(label, layout.ScreenFrame(width).Fit(meta)),
 			Key:        strconv.FormatInt(r.ID, 10),
 			Selectable: true,
+			Payload:    r,
 		})
 	}
 	return items
@@ -93,7 +85,7 @@ type historyRunView struct {
 
 	kit     *Kit
 	row     audit.AuditRow
-	ctx     [][2]string
+	ctx     []keys.Hint
 	del     *keys.Map
 	confirm *forms.Confirm
 }
@@ -103,7 +95,7 @@ func (k *Kit) historyRun(r audit.AuditRow) vkdeck.View {
 	if r.Kind == "flight" {
 		title = "flight: " + r.Name
 	}
-	ctx := append(k.menuCtx(), [2]string{r.Kind, r.Name})
+	ctx := append(k.menuCtx(), keys.Hint{Key: r.Kind, Label: r.Name})
 	id := r.ID
 	lst := deck.NewResults(title, ctx, func() []signals.Section {
 		st := k.d.App.Audit
@@ -121,11 +113,11 @@ func (k *Kit) historyRun(r audit.AuditRow) vkdeck.View {
 		kit:      k,
 		row:      r,
 		ctx:      ctx,
-		del:      keys.NewMap(keymap.DeleteBinding()),
+		del:      keys.MapFor(keymap.Delete),
 	}
 }
 
-func (v *historyRunView) Hints() [][2]string {
+func (v *historyRunView) Hints() []keys.Hint {
 	return append(v.ItemList.Hints(), v.del.Hint(keymap.Delete))
 }
 

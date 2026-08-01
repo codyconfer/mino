@@ -7,7 +7,6 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	sysdaemon "github.com/codyconfer/sisyphus/daemon"
@@ -74,7 +73,7 @@ func (n notifySink) handle(ev signals.Event) {
 		_ = desktop.Notify(desktop.Notification{
 			Title:   note.Title,
 			Message: note.Message,
-			Icon:    desktop.Icon{Name: icon.Name, MIME: icon.MIME, Bytes: icon.Bytes},
+			Icon:    desktop.IconFrom(icon.Name, icon.MIME, icon.Bytes),
 		})
 	}
 	if n.terminal {
@@ -404,7 +403,7 @@ func (s *Server) socket(ctx context.Context, subj *sysdaemon.Subject[signals.Eve
 	}
 	ln, err := sysdaemon.Listen(config.SocketPrefix, path)
 	if err != nil {
-		if errors.Is(err, sysdaemon.ErrInUse) || errors.Is(err, syscall.EADDRINUSE) {
+		if errors.Is(err, sysdaemon.ErrInUse) {
 			log.Debugf("serve: another daemon already owns %s: %v", path, err)
 		} else {
 			log.Debugf("serve: socket unavailable: %v", err)

@@ -17,8 +17,7 @@ func stagedDirectives(t *testing.T) sisyphus.Reconciliation {
 		Name:        DirectivesDirective,
 		FileFormat:  "collection",
 		FileContent: collectionBlob(t, map[string]string{"queries/a.yaml": "name: a\n"}),
-		HasDB:       true,
-		DB: configdb.Version{
+		DB: configdb.Snapshot{
 			Hash:    "0123456789abcdef",
 			Format:  "collection",
 			Content: string(collectionBlob(t, map[string]string{"queries/a.yaml": "name: b\n"})),
@@ -116,8 +115,7 @@ func TestReconcilePromptAllListsEveryDirectiveOnce(t *testing.T) {
 			Name:        ConfigDirective,
 			FileFormat:  "yaml",
 			FileContent: []byte("output: json\n"),
-			HasDB:       true,
-			DB:          configdb.Version{Hash: "fedcba9876543210", Format: "yaml", Content: "output: text\n"},
+			DB:          configdb.Snapshot{Hash: "fedcba9876543210", Format: "yaml", Content: "output: text\n"},
 		},
 		stagedDirectives(t),
 	}

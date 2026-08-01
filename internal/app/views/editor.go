@@ -6,6 +6,7 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
+	"github.com/codyconfer/viewkit/keys"
 
 	"gopkg.in/yaml.v3"
 
@@ -21,7 +22,7 @@ type editorShell = vkdeck.Editor
 type editorDoc interface {
 	editorKind() string
 	editorTitle() string
-	editorCtx() [][2]string
+	editorCtx() []keys.Hint
 	editorSavedName() string
 	editorFields(prev map[string]any) []forms.Field
 	editorSync() bool
@@ -73,7 +74,7 @@ func (a *editorOutputAdapter) WriteOutput() (string, error) { return a.out.Write
 
 func (a *editorAdapter) Kind() string         { return a.doc.editorKind() }
 func (a *editorAdapter) Title() string        { return a.doc.editorTitle() }
-func (a *editorAdapter) Context() [][2]string { return a.doc.editorCtx() }
+func (a *editorAdapter) Context() []keys.Hint { return a.doc.editorCtx() }
 func (a *editorAdapter) SavedName() string    { return a.doc.editorSavedName() }
 func (a *editorAdapter) Sync() bool           { return a.doc.editorSync() }
 func (a *editorAdapter) Summary() string      { return a.doc.editorSummary() }

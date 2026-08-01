@@ -124,7 +124,7 @@ func TestProviderIncludesRegisteredChip(t *testing.T) {
 	testenv.Isolate(t)
 	t.Cleanup(resetChips)
 	RegisterChip(func() (deck.ServiceStatus, bool) {
-		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Level: deck.StatusWarn}, true
+		return deck.ServiceStatus{Name: "daemon", Detail: "stopped", Severity: vkglyph.SeverityWarning}, true
 	})
 
 	a := &app.App{Cfg: &config.Config{}}
@@ -209,8 +209,8 @@ func TestProviderSurfacesAnUnreadableCredentialStore(t *testing.T) {
 	if chip == nil {
 		t.Fatalf("status strip hides an undecryptable credential store, so mino still says 'not logged in': %v", serviceNames(info.Services))
 	}
-	if chip.Level != deck.StatusBad {
-		t.Errorf("credentials chip level = %v, want bad", chip.Level)
+	if chip.Severity != vkglyph.SeverityNegative {
+		t.Errorf("credentials chip level = %v, want bad", chip.Severity)
 	}
 	if chip.Detail != auth.CredUnreadable.String() {
 		t.Errorf("credentials chip detail = %q, want %q", chip.Detail, auth.CredUnreadable.String())
