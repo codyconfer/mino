@@ -27,9 +27,9 @@ type detailAnimationMsg struct{}
 const detailAnimationInterval = 80 * time.Millisecond
 
 type DetailView struct {
-	ref     render.ItemRef
-	fetch   func(signal string, it signals.Item) (*signals.ItemDetail, error)
-	open    func(url string) error
+	ref       render.ItemRef
+	fetch     func(signal string, it signals.Item) (*signals.ItemDetail, error)
+	open      func(url string) error
 	detail    *signals.ItemDetail
 	err       error
 	loading   bool

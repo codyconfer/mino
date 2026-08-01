@@ -28,6 +28,23 @@ func drive(a *vkdeck.Model, msg tea.Msg) *vkdeck.Model {
 	return m.(*vkdeck.Model)
 }
 
+func run(a *vkdeck.Model, cmd tea.Cmd) *vkdeck.Model {
+	if cmd == nil {
+		return a
+	}
+	switch msg := cmd().(type) {
+	case nil:
+		return a
+	case tea.BatchMsg:
+		for _, c := range msg {
+			a = run(a, c)
+		}
+		return a
+	default:
+		return drive(a, msg)
+	}
+}
+
 func key(s string) tea.KeyMsg {
 	if s == "enter" {
 		return tea.KeyMsg{Type: tea.KeyEnter}
