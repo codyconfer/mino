@@ -1,0 +1,6 @@
+name: viewkit-ci
+type: query
+signal: github
+params:
+  title: "viewkit · latest CI"
+  actions: codyconfer/viewkit

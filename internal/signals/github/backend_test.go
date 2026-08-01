@@ -47,6 +47,22 @@ func TestCLIBackendPinsConfiguredHostname(t *testing.T) {
 	if string(out) != "api --hostname ghe.example.com graphql -f query=query{viewer{login}} -F first=5 -f login=octo\n" {
 		t.Fatalf("gh args = %q", out)
 	}
+
+	out, err = b.WorkflowRuns(context.Background(), "codyconfer", "mino", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "api --hostname ghe.example.com -X GET repos/codyconfer/mino/actions/runs -f per_page=1\n" {
+		t.Fatalf("gh args = %q", out)
+	}
+
+	out, err = b.WorkflowJobs(context.Background(), "codyconfer", "mino", 30706047121)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "api --hostname ghe.example.com -X GET repos/codyconfer/mino/actions/runs/30706047121/jobs -f per_page=100\n" {
+		t.Fatalf("gh args = %q", out)
+	}
 }
 
 func TestCLIBackendUnpinnedWhenHostnameUnset(t *testing.T) {
@@ -112,6 +128,30 @@ func TestAPIBackendErrorStatus(t *testing.T) {
 	_, err := b.SearchIssues(context.Background(), "q", 10)
 	if err == nil || !strings.Contains(err.Error(), "401") {
 		t.Fatalf("expected 401 error, got %v", err)
+	}
+}
+
+func TestAPIBackendActions(t *testing.T) {
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.RequestURI())
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	b := APIBackend{Token: "tok", BaseURL: srv.URL, HTTP: srv.Client()}
+	if _, err := b.WorkflowRuns(context.Background(), "codyconfer", "mino", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.WorkflowJobs(context.Background(), "codyconfer", "mino", 30706047121); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"/repos/codyconfer/mino/actions/runs?per_page=1",
+		"/repos/codyconfer/mino/actions/runs/30706047121/jobs?per_page=100",
+	}
+	if len(paths) != len(want) || paths[0] != want[0] || paths[1] != want[1] {
+		t.Fatalf("paths = %#v, want %#v", paths, want)
 	}
 }
 

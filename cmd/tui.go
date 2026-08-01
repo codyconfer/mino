@@ -71,13 +71,20 @@ func newDeckCmd() *cobra.Command {
 				deck.WithInitCmd(views.StoreTick()),
 			}
 			if len(args) == 1 {
-				return deck.Run(kit.FlightResults(name), opts...)
+				return deck.RunContext(kit.FlightResults(name), consoleRole(), opts...)
 			}
-			return deck.Run(kit.Home(), opts...)
+			return deck.RunContext(kit.Home(), consoleRole(), opts...)
 		},
 	}
 	c.Flags().BoolVar(&useTmux, "tmux", false, "open the deck inside a tmux session so it can split off auxiliary panes")
 	return c
+}
+
+func consoleRole() string {
+	if role := shared.Role(); role != "" {
+		return "role: " + role
+	}
+	return ""
 }
 
 func launchTmuxDeck(args []string) error {

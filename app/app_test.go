@@ -56,6 +56,12 @@ func TestListDefaultsEmbedded(t *testing.T) {
 	for _, want := range []string{
 		"config.yaml",
 		"queries/my-open-prs.yaml",
+		"queries/sisyphus-open-prs.yaml",
+		"queries/sisyphus-ci.yaml",
+		"queries/viewkit-open-prs.yaml",
+		"queries/viewkit-ci.yaml",
+		"queries/mino-open-prs.yaml",
+		"queries/mino-ci.yaml",
 		"queries/demo.yaml",
 		"queries/demo-reviews.yaml",
 		"queries/no-bots.yaml",

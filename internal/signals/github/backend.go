@@ -19,6 +19,11 @@ type Backend interface {
 	GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error)
 }
 
+type ActionsBackend interface {
+	WorkflowRuns(ctx context.Context, owner, repo string, perPage int) ([]byte, error)
+	WorkflowJobs(ctx context.Context, owner, repo string, runID int64) ([]byte, error)
+}
+
 func NormalizeAPIURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -53,6 +58,16 @@ func (b CLIBackend) apiArgs(rest ...string) []string {
 func (b CLIBackend) SearchIssues(ctx context.Context, query string, perPage int) ([]byte, error) {
 	return auth.GH(ctx, b.apiArgs("-X", "GET", "search/issues",
 		"-f", "q="+query, "-f", fmt.Sprintf("per_page=%d", perPage))...)
+}
+
+func (b CLIBackend) WorkflowRuns(ctx context.Context, owner, repo string, perPage int) ([]byte, error) {
+	path := fmt.Sprintf("repos/%s/%s/actions/runs", owner, repo)
+	return auth.GH(ctx, b.apiArgs("-X", "GET", path, "-f", fmt.Sprintf("per_page=%d", perPage))...)
+}
+
+func (b CLIBackend) WorkflowJobs(ctx context.Context, owner, repo string, runID int64) ([]byte, error) {
+	path := fmt.Sprintf("repos/%s/%s/actions/runs/%d/jobs", owner, repo, runID)
+	return auth.GH(ctx, b.apiArgs("-X", "GET", path, "-f", "per_page=100")...)
 }
 
 func (b CLIBackend) GraphQL(ctx context.Context, query string, vars map[string]any) ([]byte, error) {
@@ -117,6 +132,38 @@ func (b APIBackend) SearchIssues(ctx context.Context, query string, perPage int)
 		return nil, err
 	}
 	if err := checkGitHubStatus(resp, body, "scopes"); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func (b APIBackend) WorkflowRuns(ctx context.Context, owner, repo string, perPage int) ([]byte, error) {
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs?per_page=%d",
+		url.PathEscape(owner), url.PathEscape(repo), perPage)
+	return b.get(ctx, path, "workflow runs", "the Actions read permission")
+}
+
+func (b APIBackend) WorkflowJobs(ctx context.Context, owner, repo string, runID int64) ([]byte, error) {
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs?per_page=100",
+		url.PathEscape(owner), url.PathEscape(repo), runID)
+	return b.get(ctx, path, "workflow jobs", "the Actions read permission")
+}
+
+func (b APIBackend) get(ctx context.Context, path, label, permission string) ([]byte, error) {
+	req, err := newGitHubRequest(ctx, b.BaseURL, path, b.Token)
+	if err != nil {
+		return nil, errs.Wrapf(errs.KindSignal, err, "github: building %s request", label)
+	}
+	resp, err := b.client().Do(req)
+	if err != nil {
+		return nil, errs.Wrapf(errs.KindSignal, err, "github: %s request failed", label)
+	}
+	defer resp.Body.Close()
+	body, err := readBody(resp)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkGitHubStatus(resp, body, permission); err != nil {
 		return nil, err
 	}
 	return body, nil

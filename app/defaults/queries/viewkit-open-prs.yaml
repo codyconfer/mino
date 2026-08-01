@@ -1,0 +1,6 @@
+name: viewkit-open-prs
+type: query
+signal: github
+params:
+  title: "viewkit · open PRs"
+  query: "repo:codyconfer/viewkit is:open is:pr"

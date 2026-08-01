@@ -61,6 +61,12 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 		"demo.yaml",
 		"flights/default.yaml",
 		"queries/my-open-prs.yaml",
+		"queries/sisyphus-open-prs.yaml",
+		"queries/sisyphus-ci.yaml",
+		"queries/viewkit-open-prs.yaml",
+		"queries/viewkit-ci.yaml",
+		"queries/mino-open-prs.yaml",
+		"queries/mino-ci.yaml",
 	} {
 		if _, ok := got[want]; !ok {
 			t.Fatalf("missing stock seed %s (have %#v)", want, got)
@@ -89,6 +95,11 @@ func TestStockSeedsIncludeOptInDemoFlight(t *testing.T) {
 	}
 	if strings.Contains(got["flights/default.yaml"], "demo") {
 		t.Fatalf("default flight must not reference demo: %q", got["flights/default.yaml"])
+	}
+	for _, query := range []string{"sisyphus-open-prs", "sisyphus-ci", "viewkit-open-prs", "viewkit-ci", "mino-open-prs", "mino-ci"} {
+		if !strings.Contains(got["flights/default.yaml"], query) {
+			t.Errorf("default flight missing %s: %q", query, got["flights/default.yaml"])
+		}
 	}
 }
 

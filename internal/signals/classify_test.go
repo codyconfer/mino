@@ -19,6 +19,9 @@ func TestClassifyItemUsesState(t *testing.T) {
 		{"closed issue", Item{Kind: "issue", Meta: map[string]string{"state": "closed"}}, glyph.SeverityPositive},
 		{"uppercase state", Item{Kind: "pr", Meta: map[string]string{"state": "MERGED"}}, glyph.SeverityPositive},
 		{"draft open pr", Item{Kind: "pr", Meta: map[string]string{"state": "open", "draft": "true"}}, glyph.SeverityNeutral},
+		{"workflow success", Item{Kind: "workflow", Meta: map[string]string{"status": "completed", "conclusion": "success"}}, glyph.SeverityPositive},
+		{"workflow failure", Item{Kind: "workflow", Meta: map[string]string{"status": "completed", "conclusion": "failure"}}, glyph.SeverityNegative},
+		{"workflow running", Item{Kind: "workflow", Meta: map[string]string{"status": "in_progress"}}, glyph.SeverityWarning},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -17,6 +17,7 @@ var githubSearchTerms = []string{
 func registerStockQueryParams() {
 	plugin.RegisterQueryParams("github",
 		ParamSpec{Key: "query", Desc: "GitHub search expression", Example: "is:open is:pr author:@me", Values: githubSearchTerms, Delim: " "},
+		ParamSpec{Key: "actions", Desc: "repository whose latest Actions run to fetch", Example: "codyconfer/mino"},
 		ParamSpec{Key: "project", Desc: "project board reference", Example: "owner/12"},
 		ParamSpec{Key: "filter", Desc: "project board filter (needs project)", Example: "status:In Progress"},
 		ParamSpec{Key: "title", Desc: "project board section title (needs project)", Example: "Sprint board"},

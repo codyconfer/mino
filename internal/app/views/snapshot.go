@@ -140,7 +140,7 @@ func (v *SnapshotView) render(f layout.Frame) string {
 		return render.DetailPanel(f.Screen(), v.ref(), v.snap.Detail)
 	default:
 		if len(v.snap.Sections) == 0 {
-			return th.Dim.Render("no results in snapshot")
+			return th.Dim.Italic(true).Render("no results in snapshot")
 		}
 		return render.RenderTerminalString(v.snap.Sections)
 	}

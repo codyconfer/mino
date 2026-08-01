@@ -261,6 +261,50 @@ func TestDetailSectionsForPullRequest(t *testing.T) {
 	}
 }
 
+func TestDetailPullsWorkflowJobAndStepStatuses(t *testing.T) {
+	node := strings.Replace(prDetailNode,
+		`{"name":"build","conclusion":"SUCCESS","status":"COMPLETED"}`,
+		`{"name":"test","conclusion":"","status":"IN_PROGRESS",`+
+			`"steps":{"nodes":[`+
+			`{"name":"Set up job","status":"COMPLETED","conclusion":"SUCCESS"},`+
+			`{"name":"go test","status":"IN_PROGRESS","conclusion":""}]},`+
+			`"checkSuite":{"workflowRun":{"url":"https://github.com/acme/tools/actions/runs/77","workflow":{"name":"CI"}}}}`,
+		1)
+	node = strings.Replace(node,
+		`{"name":"lint","conclusion":"FAILURE","status":"COMPLETED"}`,
+		`{"name":"lint","conclusion":"FAILURE","status":"COMPLETED","steps":{"nodes":[]},`+
+			`"checkSuite":{"workflowRun":{"url":"https://github.com/acme/tools/actions/runs/77","workflow":{"name":"CI"}}}}`,
+		1)
+	be := &fakeDetailBackend{body: detailResponseJSON(node)}
+	d, err := fetchDetail(context.Background(), be, nil, CachePolicy{}, prItem())
+	if err != nil {
+		t.Fatalf("fetchDetail: %v", err)
+	}
+	var workflow signals.DetailSection
+	for _, section := range d.Sections {
+		if section.Title == "workflow · CI" {
+			workflow = section
+		}
+	}
+	if workflow.Title == "" {
+		t.Fatalf("workflow section missing: %+v", d.Sections)
+	}
+	rows := rowMap(workflow.Rows)
+	for key, want := range map[string]string{
+		"test":           "in progress",
+		"  ↳ Set up job": "success",
+		"  ↳ go test":    "in progress",
+		"lint":           "failure",
+	} {
+		if rows[key] != want {
+			t.Errorf("workflow row %q = %q, want %q", key, rows[key], want)
+		}
+	}
+	if workflow.Meta["in_progress"] != "true" || workflow.Meta["run_id"] != "77" {
+		t.Errorf("workflow meta = %v", workflow.Meta)
+	}
+}
+
 func TestDetailCommentsMarkBots(t *testing.T) {
 	d := fetchPRDetail(t)
 	var body, title string

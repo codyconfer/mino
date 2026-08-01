@@ -361,6 +361,8 @@ func DefaultDirectivePath(kind DirectiveType, name string) string {
 		return path.Join(DirFlights, name+".yaml")
 	case TypeFormatter:
 		return path.Join(DirFormatters, name+".yaml")
+	case TypeDuckDB:
+		return path.Join(DirDuckDB, name+".yaml")
 	case TypeRole:
 		return name + ".yaml"
 	}
@@ -478,6 +480,9 @@ func stampType(doc any, kind DirectiveType) any {
 		d.Type = kind
 		return d
 	case FormatterDef:
+		d.Type = kind
+		return d
+	case DuckDBQuery:
 		d.Type = kind
 		return d
 	}

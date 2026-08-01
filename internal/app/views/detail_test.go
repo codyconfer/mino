@@ -112,6 +112,30 @@ func TestDetailViewShowsLoadingCueThenEnriches(t *testing.T) {
 	}
 }
 
+func TestDetailViewTicksWhileWorkflowIsInProgress(t *testing.T) {
+	detail := enrichedTestDetail()
+	detail.Sections = append(detail.Sections, signals.DetailSection{
+		Title: "workflow · CI",
+		Rows:  [][2]string{{"test", "in progress"}, {"  ↳ go test", "in progress"}},
+		Meta:  map[string]string{"in_progress": "true"},
+	})
+	v := detailView(t, nil)
+	if cmd := v.Update(nil, detailLoadedMsg{detail: detail}); cmd == nil {
+		t.Fatal("in-progress workflow did not start the animation tick")
+	}
+	before := v.frame
+	if cmd := v.Update(nil, detailAnimationMsg{}); cmd == nil {
+		t.Fatal("in-progress workflow did not continue the animation tick")
+	}
+	if v.frame != before+1 {
+		t.Errorf("frame = %d, want %d", v.frame, before+1)
+	}
+	detail.Sections[len(detail.Sections)-1].Meta["in_progress"] = "false"
+	if cmd := v.Update(nil, detailAnimationMsg{}); cmd != nil {
+		t.Error("completed workflow kept the animation tick alive")
+	}
+}
+
 func TestDetailViewKeepsLocalFrameOnFetchError(t *testing.T) {
 	glyph.SetMode(glyph.ModeNone)
 	v := detailView(t, func(string, signals.Item) (*signals.ItemDetail, error) {

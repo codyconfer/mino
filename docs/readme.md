@@ -137,8 +137,10 @@ names run concurrently — your whole shift-start sweep in one command. `mino fl
 <name>` runs one; bare `mino fly` runs the active role's first flight (or
 `default`), or lists what's available.
 
-The seeded `default` flight stays a clean `my-open-prs` sweep. Opt-in showcase
-flights (also under [`examples/`](../examples/)): **`demo`** is live GitHub
+The seeded `default` flight shows open pull requests and the latest CI run for
+`codyconfer/sisyphus`, `codyconfer/viewkit`, and `codyconfer/mino`. Select a CI
+run to inspect its job and step statuses. Opt-in showcase flights (also under
+[`examples/`](../examples/)): **`demo`** is live GitHub
 (`signal: github` items with `github.com` URLs); **`notify-smoke`** streams
 synthetic toasts (`signal: demo`) for desktop/notify smoke — keep it off the
 default path. Try `mino fly demo`, `mino serve notify-smoke`, or
@@ -347,8 +349,8 @@ params:
 ```
 
 `type:` is **required** — it is the only thing that decides which kind a
-document is, so nothing is inferred from the file's path. The five values are
-`query`, `filter`, `flight`, `role`, and `formatter`, and any of them is valid in any file, so
+document is, so nothing is inferred from the file's path. The six values are
+`query`, `filter`, `flight`, `role`, `formatter`, and `duckdb`, and any of them is valid in any file, so
 a flight can sit in `queries/` next to the queries it composes and a filter can
 sit in `flights/`:
 
@@ -375,7 +377,8 @@ error naming the file and the document's position in it.
 forbids a signal and requires rules, aliases, or keywords; `type: flight`
 requires `queries:` and forbids both a signal and filter content; `type: role`
 forbids both too; `type: formatter` requires a `template:` and forbids a signal,
-filter content, `queries:`, and `flights:`. Two fields are kind-exclusive the
+filter content, `queries:`, and `flights:`; `type: duckdb` requires a supported
+`database:` and one read-only `sql:` statement. Two fields are kind-exclusive the
 other way round: `template:` may appear only on a formatter, and `formatters:`
 only on a role — the singular `formatter:` is the field that attaches one to a
 query or flight. Names collide only within a kind, so a query and a flight may
@@ -507,6 +510,31 @@ Saving writes the YAML file **and** imports the `directives` row into DuckDB, so
 saved query is immediately runnable by name — no `mino apply` or restart. Because
 the store versions every directive file as one row, that import also commits any
 other staged edits sitting anywhere under `~/.mino/`.
+
+## Query DuckDB from the deck
+
+**DuckDB** is a top-level deck entry for read-only SQL against mino's `audit`,
+`config`, and `tokens` databases. Its first row creates an ad-hoc query; saved
+queries follow beneath it. Both paths open the same responsive editor used by
+roles and other directives, so run, validate, YAML preview, save, rename, delete,
+and form/results focus use the standard keybindings above.
+
+Saved SQL is a `type: duckdb` directive under `duckdb/` by default:
+
+```yaml
+name: recent-runs
+type: duckdb
+database: audit
+sql: |
+  SELECT name, kind, count(*) AS runs
+  FROM runs
+  GROUP BY name, kind
+  ORDER BY runs DESC
+```
+
+Only one `select`, `with`, `pragma`, `describe`, or `show` statement is accepted.
+Results run off the UI loop and appear in the editor's framed, scrollable results
+panel, leaving the SQL visible for quick changes and reruns.
 
 ## Build notes, tasks, and reminders the same way
 
@@ -733,6 +761,7 @@ Config lives under `~/.mino/`:
   queries/*.yaml       # directives: queries and filters (one or many per file)
   flights/*.yaml       # directives: flights (one per file)
   formatters/*.yaml    # directives: formatters — templated reports (one per file)
+  duckdb/*.yaml        # directives: saved read-only DuckDB queries
   team/gh/prs.yaml     # directives may nest arbitrarily; `type:` decides the kind
   icons/*.png          # optional per-state tray/notification icon overrides
   logs/mino.log       # rotating command/serve/deck log sink (cleanable/nukable)
@@ -746,7 +775,7 @@ Config lives under `~/.mino/`:
 `config.yaml` (or `config.yml` / `config.json`) at the root is the one file with a
 required name and place. Everything else is discovered by walking the home dir:
 any `.yaml`/`.yml`/`.json` file at any depth is read as directives, keyed by its
-path relative to the home dir. `queries/`, `flights/`, and `formatters/` are
+path relative to the home dir. `queries/`, `flights/`, `formatters/`, and `duckdb/` are
 created by `mino install` and are where new documents are saved, so they stay
 the convention, but they carry no meaning of their own. Skipped while walking: dot-directories
 (`.data/`, `.plugins/`, `.archive/`), `logs/`, and the root config file — a nested
@@ -764,7 +793,7 @@ anything else, in one terminal while a deck is open in another.
 
 A running deck notices this: it polls a revision marker beside the store roughly
 once a second and, when another process has written it, reloads its directives in
-place. New and changed flights, queries, filters, formatters, and roles appear
+place. New and changed flights, queries, filters, formatters, DuckDB queries, and roles appear
 without restarting. Changes to `config.yaml` itself — keybinds, theme, timeouts —
 still need a restart.
 

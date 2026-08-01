@@ -1,0 +1,6 @@
+name: sisyphus-ci
+type: query
+signal: github
+params:
+  title: "sisyphus · latest CI"
+  actions: codyconfer/sisyphus

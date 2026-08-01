@@ -62,7 +62,7 @@ func newRootCmd() *cobra.Command {
 			"Docs, Calendar, Gmail, and Slack and prints it in a nicely formatted way.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if skipsAppLoad(cmd) {
 				return nil
 			}
@@ -109,6 +109,7 @@ func newRootCmd() *cobra.Command {
 				stopLaunchLoading()
 				return err
 			}
+			setConsoleMetadata(cmd, args)
 			return nil
 		},
 	}

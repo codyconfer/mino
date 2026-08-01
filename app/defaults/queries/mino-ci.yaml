@@ -1,0 +1,6 @@
+name: mino-ci
+type: query
+signal: github
+params:
+  title: "mino · latest CI"
+  actions: codyconfer/mino

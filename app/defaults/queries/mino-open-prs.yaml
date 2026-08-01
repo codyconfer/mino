@@ -1,0 +1,6 @@
+name: mino-open-prs
+type: query
+signal: github
+params:
+  title: "mino · open PRs"
+  query: "repo:codyconfer/mino is:open is:pr"

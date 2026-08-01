@@ -37,6 +37,48 @@ signal: github
 params:
   query: "is:open is:pr author:@me"
 `
+	sisyphusOpenPRsYAML = `name: sisyphus-open-prs
+type: query
+signal: github
+params:
+  title: "sisyphus · open PRs"
+  query: "repo:codyconfer/sisyphus is:open is:pr"
+`
+	sisyphusCIYAML = `name: sisyphus-ci
+type: query
+signal: github
+params:
+  title: "sisyphus · latest CI"
+  actions: codyconfer/sisyphus
+`
+	viewkitOpenPRsYAML = `name: viewkit-open-prs
+type: query
+signal: github
+params:
+  title: "viewkit · open PRs"
+  query: "repo:codyconfer/viewkit is:open is:pr"
+`
+	viewkitCIYAML = `name: viewkit-ci
+type: query
+signal: github
+params:
+  title: "viewkit · latest CI"
+  actions: codyconfer/viewkit
+`
+	minoOpenPRsYAML = `name: mino-open-prs
+type: query
+signal: github
+params:
+  title: "mino · open PRs"
+  query: "repo:codyconfer/mino is:open is:pr"
+`
+	minoCIYAML = `name: mino-ci
+type: query
+signal: github
+params:
+  title: "mino · latest CI"
+  actions: codyconfer/mino
+`
 	sampleDemoQueryYAML = `name: demo
 type: query
 signal: github
@@ -61,7 +103,7 @@ rules:
 `
 	sampleFlightYAML = `name: default
 type: flight
-queries: [my-open-prs]
+queries: [sisyphus-open-prs, sisyphus-ci, viewkit-open-prs, viewkit-ci, mino-open-prs, mino-ci]
 `
 	sampleDemoFlightYAML = `name: demo
 type: flight
@@ -100,6 +142,12 @@ func installSpec(home string, force bool) lifecycle.InstallSpec {
 	stock := []lifecycle.FileSeed{
 		{RelPath: "config.yaml", Content: []byte(defaultConfigYAML)},
 		{RelPath: path.Join(config.DirQueries, "my-open-prs.yaml"), Content: []byte(sampleQueryYAML)},
+		{RelPath: path.Join(config.DirQueries, "sisyphus-open-prs.yaml"), Content: []byte(sisyphusOpenPRsYAML)},
+		{RelPath: path.Join(config.DirQueries, "sisyphus-ci.yaml"), Content: []byte(sisyphusCIYAML)},
+		{RelPath: path.Join(config.DirQueries, "viewkit-open-prs.yaml"), Content: []byte(viewkitOpenPRsYAML)},
+		{RelPath: path.Join(config.DirQueries, "viewkit-ci.yaml"), Content: []byte(viewkitCIYAML)},
+		{RelPath: path.Join(config.DirQueries, "mino-open-prs.yaml"), Content: []byte(minoOpenPRsYAML)},
+		{RelPath: path.Join(config.DirQueries, "mino-ci.yaml"), Content: []byte(minoCIYAML)},
 		{RelPath: path.Join(config.DirQueries, "demo.yaml"), Content: []byte(sampleDemoQueryYAML)},
 		{RelPath: path.Join(config.DirQueries, "demo-reviews.yaml"), Content: []byte(sampleDemoReviewsQueryYAML)},
 		{RelPath: path.Join(config.DirQueries, "no-bots.yaml"), Content: []byte(sampleFilterYAML)},
@@ -112,7 +160,7 @@ func installSpec(home string, force bool) lifecycle.InstallSpec {
 		Home:  home,
 		Force: force,
 		Dirs: []string{
-			config.DirQueries, config.DirFlights, config.DirFormatters, config.DirLogs, config.DirData,
+			config.DirQueries, config.DirFlights, config.DirFormatters, config.DirDuckDB, config.DirLogs, config.DirData,
 		},
 		Files: mergeFileSeeds(stock, walkDefaults(getDefaultsFS())),
 		After: seedStores,
@@ -216,7 +264,7 @@ func Install(home string, force bool) ([]string, error) {
 func Clean(w io.Writer, scope *ui.Scope, home string) error {
 	entries := []string{
 		"config.yaml", "config.yml", "config.json",
-		config.DirQueries, config.DirFlights, config.DirFormatters, config.DirLogs, config.DirReports,
+		config.DirQueries, config.DirFlights, config.DirFormatters, config.DirDuckDB, config.DirLogs, config.DirReports,
 	}
 	rels, err := config.DirectiveFiles(home)
 	if err != nil {

@@ -100,6 +100,31 @@ func TestDetailPanelRendersEnrichedSections(t *testing.T) {
 	}
 }
 
+func TestDetailPanelAnimatesInProgressWorkflowRows(t *testing.T) {
+	glyph.SetMode(glyph.ModeNone)
+	detail := enrichedDetail()
+	detail.Sections = append(detail.Sections, signals.DetailSection{
+		Title: "workflow · CI",
+		Rows: [][2]string{
+			{"test", "in progress"},
+			{"  ↳ go test", "in progress"},
+			{"lint", "success"},
+		},
+		Meta: map[string]string{"in_progress": "true"},
+	})
+	first := plain(t, DetailPanelFrame(layout.NewFrame(72), detailRef(), detail, 0))
+	second := plain(t, DetailPanelFrame(layout.NewFrame(72), detailRef(), detail, 1))
+	if !strings.Contains(first, "⠋ in progress") || !strings.Contains(second, "⠙ in progress") {
+		t.Fatalf("workflow rows did not animate\nfirst:\n%s\nsecond:\n%s", first, second)
+	}
+	if strings.Contains(first, "⠋ success") {
+		t.Errorf("completed row animated:\n%s", first)
+	}
+	if !DetailHasInProgress(detail) {
+		t.Error("DetailHasInProgress = false")
+	}
+}
+
 func TestDetailPanelShowsStaleCache(t *testing.T) {
 	glyph.SetMode(glyph.ModeNone)
 	ref := detailRef()

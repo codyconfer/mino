@@ -2,15 +2,38 @@ package render
 
 import (
 	"io"
+	"sync"
 	"time"
 
 	"github.com/codyconfer/viewkit/spin"
 	"github.com/codyconfer/viewkit/ui"
+
+	"github.com/codyconfer/mino/internal/console"
 )
 
 const loadingPrefix = "mino ▸"
 
-type Loading = spin.Spinner
+type Loading struct {
+	spinner   *spin.Spinner
+	stopTitle func()
+	titleOnce sync.Once
+}
+
+func (l *Loading) Done() {
+	if l == nil {
+		return
+	}
+	l.spinner.Done()
+	l.titleOnce.Do(l.stopTitle)
+}
+
+func (l *Loading) Stop() {
+	if l == nil {
+		return
+	}
+	l.spinner.Stop()
+	l.titleOnce.Do(l.stopTitle)
+}
 
 type LoadingOptions struct {
 	Writer      io.Writer
@@ -28,7 +51,7 @@ func StartLoading(opts LoadingOptions) *Loading {
 	if scope == nil {
 		scope = ui.Default()
 	}
-	return spin.Start(spin.Options{
+	spinner := spin.Start(spin.Options{
 		Writer:      opts.Writer,
 		Prefix:      loadingPrefix,
 		Message:     opts.Message,
@@ -39,4 +62,5 @@ func StartLoading(opts LoadingOptions) *Loading {
 		Frames:      opts.Frames,
 		Force:       opts.Force,
 	})
+	return &Loading{spinner: spinner, stopTitle: console.StartLoading()}
 }

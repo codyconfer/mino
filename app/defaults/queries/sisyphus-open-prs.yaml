@@ -1,0 +1,6 @@
+name: sisyphus-open-prs
+type: query
+signal: github
+params:
+  title: "sisyphus · open PRs"
+  query: "repo:codyconfer/sisyphus is:open is:pr"

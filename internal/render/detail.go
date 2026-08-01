@@ -74,6 +74,26 @@ func contentFrame(f layout.Frame) layout.Frame {
 }
 
 func DetailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail) string {
+	return detailPanel(f, ref, d, -1)
+}
+
+func DetailPanelFrame(f layout.Frame, ref ItemRef, d *signals.ItemDetail, frame int) string {
+	return detailPanel(f, ref, d, frame)
+}
+
+func DetailHasInProgress(d *signals.ItemDetail) bool {
+	if d == nil {
+		return false
+	}
+	for _, section := range d.Sections {
+		if section.Meta["in_progress"] == "true" {
+			return true
+		}
+	}
+	return false
+}
+
+func detailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail, frame int) string {
 	ref, d = cleanRef(ref), signals.CleanDetail(d)
 
 	th := f.Theme()
@@ -116,7 +136,7 @@ func DetailPanel(f layout.Frame, ref ItemRef, d *signals.ItemDetail) string {
 	out := []string{f.TitledBoxIcon(icon, head, lines...)}
 	if d != nil {
 		for _, s := range d.Sections {
-			out = append(out, detailSection(f, cf, th, s))
+			out = append(out, detailSection(f, cf, th, s, frame))
 		}
 	}
 	return strings.Join(out, "\n")
@@ -193,10 +213,14 @@ func gutter(f layout.Frame, th theme.Theme, rows [][2]string) []string {
 	return out
 }
 
-func detailSection(f, cf layout.Frame, th theme.Theme, s signals.DetailSection) string {
+func detailSection(f, cf layout.Frame, th theme.Theme, s signals.DetailSection, frame int) string {
 	var lines []string
 	if len(s.Rows) > 0 {
-		lines = append(lines, gutter(cf, th, s.Rows)...)
+		rows := s.Rows
+		if s.Meta["in_progress"] == "true" {
+			rows = animatedDetailRows(rows, frame)
+		}
+		lines = append(lines, gutter(cf, th, rows)...)
 	}
 	for _, l := range s.Lines {
 		lines = append(lines, th.Dim.Render(l))
@@ -208,4 +232,21 @@ func detailSection(f, cf layout.Frame, th theme.Theme, s signals.DetailSection) 
 		lines = append(lines, layout.Lines(panels.Markdown(cf, s.Body))...)
 	}
 	return f.Panel(s.Title, lines...)
+}
+
+var detailLoadingFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+func animatedDetailRows(rows [][2]string, frame int) [][2]string {
+	out := make([][2]string, len(rows))
+	copy(out, rows)
+	marker := "…"
+	if frame >= 0 {
+		marker = detailLoadingFrames[frame%len(detailLoadingFrames)]
+	}
+	for i := range out {
+		if strings.EqualFold(strings.TrimSpace(out[i][1]), "in progress") {
+			out[i][1] = marker + " " + out[i][1]
+		}
+	}
+	return out
 }

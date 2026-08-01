@@ -7,6 +7,12 @@ import (
 )
 
 func ClassifyItem(it Item) glyph.Severity {
+	if strings.EqualFold(it.Kind, "workflow") {
+		if conclusion := it.Meta["conclusion"]; conclusion != "" {
+			return ClassifyKind(conclusion)
+		}
+		return ClassifyKind(it.Meta["status"])
+	}
 	isPR := strings.EqualFold(it.Kind, "pr")
 	switch strings.ToLower(it.Meta["state"]) {
 	case "merged":
@@ -24,7 +30,7 @@ func ClassifyItem(it Item) glyph.Severity {
 
 func ClassifyKind(kind string) glyph.Severity {
 	switch strings.ToLower(kind) {
-	case "mention", "review-requested", "review_requested", "assigned", "alert", "incident", "warn", "warning":
+	case "mention", "review-requested", "review_requested", "assigned", "alert", "incident", "warn", "warning", "queued", "in_progress", "pending", "waiting", "requested":
 		return glyph.SeverityWarning
 	case "merged", "approved", "completed", "resolved", "success", "closed":
 		return glyph.SeverityPositive

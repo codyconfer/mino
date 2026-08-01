@@ -26,6 +26,7 @@ const (
 	DirQueries    = "queries"
 	DirFlights    = "flights"
 	DirFormatters = "formatters"
+	DirDuckDB     = "duckdb"
 	DirReports    = "reports"
 	DirLogs       = "logs"
 	DirPlugins    = ".plugins"
@@ -45,15 +46,16 @@ const (
 	TypeFlight    DirectiveType = "flight"
 	TypeRole      DirectiveType = "role"
 	TypeFormatter DirectiveType = "formatter"
+	TypeDuckDB    DirectiveType = "duckdb"
 )
 
 func DirectiveTypes() []DirectiveType {
-	return []DirectiveType{TypeQuery, TypeFilter, TypeFlight, TypeRole, TypeFormatter}
+	return []DirectiveType{TypeQuery, TypeFilter, TypeFlight, TypeRole, TypeFormatter, TypeDuckDB}
 }
 
 func typeLabel(k DirectiveType) string {
 	switch k {
-	case TypeQuery, TypeFilter, TypeFlight, TypeRole, TypeFormatter:
+	case TypeQuery, TypeFilter, TypeFlight, TypeRole, TypeFormatter, TypeDuckDB:
 		return string(k)
 	}
 	return "directive"
@@ -70,6 +72,13 @@ type Query struct {
 	Aliases   map[string]string `yaml:"aliases,omitempty" json:"aliases,omitempty"`
 	Keywords  map[string]string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
 	Formatter string            `yaml:"formatter,omitempty" json:"formatter,omitempty"`
+}
+
+type DuckDBQuery struct {
+	Name     string        `yaml:"name,omitempty" json:"name,omitempty"`
+	Type     DirectiveType `yaml:"type,omitempty" json:"type,omitempty"`
+	Database string        `yaml:"database,omitempty" json:"database,omitempty"`
+	SQL      string        `yaml:"sql,omitempty" json:"sql,omitempty"`
 }
 
 func (q Query) Display() string {
@@ -169,6 +178,8 @@ type directiveDoc struct {
 	Template   string            `yaml:"template" json:"template"`
 	Formatter  string            `yaml:"formatter" json:"formatter"`
 	Formatters []string          `yaml:"formatters" json:"formatters"`
+	Database   string            `yaml:"database" json:"database"`
+	SQL        string            `yaml:"sql" json:"sql"`
 }
 
 func (d directiveDoc) hasFilterContent() bool {
@@ -181,7 +192,7 @@ func (d directiveDoc) hasDirectiveFields() bool {
 		len(d.Params) > 0 || len(d.Filters) > 0 || len(d.Queries) > 0 ||
 		len(d.Flights) > 0 || len(d.Contexts) > 0 || len(d.Status) > 0 ||
 		len(d.Formatters) > 0 ||
-		d.Hooks != (RoleHooks{}) || d.hasFilterContent()
+		d.Database != "" || d.SQL != "" || d.Hooks != (RoleHooks{}) || d.hasFilterContent()
 }
 
 func (d directiveDoc) query() Query {
@@ -221,7 +232,15 @@ func (d directiveDoc) formatter() FormatterDef {
 	return FormatterDef{Name: d.Name, Type: d.Type, Title: d.Title, Template: d.Template}
 }
 
+func (d directiveDoc) duckDBQuery() DuckDBQuery {
+	return DuckDBQuery{Name: d.Name, Type: d.Type, Database: d.Database, SQL: d.SQL}
+}
+
 func (d directiveDoc) validate(k DirectiveType) error {
+	if k != TypeDuckDB && (d.Database != "" || d.SQL != "") {
+		return errs.Newf(errs.KindConfig, "%q is declared `type: %s` but carries DuckDB fields", d.Name, k).
+			WithHint("database and sql belong to `type: duckdb` documents")
+	}
 	if k != TypeFormatter && d.Template != "" {
 		return errs.Newf(errs.KindConfig, "%q is declared `type: %s` but carries a `template:`", d.Name, k).
 			WithHint("templates belong to `type: formatter` documents")
@@ -287,6 +306,30 @@ func (d directiveDoc) validate(k DirectiveType) error {
 			return errs.Newf(errs.KindConfig, "%q is declared `type: formatter` but lists queries or flights", d.Name).
 				WithHint("attach a formatter from the other side with `formatter: %s`", d.Name)
 		}
+	case TypeDuckDB:
+		if d.Title != "" || d.Signal != "" || d.Template != "" || d.Formatter != "" ||
+			len(d.Params) > 0 || len(d.Filters) > 0 || len(d.Queries) > 0 || len(d.Flights) > 0 ||
+			len(d.Contexts) > 0 || len(d.Status) > 0 || len(d.Formatters) > 0 ||
+			d.Hooks != (RoleHooks{}) || d.hasFilterContent() {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: duckdb` but carries fields from another directive type", d.Name).
+				WithHint("DuckDB queries only take name, type, database, and sql")
+		}
+		if d.Database == "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: duckdb` but names no database", d.Name).
+				WithHint("add `database: audit`, `config`, or `tokens`")
+		}
+		if !ValidDuckDBDatabase(d.Database) {
+			return errs.Newf(errs.KindConfig, "%q names unsupported DuckDB database %q", d.Name, d.Database).
+				WithHint("choose one of %s", strings.Join(DuckDBDatabases(), ", "))
+		}
+		if d.SQL == "" {
+			return errs.Newf(errs.KindConfig, "%q is declared `type: duckdb` but has no SQL", d.Name).
+				WithHint("add a read-only `sql:` statement")
+		}
+		if !DuckDBReadOnly(d.SQL) {
+			return errs.Newf(errs.KindConfig, "%q has a DuckDB statement that is not read-only", d.Name).
+				WithHint("use one select, with, pragma, describe, or show statement")
+		}
 	default:
 		return errs.Newf(errs.KindConfig, "%q has unknown type %q: want one of %v", d.Name, d.Type, DirectiveTypes())
 	}
@@ -303,6 +346,7 @@ type Directives struct {
 	Flights    map[string]Flight
 	Roles      map[string]RoleDef
 	Formatters map[string]FormatterDef
+	DuckDB     map[string]DuckDBQuery
 
 	sources map[sourceKey]string
 	docs    map[string]int
@@ -314,6 +358,7 @@ func newDirectives() *Directives {
 		Flights:    map[string]Flight{},
 		Roles:      map[string]RoleDef{},
 		Formatters: map[string]FormatterDef{},
+		DuckDB:     map[string]DuckDBQuery{},
 		sources:    map[sourceKey]string{},
 		docs:       map[string]int{},
 	}
@@ -448,6 +493,11 @@ func (s *Directives) add(k DirectiveType, doc directiveDoc, file string) error {
 			return err
 		}
 		s.Formatters[doc.Name] = fd
+	case TypeDuckDB:
+		if _, exists := s.DuckDB[doc.Name]; exists {
+			return dup()
+		}
+		s.DuckDB[doc.Name] = doc.duckDBQuery()
 	}
 	return nil
 }
@@ -522,6 +572,7 @@ func (s *Directives) QueryNames() []string     { return sortedKeys(s.Queries) }
 func (s *Directives) FlightNames() []string    { return sortedKeys(s.Flights) }
 func (s *Directives) RoleNames() []string      { return sortedKeys(s.Roles) }
 func (s *Directives) FormatterNames() []string { return sortedKeys(s.Formatters) }
+func (s *Directives) DuckDBNames() []string    { return sortedKeys(s.DuckDB) }
 
 func (s *Directives) RunnableNames() []string {
 	return s.filterNames(func(q Query) bool { return q.Runnable() })
@@ -581,7 +632,7 @@ func placeSequence[T any](list []T, doc int) []placedDoc[T] {
 	return out
 }
 
-func directiveDirs() []string { return []string{DirQueries, DirFlights, DirFormatters} }
+func directiveDirs() []string { return []string{DirQueries, DirFlights, DirFormatters, DirDuckDB} }
 
 func normalizeRel(rel string) string {
 	return path.Clean(strings.ReplaceAll(filepath.ToSlash(rel), `\`, "/"))

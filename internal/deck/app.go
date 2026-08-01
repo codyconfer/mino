@@ -8,6 +8,7 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/ui"
 
+	"github.com/codyconfer/mino/internal/console"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render/glyph"
 )
@@ -49,10 +50,77 @@ func New(root vkdeck.View, opts ...Option) *vkdeck.Model {
 }
 
 func Run(root vkdeck.View, opts ...Option) error {
-	if err := vkdeck.Run(root, minoOpts(opts...)...); err != nil {
+	return RunContext(root, "", opts...)
+}
+
+func RunContext(root vkdeck.View, context string, opts ...Option) error {
+	model := New(root, opts...)
+	titled := &titleModel{Model: model, context: context}
+	defer titled.stop()
+	if _, err := tea.NewProgram(titled, tea.WithAltScreen()).Run(); err != nil {
 		return errs.Wrap(errs.KindInternal, err, "deck program exited with error")
 	}
 	return nil
+}
+
+type titleModel struct {
+	*vkdeck.Model
+	context     string
+	last        string
+	stopLoading func()
+}
+
+func (m *titleModel) Init() tea.Cmd {
+	cmd := m.Model.Init()
+	m.last = m.title()
+	console.Remember(m.last)
+	m.syncLoading()
+	return tea.Batch(cmd, tea.SetWindowTitle(m.last))
+}
+
+func (m *titleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.Model.Update(msg)
+	if model, ok := next.(*vkdeck.Model); ok {
+		m.Model = model
+	}
+	title := m.title()
+	if title != m.last {
+		console.Remember(title)
+	}
+	m.syncLoading()
+	if title == m.last {
+		return m, cmd
+	}
+	m.last = title
+	return m, tea.Batch(cmd, tea.SetWindowTitle(title))
+}
+
+func (m *titleModel) title() string {
+	return console.Title("deck", m.Top().Title(), m.context)
+}
+
+func (m *titleModel) syncLoading() {
+	loading := false
+	if view, ok := m.Top().(interface{ ConsoleLoading() bool }); ok {
+		loading = view.ConsoleLoading()
+	}
+	if view, ok := m.Top().(interface{ Running() bool }); ok {
+		loading = loading || view.Running()
+	}
+	if loading && m.stopLoading == nil {
+		m.stopLoading = console.StartLoading()
+	}
+	if !loading && m.stopLoading != nil {
+		m.stopLoading()
+		m.stopLoading = nil
+	}
+}
+
+func (m *titleModel) stop() {
+	if m.stopLoading != nil {
+		m.stopLoading()
+		m.stopLoading = nil
+	}
 }
 
 // minoOpts applies the caller's options first (so WithScope lands), then

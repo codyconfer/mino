@@ -170,6 +170,20 @@ func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Sto
 		opts = append(opts, gh.WithDetailCache(results,
 			gh.CachePolicy{Read: results.Reads(), Write: results.Writes(), TTL: results.DetailTTL()}))
 	}
+	if title := params["title"]; title != "" {
+		opts = append(opts, gh.WithTitle(title))
+	}
+	if ref := params["actions"]; ref != "" {
+		repo, err := gh.ParseRepositoryRef(ref)
+		if err != nil {
+			return nil, err
+		}
+		actions, ok := backend.(gh.ActionsBackend)
+		if !ok {
+			return nil, errs.New(errs.KindInternal, "github backend does not support Actions")
+		}
+		return gh.NewActions(repo, actions, opts...), nil
+	}
 	if ref := params["project"]; ref != "" {
 		owner, number, err := gh.ParseProjectRef(ref)
 		if err != nil {
@@ -192,9 +206,6 @@ func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Sto
 	queries := cfg.GitHub.Queries
 	if q := params["query"]; q != "" {
 		queries = []string{q}
-	}
-	if title := params["title"]; title != "" {
-		opts = append(opts, gh.WithTitle(title))
 	}
 	return gh.New(queries, backend, cfg.GitHub.Max, opts...), nil
 }

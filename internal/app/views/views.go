@@ -85,8 +85,8 @@ func (k *Kit) mainMenuItems() []vkdeck.MenuItem {
 			return a.Push(k.Directives())
 		}},
 		k.ntrMenuItem(),
-		{Label: "Query DuckDB", Desc: "ad-hoc SQL over DuckDB", Icon: glyph.Audit(), Hue: 4, OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.AuditQuery())
+		{Label: "DuckDB", Desc: "build, run, save, and manage SQL queries", Icon: glyph.Audit(), Hue: 4, OnSelect: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.DuckDB())
 		}},
 		{Label: "Tooling", Desc: "accounts, plugins, settings", Icon: glyph.Settings(), Hue: 2, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Tooling())

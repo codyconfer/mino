@@ -23,6 +23,7 @@ const (
 	detailComments  = 20
 	detailFiles     = 20
 	detailChecks    = 20
+	detailSteps     = 100
 	detailReviewers = 10
 )
 
@@ -120,6 +121,9 @@ func ParseRef(rawURL string) (Ref, error) {
 }
 
 func (s *Signal) Detail(ctx context.Context, it signals.Item) (signals.ItemDetail, error) {
+	if it.Kind == "workflow" || it.Meta["run_id"] != "" {
+		return fetchWorkflowDetail(ctx, s.backend, it)
+	}
 	return fetchDetail(ctx, s.backend, s.detail, s.policy, it)
 }
 
@@ -137,6 +141,47 @@ func fetchDetail(ctx context.Context, b Backend, c Cache, pol CachePolicy, it si
 		return signals.ItemDetail{}, err
 	}
 	return node.toDetail(ref), nil
+}
+
+func fetchWorkflowDetail(ctx context.Context, backend Backend, it signals.Item) (signals.ItemDetail, error) {
+	actions, ok := backend.(ActionsBackend)
+	if !ok {
+		return signals.ItemDetail{}, errs.New(errs.KindInternal, "github: backend does not support Actions")
+	}
+	repo, err := ParseRepositoryRef(it.Meta["repo"])
+	if err != nil {
+		return signals.ItemDetail{}, err
+	}
+	runID, err := strconv.ParseInt(it.Meta["run_id"], 10, 64)
+	if err != nil || runID <= 0 {
+		return signals.ItemDetail{}, errs.Newf(errs.KindUsage, "github: invalid workflow run id %q", it.Meta["run_id"])
+	}
+	raw, err := actions.WorkflowJobs(ctx, repo.Owner, repo.Repo, runID)
+	if err != nil {
+		return signals.ItemDetail{}, errs.Wrapf(errs.KindOf(err), err, "github: workflow run %d jobs", runID)
+	}
+	var response struct {
+		Jobs []workflowJob `json:"jobs"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return signals.ItemDetail{}, errs.Wrap(errs.KindSignal, err, "github: decoding workflow jobs response")
+	}
+	name := strings.TrimSpace(strings.Split(it.Title, " #")[0])
+	if name == "" {
+		name = "CI"
+	}
+	detail := signals.ItemDetail{
+		Kind: "workflow", Title: it.Title, URL: it.URL, Body: it.Body,
+		Chips: []signals.Chip{{Label: it.Meta["state"], Sev: workflowSeverity(it.Meta["state"])}},
+		Rows:  [][2]string{{"repo", repo.String()}, {"branch", it.Meta["branch"]}, {"event", it.Meta["event"]}},
+	}
+	if sha := it.Meta["sha"]; sha != "" {
+		detail.Rows = append(detail.Rows, [2]string{"commit", sha[:min(len(sha), 12)]})
+	}
+	if section, ok := (workflowRun{ID: runID, Name: name, URL: it.URL, Jobs: response.Jobs}).section(); ok {
+		detail.Sections = append(detail.Sections, section)
+	}
+	return detail, nil
 }
 
 func loadDetail(ctx context.Context, b Backend, c Cache, pol CachePolicy, ref Ref) (*detailNode, error) {
@@ -193,7 +238,9 @@ var detailPRFields = ` isDraft merged mergedAt reviewDecision additions deletion
 	`reviewRequests(first:` + strconv.Itoa(detailReviewers) + `){nodes{requestedReviewer{... on User{login} ... on Team{name}}}} ` +
 	`latestReviews(first:20){nodes{state submittedAt author{login}}} ` +
 	`commits(last:1){nodes{commit{statusCheckRollup{state contexts(first:` + strconv.Itoa(detailChecks) + `){nodes{` +
-	`... on CheckRun{name conclusion status} ... on StatusContext{context state}}}}}}}`
+	`... on CheckRun{name conclusion status steps(first:` + strconv.Itoa(detailSteps) + `){nodes{name conclusion status}} ` +
+	`checkSuite{workflowRun{url workflow{name}}}} ` +
+	`... on StatusContext{context state}}}}}}}`
 
 var detailQuery = `query($owner:String!,$repo:String!,$n:Int!){
   repository(owner:$owner,name:$repo){
@@ -298,6 +345,17 @@ type checkContext struct {
 	Status     string `json:"status"`
 	Context    string `json:"context"`
 	State      string `json:"state"`
+	Steps      struct {
+		Nodes []workflowStep `json:"nodes"`
+	} `json:"steps"`
+	CheckSuite *struct {
+		WorkflowRun *struct {
+			URL      string `json:"url"`
+			Workflow *struct {
+				Name string `json:"name"`
+			} `json:"workflow"`
+		} `json:"workflowRun"`
+	} `json:"checkSuite"`
 }
 
 type checkRollup struct {
@@ -305,6 +363,66 @@ type checkRollup struct {
 	Contexts struct {
 		Nodes []checkContext `json:"nodes"`
 	} `json:"contexts"`
+}
+
+type workflowRun struct {
+	ID   int64         `json:"id"`
+	Name string        `json:"name"`
+	URL  string        `json:"url,omitempty"`
+	Jobs []workflowJob `json:"jobs"`
+}
+
+type workflowJob struct {
+	Name       string         `json:"name"`
+	Status     string         `json:"status"`
+	Conclusion string         `json:"conclusion"`
+	Steps      []workflowStep `json:"steps"`
+}
+
+type workflowStep struct {
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Conclusion string `json:"conclusion"`
+}
+
+func (n *detailNode) workflowRuns() []workflowRun {
+	roll := n.rollup()
+	if roll == nil {
+		return nil
+	}
+	var runs []workflowRun
+	byURL := make(map[string]int)
+	for _, check := range roll.Contexts.Nodes {
+		if check.CheckSuite == nil || check.CheckSuite.WorkflowRun == nil {
+			continue
+		}
+		source := check.CheckSuite.WorkflowRun
+		name := "GitHub Actions"
+		if source.Workflow != nil && source.Workflow.Name != "" {
+			name = source.Workflow.Name
+		}
+		idx, ok := byURL[source.URL]
+		if !ok {
+			idx = len(runs)
+			byURL[source.URL] = idx
+			runs = append(runs, workflowRun{ID: workflowRunID(source.URL), Name: name, URL: source.URL})
+		}
+		runs[idx].Jobs = append(runs[idx].Jobs, workflowJob{
+			Name: check.Name, Status: check.Status, Conclusion: check.Conclusion, Steps: check.Steps.Nodes,
+		})
+	}
+	return runs
+}
+
+func workflowRunID(raw string) int64 {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return 0
+	}
+	tail := strings.TrimSpace(strings.TrimRight(u.Path, "/"))
+	tail = tail[strings.LastIndex(tail, "/")+1:]
+	id, _ := strconv.ParseInt(tail, 10, 64)
+	return id
 }
 
 func (n *detailNode) isPR() bool { return n.TypeName == "PullRequest" }
@@ -322,6 +440,11 @@ func (n *detailNode) toDetail(ref Ref) signals.ItemDetail {
 		if s, ok := n.checksSection(); ok {
 			d.Sections = append(d.Sections, s)
 		}
+		for _, run := range n.workflowRuns() {
+			if s, ok := run.section(); ok {
+				d.Sections = append(d.Sections, s)
+			}
+		}
 		if s, ok := n.reviewsSection(); ok {
 			d.Sections = append(d.Sections, s)
 		}
@@ -333,6 +456,41 @@ func (n *detailNode) toDetail(ref Ref) signals.ItemDetail {
 		d.Sections = append(d.Sections, s)
 	}
 	return d
+}
+
+func (r workflowRun) section() (signals.DetailSection, bool) {
+	if len(r.Jobs) == 0 {
+		return signals.DetailSection{}, false
+	}
+	rows := make([][2]string, 0, len(r.Jobs)*2)
+	inProgress := false
+	for _, job := range r.Jobs {
+		state := workflowState(job.Status, job.Conclusion)
+		inProgress = inProgress || state == "in progress"
+		rows = append(rows, [2]string{job.Name, state})
+		for _, step := range job.Steps {
+			state = workflowState(step.Status, step.Conclusion)
+			inProgress = inProgress || state == "in progress"
+			rows = append(rows, [2]string{"  ↳ " + step.Name, state})
+		}
+	}
+	meta := map[string]string{
+		"run_id": strconv.FormatInt(r.ID, 10),
+		"url":    r.URL,
+	}
+	if inProgress {
+		meta["in_progress"] = "true"
+	}
+	sec := signals.DetailSection{Title: "workflow · " + r.Name, Rows: rows, Meta: meta}
+	return sec, true
+}
+
+func workflowState(status, conclusion string) string {
+	state := conclusion
+	if state == "" {
+		state = status
+	}
+	return strings.ToLower(strings.ReplaceAll(state, "_", " "))
 }
 
 func (n *detailNode) chips() []signals.Chip {
@@ -567,6 +725,19 @@ func checkSeverity(state string) glyph.Severity {
 	case "FAILURE", "ERROR":
 		return glyph.SeverityNegative
 	case "PENDING", "EXPECTED":
+		return glyph.SeverityWarning
+	default:
+		return glyph.SeverityNeutral
+	}
+}
+
+func workflowSeverity(state string) glyph.Severity {
+	switch strings.ToUpper(strings.ReplaceAll(state, " ", "_")) {
+	case "SUCCESS":
+		return glyph.SeverityPositive
+	case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE":
+		return glyph.SeverityNegative
+	case "IN_PROGRESS", "QUEUED", "PENDING", "WAITING", "REQUESTED", "ACTION_REQUIRED":
 		return glyph.SeverityWarning
 	default:
 		return glyph.SeverityNeutral

@@ -129,7 +129,7 @@ func sectionLeaves(f layout.Frame, t itemTheme, c tree.Connectors, spad string, 
 		}
 		return []tree.Row{tree.Leaf(c, spad, true, body, "")}
 	case len(s.Items) == 0:
-		body := []string{th.Dim.Render(glyph.Lead(strings.TrimRight(c.Empty, " ")) + "nothing to show")}
+		body := []string{th.Dim.Italic(true).Render(glyph.Lead(strings.TrimRight(c.Empty, " ")) + "nothing to show")}
 		return []tree.Row{tree.Leaf(c, spad, true, body, "")}
 	default:
 		lf := f.WithWidth(f.Width - c.Indent(spad))

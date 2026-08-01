@@ -87,6 +87,24 @@ func TestAppNavigation(t *testing.T) {
 	}
 }
 
+func TestTitleModelTracksCurrentViewAndContext(t *testing.T) {
+	menu := vkdeck.NewMenu("main", nil,
+		vkdeck.MenuItem{Label: "Alpha"},
+		vkdeck.MenuItem{Label: "Beta", OnSelect: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(vkdeck.NewMessage("beta screen", "body", nil))
+		}},
+	)
+	model := &titleModel{Model: New(menu), context: "role: triage"}
+	if got := model.title(); got != "mino · deck · main · role: triage" {
+		t.Fatalf("initial title = %q", got)
+	}
+	model.Update(key("down"))
+	model.Update(key("enter"))
+	if got := model.title(); got != "mino · deck · beta screen · role: triage" {
+		t.Fatalf("navigated title = %q", got)
+	}
+}
+
 func TestAppRendersStatusFromProvider(t *testing.T) {
 	info := StatusInfo{
 		GitHubUser:      "cody",

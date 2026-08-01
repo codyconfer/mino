@@ -82,6 +82,29 @@ func TestSaveDirectiveHonoursAnExplicitRelPath(t *testing.T) {
 	}
 }
 
+func TestSaveDuckDBDirectiveUsesItsOwnCollection(t *testing.T) {
+	home := t.TempDir()
+	q := DuckDBQuery{Name: "recent-runs", Database: "audit", SQL: "SELECT * FROM runs"}
+	path, _, err := SaveDirective(nil, home, "", TypeDuckDB, q.Name, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(home, DirDuckDB, "recent-runs.yaml"); path != want {
+		t.Fatalf("path = %q, want %q", path, want)
+	}
+	dirs, err := LoadDirectivesFromFiles(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := dirs.DuckDB["recent-runs"]
+	if !ok || got.Database != "audit" || got.SQL != "SELECT * FROM runs" {
+		t.Fatalf("loaded DuckDB query = %#v", got)
+	}
+	if rel := dirs.Source(TypeDuckDB, q.Name); rel != DirDuckDB+"/recent-runs.yaml" {
+		t.Fatalf("source = %q", rel)
+	}
+}
+
 func TestSaveDirectiveRejectsBadRelPath(t *testing.T) {
 	home := t.TempDir()
 	for _, rel := range []string{"../escape.yaml", "config.yaml", ".plugins/prs.yaml"} {

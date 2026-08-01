@@ -1,6 +1,8 @@
 package views
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/codyconfer/viewkit/browser"
@@ -20,6 +22,10 @@ type detailLoadedMsg struct {
 	err    error
 }
 
+type detailAnimationMsg struct{}
+
+const detailAnimationInterval = 80 * time.Millisecond
+
 type DetailView struct {
 	ref     render.ItemRef
 	fetch   func(signal string, it signals.Item) (*signals.ItemDetail, error)
@@ -27,6 +33,7 @@ type DetailView struct {
 	detail  *signals.ItemDetail
 	err     error
 	loading bool
+	frame   int
 	scroll  vkdeck.ScrollBody
 }
 
@@ -35,6 +42,8 @@ func (k *Kit) Detail(ref render.ItemRef) vkdeck.View {
 }
 
 func (v *DetailView) Title() string { return render.ItemLabel(v.ref.Item) }
+
+func (v *DetailView) ConsoleLoading() bool { return v.loading }
 
 func (v *DetailView) Init() tea.Cmd {
 	if v.fetch == nil {
@@ -53,11 +62,24 @@ func (v *DetailView) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case detailLoadedMsg:
 		v.detail, v.err, v.loading = m.detail, m.err, false
+		if render.DetailHasInProgress(v.detail) {
+			return detailAnimationTick()
+		}
 		return nil
+	case detailAnimationMsg:
+		if !render.DetailHasInProgress(v.detail) {
+			return nil
+		}
+		v.frame++
+		return detailAnimationTick()
 	case tea.KeyMsg:
 		return v.handleKey(h, m)
 	}
 	return nil
+}
+
+func detailAnimationTick() tea.Cmd {
+	return tea.Tick(detailAnimationInterval, func(time.Time) tea.Msg { return detailAnimationMsg{} })
 }
 
 func (v *DetailView) handleKey(h *vkdeck.Model, m tea.KeyMsg) tea.Cmd {
@@ -102,7 +124,7 @@ func openURL(url string) tea.Cmd {
 func (v *DetailView) Body(f layout.Frame) string {
 	height := f.Height
 	f = f.Screen()
-	body := render.DetailPanel(f, v.ref, v.detail)
+	body := render.DetailPanelFrame(f, v.ref, v.detail, v.frame)
 	if v.err != nil {
 		body = f.Theme().Cant.Render(signals.Clean(v.err.Error())) + "\n" + body
 	}

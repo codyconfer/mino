@@ -483,14 +483,20 @@ filters: [prs]
 
 func TestInvalidTypesRejected(t *testing.T) {
 	cases := map[string]string{
-		"query without a signal": "name: x\ntype: query\n",
-		"filter with a signal":   "name: x\ntype: filter\nsignal: github\nrules:\n  - exclude: y\n",
-		"filter with no rules":   "name: x\ntype: filter\n",
-		"flight with a signal":   "name: x\ntype: flight\nsignal: github\nqueries: [a]\n",
-		"flight with no queries": "name: x\ntype: flight\n",
-		"flight with rules":      "name: x\ntype: flight\nqueries: [a]\nrules:\n  - exclude: y\n",
-		"role with a signal":     "name: x\ntype: role\nsignal: github\n",
-		"unknown type":           "name: x\ntype: dashboard\nsignal: github\n",
+		"query without a signal":     "name: x\ntype: query\n",
+		"filter with a signal":       "name: x\ntype: filter\nsignal: github\nrules:\n  - exclude: y\n",
+		"filter with no rules":       "name: x\ntype: filter\n",
+		"flight with a signal":       "name: x\ntype: flight\nsignal: github\nqueries: [a]\n",
+		"flight with no queries":     "name: x\ntype: flight\n",
+		"flight with rules":          "name: x\ntype: flight\nqueries: [a]\nrules:\n  - exclude: y\n",
+		"role with a signal":         "name: x\ntype: role\nsignal: github\n",
+		"duckdb without database":    "name: x\ntype: duckdb\nsql: SELECT 1\n",
+		"duckdb without sql":         "name: x\ntype: duckdb\ndatabase: audit\n",
+		"duckdb unsupported db":      "name: x\ntype: duckdb\ndatabase: ../../outside\nsql: SELECT 1\n",
+		"duckdb write statement":     "name: x\ntype: duckdb\ndatabase: audit\nsql: DELETE FROM runs\n",
+		"duckdb multiple statements": "name: x\ntype: duckdb\ndatabase: audit\nsql: SELECT 1; DELETE FROM runs\n",
+		"query with duckdb fields":   "name: x\ntype: query\nsignal: github\ndatabase: audit\nsql: SELECT 1\n",
+		"unknown type":               "name: x\ntype: dashboard\nsignal: github\n",
 	}
 	for label, body := range cases {
 		t.Run(label, func(t *testing.T) {

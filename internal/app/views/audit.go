@@ -19,7 +19,7 @@ import (
 	"github.com/codyconfer/mino/internal/keymap"
 )
 
-var auditvDBs = []string{"audit", "config", "tokens"}
+var auditvDBs = config.DuckDBDatabases()
 
 var auditvDefaultSQL = map[string]string{
 	"audit":  "SELECT name, kind, count(*) AS runs, coalesce(sum(count), 0) AS items FROM runs GROUP BY name, kind ORDER BY runs DESC",
@@ -49,10 +49,6 @@ type auditView struct {
 
 	keys   *keys.Map
 	scroll vkdeck.ScrollBody
-}
-
-func (k *Kit) AuditQuery() vkdeck.View {
-	return &auditView{home: k.d.App.Cfg.Home}
 }
 
 func (me *auditView) db() string { return auditvDBs[me.dbIndex] }
@@ -148,13 +144,7 @@ func (me *auditView) run() tea.Cmd {
 }
 
 func auditvReadOnly(query string) bool {
-	lower := strings.ToLower(strings.TrimSpace(query))
-	for _, p := range []string{"select", "with", "pragma", "describe", "show"} {
-		if strings.HasPrefix(lower, p) {
-			return true
-		}
-	}
-	return false
+	return config.DuckDBReadOnly(query)
 }
 
 func (me *auditView) dbPath() string {
