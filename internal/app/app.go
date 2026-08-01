@@ -360,12 +360,7 @@ func (a *App) openCache(mode cache.Mode) {
 }
 
 func (a *App) openTokens() {
-	ts, err := token.Open(context.Background(), config.DataPath(a.Cfg.Home, config.TokensDB))
-	if err != nil {
-		log.Debugf("token store unavailable: %v", err)
-		return
-	}
-	a.Tokens = ts
+	a.Tokens = token.New(config.DataPath(a.Cfg.Home, config.TokensDB))
 }
 
 func (a *App) openAudit() {
@@ -376,12 +371,7 @@ func (a *App) openAudit() {
 	if path == "" {
 		path = config.DataPath(a.Cfg.Home, config.AuditDB)
 	}
-	st, err := audit.Open(context.Background(), path)
-	if err != nil {
-		log.Debugf("audit disabled: %v", err)
-		return
-	}
-	a.Audit = st
+	a.Audit = audit.New(path)
 }
 
 func (a *App) Shutdown() {

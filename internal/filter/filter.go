@@ -3,6 +3,7 @@ package filter
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/signals"
@@ -21,10 +22,14 @@ type Filter struct {
 	Keywords map[string]string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
 }
 
+// compiledRule holds a rule's patterns; the lit fields are set only when the
+// pattern is a plain literal, in which case strings.Contains replaces the regexp.
 type compiledRule struct {
-	field   string
-	include *regexp.Regexp
-	exclude *regexp.Regexp
+	field      string
+	include    *regexp.Regexp
+	exclude    *regexp.Regexp
+	includeLit string
+	excludeLit string
 }
 
 type Compiled struct {
@@ -53,6 +58,7 @@ func Compile(f Filter) (Compiled, error) {
 				return Compiled{}, errs.Wrapf(errs.KindConfig, err, "filter %q rule %d: bad include regex", f.Name, i).WithHint("pattern: %s", r.Include)
 			}
 			cr.include = re
+			cr.includeLit = literalOf(r.Include)
 		}
 		if r.Exclude != "" {
 			re, err := regexp.Compile(r.Exclude)
@@ -60,10 +66,23 @@ func Compile(f Filter) (Compiled, error) {
 				return Compiled{}, errs.Wrapf(errs.KindConfig, err, "filter %q rule %d: bad exclude regex", f.Name, i).WithHint("pattern: %s", r.Exclude)
 			}
 			cr.exclude = re
+			cr.excludeLit = literalOf(r.Exclude)
 		}
 		c.rules = append(c.rules, cr)
 	}
 	return c, nil
+}
+
+// literalOf returns p when an unanchored regexp search for p is identical to
+// strings.Contains, else "". QuoteMeta round-tripping proves p holds none of
+// \.+*?()|[]{}^$, so it parses as a bare rune sequence with no anchors or
+// flags. U+FFFD is excluded because regexp also matches invalid input bytes
+// with it. Callers only pass non-empty p, so "" is an unambiguous "no".
+func literalOf(p string) string {
+	if regexp.QuoteMeta(p) != p || strings.ContainsRune(p, utf8.RuneError) {
+		return ""
+	}
+	return p
 }
 
 func CompileAll(filters []Filter) ([]Compiled, error) {
@@ -81,14 +100,22 @@ func CompileAll(filters []Filter) ([]Compiled, error) {
 func (c Compiled) keeps(it signals.Item) bool {
 	for _, r := range c.rules {
 		val := fieldValue(it, r.field)
-		if r.exclude != nil && r.exclude.MatchString(val) {
+		if r.exclude != nil && matches(r.exclude, r.excludeLit, val) {
 			return false
 		}
-		if r.include != nil && !r.include.MatchString(val) {
+		if r.include != nil && !matches(r.include, r.includeLit, val) {
 			return false
 		}
 	}
 	return true
+}
+
+// matches reports whether val hits re, taking the literal path when lit is set.
+func matches(re *regexp.Regexp, lit, val string) bool {
+	if lit != "" {
+		return strings.Contains(val, lit)
+	}
+	return re.MatchString(val)
 }
 
 func (c Compiled) Apply(items []signals.Item) []signals.Item {

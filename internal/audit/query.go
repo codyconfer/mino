@@ -32,10 +32,12 @@ type IntelRow struct {
 }
 
 func (s *Store) RecentEntries(limit int) ([]AuditRow, error) {
-	if s == nil {
+	ctx := context.Background()
+	j := s.journal(ctx)
+	if j == nil {
 		return nil, nil
 	}
-	runs, err := s.j.Recent(context.Background(), limit)
+	runs, err := j.Recent(ctx, limit)
 	if err != nil {
 		return toAuditRows(runs), errs.Wrap(errs.KindStore, err, "list recent runs")
 	}
@@ -43,10 +45,12 @@ func (s *Store) RecentEntries(limit int) ([]AuditRow, error) {
 }
 
 func (s *Store) Children(parentID int64) ([]AuditRow, error) {
-	if s == nil {
+	ctx := context.Background()
+	j := s.journal(ctx)
+	if j == nil {
 		return nil, nil
 	}
-	runs, err := s.j.Children(context.Background(), parentID)
+	runs, err := j.Children(ctx, parentID)
 	if err != nil {
 		return toAuditRows(runs), errs.Wrap(errs.KindStore, err, "list child runs")
 	}
@@ -54,10 +58,12 @@ func (s *Store) Children(parentID int64) ([]AuditRow, error) {
 }
 
 func (s *Store) Entry(id int64) (AuditRow, bool, error) {
-	if s == nil {
+	ctx := context.Background()
+	j := s.journal(ctx)
+	if j == nil {
 		return AuditRow{}, false, nil
 	}
-	r, ok, err := s.j.Get(context.Background(), id)
+	r, ok, err := j.Get(ctx, id)
 	if err != nil {
 		return AuditRow{}, ok, errs.Wrap(errs.KindStore, err, "get run")
 	}
@@ -68,10 +74,12 @@ func (s *Store) Entry(id int64) (AuditRow, bool, error) {
 }
 
 func (s *Store) Items(runID int64) ([]IntelRow, error) {
-	if s == nil {
+	ctx := context.Background()
+	j := s.journal(ctx)
+	if j == nil {
 		return nil, nil
 	}
-	recs, err := s.j.Records(context.Background(), runID)
+	recs, err := j.Records(ctx, runID)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindStore, err, "read run items")
 	}

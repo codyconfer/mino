@@ -107,7 +107,8 @@ func fetchSections(ctx context.Context, name string, q Query) (sections []signal
 	return q.Src.Fetch(ctx)
 }
 
-func FetchQuery(ctx context.Context, au *audit.Store, role string, timeout time.Duration, q Query, parentID int64) []signals.Section {
+// fetchOne runs one query and returns its sections plus the audit run describing it.
+func fetchOne(ctx context.Context, role string, timeout time.Duration, q Query, parentID int64) ([]signals.Section, audit.QueryRun) {
 	fetchCtx, cancelFetch := context.WithTimeout(ctx, timeout)
 	defer cancelFetch()
 
@@ -125,15 +126,36 @@ func FetchQuery(ctx context.Context, au *audit.Store, role string, timeout time.
 	if label == "" {
 		label = name
 	}
-	recordCtx, cancelRecord := context.WithTimeout(ctx, timeout)
-	defer cancelRecord()
-	au.RecordQueryContext(recordCtx, parentID, label, role, started, time.Now(), sections)
+	return sections, audit.QueryRun{
+		ParentID: parentID,
+		Label:    label,
+		Role:     role,
+		Started:  started,
+		Finished: time.Now(),
+		Sections: sections,
+	}
+}
+
+// record writes buffered query runs, tolerating a store that cannot be reached.
+func record(ctx context.Context, au *audit.Store, timeout time.Duration, runs []audit.QueryRun) {
+	if au == nil || len(runs) == 0 {
+		return
+	}
+	recordCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	au.RecordQueriesContext(recordCtx, runs)
+}
+
+func FetchQuery(ctx context.Context, au *audit.Store, role string, timeout time.Duration, q Query, parentID int64) []signals.Section {
+	sections, run := fetchOne(ctx, role, timeout, q, parentID)
+	record(ctx, au, timeout, []audit.QueryRun{run})
 	return sections
 }
 
 func FetchGroups(ctx context.Context, au *audit.Store, role string, timeout time.Duration, queries []Query, parentID int64) []Group {
 	results := make([]Group, len(queries))
-	g, ctx := errgroup.WithContext(ctx)
+	runs := make([]audit.QueryRun, len(queries))
+	g, fetchCtx := errgroup.WithContext(ctx)
 	g.SetLimit(FetchLimit())
 	for i, q := range queries {
 		g.Go(func() error {
@@ -146,22 +168,40 @@ func FetchGroups(ctx context.Context, au *audit.Store, role string, timeout time
 				if r := recover(); r != nil {
 					log.Debugf("panic while running query %s: %v\n%s", label, r, debug.Stack())
 					results[i] = Group{Query: label, Title: q.Display(), Sections: errSection(name, panicErr(name, r))}
+					runs[i] = audit.QueryRun{}
 				}
 			}()
-			results[i] = Group{
-				Query:    label,
-				Title:    q.Display(),
-				Sections: FetchQuery(ctx, au, role, timeout, q, parentID),
-			}
+			sections, run := fetchOne(fetchCtx, role, timeout, q, parentID)
+			results[i], runs[i] = Group{Query: label, Title: q.Display(), Sections: sections}, run
 			return nil
 		})
 	}
 	_ = g.Wait()
+	record(ctx, au, timeout, recorded(runs))
 	return results
 }
 
+// recorded drops the placeholders left by queries that panicked.
+func recorded(runs []audit.QueryRun) []audit.QueryRun {
+	out := runs[:0]
+	for _, r := range runs {
+		if r.Started.IsZero() {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
 func Flatten(groups []Group) []signals.Section {
-	var all []signals.Section
+	n := 0
+	for _, g := range groups {
+		n += len(g.Sections)
+	}
+	if n == 0 {
+		return nil
+	}
+	all := make([]signals.Section, 0, n)
 	for _, g := range groups {
 		all = append(all, g.Sections...)
 	}

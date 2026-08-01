@@ -8,3 +8,6 @@
 go.work*
 .mino/
 .mino-*/
+
+# compiled test binaries (go test -c)
+*.test

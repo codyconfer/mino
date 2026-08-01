@@ -1,7 +1,6 @@
 package render
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -23,6 +22,7 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 	}
 
 	th := f.Theme()
+	it := newItemTheme(f.Glyphs(), th)
 	c := tree.ConnectorsIn(f.Glyphs(), th)
 
 	rows := make([]tree.Row, 0, len(sections)+1)
@@ -33,19 +33,20 @@ func FlightTree(f layout.Frame, root string, sections []signals.Section) []tree.
 		last := i == len(sections)-1
 		_, spad := c.Edge(last)
 		rows = append(rows, tree.Branch(c, last, []string{sectionHead(f.Glyphs(), th, i, s)}, ""))
-		rows = append(rows, sectionLeaves(f, th, c, spad, s)...)
+		rows = append(rows, sectionLeaves(f, it, c, spad, s)...)
 	}
 	return rows
 }
 
 func SectionRows(f layout.Frame, sections []signals.Section) []tree.Row {
 	th := f.Theme()
+	it := newItemTheme(f.Glyphs(), th)
 	c := tree.ConnectorsIn(f.Glyphs(), th)
 
 	rows := make([]tree.Row, 0, len(sections))
 	for i, s := range sections {
 		rows = append(rows, tree.Row{Lines: []string{sectionHead(f.Glyphs(), th, i, s)}})
-		rows = append(rows, sectionLeaves(f, th, c, "", s)...)
+		rows = append(rows, sectionLeaves(f, it, c, "", s)...)
 	}
 	return rows
 }
@@ -64,7 +65,7 @@ func sectionTitle(s signals.Section) string {
 }
 
 func sectionHead(g glyph.Set, th theme.Theme, i int, s signals.Section) string {
-	title := fmt.Sprintf("%s  (%s)", signals.CleanLine(sectionTitle(s)), sectionCount(s))
+	title := signals.CleanLine(sectionTitle(s)) + "  (" + sectionCount(s) + ")"
 	icon := th.Series[i%len(th.Series)].Render(glyph.Lead(sectionGlyph(g, s)))
 	return icon + th.Title.Render(title) + staleChip(th, s)
 }
@@ -114,12 +115,16 @@ func sectionCount(s signals.Section) string {
 	return strconv.Itoa(len(s.Items))
 }
 
-func sectionLeaves(f layout.Frame, th theme.Theme, c tree.Connectors, spad string, s signals.Section) []tree.Row {
+func sectionLeaves(f layout.Frame, t itemTheme, c tree.Connectors, spad string, s signals.Section) []tree.Row {
+	th := t.th
 	switch {
 	case s.Err != nil:
-		errLines := strings.Split(signals.Clean(s.Err.Error()), "\n")
-		body := []string{th.Cant.Render(glyph.Lead(f.Glyphs().Warn()) + errLines[0])}
-		for _, l := range errLines[1:] {
+		var body []string
+		for l := range strings.SplitSeq(signals.Clean(s.Err.Error()), "\n") {
+			if len(body) == 0 {
+				body = append(body, th.Cant.Render(glyph.Lead(f.Glyphs().Warn())+l))
+				continue
+			}
 			body = append(body, th.Dim.Render(l))
 		}
 		return []tree.Row{tree.Leaf(c, spad, true, body, "")}
@@ -130,7 +135,7 @@ func sectionLeaves(f layout.Frame, th theme.Theme, c tree.Connectors, spad strin
 		lf := f.WithWidth(f.Width - c.Indent(spad))
 		rows := make([]tree.Row, 0, len(s.Items))
 		for j, it := range s.Items {
-			row := tree.Leaf(c, spad, j == len(s.Items)-1, itemLines(lf, th, it), it.URL)
+			row := tree.Leaf(c, spad, j == len(s.Items)-1, itemLinesIn(lf, t, it), it.URL)
 			row.Payload = ItemRef{Signal: s.Signal, Item: it, Meta: s.Meta}
 			rows = append(rows, row)
 		}

@@ -2,31 +2,76 @@ package audit
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/codyconfer/sisyphus/journal"
 
 	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 	"github.com/codyconfer/mino/internal/signals"
 )
 
 type Store struct {
-	j *journal.Store
+	path string
+
+	mu     sync.Mutex
+	j      *journal.Store
+	opened bool
+	closed bool
 }
+
+// New returns a store that opens path on first use.
+func New(path string) *Store { return &Store{path: path} }
 
 func Open(ctx context.Context, path string) (*Store, error) {
 	j, err := journal.Open(ctx, path)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindStore, err, "open audit store")
 	}
-	return &Store{j: j}, nil
+	return &Store{path: path, j: j, opened: true}, nil
+}
+
+// journal opens the backing journal on first use, or nil when unavailable.
+func (s *Store) journal(ctx context.Context) *journal.Store {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		log.Debugf("audit: dropping work issued after close")
+		return nil
+	}
+	if s.opened {
+		return s.j
+	}
+	s.opened = true
+	if s.path == "" {
+		return nil
+	}
+	j, err := journal.Open(ctx, s.path)
+	if err != nil {
+		log.Debugf("audit disabled: %v", err)
+		return nil
+	}
+	s.j = j
+	return j
 }
 
 func (s *Store) Close() error {
 	if s == nil {
 		return nil
 	}
-	if err := s.j.Close(); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closed = true
+	if s.j == nil {
+		return nil
+	}
+	j := s.j
+	s.j = nil
+	if err := j.Close(); err != nil {
 		return errs.Wrap(errs.KindStore, err, "close audit store")
 	}
 	return nil
@@ -37,10 +82,11 @@ func (s *Store) StartFlight(name, role string) int64 {
 }
 
 func (s *Store) StartFlightContext(ctx context.Context, name, role string) int64 {
-	if s == nil {
+	j := s.journal(ctx)
+	if j == nil {
 		return 0
 	}
-	id, _ := s.j.StartRun(ctx, "flight", name, roleAttrs(role))
+	id, _ := j.StartRun(ctx, "flight", name, roleAttrs(role))
 	return id
 }
 
@@ -49,10 +95,19 @@ func (s *Store) FinishFlight(id int64) {
 }
 
 func (s *Store) FinishFlightContext(ctx context.Context, id int64) {
-	if s == nil {
+	j := s.journal(ctx)
+	if j == nil {
 		return
 	}
-	_ = s.j.FinishRun(ctx, id)
+	_ = j.FinishRun(ctx, id)
+}
+
+// QueryRun is one recorded query, buffered so a flight can flush them together.
+type QueryRun struct {
+	ParentID          int64
+	Label, Role       string
+	Started, Finished time.Time
+	Sections          []signals.Section
 }
 
 func (s *Store) RecordQuery(parentID int64, label, role string, started, finished time.Time, sections []signals.Section) {
@@ -60,10 +115,24 @@ func (s *Store) RecordQuery(parentID int64, label, role string, started, finishe
 }
 
 func (s *Store) RecordQueryContext(ctx context.Context, parentID int64, label, role string, started, finished time.Time, sections []signals.Section) {
-	if s == nil {
+	s.RecordQueriesContext(ctx, []QueryRun{{
+		ParentID: parentID, Label: label, Role: role,
+		Started: started, Finished: finished, Sections: sections,
+	}})
+}
+
+// RecordQueriesContext writes every buffered query against a single open journal.
+func (s *Store) RecordQueriesContext(ctx context.Context, runs []QueryRun) {
+	if len(runs) == 0 {
 		return
 	}
-	_, _ = s.j.Add(ctx, runFor(parentID, "query", label, role, started, finished, sections), recordsFor(sections))
+	j := s.journal(ctx)
+	if j == nil {
+		return
+	}
+	for _, r := range runs {
+		_, _ = j.Add(ctx, runFor(r.ParentID, "query", r.Label, r.Role, r.Started, r.Finished, r.Sections), recordsFor(r.Sections))
+	}
 }
 
 func (s *Store) RecordAction(label, role string, started, finished time.Time, sections []signals.Section) {
@@ -71,10 +140,11 @@ func (s *Store) RecordAction(label, role string, started, finished time.Time, se
 }
 
 func (s *Store) RecordActionContext(ctx context.Context, label, role string, started, finished time.Time, sections []signals.Section) {
-	if s == nil {
+	j := s.journal(ctx)
+	if j == nil {
 		return
 	}
-	_, _ = s.j.Add(ctx, runFor(0, "write", label, role, started, finished, sections), recordsFor(sections))
+	_, _ = j.Add(ctx, runFor(0, "write", label, role, started, finished, sections), recordsFor(sections))
 }
 
 func (s *Store) Delete(id int64) error {
@@ -82,10 +152,11 @@ func (s *Store) Delete(id int64) error {
 }
 
 func (s *Store) DeleteContext(ctx context.Context, id int64) error {
-	if s == nil {
+	j := s.journal(ctx)
+	if j == nil {
 		return errs.New(errs.KindStore, "audit is disabled")
 	}
-	if err := s.j.Delete(ctx, id); err != nil {
+	if err := j.Delete(ctx, id); err != nil {
 		return errs.Wrapf(errs.KindStore, err, "deleting run %d", id)
 	}
 	return nil

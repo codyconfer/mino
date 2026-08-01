@@ -128,8 +128,9 @@ func adaptStatus(scope *ui.Scope, info StatusInfo) vkdeck.StatusInfo {
 		scope = ui.Default()
 	}
 	out := vkdeck.StatusInfo{Identity: identity(scope, info)}
+	hidden := config.HiddenStatusBar()
 	for _, s := range info.Services {
-		if statusBarHidden(s) {
+		if statusBarHidden(hidden, s) {
 			continue
 		}
 		s.Name, s.Detail = serviceChip(s.Name, s.Detail)
@@ -139,12 +140,12 @@ func adaptStatus(scope *ui.Scope, info StatusInfo) vkdeck.StatusInfo {
 	return out
 }
 
-func statusBarHidden(s ServiceStatus) bool {
+func statusBarHidden(hidden []string, s ServiceStatus) bool {
 	id := s.ID
 	if id == "" {
 		id = s.Name
 	}
-	return config.StatusBarHidden(id)
+	return config.StatusBarHiddenIn(hidden, id)
 }
 
 func serviceLabel(name string) string {

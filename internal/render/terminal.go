@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/list"
 	"github.com/codyconfer/viewkit/theme"
@@ -116,11 +118,11 @@ func (r SectionResults) Errored() int {
 }
 
 func ItemRows(f layout.Frame, items []signals.Item) []list.Item {
-	th := f.Theme()
+	t := newItemTheme(f.Glyphs(), f.Theme())
 	rows := make([]list.Item, 0, len(items))
 	for _, it := range items {
 		rows = append(rows, list.Item{
-			Block:      strings.Join(itemLines(f, th, it), "\n"),
+			Block:      strings.Join(itemLinesIn(f, t, it), "\n"),
 			Key:        it.URL,
 			Selectable: it.URL != "",
 		})
@@ -142,7 +144,65 @@ func lastCommentTime(it signals.Item) (time.Time, bool) {
 	return t, true
 }
 
+// sevTheme caches a theme's severity styles for one render pass, so the lookup
+// does not repeat per item.
+type sevTheme struct {
+	th  theme.Theme
+	sty [4]lipgloss.Style
+}
+
+func newSevTheme(th theme.Theme) sevTheme {
+	t := sevTheme{th: th}
+	for i := range t.sty {
+		t.sty[i] = th.SeverityStyle(glyph.Kind(i))
+	}
+	return t
+}
+
+// style returns the cached style for k, resolving unknown kinds on the fly.
+func (t sevTheme) style(k glyph.Kind) lipgloss.Style {
+	if k >= 0 && int(k) < len(t.sty) {
+		return t.sty[k]
+	}
+	return t.th.SeverityStyle(k)
+}
+
+// itemTheme adds the prerendered severity leads for one glyph set, so the item
+// icon is styled once per pass instead of once per item.
+type itemTheme struct {
+	sevTheme
+	g     glyph.Set
+	icons [4]string
+}
+
+func newItemTheme(g glyph.Set, th theme.Theme) itemTheme {
+	t := itemTheme{sevTheme: newSevTheme(th), g: g}
+	for i := range t.icons {
+		t.icons[i] = t.renderIcon(glyph.Kind(i))
+	}
+	return t
+}
+
+// icon returns the cached rendered lead for k.
+func (t itemTheme) icon(k glyph.Kind) string {
+	if k >= 0 && int(k) < len(t.icons) {
+		return t.icons[k]
+	}
+	return t.renderIcon(k)
+}
+
+func (t itemTheme) renderIcon(k glyph.Kind) string {
+	return t.style(k).Render(glyph.Lead(glyph.ForIn(t.g, k)))
+}
+
 func lastCommentChip(th theme.Theme, it signals.Item) string {
+	at, ok := lastCommentTime(it)
+	return commentChip(newSevTheme(th), it, at, ok)
+}
+
+// commentChip renders the last-comment cue; at and hasAge come from
+// lastCommentTime, which the caller already needs.
+func commentChip(t sevTheme, it signals.Item, at time.Time, hasAge bool) string {
 	last := it.Meta["last_comment_by"]
 	if last == "" {
 		return ""
@@ -151,40 +211,43 @@ func lastCommentChip(th theme.Theme, it signals.Item) string {
 	if it.Meta["last_comment_team"] == "true" {
 		chip += " ·team"
 	}
-	if t, ok := lastCommentTime(it); ok {
-		chip += " ·" + timefmt.Rel(t)
+	if hasAge {
+		chip += " ·" + timefmt.Rel(at)
 	}
 	switch it.Meta["last_comment_team"] {
 	case "true":
-		return th.SeverityStyle(glyph.KindPositive).Render(chip)
+		return t.style(glyph.KindPositive).Render(chip)
 	case "false":
-		return th.SeverityStyle(glyph.KindWarning).Render(chip)
+		return t.style(glyph.KindWarning).Render(chip)
 	default:
-		return th.Dim.Render(chip)
+		return t.th.Dim.Render(chip)
 	}
 }
 
 func itemLines(f layout.Frame, th theme.Theme, it signals.Item) []string {
+	return itemLinesIn(f, newItemTheme(f.Glyphs(), th), it)
+}
+
+func itemLinesIn(f layout.Frame, t itemTheme, it signals.Item) []string {
 	it = signals.CleanItem(it)
 
-	sev := glyph.ClassifyItem(it)
-	icon := th.SeverityStyle(sev).Render(glyph.Lead(glyph.ForIn(f.Glyphs(), sev)))
-	head := icon + th.Val.Render(it.Title)
+	th := t.th
+	head := t.icon(glyph.ClassifyItem(it)) + th.Val.Render(it.Title)
 	if it.Subtitle != "" {
 		head += "  " + th.Dim.Render(it.Subtitle)
 	}
 	if author := it.Meta["author"]; author != "" {
 		head += "  " + th.Dim.Render("@"+author)
 	}
-	tail := lastCommentChip(th, it)
-	_, hasAge := lastCommentTime(it)
+	at, hasAge := lastCommentTime(it)
+	tail := commentChip(t.sevTheme, it, at, hasAge)
 	if !it.Timestamp.IsZero() && (tail == "" || !hasAge) {
 		if tail != "" {
 			tail += "  "
 		}
 		tail += th.Dim.Render(timefmt.Rel(it.Timestamp))
 	}
-	var lines []string
+	lines := make([]string, 0, 2)
 	if tail != "" {
 		lines = append(lines, f.Spread(head, tail))
 	} else {

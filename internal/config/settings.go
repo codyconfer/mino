@@ -3,7 +3,9 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -78,12 +80,62 @@ func readGlobalSettingsAt(path string) (GlobalSettings, error) {
 	return gs, nil
 }
 
+type settingsEntry struct {
+	gs   GlobalSettings
+	mod  time.Time
+	size int64
+}
+
+var (
+	settingsCacheMu sync.Mutex
+	settingsCache   = map[string]settingsEntry{}
+)
+
+// clone detaches the slice fields so cached settings are never aliased.
+func (gs GlobalSettings) clone() GlobalSettings {
+	gs.InstalledPlugins = slices.Clone(gs.InstalledPlugins)
+	gs.DisabledPlugins = slices.Clone(gs.DisabledPlugins)
+	gs.HiddenStatusBar = slices.Clone(gs.HiddenStatusBar)
+	return gs
+}
+
+func dropCachedSettings(path string) {
+	settingsCacheMu.Lock()
+	delete(settingsCache, path)
+	settingsCacheMu.Unlock()
+}
+
+// cachedGlobalSettingsAt reuses the last parse of path while its mtime and size
+// are unchanged; misses, missing files and errors always hit the disk.
+func cachedGlobalSettingsAt(path string) (GlobalSettings, error) {
+	fi, statErr := os.Stat(path)
+	if statErr != nil || !fi.Mode().IsRegular() {
+		dropCachedSettings(path)
+		return readGlobalSettingsAt(path)
+	}
+	settingsCacheMu.Lock()
+	e, ok := settingsCache[path]
+	settingsCacheMu.Unlock()
+	if ok && e.size == fi.Size() && e.mod.Equal(fi.ModTime()) {
+		return e.gs.clone(), nil
+	}
+	gs, err := readGlobalSettingsAt(path)
+	if err != nil {
+		dropCachedSettings(path)
+		return gs, err
+	}
+	settingsCacheMu.Lock()
+	settingsCache[path] = settingsEntry{gs: gs.clone(), mod: fi.ModTime(), size: fi.Size()}
+	settingsCacheMu.Unlock()
+	return gs, nil
+}
+
 func loadGlobalSettings() (string, GlobalSettings, error) {
 	path := GlobalSettingsPath()
 	if path == "" {
 		return "", GlobalSettings{}, errs.New(errs.KindInternal, "cannot resolve global settings path")
 	}
-	gs, err := readGlobalSettingsAt(path)
+	gs, err := cachedGlobalSettingsAt(path)
 	return path, gs, err
 }
 
@@ -113,6 +165,7 @@ func SaveGlobalSettings(gs GlobalSettings) error {
 	if path == "" {
 		return errs.New(errs.KindInternal, "cannot resolve global settings path")
 	}
+	defer dropCachedSettings(path)
 	if _, err := readGlobalSettingsAt(path); err != nil {
 		return errs.Wrap(errs.KindConfig, err, "refusing to overwrite global settings").
 			WithHint("fix the syntax in %s, or delete the file to start from defaults", path)
@@ -140,11 +193,19 @@ func isLegacyGoogleStatusBarID(id string) bool {
 	return false
 }
 
+// HiddenStatusBar returns the user's hidden status-bar ids, for callers that
+// test many ids at once via StatusBarHiddenIn.
+func HiddenStatusBar() []string { return LoadGlobalSettings().HiddenStatusBar }
+
 func StatusBarHidden(id string) bool {
+	return StatusBarHiddenIn(HiddenStatusBar(), id)
+}
+
+// StatusBarHiddenIn reports whether id is hidden per an already-read hidden list.
+func StatusBarHiddenIn(hidden []string, id string) bool {
 	if id == "" {
 		return false
 	}
-	hidden := LoadGlobalSettings().HiddenStatusBar
 	if id == "google" {
 		for _, h := range hidden {
 			if h == "google" || isLegacyGoogleStatusBarID(h) {
