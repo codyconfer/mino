@@ -3,6 +3,7 @@ package deck
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -146,6 +147,26 @@ func TestResultsAnimationWaitsForLoad(t *testing.T) {
 	lst.generation = 1
 	if cmd := lst.Update(New(lst), resultsAnimationMsg{generation: 1}); cmd == nil {
 		t.Fatal("animation tick stopped before results loaded")
+	}
+}
+
+func TestResultsPollReloadsOnlyInProgressResults(t *testing.T) {
+	sections := []signals.Section{{Items: []signals.Item{{
+		Kind: "workflow", Meta: map[string]string{"status": "in_progress"},
+	}}}}
+	lst := NewResults("workflows", nil, func() []signals.Section { return sections }, nil).PollEvery(time.Minute)
+	lst.sections, lst.loaded, lst.generation = sections, true, 4
+	if cmd := lst.Update(New(lst), resultsPollMsg{generation: 4}); cmd == nil {
+		t.Fatal("in-progress results did not reload on a poll")
+	}
+	if lst.loaded || lst.generation != 5 {
+		t.Fatalf("poll state = loaded %t, generation %d; want false, 5", lst.loaded, lst.generation)
+	}
+
+	lst.sections[0].Items[0].Meta["status"] = "completed"
+	lst.loaded = true
+	if cmd := lst.Update(New(lst), resultsPollMsg{generation: 5}); cmd != nil {
+		t.Fatal("settled results continued polling")
 	}
 }
 

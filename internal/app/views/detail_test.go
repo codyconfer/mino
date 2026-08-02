@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -133,6 +134,48 @@ func TestDetailViewTicksWhileWorkflowIsInProgress(t *testing.T) {
 	detail.Sections[len(detail.Sections)-1].Meta["in_progress"] = "false"
 	if cmd := v.Update(nil, detailAnimationMsg{}); cmd != nil {
 		t.Error("completed workflow kept the animation tick alive")
+	}
+}
+
+func TestDetailViewPollsAndStopsWhenWorkflowSettles(t *testing.T) {
+	ref := detailTestRef()
+	ref.Item.Kind = "workflow"
+	ref.Item.Meta = map[string]string{"status": "in_progress", "run_id": "42"}
+	active := &signals.ItemDetail{
+		Kind: "workflow",
+		Sections: []signals.DetailSection{{
+			Meta: map[string]string{"run_id": "42", "in_progress": "true"},
+		}},
+	}
+	settled := &signals.ItemDetail{
+		Kind: "workflow",
+		Sections: []signals.DetailSection{{
+			Meta: map[string]string{"run_id": "42"},
+			Rows: [][2]string{{"test", "success"}},
+		}},
+	}
+	var calls int
+	v := &DetailView{
+		ref: ref, detail: active, pollInterval: time.Minute, pollGeneration: 3,
+		fetch: func(string, signals.Item) (*signals.ItemDetail, error) {
+			calls++
+			return settled, nil
+		},
+	}
+	cmd := v.Update(nil, detailPollMsg{generation: 3})
+	if cmd == nil {
+		t.Fatal("in-progress detail did not fetch on a poll")
+	}
+	msg, ok := cmd().(detailLoadedMsg)
+	if !ok || calls != 1 {
+		t.Fatalf("poll result = %T, calls = %d; want detailLoadedMsg, 1", msg, calls)
+	}
+	v.Update(nil, msg)
+	if render.ItemInProgress(v.ref.Item) {
+		t.Fatal("settled workflow kept the stale result spinner")
+	}
+	if cmd := v.Update(nil, detailPollMsg{generation: v.pollGeneration}); cmd != nil {
+		t.Fatal("settled detail continued polling")
 	}
 }
 

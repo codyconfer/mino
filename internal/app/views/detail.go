@@ -23,23 +23,26 @@ type detailLoadedMsg struct {
 }
 
 type detailAnimationMsg struct{}
+type detailPollMsg struct{ generation int }
 
 const detailAnimationInterval = 80 * time.Millisecond
 
 type DetailView struct {
-	ref       render.ItemRef
-	fetch     func(signal string, it signals.Item) (*signals.ItemDetail, error)
-	open      func(url string) error
-	detail    *signals.ItemDetail
-	err       error
-	loading   bool
-	frame     int
-	animating bool
-	scroll    vkdeck.ScrollBody
+	ref            render.ItemRef
+	fetch          func(signal string, it signals.Item) (*signals.ItemDetail, error)
+	open           func(url string) error
+	detail         *signals.ItemDetail
+	err            error
+	loading        bool
+	frame          int
+	animating      bool
+	pollInterval   time.Duration
+	pollGeneration int
+	scroll         vkdeck.ScrollBody
 }
 
 func (k *Kit) Detail(ref render.ItemRef) vkdeck.View {
-	return &DetailView{ref: ref, fetch: k.d.FetchDetail}
+	return &DetailView{ref: ref, fetch: k.d.FetchDetail, pollInterval: k.statusPollInterval()}
 }
 
 func (v *DetailView) Title() string { return render.ItemLabel(v.ref.Item) }
@@ -79,7 +82,9 @@ func (v *DetailView) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case detailLoadedMsg:
 		v.detail, v.err, v.loading = m.detail, m.err, false
-		return v.animate()
+		v.settleWorkflowItem()
+		v.pollGeneration++
+		return tea.Batch(v.animate(), v.pollTick(v.pollGeneration))
 	case detailAnimationMsg:
 		if !render.DetailAnimates(v.ref, v.detail) {
 			v.animating = false
@@ -87,10 +92,56 @@ func (v *DetailView) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		}
 		v.frame++
 		return detailAnimationTick()
+	case detailPollMsg:
+		if m.generation != v.pollGeneration || v.fetch == nil || !render.DetailAnimates(v.ref, v.detail) {
+			return nil
+		}
+		ref, fetch := v.ref, v.fetch
+		return func() tea.Msg {
+			d, err := fetch(ref.Signal, ref.Item)
+			return detailLoadedMsg{detail: d, err: err}
+		}
 	case tea.KeyMsg:
 		return v.handleKey(h, m)
 	}
 	return nil
+}
+
+func (v *DetailView) pollTick(generation int) tea.Cmd {
+	if v.pollInterval <= 0 || v.fetch == nil || !render.DetailAnimates(v.ref, v.detail) {
+		return nil
+	}
+	return tea.Tick(v.pollInterval, func(time.Time) tea.Msg { return detailPollMsg{generation: generation} })
+}
+
+func (v *DetailView) settleWorkflowItem() {
+	if v.detail == nil || v.detail.Kind != "workflow" || !render.ItemInProgress(v.ref.Item) || render.DetailHasInProgress(v.detail) {
+		return
+	}
+	hasWorkflow := false
+	for _, section := range v.detail.Sections {
+		if section.Meta["run_id"] != "" {
+			hasWorkflow = true
+			if len(section.Rows) == 0 {
+				return
+			}
+			for _, row := range section.Rows {
+				switch row[1] {
+				case "", "in progress", "queued", "pending", "waiting", "requested", "action required":
+					return
+				}
+			}
+		}
+	}
+	if !hasWorkflow {
+		return
+	}
+	meta := make(map[string]string, len(v.ref.Item.Meta))
+	for key, value := range v.ref.Item.Meta {
+		meta[key] = value
+	}
+	meta["status"] = "completed"
+	v.ref.Item.Meta = meta
 }
 
 func detailAnimationTick() tea.Cmd {

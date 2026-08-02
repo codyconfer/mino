@@ -17,18 +17,26 @@ import (
 const listIndent = 2
 
 type homeAnimationMsg struct{ generation int }
+type homePollMsg struct{ generation int }
 
 const homeAnimationInterval = 80 * time.Millisecond
 
 type Home struct {
 	*vkdeck.HomeShell
 
-	flightName func() string
-	sections   []signals.Section
-	frame      int
-	generation int
-	width      int
-	loaded     bool
+	flightName   func() string
+	sections     []signals.Section
+	frame        int
+	generation   int
+	width        int
+	loaded       bool
+	pollInterval time.Duration
+	polling      bool
+}
+
+func (h *Home) PollEvery(interval time.Duration) *Home {
+	h.pollInterval = interval
+	return h
 }
 
 func NewHome(title string, ctx []keys.Hint, items []vkdeck.MenuItem, flightName func() string, load func(name string) []signals.Section, onSelect SelectFunc) *Home {
@@ -100,9 +108,15 @@ func (h *Home) Update(m *vkdeck.Model, msg tea.Msg) tea.Cmd {
 			return cmd
 		}
 		h.generation++
+		h.polling = false
 		return tea.Batch(cmd, homeAnimationTick(h.generation))
 	case homeAnimationMsg:
 		return h.advance(m, t.generation)
+	case homePollMsg:
+		if t.generation != h.generation || !h.loaded || !render.SectionsHaveInProgress(h.sections) {
+			return nil
+		}
+		return h.restart(h.HomeShell.Update(m, vkdeck.ReloadMsg{}))
 	case vkdeck.ReloadMsg:
 		return h.restart(h.HomeShell.Update(m, msg))
 	case tea.KeyMsg:
@@ -130,7 +144,12 @@ func (h *Home) advance(m *vkdeck.Model, generation int) tea.Cmd {
 	}
 	h.frame++
 	h.rebind(m)
-	return homeAnimationTick(h.generation)
+	animation := homeAnimationTick(h.generation)
+	if h.polling || h.pollInterval <= 0 {
+		return animation
+	}
+	h.polling = true
+	return tea.Batch(animation, h.pollTick(h.generation))
 }
 
 func (h *Home) restart(cmd tea.Cmd) tea.Cmd {
@@ -138,8 +157,16 @@ func (h *Home) restart(cmd tea.Cmd) tea.Cmd {
 		return cmd
 	}
 	h.loaded = false
+	h.polling = false
 	h.generation++
 	return tea.Batch(cmd, homeAnimationTick(h.generation))
+}
+
+func (h *Home) pollTick(generation int) tea.Cmd {
+	if h.pollInterval <= 0 {
+		return nil
+	}
+	return tea.Tick(h.pollInterval, func(time.Time) tea.Msg { return homePollMsg{generation: generation} })
 }
 
 func (h *Home) rebind(m *vkdeck.Model) {

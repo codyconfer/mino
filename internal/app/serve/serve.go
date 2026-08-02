@@ -431,6 +431,11 @@ func (s *Server) WatchAttached(events <-chan signals.Event) error {
 func (s *Server) serveView(name string, events <-chan signals.Event) *views.ServeView {
 	v := views.NewServeView(name, events)
 	v.FetchDetail = s.fetchDetail
+	if interval, err := time.ParseDuration(s.Cfg.Daemon.Interval); err == nil && interval > 0 {
+		v.DetailPollInterval = interval
+	} else {
+		v.DetailPollInterval = time.Minute
+	}
 	return v
 }
 

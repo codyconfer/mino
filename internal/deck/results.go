@@ -17,16 +17,24 @@ import (
 type SelectFunc func(h *vkdeck.Model, ref render.ItemRef) tea.Cmd
 
 type resultsAnimationMsg struct{ generation int }
+type resultsPollMsg struct{ generation int }
 
 const resultsAnimationInterval = 80 * time.Millisecond
 
 type Results struct {
 	*vkdeck.ItemList
-	sections   []signals.Section
-	frame      int
-	generation int
-	width      int
-	loaded     bool
+	sections     []signals.Section
+	frame        int
+	generation   int
+	width        int
+	loaded       bool
+	pollInterval time.Duration
+	polling      bool
+}
+
+func (r *Results) PollEvery(interval time.Duration) *Results {
+	r.pollInterval = interval
+	return r
 }
 
 func NewResults(title string, ctx []keys.Hint, load func() []signals.Section, onSelect SelectFunc) *Results {
@@ -70,6 +78,7 @@ func (r *Results) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	if key, ok := msg.(tea.KeyMsg); ok {
 		if action, bound := h.UI().Keys.MapFor(keys.Reload).Action(key.String()); bound && action == keys.Reload {
 			r.loaded = false
+			r.polling = false
 			r.generation++
 			return tea.Batch(r.ItemList.Update(h, msg), resultsAnimationTick(r.generation))
 		}
@@ -79,6 +88,7 @@ func (r *Results) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		r.width = m.Width
 		cmd := r.ItemList.Update(h, msg)
 		if render.SectionsHaveInProgress(r.sections) {
+			r.polling = false
 			r.generation++
 			return tea.Batch(cmd, resultsAnimationTick(r.generation))
 		}
@@ -100,14 +110,37 @@ func (r *Results) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		}
 		r.ItemList.Update(h, tea.WindowSizeMsg{Width: transient})
 		r.ItemList.Update(h, tea.WindowSizeMsg{Width: r.width})
-		return resultsAnimationTick(r.generation)
+		animation := resultsAnimationTick(r.generation)
+		if r.polling || r.pollInterval <= 0 {
+			return animation
+		}
+		r.polling = true
+		return tea.Batch(animation, r.pollTick(r.generation))
+	case resultsPollMsg:
+		if m.generation != r.generation || !r.loaded || !render.SectionsHaveInProgress(r.sections) {
+			return nil
+		}
+		r.loaded = false
+		r.polling = false
+		r.generation++
+		return tea.Batch(r.ItemList.Update(h, vkdeck.ReloadMsg{}), resultsAnimationTick(r.generation))
 	case vkdeck.ReloadMsg:
 		r.loaded = false
+		r.polling = false
 		r.generation++
 		return tea.Batch(r.ItemList.Update(h, msg), resultsAnimationTick(r.generation))
 	default:
 		return r.ItemList.Update(h, msg)
 	}
+}
+
+func (r *Results) pollTick(generation int) tea.Cmd {
+	if r.pollInterval <= 0 {
+		return nil
+	}
+	return tea.Tick(r.pollInterval, func(time.Time) tea.Msg {
+		return resultsPollMsg{generation: generation}
+	})
 }
 
 func resultsAnimationTick(generation int) tea.Cmd {

@@ -40,7 +40,8 @@ type ServeView struct {
 	last   string
 	closed bool
 
-	FetchDetail func(signal string, it signals.Item) (*signals.ItemDetail, error)
+	FetchDetail        func(signal string, it signals.Item) (*signals.ItemDetail, error)
+	DetailPollInterval time.Duration
 
 	refs  []render.ItemRef
 	lst   list.Model
@@ -167,7 +168,7 @@ func (v *ServeView) confirm(a *vkdeck.Model) tea.Cmd {
 	if !ok || v.FetchDetail == nil {
 		return nil
 	}
-	return a.Push(&DetailView{ref: ref, fetch: v.FetchDetail})
+	return a.Push(&DetailView{ref: ref, fetch: v.FetchDetail, pollInterval: v.DetailPollInterval})
 }
 
 func (v *ServeView) Body(f layout.Frame) string {

@@ -876,7 +876,9 @@ these namespaces instead, because they ship in
 sections under `plugins:` when you build the overlay.
 
 **Realtime defaults** for `serve`/`daemon` live under `daemon:` in `config.yaml`
-(`interval`, `bell`, `desktop`, `tray`, `theme`); command flags override them
+(`interval`, `bell`, `desktop`, `tray`, `theme`). The deck also uses `interval`
+to refresh home-flight, flight-result, and detail views while they show an
+in-progress spinner; command flags override the serve/daemon value
 where exposed (`tray` is config-only on the installed daemon). Editing config in
 the deck (**Settings → Edit config**) merges into the existing file, preserving
 sections it doesn't touch.
