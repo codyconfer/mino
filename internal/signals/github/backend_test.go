@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -53,6 +54,14 @@ func TestCLIBackendPinsConfiguredHostname(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(out) != "api --hostname ghe.example.com -X GET repos/codyconfer/mino/actions/runs -f per_page=1\n" {
+		t.Fatalf("gh args = %q", out)
+	}
+
+	out, err = b.WorkflowRun(context.Background(), "codyconfer", "mino", 30706047121)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "api --hostname ghe.example.com -X GET repos/codyconfer/mino/actions/runs/30706047121\n" {
 		t.Fatalf("gh args = %q", out)
 	}
 
@@ -143,14 +152,18 @@ func TestAPIBackendActions(t *testing.T) {
 	if _, err := b.WorkflowRuns(context.Background(), "codyconfer", "mino", 1); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := b.WorkflowRun(context.Background(), "codyconfer", "mino", 30706047121); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := b.WorkflowJobs(context.Background(), "codyconfer", "mino", 30706047121); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
 		"/repos/codyconfer/mino/actions/runs?per_page=1",
+		"/repos/codyconfer/mino/actions/runs/30706047121",
 		"/repos/codyconfer/mino/actions/runs/30706047121/jobs?per_page=100",
 	}
-	if len(paths) != len(want) || paths[0] != want[0] || paths[1] != want[1] {
+	if !reflect.DeepEqual(paths, want) {
 		t.Fatalf("paths = %#v, want %#v", paths, want)
 	}
 }

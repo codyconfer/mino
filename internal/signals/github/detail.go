@@ -156,6 +156,17 @@ func fetchWorkflowDetail(ctx context.Context, backend Backend, it signals.Item) 
 	if err != nil || runID <= 0 {
 		return signals.ItemDetail{}, errs.Newf(errs.KindUsage, "github: invalid workflow run id %q", it.Meta["run_id"])
 	}
+	runRaw, err := actions.WorkflowRun(ctx, repo.Owner, repo.Repo, runID)
+	if err != nil {
+		return signals.ItemDetail{}, errs.Wrapf(errs.KindOf(err), err, "github: workflow run %d", runID)
+	}
+	var run struct {
+		Status     string `json:"status"`
+		Conclusion string `json:"conclusion"`
+	}
+	if err := json.Unmarshal(runRaw, &run); err != nil {
+		return signals.ItemDetail{}, errs.Wrap(errs.KindSignal, err, "github: decoding workflow run response")
+	}
 	raw, err := actions.WorkflowJobs(ctx, repo.Owner, repo.Repo, runID)
 	if err != nil {
 		return signals.ItemDetail{}, errs.Wrapf(errs.KindOf(err), err, "github: workflow run %d jobs", runID)
@@ -170,9 +181,10 @@ func fetchWorkflowDetail(ctx context.Context, backend Backend, it signals.Item) 
 	if name == "" {
 		name = "CI"
 	}
+	state := workflowState(run.Status, run.Conclusion)
 	detail := signals.ItemDetail{
 		Kind: "workflow", Title: it.Title, URL: it.URL, Body: it.Body,
-		Chips: []signals.Chip{{Label: it.Meta["state"], Sev: workflowSeverity(it.Meta["state"])}},
+		Chips: []signals.Chip{{Label: state, Sev: workflowSeverity(state)}},
 		Rows:  [][2]string{{"repo", repo.String()}, {"branch", it.Meta["branch"]}, {"event", it.Meta["event"]}},
 	}
 	if sha := it.Meta["sha"]; sha != "" {

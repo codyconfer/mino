@@ -16,8 +16,17 @@ type fakeActionsBackend struct {
 	jobsRepo  string
 	runID     int64
 	runs      string
+	run       string
 	jobs      string
 	err       error
+}
+
+func (f *fakeActionsBackend) WorkflowRun(_ context.Context, owner, repo string, runID int64) ([]byte, error) {
+	f.runsOwner, f.runsRepo, f.runID = owner, repo, runID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []byte(f.run), nil
 }
 
 func (f *fakeActionsBackend) WorkflowRuns(_ context.Context, owner, repo string, perPage int) ([]byte, error) {
@@ -102,7 +111,9 @@ func (f *workflowDetailBackend) GraphQL(context.Context, string, map[string]any)
 }
 
 func TestWorkflowDetailMapsJobsAndSteps(t *testing.T) {
-	backend := &workflowDetailBackend{fakeActionsBackend: &fakeActionsBackend{jobs: `{"jobs":[{
+	backend := &workflowDetailBackend{fakeActionsBackend: &fakeActionsBackend{
+		run: `{"status":"in_progress","conclusion":null}`,
+		jobs: `{"jobs":[{
   "id":91385242678,"name":"test","status":"in_progress","conclusion":null,
   "html_url":"https://github.com/codyconfer/mino/actions/runs/30706047121/job/91385242678",
   "steps":[
@@ -114,7 +125,7 @@ func TestWorkflowDetailMapsJobsAndSteps(t *testing.T) {
 		Kind: "workflow", Title: "test #42", Body: "Tighten status rendering",
 		URL: "https://github.com/codyconfer/mino/actions/runs/30706047121",
 		Meta: map[string]string{
-			"repo": "codyconfer/mino", "run_id": "30706047121", "state": "in progress",
+			"repo": "codyconfer/mino", "run_id": "30706047121", "state": "queued",
 			"branch": "main", "event": "push", "sha": "f24b8489b064effc993e8d2ba5c4b8ca4481b35e",
 		},
 	}
@@ -127,6 +138,9 @@ func TestWorkflowDetailMapsJobsAndSteps(t *testing.T) {
 	}
 	if detail.Kind != "workflow" || len(detail.Sections) != 1 || len(detail.Sections[0].Rows) != 3 {
 		t.Fatalf("detail = %#v", detail)
+	}
+	if len(detail.Chips) != 1 || detail.Chips[0].Label != "in progress" {
+		t.Fatalf("chips = %#v, want refreshed in progress status", detail.Chips)
 	}
 	if detail.Sections[0].Rows[0][0] != "test" || detail.Sections[0].Rows[2][0] != "  ↳ Run tests" {
 		t.Fatalf("rows = %#v", detail.Sections[0].Rows)

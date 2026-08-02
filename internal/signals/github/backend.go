@@ -21,6 +21,7 @@ type Backend interface {
 
 type ActionsBackend interface {
 	WorkflowRuns(ctx context.Context, owner, repo string, perPage int) ([]byte, error)
+	WorkflowRun(ctx context.Context, owner, repo string, runID int64) ([]byte, error)
 	WorkflowJobs(ctx context.Context, owner, repo string, runID int64) ([]byte, error)
 }
 
@@ -63,6 +64,11 @@ func (b CLIBackend) SearchIssues(ctx context.Context, query string, perPage int)
 func (b CLIBackend) WorkflowRuns(ctx context.Context, owner, repo string, perPage int) ([]byte, error) {
 	path := fmt.Sprintf("repos/%s/%s/actions/runs", owner, repo)
 	return auth.GH(ctx, b.apiArgs("-X", "GET", path, "-f", fmt.Sprintf("per_page=%d", perPage))...)
+}
+
+func (b CLIBackend) WorkflowRun(ctx context.Context, owner, repo string, runID int64) ([]byte, error) {
+	path := fmt.Sprintf("repos/%s/%s/actions/runs/%d", owner, repo, runID)
+	return auth.GH(ctx, b.apiArgs("-X", "GET", path)...)
 }
 
 func (b CLIBackend) WorkflowJobs(ctx context.Context, owner, repo string, runID int64) ([]byte, error) {
@@ -141,6 +147,12 @@ func (b APIBackend) WorkflowRuns(ctx context.Context, owner, repo string, perPag
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs?per_page=%d",
 		url.PathEscape(owner), url.PathEscape(repo), perPage)
 	return b.get(ctx, path, "workflow runs", "the Actions read permission")
+}
+
+func (b APIBackend) WorkflowRun(ctx context.Context, owner, repo string, runID int64) ([]byte, error) {
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs/%d",
+		url.PathEscape(owner), url.PathEscape(repo), runID)
+	return b.get(ctx, path, "workflow run", "the Actions read permission")
 }
 
 func (b APIBackend) WorkflowJobs(ctx context.Context, owner, repo string, runID int64) ([]byte, error) {

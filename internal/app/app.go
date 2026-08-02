@@ -177,6 +177,12 @@ func Load(opts Options) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	keepMgr := false
+	defer func() {
+		if !keepMgr && mgr != nil {
+			_ = mgr.Close()
+		}
+	}()
 	if opts.Output != "" {
 		cfg.Output = opts.Output
 	}
@@ -204,6 +210,7 @@ func Load(opts Options) (*App, error) {
 		cfg.Cache.DetailTTL = opts.CacheTTL
 	}
 	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr, thin: opts.Thin, roleTransient: sessionScopedRole(opts)}
+	keepMgr = true
 	if opts.Thin || opts.Completion {
 		return a, nil
 	}
