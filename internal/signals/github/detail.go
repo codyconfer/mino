@@ -184,7 +184,7 @@ func fetchWorkflowDetail(ctx context.Context, backend Backend, it signals.Item) 
 	state := workflowState(run.Status, run.Conclusion)
 	detail := signals.ItemDetail{
 		Kind: "workflow", Title: it.Title, URL: it.URL, Body: it.Body,
-		Chips: []signals.Chip{{Label: state, Sev: workflowSeverity(state)}},
+		Chips: []signals.Chip{{Label: state, Sev: signals.ClassifyState(state)}},
 		Rows:  [][2]string{{"repo", repo.String()}, {"branch", it.Meta["branch"]}, {"event", it.Meta["event"]}},
 	}
 	if sha := it.Meta["sha"]; sha != "" {
@@ -737,19 +737,6 @@ func checkSeverity(state string) glyph.Severity {
 	case "FAILURE", "ERROR":
 		return glyph.SeverityNegative
 	case "PENDING", "EXPECTED":
-		return glyph.SeverityWarning
-	default:
-		return glyph.SeverityNeutral
-	}
-}
-
-func workflowSeverity(state string) glyph.Severity {
-	switch strings.ToUpper(strings.ReplaceAll(state, " ", "_")) {
-	case "SUCCESS":
-		return glyph.SeverityPositive
-	case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE":
-		return glyph.SeverityNegative
-	case "IN_PROGRESS", "QUEUED", "PENDING", "WAITING", "REQUESTED", "ACTION_REQUIRED":
 		return glyph.SeverityWarning
 	default:
 		return glyph.SeverityNeutral

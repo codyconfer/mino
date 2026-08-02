@@ -56,14 +56,7 @@ type Kit struct {
 
 func New(d Deps) *Kit { return &Kit{d: d} }
 
-func (k *Kit) statusPollInterval() time.Duration {
-	if k != nil && k.d.App != nil && k.d.App.Cfg != nil {
-		if interval, err := time.ParseDuration(k.d.App.Cfg.Daemon.Interval); err == nil && interval > 0 {
-			return interval
-		}
-	}
-	return time.Minute
-}
+const workflowPollInterval = 30 * time.Second
 
 // scope returns the kit's rendering scope, defaulting to the built-ins.
 func (k *Kit) scope() *ui.Scope {
@@ -192,7 +185,7 @@ func (k *Kit) Home() vkdeck.View {
 		return cues
 	}
 	shell := deck.NewHome("home", ctx(), k.mainMenuItems(), k.homeFlightName, k.d.FetchHomeFlight, k.openDetail).
-		PollEvery(k.statusPollInterval())
+		PollEvery(workflowPollInterval)
 	return vkdeck.WithExtraHints(vkdeck.WithLiveContext(shell, ctx), k.hotkeyHints())
 }
 
@@ -222,7 +215,7 @@ func (k *Kit) FlightResults(name string) vkdeck.View {
 		sections := k.d.FetchFlightAudited(name)
 		held.set(sections)
 		return sections
-	}, k.openDetail).PollEvery(k.statusPollInterval())
+	}, k.openDetail).PollEvery(workflowPollInterval)
 	return WithPaneSnapshot(lst, func() (pane.Snapshot, bool) {
 		sections := held.get()
 		if len(sections) == 0 {

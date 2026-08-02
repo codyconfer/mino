@@ -114,14 +114,53 @@ func TestDetailPanelAnimatesInProgressWorkflowRows(t *testing.T) {
 	})
 	first := plain(t, DetailPanelFrame(layout.NewFrame(72), detailRef(), detail, 0))
 	second := plain(t, DetailPanelFrame(layout.NewFrame(72), detailRef(), detail, 1))
-	if !strings.Contains(first, "⠋ in progress") || !strings.Contains(second, "⠙ in progress") {
+	if !strings.Contains(first, "| in progress") || !strings.Contains(second, "/ in progress") {
 		t.Fatalf("workflow rows did not animate\nfirst:\n%s\nsecond:\n%s", first, second)
 	}
-	if strings.Contains(first, "⠋ success") {
+	if strings.Contains(first, "| success") {
 		t.Errorf("completed row animated:\n%s", first)
 	}
 	if !DetailHasInProgress(detail) {
 		t.Error("DetailHasInProgress = false")
+	}
+
+	glyph.SetMode(glyph.ModeUnicode)
+	if out := plain(t, DetailPanelFrame(layout.NewFrame(72), detailRef(), detail, 0)); !strings.Contains(out, "⠋ in progress") {
+		t.Errorf("unicode spinner missing\n%s", out)
+	}
+}
+
+func TestDetailPanelMarksWorkflowJobStates(t *testing.T) {
+	glyph.SetMode(glyph.ModeUnicode)
+	detail := enrichedDetail()
+	detail.Sections = append(detail.Sections, signals.DetailSection{
+		Title: "workflow · CI",
+		Rows: [][2]string{
+			{"test", "success"},
+			{"  ↳ go test", "success"},
+			{"lint", "failure"},
+			{"docs", "skipped"},
+		},
+		Meta: map[string]string{"run_id": "77"},
+	})
+	out := plain(t, DetailPanel(layout.NewFrame(72), detailRef(), detail))
+	for _, want := range []string{"✓ success", "✗ failure", "• skipped"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("workflow state missing %q\n%s", want, out)
+		}
+	}
+	lines := strings.Split(out, "\n")
+	row := func(name string) int {
+		for i, l := range lines {
+			if strings.Contains(l, name) {
+				return i
+			}
+		}
+		return -1
+	}
+	step, lint := row("↳ go test"), row("✗ failure")
+	if step < 0 || lint != step+2 || strings.Trim(ansi.Strip(lines[step+1]), " │") != "" {
+		t.Errorf("want a blank line between jobs, step=%d lint=%d\n%s", step, lint, out)
 	}
 }
 

@@ -28,6 +28,19 @@ func ClassifyItem(it Item) glyph.Severity {
 	return ClassifyKind(it.Kind)
 }
 
+func ClassifyState(state string) glyph.Severity {
+	switch strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(state), " ", "_")) {
+	case "SUCCESS":
+		return glyph.SeverityPositive
+	case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE":
+		return glyph.SeverityNegative
+	case "IN_PROGRESS", "QUEUED", "PENDING", "WAITING", "REQUESTED", "ACTION_REQUIRED":
+		return glyph.SeverityWarning
+	default:
+		return glyph.SeverityNeutral
+	}
+}
+
 func ClassifyKind(kind string) glyph.Severity {
 	switch strings.ToLower(kind) {
 	case "mention", "review-requested", "review_requested", "assigned", "alert", "incident", "warn", "warning", "queued", "in_progress", "pending", "waiting", "requested":

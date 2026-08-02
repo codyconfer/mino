@@ -42,7 +42,7 @@ type DetailView struct {
 }
 
 func (k *Kit) Detail(ref render.ItemRef) vkdeck.View {
-	return &DetailView{ref: ref, fetch: k.d.FetchDetail, pollInterval: k.statusPollInterval()}
+	return &DetailView{ref: ref, fetch: k.d.FetchDetail, pollInterval: workflowPollInterval}
 }
 
 func (v *DetailView) Title() string { return render.ItemLabel(v.ref.Item) }

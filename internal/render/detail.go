@@ -211,6 +211,10 @@ func gutter(f layout.Frame, th theme.Theme, rows [][2]string) []string {
 	}
 	out := make([]string, 0, len(rows))
 	for _, r := range rows {
+		if r[0] == "" && r[1] == "" {
+			out = append(out, "")
+			continue
+		}
 		label := layout.Fit(r[0], width)
 		if pad := width - len([]rune(label)); pad > 0 {
 			label += strings.Repeat(" ", pad)
@@ -224,8 +228,8 @@ func detailSection(f, cf layout.Frame, th theme.Theme, s signals.DetailSection, 
 	var lines []string
 	if len(s.Rows) > 0 {
 		rows := s.Rows
-		if s.Meta["in_progress"] == "true" {
-			rows = animatedDetailRows(rows, frame)
+		if workflowSection(s) {
+			rows = workflowRows(cf.Glyphs(), th, rows, frame)
 		}
 		lines = append(lines, gutter(cf, th, rows)...)
 	}
@@ -256,17 +260,37 @@ func spinnerFrame(g glyph.Set, frame int) string {
 	return frames[frame%len(frames)]
 }
 
-func animatedDetailRows(rows [][2]string, frame int) [][2]string {
-	out := make([][2]string, len(rows))
-	copy(out, rows)
-	marker := "…"
-	if frame >= 0 {
-		marker = detailLoadingFrames[frame%len(detailLoadingFrames)]
-	}
-	for i := range out {
-		if strings.EqualFold(strings.TrimSpace(out[i][1]), "in progress") {
-			out[i][1] = marker + " " + out[i][1]
+func workflowSection(s signals.DetailSection) bool {
+	return s.Meta["run_id"] != "" || strings.HasPrefix(s.Title, "workflow")
+}
+
+const stepRowPrefix = "  ↳ "
+
+func workflowRows(g glyph.Set, th theme.Theme, rows [][2]string, frame int) [][2]string {
+	out := make([][2]string, 0, len(rows)*2)
+	for _, r := range rows {
+		if len(out) > 0 && !strings.HasPrefix(r[0], stepRowPrefix) {
+			out = append(out, [2]string{})
 		}
+		out = append(out, [2]string{r[0], workflowStateCue(g, th, r[1], frame)})
 	}
 	return out
+}
+
+func workflowStateCue(g glyph.Set, th theme.Theme, state string, frame int) string {
+	if strings.TrimSpace(state) == "" {
+		return state
+	}
+	sev := signals.ClassifyState(state)
+	mark := glyph.ForIn(g, sev)
+	if strings.EqualFold(strings.TrimSpace(state), "in progress") {
+		mark = "…"
+		if frame >= 0 {
+			mark = spinnerFrame(g, frame)
+		}
+	}
+	if mark == "" {
+		return th.SeverityStyle(sev).Render(state)
+	}
+	return th.SeverityStyle(sev).Render(mark + " " + state)
 }
