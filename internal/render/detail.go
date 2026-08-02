@@ -89,6 +89,9 @@ func DetailHasInProgress(d *signals.ItemDetail) bool {
 	if d == nil {
 		return false
 	}
+	if d.Meta["in_progress"] == "true" {
+		return true
+	}
 	for _, section := range d.Sections {
 		if section.Meta["in_progress"] == "true" {
 			return true
@@ -280,6 +283,9 @@ func workflowRows(g glyph.Set, th theme.Theme, rows [][2]string, frame int) [][2
 func workflowStateCue(g glyph.Set, th theme.Theme, state string, frame int) string {
 	if strings.TrimSpace(state) == "" {
 		return state
+	}
+	if strings.EqualFold(strings.TrimSpace(state), "pending") {
+		return th.Dim.Render(state)
 	}
 	sev := signals.ClassifyState(state)
 	mark := glyph.ForIn(g, sev)

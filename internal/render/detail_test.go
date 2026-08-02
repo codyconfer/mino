@@ -164,6 +164,40 @@ func TestDetailPanelMarksWorkflowJobStates(t *testing.T) {
 	}
 }
 
+func TestDetailPanelLeavesPendingWorkflowRowsUnmarked(t *testing.T) {
+	glyph.SetMode(glyph.ModeUnicode)
+	detail := enrichedDetail()
+	detail.Sections = append(detail.Sections, signals.DetailSection{
+		Title: "workflow · CI",
+		Rows:  [][2]string{{"test", "pending"}, {"lint", "queued"}},
+		Meta:  map[string]string{"run_id": "77"},
+	})
+	out := plain(t, DetailPanel(layout.NewFrame(72), detailRef(), detail))
+	if !strings.Contains(out, "pending") {
+		t.Fatalf("pending row missing\n%s", out)
+	}
+	for _, mark := range []string{"! pending", "• pending", "⚠ pending"} {
+		if strings.Contains(out, mark) {
+			t.Errorf("pending row rendered a glyph (%q)\n%s", mark, out)
+		}
+	}
+}
+
+func TestDetailHasInProgressFollowsDetailMeta(t *testing.T) {
+	detail := &signals.ItemDetail{Kind: "workflow", Meta: map[string]string{"in_progress": "true"}}
+	if !DetailHasInProgress(detail) {
+		t.Error("a run reported unfinished by its own meta must read as in progress")
+	}
+	settled := &signals.ItemDetail{
+		Kind:     "workflow",
+		Meta:     map[string]string{"state": "cancelled"},
+		Sections: []signals.DetailSection{{Meta: map[string]string{"run_id": "77"}, Rows: [][2]string{{"test", "queued"}}}},
+	}
+	if DetailHasInProgress(settled) {
+		t.Error("a concluded run must not read as in progress")
+	}
+}
+
 func TestDetailPanelShowsStaleCache(t *testing.T) {
 	glyph.SetMode(glyph.ModeNone)
 	ref := detailRef()

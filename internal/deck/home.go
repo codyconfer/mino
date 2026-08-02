@@ -99,6 +99,13 @@ func (h *Home) Init() tea.Cmd {
 	return tea.Batch(cmd, homeAnimationTick(h.generation))
 }
 
+func (h *Home) Resume(m *vkdeck.Model) tea.Cmd {
+	if !h.animates() {
+		return nil
+	}
+	return h.restart(h.HomeShell.Update(m, vkdeck.ReloadMsg{}))
+}
+
 func (h *Home) Update(m *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	switch t := msg.(type) {
 	case tea.WindowSizeMsg:

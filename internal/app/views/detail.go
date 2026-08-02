@@ -1,6 +1,7 @@
 package views
 
 import (
+	"maps"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -115,32 +116,16 @@ func (v *DetailView) pollTick(generation int) tea.Cmd {
 }
 
 func (v *DetailView) settleWorkflowItem() {
-	if v.detail == nil || v.detail.Kind != "workflow" || !render.ItemInProgress(v.ref.Item) || render.DetailHasInProgress(v.detail) {
+	if v.detail == nil || !render.ItemInProgress(v.ref.Item) || render.DetailHasInProgress(v.detail) {
 		return
 	}
-	hasWorkflow := false
-	for _, section := range v.detail.Sections {
-		if section.Meta["run_id"] != "" {
-			hasWorkflow = true
-			if len(section.Rows) == 0 {
-				return
-			}
-			for _, row := range section.Rows {
-				switch row[1] {
-				case "", "in progress", "queued", "pending", "waiting", "requested", "action required":
-					return
-				}
-			}
-		}
-	}
-	if !hasWorkflow {
-		return
+	state := v.detail.Meta["state"]
+	if state == "" || state == "in progress" {
+		state = "completed"
 	}
 	meta := make(map[string]string, len(v.ref.Item.Meta))
-	for key, value := range v.ref.Item.Meta {
-		meta[key] = value
-	}
-	meta["status"] = "completed"
+	maps.Copy(meta, v.ref.Item.Meta)
+	meta["status"] = state
 	v.ref.Item.Meta = meta
 }
 

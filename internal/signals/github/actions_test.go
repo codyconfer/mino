@@ -145,4 +145,31 @@ func TestWorkflowDetailMapsJobsAndSteps(t *testing.T) {
 	if detail.Sections[0].Rows[0][0] != "test" || detail.Sections[0].Rows[2][0] != "  ↳ Run tests" {
 		t.Fatalf("rows = %#v", detail.Sections[0].Rows)
 	}
+	if detail.Meta["in_progress"] != "true" || detail.Meta["state"] != "in progress" {
+		t.Fatalf("meta = %#v, want the unfinished run marked in progress", detail.Meta)
+	}
+}
+
+func TestWorkflowDetailSettlesConcludedRunWithUnfinishedSteps(t *testing.T) {
+	backend := &workflowDetailBackend{fakeActionsBackend: &fakeActionsBackend{
+		run: `{"status":"completed","conclusion":"cancelled"}`,
+		jobs: `{"jobs":[{
+  "id":91385242678,"name":"test","status":"in_progress","conclusion":null,
+  "steps":[{"number":1,"name":"Run tests","status":"queued","conclusion":null}]
+}]}`}}
+	item := signals.Item{
+		Kind: "workflow", Title: "test #42",
+		URL:  "https://github.com/codyconfer/mino/actions/runs/30706047121",
+		Meta: map[string]string{"repo": "codyconfer/mino", "run_id": "30706047121", "state": "in progress"},
+	}
+	detail, err := fetchWorkflowDetail(context.Background(), backend, item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Meta["in_progress"] != "" || detail.Meta["state"] != "cancelled" {
+		t.Fatalf("meta = %#v, want a settled cancelled run", detail.Meta)
+	}
+	if len(detail.Sections) != 1 || detail.Sections[0].Meta["in_progress"] != "" {
+		t.Fatalf("section meta = %#v, want no in-progress cue on a concluded run", detail.Sections)
+	}
 }

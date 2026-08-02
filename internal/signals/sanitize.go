@@ -223,5 +223,6 @@ func CleanDetail(d *ItemDetail) *ItemDetail {
 	c.Chips = CleanChips(c.Chips)
 	c.Rows = CleanRows(c.Rows)
 	c.Sections = CleanDetailSections(c.Sections)
+	c.Meta = CleanMeta(c.Meta)
 	return &c
 }

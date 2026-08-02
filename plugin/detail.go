@@ -21,13 +21,14 @@ type DetailSection struct {
 }
 
 type ItemDetail struct {
-	Kind     string          `json:"kind,omitempty"`
-	Title    string          `json:"title"`
-	URL      string          `json:"url,omitempty"`
-	Chips    []Chip          `json:"chips,omitempty"`
-	Rows     [][2]string     `json:"rows,omitempty"`
-	Body     string          `json:"body,omitempty"`
-	Sections []DetailSection `json:"sections,omitempty"`
+	Kind     string            `json:"kind,omitempty"`
+	Title    string            `json:"title"`
+	URL      string            `json:"url,omitempty"`
+	Chips    []Chip            `json:"chips,omitempty"`
+	Rows     [][2]string       `json:"rows,omitempty"`
+	Body     string            `json:"body,omitempty"`
+	Sections []DetailSection   `json:"sections,omitempty"`
+	Meta     map[string]string `json:"meta,omitempty"`
 }
 
 var sevNames = map[glyph.Severity]string{

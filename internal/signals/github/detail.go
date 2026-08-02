@@ -186,11 +186,18 @@ func fetchWorkflowDetail(ctx context.Context, backend Backend, it signals.Item) 
 		Kind: "workflow", Title: it.Title, URL: it.URL, Body: it.Body,
 		Chips: []signals.Chip{{Label: state, Sev: signals.ClassifyState(state)}},
 		Rows:  [][2]string{{"repo", repo.String()}, {"branch", it.Meta["branch"]}, {"event", it.Meta["event"]}},
+		Meta:  map[string]string{"state": state},
+	}
+	if strings.TrimSpace(run.Conclusion) == "" {
+		detail.Meta["in_progress"] = "true"
 	}
 	if sha := it.Meta["sha"]; sha != "" {
 		detail.Rows = append(detail.Rows, [2]string{"commit", sha[:min(len(sha), 12)]})
 	}
 	if section, ok := (workflowRun{ID: runID, Name: name, URL: it.URL, Jobs: response.Jobs}).section(); ok {
+		if detail.Meta["in_progress"] == "" {
+			delete(section.Meta, "in_progress")
+		}
 		detail.Sections = append(detail.Sections, section)
 	}
 	return detail, nil

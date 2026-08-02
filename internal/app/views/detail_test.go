@@ -179,6 +179,49 @@ func TestDetailViewPollsAndStopsWhenWorkflowSettles(t *testing.T) {
 	}
 }
 
+func TestDetailViewStopsPollingWhenTheRunConcludesWithUnfinishedRows(t *testing.T) {
+	ref := detailTestRef()
+	ref.Item.Kind = "workflow"
+	ref.Item.Meta = map[string]string{"status": "in_progress", "run_id": "42"}
+	cancelled := &signals.ItemDetail{
+		Kind: "workflow",
+		Meta: map[string]string{"state": "cancelled"},
+		Sections: []signals.DetailSection{{
+			Meta: map[string]string{"run_id": "42"},
+			Rows: [][2]string{{"test", "cancelled"}, {"  ↳ go test", "queued"}},
+		}},
+	}
+	v := &DetailView{ref: ref, pollInterval: time.Minute, fetch: func(string, signals.Item) (*signals.ItemDetail, error) {
+		return cancelled, nil
+	}}
+	v.Update(nil, detailLoadedMsg{detail: cancelled})
+	if render.ItemInProgress(v.ref.Item) {
+		t.Fatalf("cancelled run left the item in progress: %v", v.ref.Item.Meta)
+	}
+	if got := v.ref.Item.Meta["status"]; got != "cancelled" {
+		t.Errorf("settled status = %q, want cancelled", got)
+	}
+	if cmd := v.Update(nil, detailPollMsg{generation: v.pollGeneration}); cmd != nil {
+		t.Error("a concluded run kept polling because rows stayed queued")
+	}
+}
+
+func TestDetailViewKeepsPollingWhileTheRunHasNoJobsYet(t *testing.T) {
+	ref := detailTestRef()
+	ref.Item.Kind = "workflow"
+	ref.Item.Meta = map[string]string{"status": "queued", "run_id": "42"}
+	queued := &signals.ItemDetail{Kind: "workflow", Meta: map[string]string{"state": "queued", "in_progress": "true"}}
+	v := &DetailView{ref: ref, pollInterval: time.Minute, fetch: func(string, signals.Item) (*signals.ItemDetail, error) {
+		return queued, nil
+	}}
+	if cmd := v.Update(nil, detailLoadedMsg{detail: queued}); cmd == nil {
+		t.Fatal("a queued run with no jobs yet stopped polling")
+	}
+	if cmd := v.Update(nil, detailPollMsg{generation: v.pollGeneration}); cmd == nil {
+		t.Fatal("a queued run with no jobs yet did not fetch on a poll")
+	}
+}
+
 func TestDetailViewKeepsLocalFrameOnFetchError(t *testing.T) {
 	glyph.SetMode(glyph.ModeNone)
 	v := detailView(t, func(string, signals.Item) (*signals.ItemDetail, error) {

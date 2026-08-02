@@ -140,6 +140,49 @@ func TestHomeStopsAnimatingSettledFlight(t *testing.T) {
 	}
 }
 
+func TestHomeRerunsFlightWhenBackNavigationReturns(t *testing.T) {
+	loads := 0
+	sections := []signals.Section{{
+		Signal: "github",
+		Title:  "Open PRs",
+		Items:  []signals.Item{{Title: "Fix onboarding attestation"}},
+	}}
+	home := NewHome("home", nil, homeItems(), func() string { return "morning" },
+		func(string) []signals.Section {
+			loads++
+			return sections
+		}, nil)
+
+	app := New(home)
+	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	app = run(app, home.Init())
+	if loads != 1 {
+		t.Fatalf("loads after the initial render = %d, want 1", loads)
+	}
+
+	app = run(app, app.Push(vkdeck.NewMessage("detail", "body", nil)))
+	app = run(app, app.Pop())
+	if loads != 2 {
+		t.Fatalf("loads after returning home = %d, want 2", loads)
+	}
+	if !home.loaded {
+		t.Error("home flight never finished its rerun")
+	}
+	if !strings.Contains(app.View(), "Fix onboarding attestation") {
+		t.Errorf("reloaded home lost its flight items\n%s", app.View())
+	}
+}
+
+func TestHomeWithoutFlightIgnoresBackNavigation(t *testing.T) {
+	home := NewHome("home", nil, homeItems(), nil, nil, nil)
+	app := New(home)
+	app = drive(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	app = run(app, app.Push(vkdeck.NewMessage("detail", "body", nil)))
+	if cmd := home.Resume(app); cmd != nil {
+		t.Error("menu-only home scheduled a rerun on back navigation")
+	}
+}
+
 func TestHomeAnimationWaitsForLoad(t *testing.T) {
 	home := NewHome("home", nil, homeItems(), func() string { return "morning" },
 		func(string) []signals.Section { return nil }, nil)
