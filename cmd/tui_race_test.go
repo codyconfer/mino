@@ -37,7 +37,7 @@ func sharedForDeckRace(t *testing.T) *app.App {
 	write("triage.yaml", "name: triage\ntype: role\nhome: ops-flight\nflights: [ops-flight]\n")
 
 	shared = &app.App{
-		Cfg: &config.Config{Home: home, Output: "terminal", Role: "ops"},
+		Cfg: &config.Config{Home: home, Output: "terminal", DefaultRole: "ops"},
 		Directives: &config.Directives{
 			Queries: map[string]config.Query{"ntr-list": {Name: "ntr-list", Signal: "ntr"}},
 			Flights: map[string]config.Flight{"ops-flight": {Name: "ops-flight", Queries: []string{"ntr-list"}}},

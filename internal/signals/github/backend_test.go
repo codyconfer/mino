@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,8 +13,11 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/signals"
 )
 
@@ -105,7 +109,7 @@ func TestAPIBackendSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	b := APIBackend{Token: "tok123", BaseURL: srv.URL, HTTP: srv.Client()}
+	b := APIBackend{Auth: auth.StaticGitHubToken("tok123"), BaseURL: srv.URL, HTTP: srv.Client()}
 	raw, err := b.SearchIssues(context.Background(), "is:open is:pr", 10)
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +137,7 @@ func TestAPIBackendErrorStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	b := APIBackend{Token: "bad", BaseURL: srv.URL, HTTP: srv.Client()}
+	b := APIBackend{Auth: auth.StaticGitHubToken("bad"), BaseURL: srv.URL, HTTP: srv.Client()}
 	_, err := b.SearchIssues(context.Background(), "q", 10)
 	if err == nil || !strings.Contains(err.Error(), "401") {
 		t.Fatalf("expected 401 error, got %v", err)
@@ -148,7 +152,7 @@ func TestAPIBackendActions(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	b := APIBackend{Token: "tok", BaseURL: srv.URL, HTTP: srv.Client()}
+	b := APIBackend{Auth: auth.StaticGitHubToken("tok"), BaseURL: srv.URL, HTTP: srv.Client()}
 	if _, err := b.WorkflowRuns(context.Background(), "codyconfer", "mino", 1); err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +196,7 @@ func endlessBodyServer(t *testing.T, mib int) *httptest.Server {
 
 func TestAPIBackendSearchBoundsBody(t *testing.T) {
 	srv := endlessBodyServer(t, 12)
-	b := APIBackend{Token: "tok", BaseURL: srv.URL, HTTP: srv.Client()}
+	b := APIBackend{Auth: auth.StaticGitHubToken("tok"), BaseURL: srv.URL, HTTP: srv.Client()}
 	body, err := b.SearchIssues(context.Background(), "q", 10)
 	if err == nil {
 		t.Fatalf("read %d bytes with no error: the response body is unbounded", len(body))
@@ -204,7 +208,7 @@ func TestAPIBackendSearchBoundsBody(t *testing.T) {
 
 func TestAPIBackendGraphQLBoundsBody(t *testing.T) {
 	srv := endlessBodyServer(t, 12)
-	b := APIBackend{Token: "tok", BaseURL: srv.URL, HTTP: srv.Client()}
+	b := APIBackend{Auth: auth.StaticGitHubToken("tok"), BaseURL: srv.URL, HTTP: srv.Client()}
 	body, err := b.GraphQL(context.Background(), "query{viewer{login}}", nil)
 	if err == nil {
 		t.Fatalf("read %d bytes with no error: the response body is unbounded", len(body))
@@ -295,5 +299,54 @@ func TestReadBodyStopsAtLimit(t *testing.T) {
 	}
 	if _, err := readBody(resp); err == nil {
 		t.Fatal("want an error when an undeclared body exceeds the limit")
+	}
+}
+
+type rotatingSource struct {
+	n atomic.Int64
+}
+
+func (r *rotatingSource) Token(context.Context) (string, error) {
+	return fmt.Sprintf("tok%d", r.n.Add(1)), nil
+}
+
+type failingSource struct{}
+
+func (failingSource) Token(context.Context) (string, error) {
+	return "", errs.New(errs.KindAuth, "the credential could not be minted")
+}
+
+func TestAPIBackendResolvesTheTokenPerRequest(t *testing.T) {
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer srv.Close()
+
+	b := APIBackend{Auth: &rotatingSource{}, BaseURL: srv.URL, HTTP: srv.Client()}
+	for range 2 {
+		if _, err := b.SearchIssues(context.Background(), "q", 10); err != nil {
+			t.Fatalf("SearchIssues: %v", err)
+		}
+	}
+
+	want := []string{"Bearer tok1", "Bearer tok2"}
+	if len(seen) != 2 || seen[0] != want[0] || seen[1] != want[1] {
+		t.Errorf("Authorization headers = %v, want %v; a token captured once at build time would never "+
+			"pick up a refreshed GitHub App installation token, and the session would break after an hour",
+			seen, want)
+	}
+}
+
+func TestAPIBackendPropagatesACredentialError(t *testing.T) {
+	b := APIBackend{Auth: failingSource{}, BaseURL: "https://api.github.com"}
+	_, err := b.SearchIssues(context.Background(), "q", 10)
+	if err == nil {
+		t.Fatal("SearchIssues succeeded with a failing credential source")
+	}
+	if errs.KindOf(err) != errs.KindAuth {
+		t.Errorf("kind = %v, want KindAuth preserved from the source; wrapping it as an internal error "+
+			"would lose the hint that tells the user how to fix their credentials", errs.KindOf(err))
 	}
 }

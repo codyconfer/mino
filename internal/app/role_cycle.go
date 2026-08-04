@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os/exec"
 	"sync"
 	"time"
@@ -105,12 +106,19 @@ type rolePlan struct {
 }
 
 func (a *App) planRoleLifecycle() rolePlan {
-	var p rolePlan
 	if a == nil || a.Cfg == nil || a.thin {
-		return p
+		return rolePlan{}
 	}
-	p.prev, p.next = role.LoadActive(a.home()), a.Role()
-	p.changed = p.prev != p.next
+	next := a.Role()
+	prev, _ := a.persistedRole()
+	return a.planRoleChange(prev, next)
+}
+
+func (a *App) planRoleChange(prev, next string) rolePlan {
+	if a == nil || a.Cfg == nil || a.thin {
+		return rolePlan{}
+	}
+	p := rolePlan{prev: prev, next: next, changed: prev != next}
 	if !p.changed {
 		return p
 	}
@@ -154,9 +162,10 @@ func (a *App) commitRolePlan(p rolePlan) {
 	}
 	a.refreshRoleStatus(p.next)
 	if p.changed {
-		if err := role.SaveActive(a.home(), p.next); err != nil {
+		if err := a.stateStore().SetActiveRole(context.Background(), p.next); err != nil {
 			log.Warnf("role state: %v", err)
 		}
+		a.clearTransientRole()
 	}
 	a.applyRoleContexts()
 }
@@ -209,16 +218,7 @@ func (a *App) FinishRoleSettle(s *RoleSettle) {
 	}
 	a.roleDebounce.mu.Unlock()
 	s.MarkDone(len(s.Steps))
-	a.commitActivatedRole(s.plan)
-}
-
-func (a *App) commitActivatedRole(p rolePlan) {
-	if p.changed {
-		if err := a.persistRole(p.next); err != nil {
-			log.Warnf("persisting role %q: %v", p.next, err)
-		}
-	}
-	a.commitRolePlan(p)
+	a.commitRolePlan(s.plan)
 }
 
 func (a *App) SettleRoleCycle(gen uint64) bool {
@@ -245,7 +245,7 @@ func (a *App) FlushRoleLifecycle() {
 	if pending {
 		p := a.planRoleLifecycle()
 		a.runRolePlan(p)
-		a.commitActivatedRole(p)
+		a.commitRolePlan(p)
 		return
 	}
 	if abandoned == nil {
@@ -254,7 +254,7 @@ func (a *App) FlushRoleLifecycle() {
 	remaining := abandoned.Remaining()
 	abandoned.MarkDone(len(abandoned.Steps))
 	a.runRoleHookSteps(remaining)
-	a.commitActivatedRole(abandoned.plan)
+	a.commitRolePlan(abandoned.plan)
 }
 
 func (a *App) invalidateRoleDebounce() {

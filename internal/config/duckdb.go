@@ -2,7 +2,7 @@ package config
 
 import "strings"
 
-var duckDBDatabases = []string{"audit", "config", "tokens"}
+var duckDBDatabases = []string{"audit", "config", "state", "tokens"}
 
 func DuckDBDatabases() []string { return append([]string(nil), duckDBDatabases...) }
 

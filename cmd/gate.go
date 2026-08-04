@@ -12,7 +12,6 @@ import (
 	"github.com/codyconfer/mino/internal/app/onboard"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/log"
-	gh "github.com/codyconfer/mino/internal/signals/github"
 )
 
 const annoGateMode = "mino_gate_mode"
@@ -89,11 +88,14 @@ func classifyAuth(ctx context.Context) mode.AuthState {
 	if onboard.IsOnboarded() {
 		return mode.AuthAuthorized
 	}
-	if !shared.GitHubAuthed() {
+	if !shared.GitAuthed() {
 		return mode.AuthUnauthenticated
 	}
-	apiURL, _ := gh.NormalizeAPIURL(shared.Cfg.GitHub.APIURL)
-	if onboard.Check(ctx, shared.Tokens, apiURL).Ready() {
+	prov, id, err := shared.GitAuth()
+	if err != nil {
+		return mode.AuthUnauthenticated
+	}
+	if onboard.Check(ctx, prov, id).Ready() {
 		return mode.AuthAuthorized
 	}
 	return mode.AuthUnauthorized
@@ -105,6 +107,13 @@ var (
 )
 
 func cliGuidedAuth(cmd *cobra.Command) error {
+	if _, id, err := shared.GitAuth(); err != nil {
+		return err
+	} else if id != nil && id.ServiceIdentity() {
+		return errs.New(errs.KindAuth, "git service auth is configured but not usable").
+			WithHint("mino will not prompt for a personal login while %s is configured; fix that "+
+				"credential, or unset it to log in as yourself", id.Origin())
+	}
 	p, ok := loginflow.Resolve("github")
 	if !ok {
 		return errs.New(errs.KindInternal, "github login provider unavailable")
@@ -113,7 +122,7 @@ func cliGuidedAuth(cmd *cobra.Command) error {
 	if err := guidedLoginCLI(cmd.Context(), shared, Scope(), p, cmd.InOrStdin(), status, status); err != nil {
 		return err
 	}
-	shared.ResetGitHubAuth()
+	shared.ResetGitAuth()
 	return guidedOnboard(cmd, status, false)
 }
 

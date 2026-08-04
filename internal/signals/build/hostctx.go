@@ -16,6 +16,7 @@ import (
 type hostBuildCtx struct {
 	signal string
 	params map[string]string
+	role   string
 	cfg    *config.Config
 	tokens *token.Store
 	state  *active.State
@@ -23,10 +24,11 @@ type hostBuildCtx struct {
 	grant  pluginhost.Grant
 }
 
-func newHostBuildCtx(signal string, params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State, results *cache.Store) hostBuildCtx {
+func newHostBuildCtx(signal string, params map[string]string, role string, cfg *config.Config, tokens *token.Store, state *active.State, results *cache.Store) hostBuildCtx {
 	return hostBuildCtx{
 		signal: signal,
 		params: params,
+		role:   role,
 		cfg:    cfg,
 		tokens: tokens,
 		state:  state,
@@ -50,12 +52,7 @@ func (c hostBuildCtx) Home() string {
 	return c.cfg.Home
 }
 
-func (c hostBuildCtx) Role() string {
-	if c.cfg == nil {
-		return ""
-	}
-	return c.cfg.Role
-}
+func (c hostBuildCtx) Role() string { return c.role }
 
 func (c hostBuildCtx) Settings(namespace string) map[string]any {
 	if !c.grant.AllowsNamespace(namespace) {

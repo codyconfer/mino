@@ -160,7 +160,7 @@ func deckPanes(useTmux bool, flight string) (*pane.Manager, error) {
 			WithHint("install tmux, or run `mino deck` without --tmux")
 	}
 	pane.CleanupSnapshots(shared.Cfg.Home)
-	return pane.NewManager(shared.Cfg.Home, flight)
+	return pane.NewManager(shared.Cfg.Home, flight, shared.Role())
 }
 
 func buildViews() *views.Kit { return buildViewsFor(context.Background(), nil) }
@@ -217,7 +217,7 @@ func saveReportFile(formatter, text string) (string, error) {
 func fetchItemDetail(ctx context.Context, signal string, it signals.Item) (*signals.ItemDetail, error) {
 	ctx, cancel := context.WithTimeout(ctx, sourceTimeout())
 	defer cancel()
-	d, err := build.Detail(ctx, signal, it, shared.Cfg, shared.Tokens, shared.Cache)
+	d, err := build.Detail(ctx, signal, it, shared.Role(), shared.Cfg, shared.Tokens, shared.Cache)
 	if err != nil {
 		return nil, err
 	}

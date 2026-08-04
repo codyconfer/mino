@@ -1,0 +1,82 @@
+# One container per volume, and no deploy.replicas. DuckDB allows a single
+# read-write process per file, so a second mino against the same .data/ fails with
+# a lock error. This does not scale horizontally, by design.
+services:
+  mino:
+    build:
+      context: .
+      args:
+        # .git is excluded from the build context, so `git describe` cannot run
+        # inside the build.
+        VERSION: ${MINO_VERSION:-dev}
+    image: mino:local
+    # `mino serve` never forks, but `docker compose run mino deck` does.
+    init: true
+    restart: unless-stopped
+    ports:
+      # Host loopback only. Publishing on 0.0.0.0 would put the API on your LAN
+      # with a bearer token as the sole control.
+      - "127.0.0.1:7717:7717"
+    environment:
+      # Required, and at least 16 characters. Left unset, serve generates one into
+      # /var/lib/mino/.data/http.token, readable only via `docker compose exec`.
+      MINO_DAEMON_HTTP_TOKEN: ${MINO_HTTP_TOKEN:?set MINO_HTTP_TOKEN (>=16 chars, e.g. openssl rand -base64 32)}
+      # A machine-user PAT is the recommended container identity. It outranks the gh
+      # CLI and $GITHUB_TOKEN, needs no OS keyring, and is the only thing that gives
+      # the container realtime GitHub: /notifications is scoped to the authenticated
+      # user, so a GitHub App installation token gets 403 there. Needs `repo read:org`.
+      MINO_GITHUB_SERVICE_TOKEN: ${MINO_GITHUB_SERVICE_TOKEN:-}
+      # A GitHub App is the better identity for the fetch paths (flights, queries,
+      # projects, Actions, detail). Mount the .pem via `secrets:` below rather than
+      # passing it inline: environment values are visible to `docker inspect`.
+      MINO_GITHUB_APP_ID: ${MINO_GITHUB_APP_ID:-}
+      MINO_GITHUB_APP_INSTALLATION_ID: ${MINO_GITHUB_APP_INSTALLATION_ID:-}
+      MINO_GITHUB_APP_PRIVATE_KEY_PATH: ${MINO_GITHUB_APP_PRIVATE_KEY_PATH:-}
+      # A service identity is not you, so author:@me matches nothing. Set the login
+      # mino should stand in for, or queries come back empty with no error.
+      MINO_GITHUB_VIEWER: ${MINO_GITHUB_VIEWER:-}
+      # Still honoured, below service auth: a human's token, with a human's rate limit
+      # and name on every action mino takes.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    # Compose cannot express "one of these three credentials", so enforcement lives in
+    # mino: with none of them set, no realtime source opens and serve exits naming the
+    # queries it skipped and why.
+    #
+    # Using a GitHub App? Uncomment this and the top-level secrets: block, drop the .pem
+    # at ./secrets/mino-github-app.pem, and set
+    # MINO_GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/mino_github_app_key. It is commented
+    # out by default because compose fails to start when a declared secret file is absent.
+    # secrets:
+    #   - mino_github_app_key
+    volumes:
+      # Named, not a bind mount: an empty named volume inherits the image
+      # directory's mino:mino ownership, which is what lets USER mino write. For a
+      # bind mount you must chown it to 10001:10001 on the host first.
+      - mino-home:/var/lib/mino
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7717/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    # Not read_only: DuckDB needs a writable MINO_HOME.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mino-home:
+
+# Lands at /run/secrets/mino_github_app_key, readable by uid 10001. A path pointing at a
+# missing file means "an App is configured" and fails fast rather than degrading silently,
+# so leave both this and the service-level secrets: reference commented out unless you are
+# actually using an App.
+# secrets:
+#   mino_github_app_key:
+#     file: ./secrets/mino-github-app.pem

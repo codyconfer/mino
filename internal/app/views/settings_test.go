@@ -81,6 +81,17 @@ func setvBreakConfigDir(t *testing.T) {
 	t.Setenv("USERPROFILE", blocker)
 }
 
+func settingsSelect(t *testing.T, kit *Kit, label string) func(*vkdeck.Model) tea.Cmd {
+	t.Helper()
+	for _, it := range kit.settingsMenuItems() {
+		if it.Label == label {
+			return it.OnSelect
+		}
+	}
+	t.Fatalf("settings menu missing %q: %v", label, settingsLabels(kit))
+	return nil
+}
+
 func hasLabel(labels []string, want string) bool {
 	for _, l := range labels {
 		if l == want {
@@ -90,37 +101,31 @@ func hasLabel(labels []string, want string) bool {
 	return false
 }
 
-func TestSettingsMenuHidesCreateWhenConfigExists(t *testing.T) {
+func TestSettingsMenuHidesImportWithoutConfigFile(t *testing.T) {
 	kit := testKit(t)
 	labels := settingsLabels(kit)
-	if !hasLabel(labels, "Create config") {
-		t.Fatalf("expected Create config when no file: %v", labels)
-	}
-	if hasLabel(labels, "Delete config") || hasLabel(labels, "Import config") {
-		t.Fatalf("Delete/Import should be hidden without a config file: %v", labels)
+	if hasLabel(labels, "Import config") {
+		t.Fatalf("Import should be hidden without a config file: %v", labels)
 	}
 
 	if err := os.WriteFile(filepath.Join(kit.d.App.Cfg.Home, "config.yaml"), []byte("output: terminal\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 	labels = settingsLabels(kit)
-	if hasLabel(labels, "Create config") {
-		t.Fatalf("Create config should be hidden when file exists: %v", labels)
-	}
-	if !hasLabel(labels, "Delete config") || !hasLabel(labels, "Import config") {
-		t.Fatalf("expected Delete/Import when config exists: %v", labels)
+	if !hasLabel(labels, "Import config") {
+		t.Fatalf("expected Import when config exists: %v", labels)
 	}
 }
 
 func TestSettingsMenuNamingAndExportAlwaysPresent(t *testing.T) {
 	kit := testKit(t)
 	labels := settingsLabels(kit)
-	for _, want := range []string{"Edit config", "Create config", "Export config", "Open config in editor", "Appearance", "Status bar"} {
+	for _, want := range []string{"Accounts", "Plugins", "Config", "Appearance", "Status bar", "Export config", "Open config in $EDITOR"} {
 		if !hasLabel(labels, want) {
 			t.Fatalf("settings missing %q: %v", want, labels)
 		}
 	}
-	for _, bad := range []string{"Create config file", "Overwrite DuckDB with file", "Export DuckDB → files", "Show active config"} {
+	for _, bad := range []string{"Edit config", "Create config", "Delete config", "Settings", "Tooling"} {
 		if hasLabel(labels, bad) {
 			t.Fatalf("settings still uses old label %q: %v", bad, labels)
 		}
@@ -194,48 +199,10 @@ func TestSettingsStatusBarFormTogglesVisibility(t *testing.T) {
 	}
 }
 
-func TestSettingsEditConfigWritesHome(t *testing.T) {
-	kit := testKit(t)
-	home := kit.d.App.Cfg.Home
-	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("output: terminal\ntimeout: 30s\naudit:\n  enabled: false\nbackup:\n  destination: local\n  keep: 1\n"), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-
-	app := newTestApp(kit.setvEditConfigView())
-	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
-	app = step(app, tea.KeyMsg{Type: tea.KeyRight})
-	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyCtrlS})
-	if cmd != nil {
-		for _, c := range flattenCmds(cmd) {
-			if c == nil {
-				continue
-			}
-			app = step(app, c())
-		}
-	}
-	raw, err := os.ReadFile(filepath.Join(home, "config.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(raw), "output: json") {
-		t.Fatalf("config file not updated: %s", raw)
-	}
-}
-
 func TestSettingsOpenConfigInEditorRequiresFileAndEditor(t *testing.T) {
 	kit := testKit(t)
 	app := newTestApp(kit.Settings())
-
-	var open func(*vkdeck.Model) tea.Cmd
-	for _, it := range kit.settingsMenuItems() {
-		if it.Label == "Open config in editor" {
-			open = it.OnSelect
-			break
-		}
-	}
-	if open == nil {
-		t.Fatal("Open config in editor menu item missing")
-	}
+	open := settingsSelect(t, kit, "Open config in $EDITOR")
 
 	_ = open(app)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
@@ -277,17 +244,7 @@ func TestSettingsImportExportRequireConfirmation(t *testing.T) {
 	app := newTestApp(kit.Settings())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
-	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
-	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
-	app, cmd := update(app, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil {
-		for _, c := range flattenCmds(cmd) {
-			if c == nil {
-				continue
-			}
-			app = step(app, c())
-		}
-	}
+	_ = settingsSelect(t, kit, "Import config")(app)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got := app.View()
 	if !strings.Contains(strings.ToUpper(got), "IMPORT CONFIG") {
@@ -300,16 +257,7 @@ func TestSettingsImportExportRequireConfirmation(t *testing.T) {
 	app = step(app, tea.KeyMsg{Type: tea.KeyEsc})
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 
-	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
-	app, cmd = update(app, tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil {
-		for _, c := range flattenCmds(cmd) {
-			if c == nil {
-				continue
-			}
-			app = step(app, c())
-		}
-	}
+	_ = settingsSelect(t, kit, "Export config")(app)
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	got = app.View()
 	if !strings.Contains(strings.ToUpper(got), "EXPORT CONFIG") {
@@ -317,75 +265,6 @@ func TestSettingsImportExportRequireConfirmation(t *testing.T) {
 	}
 	if !strings.Contains(got, "Yes, export") || !strings.Contains(got, "No, cancel") {
 		t.Fatalf("export confirm options missing: %q", got)
-	}
-}
-
-func TestSetvEditConfigFormFields(t *testing.T) {
-	kit := testKit(t)
-	v := kit.setvEditConfigView()
-	setvWantKeys(t, v, "output", "audit.enabled", "timeout", "backup.destination", "backup.keep")
-	if got := v.Title(); got != "edit config" {
-		t.Errorf("title = %q, want edit config", got)
-	}
-	if got := v.Hints(ui.Default()); len(got) != 3 || got[2].Key != "ctrl+s" {
-		t.Errorf("hints = %v, want explicit field/change/ctrl+s legend", got)
-	}
-	for _, h := range v.Hints(ui.Default()) {
-		if strings.ContainsAny(h.Key, "jk") {
-			t.Errorf("hints advertise unbound single-char keys: %v", v.Hints(ui.Default()))
-		}
-	}
-}
-
-func TestSetvSaveConfigPersistsValues(t *testing.T) {
-	kit := testKit(t)
-	home := kit.d.App.Cfg.Home
-	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("output: terminal\n"), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-
-	app := setvStack(kit, kit.setvEditConfigView())
-	vals := map[string]any{
-		"output":             "json",
-		"timeout":            "45s",
-		"audit.enabled":      true,
-		"backup.destination": "gdrive",
-		"backup.keep":        "7",
-	}
-	if cmd := kit.setvSaveConfig(app, vals); cmd == nil {
-		t.Fatal("setvSaveConfig returned nil cmd")
-	}
-	raw, err := os.ReadFile(filepath.Join(home, "config.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"output: json", "timeout: 45s", "enabled: true", "destination: gdrive", "keep: 7"} {
-		if !strings.Contains(string(raw), want) {
-			t.Errorf("config missing %q:\n%s", want, raw)
-		}
-	}
-	if got := app.Top().Title(); got != "edit config" {
-		t.Fatalf("Top title = %q, want edit config", got)
-	}
-	if body := setvBody(app); !strings.Contains(body, "wrote ") {
-		t.Fatalf("expected wrote-path message: %q", body)
-	}
-}
-
-func TestSetvSaveConfigError(t *testing.T) {
-	kit := testKit(t)
-	home := kit.d.App.Cfg.Home
-	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("\tnot: [valid\n"), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-
-	app := setvStack(kit, kit.setvEditConfigView())
-	if cmd := kit.setvSaveConfig(app, map[string]any{"output": "json"}); cmd == nil {
-		t.Fatal("setvSaveConfig returned nil cmd on error")
-	}
-	body := setvBody(app)
-	if !strings.Contains(body, "parse config file") {
-		t.Fatalf("expected parse error message: %q", body)
 	}
 }
 

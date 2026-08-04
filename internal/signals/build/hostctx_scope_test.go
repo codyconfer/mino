@@ -42,7 +42,7 @@ func TestHostBuildContextScopesSettingsAndTokens(t *testing.T) {
 		signal:   {"max": "7"},
 		"google": {"oauth_client_id": "abc"},
 	}
-	if _, err := build.ScheduledJob(signal, nil, cfg, nil, active.NewState(nil)); err != nil {
+	if _, err := build.ScheduledJob(signal, nil, "", cfg, nil, active.NewState(nil)); err != nil {
 		t.Fatalf("build.ScheduledJob: %v", err)
 	}
 	if captured == nil {

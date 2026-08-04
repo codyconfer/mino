@@ -16,7 +16,7 @@ import (
 	"github.com/codyconfer/mino/internal/signals"
 )
 
-const projectScopeHint = "the read:project scope is required; run `gh auth refresh -s read:project` or re-run `mino login github`"
+const projectScopeHint = "reading projects needs the read:project scope on a token (`gh auth refresh -s read:project`, or re-run `mino login github`), or read access to organization projects on a GitHub App"
 
 const (
 	searchPageSize  = 50
@@ -75,6 +75,7 @@ type projectSignal struct {
 	cache   RosterCache
 	detail  Cache
 	policy  CachePolicy
+	viewer  string
 }
 
 func NewProject(spec ProjectSpec, backend Backend, max int, cache RosterCache, opts ...Option) signals.Signal {
@@ -85,7 +86,7 @@ func NewProject(spec ProjectSpec, backend Backend, max int, cache RosterCache, o
 		max = defaultPerPage
 	}
 	o := applyOptions(opts)
-	return &projectSignal{spec: spec, backend: backend, max: max, cache: cache, detail: o.detail, policy: o.policy}
+	return &projectSignal{spec: spec, backend: backend, max: max, cache: cache, detail: o.detail, policy: o.policy, viewer: o.viewer}
 }
 
 func (p *projectSignal) Name() string { return "github" }
@@ -112,9 +113,12 @@ func (p *projectSignal) Fetch(ctx context.Context) ([]signals.Section, error) {
 	}
 	viewer := ""
 	if pf.needsViewer {
-		viewer, err = p.viewerLogin(ctx)
-		if err != nil {
-			return nil, err
+		viewer = p.viewer
+		if viewer == "" {
+			viewer, err = p.viewerLogin(ctx)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	var roster *Roster

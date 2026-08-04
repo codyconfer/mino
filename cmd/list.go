@@ -96,7 +96,7 @@ func listEmpty(w io.Writer, th theme.Theme, msg string) {
 }
 
 func listScopeNote(th theme.Theme, all bool) string {
-	r := shared.Cfg.Role
+	r := shared.Role()
 	switch {
 	case r == "":
 		return ""
@@ -209,7 +209,7 @@ func listRolesSection(w io.Writer) {
 		if len(rd.Formatters) > 0 {
 			detail += fmt.Sprintf(" %d formatter(s)", len(rd.Formatters))
 		}
-		if n == shared.Cfg.Role {
+		if n == shared.Role() {
 			detail += " " + sc.Theme.Can.Render("(active)")
 		}
 		listLine(w, sc, n, detail)

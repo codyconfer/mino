@@ -2,28 +2,33 @@ package onboard
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/codyconfer/mino/internal/auth"
+	"github.com/codyconfer/mino/internal/gitauth"
 )
 
 var RequiredEmailDomain string
 
 var AllOrNothingAuth string
 
+var ServiceAuth string
+
+func ServiceAuthAllowed() bool { return ServiceAuth == "true" }
+
 type StepID string
 
 const (
-	StepGitHubAuth    StepID = "github-auth"
+	StepProviderAuth  StepID = "provider-auth"
 	StepGitSigningKey StepID = "git-signingkey"
 	StepGPGLocal      StepID = "gpg-local"
-	StepGPGGitHub     StepID = "gpg-github"
+	StepGPGRemote     StepID = "gpg-remote"
 	StepSSHLocal      StepID = "ssh-local"
-	StepSSHGitHub     StepID = "ssh-github"
+	StepSSHRemote     StepID = "ssh-remote"
 	StepEmailDomain   StepID = "email-domain"
+	StepServiceID     StepID = "service-identity"
 )
 
 type Result struct {
@@ -51,60 +56,65 @@ func (s Status) Ready() bool {
 }
 
 var (
-	ghAvailable  = auth.GHAvailable
-	ghToken      = auth.GitHubToken
 	runGH        = auth.GH
 	runGit       = auth.Git
 	runGPG       = auth.GPG
 	runSSHKeygen = auth.SSHKeygen
-	ghAPIGet     = auth.GHAPIGet
 	readFile     = os.ReadFile
 )
 
-func Check(ctx context.Context, tokens auth.TokenStore, apiURL string) Status {
+func Check(ctx context.Context, p gitauth.Provider, id gitauth.Identity) Status {
 	var st Status
 
-	authOK, authRes := checkGitHubAuth(ctx, tokens, apiURL)
+	authOK, authRes := checkProviderAuth(ctx, p, id)
 	st.Results = append(st.Results, authRes)
+
+	if authOK && ServiceAuthAllowed() && id != nil && id.ServiceIdentity() {
+		st.Results = append(st.Results, Result{
+			Step:   StepServiceID,
+			Title:  "running as a service identity",
+			OK:     true,
+			Detail: "commit-signing checks do not apply to " + id.Origin(),
+		})
+		return st
+	}
 
 	format := signingFormat(ctx)
 	signingKey, keyRes := checkSigningKey(ctx, format)
 	st.Results = append(st.Results, keyRes)
 
 	if format == "ssh" {
-		return checkSSH(ctx, tokens, apiURL, authOK, signingKey, st)
+		return checkSSH(ctx, p, id, authOK, signingKey, st)
 	}
-	return checkGPG(ctx, tokens, apiURL, authOK, signingKey, st)
+	return checkGPG(ctx, p, id, authOK, signingKey, st)
 }
 
-func checkGPG(ctx context.Context, tokens auth.TokenStore, apiURL string, authOK bool, signingKey string, st Status) Status {
+func checkGPG(ctx context.Context, p gitauth.Provider, id gitauth.Identity, authOK bool, signingKey string, st Status) Status {
 	st.Results = append(st.Results, checkGPGLocal(ctx, signingKey))
 
-	var raw []byte
-	var fetchErr error
+	var chk gitauth.KeyCheck
 	if signingKey != "" && authOK {
-		raw, fetchErr = ghAPIGet(ctx, tokens, apiURL, "user/gpg_keys")
+		chk = p.SigningKeyRegistered(ctx, id, gitauth.SigningGPG, signingKey)
 	}
-	st.Results = append(st.Results, checkGPGGitHub(signingKey, authOK, raw, fetchErr, auth.GHHostname(apiURL)))
+	st.Results = append(st.Results, checkGPGRemote(p, signingKey, authOK, chk))
 	if RequiredEmailDomain != "" {
-		st.Results = append(st.Results, checkEmailDomain(signingKey, authOK, raw, fetchErr))
+		st.Results = append(st.Results, checkEmailDomain(ctx, p, id, signingKey, authOK))
 	}
 
 	return st
 }
 
-func checkSSH(ctx context.Context, tokens auth.TokenStore, apiURL string, authOK bool, signingKey string, st Status) Status {
+func checkSSH(ctx context.Context, p gitauth.Provider, id gitauth.Identity, authOK bool, signingKey string, st Status) Status {
 	pubKey, localRes := checkSSHLocal(ctx, signingKey)
 	st.Results = append(st.Results, localRes)
 
-	var raw []byte
-	var fetchErr error
+	var chk gitauth.KeyCheck
 	if pubKey != "" && authOK {
-		raw, fetchErr = ghAPIGet(ctx, tokens, apiURL, "user/ssh_signing_keys")
+		chk = p.SigningKeyRegistered(ctx, id, gitauth.SigningSSH, pubKey)
 	}
-	st.Results = append(st.Results, checkSSHGitHub(pubKey, authOK, raw, fetchErr, auth.GHHostname(apiURL)))
+	st.Results = append(st.Results, checkSSHRemote(p, pubKey, authOK, chk))
 	if RequiredEmailDomain != "" {
-		st.Results = append(st.Results, checkSSHEmailDomain(ctx, tokens, apiURL, authOK))
+		st.Results = append(st.Results, checkSSHEmailDomain(ctx, p, id, authOK))
 	}
 
 	return st
@@ -121,22 +131,26 @@ func signingFormat(ctx context.Context) string {
 	return "openpgp"
 }
 
-func checkGitHubAuth(ctx context.Context, tokens auth.TokenStore, apiURL string) (bool, Result) {
-	r := Result{Step: StepGitHubAuth, Title: "GitHub authenticated"}
-	if ghAvailable() {
-		args := append([]string{"auth", "status"}, auth.GHHostFlag(apiURL)...)
-		if _, err := runGH(ctx, args...); err == nil {
-			r.OK, r.Detail = true, "gh CLI is logged in"
-			return true, r
-		}
+func checkProviderAuth(ctx context.Context, p gitauth.Provider, id gitauth.Identity) (bool, Result) {
+	r := Result{Step: StepProviderAuth, Title: providerLabel(p) + " authenticated"}
+	if p == nil {
+		r.Detail = "no git provider configured"
+		return false, r
 	}
-	if tok, origin := ghToken(tokens); tok != "" {
-		r.OK, r.Detail = true, "using "+origin
-		return true, r
+	st := providerStatus(ctx, p, id)
+	r.OK, r.Detail, r.Fix = st.OK, st.Detail, st.Fix
+	return st.OK, r
+}
+
+func providerStatus(ctx context.Context, p gitauth.Provider, id gitauth.Identity) gitauth.AuthStatus {
+	return p.Status(ctx, id)
+}
+
+func providerLabel(p gitauth.Provider) string {
+	if p == nil {
+		return "git provider"
 	}
-	r.Detail = "no working GitHub authentication found"
-	r.Fix = []string{"gh auth login", "mino login github"}
-	return false, r
+	return p.Label()
 }
 
 func checkSigningKey(ctx context.Context, format string) (string, Result) {
@@ -186,87 +200,63 @@ func checkGPGLocal(ctx context.Context, signingKey string) Result {
 	return r
 }
 
-func checkGPGGitHub(signingKey string, authOK bool, raw []byte, fetchErr error, host string) Result {
-	r := Result{Step: StepGPGGitHub, Title: "GPG key verified on GitHub"}
+func checkGPGRemote(p gitauth.Provider, signingKey string, authOK bool, chk gitauth.KeyCheck) Result {
+	label := providerLabel(p)
+	r := Result{Step: StepGPGRemote, Title: "GPG key verified on " + label}
 	switch {
 	case signingKey == "":
 		r.Detail = "blocked: configure git user.signingkey first"
 		return r
 	case !authOK:
-		r.Detail = "blocked: authenticate with GitHub first"
+		r.Detail = "blocked: authenticate with " + label + " first"
 		return r
-	case fetchErr != nil:
-		if fix := scopeFix(fetchErr, "admin:gpg_key", host); fix != nil {
-			r.Detail = "cannot read your GitHub GPG keys: your GitHub token is missing the admin:gpg_key scope"
-			r.Fix = fix
+	case chk.Err != nil:
+		if len(chk.Fix) > 0 {
+			r.Detail = "cannot read your " + label + " GPG keys: the credential lacks permission"
+			r.Fix = chk.Fix
 			return r
 		}
-		r.Detail = "could not read your GitHub GPG keys: " + fetchErr.Error()
-		r.Fix = uploadFix(signingKey, host)
+		r.Detail = "could not read your " + label + " GPG keys: " + chk.Err.Error()
+		r.Fix = p.UploadKeyFix(gitauth.SigningGPG, signingKey)
 		return r
 	}
-	if !keyRegistered(raw, signingKey) {
-		r.Detail = "signing key " + signingKey + " is not registered on your GitHub account"
-		r.Fix = uploadFix(signingKey, host)
+	if !chk.Registered {
+		r.Detail = "signing key " + signingKey + " is not registered on your " + label + " account"
+		r.Fix = p.UploadKeyFix(gitauth.SigningGPG, signingKey)
 		return r
 	}
-	r.OK, r.Detail = true, "signing key is registered on GitHub; signed commits will show as Verified"
+	r.OK, r.Detail = true, "signing key is registered on "+label+"; signed commits will show as Verified"
 	return r
 }
 
-func checkEmailDomain(signingKey string, authOK bool, raw []byte, fetchErr error) Result {
+func checkEmailDomain(ctx context.Context, p gitauth.Provider, id gitauth.Identity, signingKey string, authOK bool) Result {
+	label := providerLabel(p)
 	r := Result{Step: StepEmailDomain, Title: "signing key belongs to @" + RequiredEmailDomain}
 	switch {
 	case signingKey == "":
 		r.Detail = "blocked: configure git user.signingkey first"
 		return r
 	case !authOK:
-		r.Detail = "blocked: authenticate with GitHub first"
-		return r
-	case fetchErr != nil:
-		r.Detail = "could not read your GitHub GPG keys: " + fetchErr.Error()
+		r.Detail = "blocked: authenticate with " + label + " first"
 		return r
 	}
-	emails := keyEmails(raw, signingKey)
-	for _, e := range emails {
+	chk := p.SigningKeyRegistered(ctx, id, gitauth.SigningGPG, signingKey)
+	if chk.Err != nil {
+		r.Detail = "could not read your " + label + " GPG keys: " + chk.Err.Error()
+		return r
+	}
+	for _, e := range chk.Identities {
 		if emailInDomain(e, RequiredEmailDomain) {
 			r.OK, r.Detail = true, "verified identity "+e
 			return r
 		}
 	}
-	r.Detail = "the registered signing key has no verified @" + RequiredEmailDomain + " identity on GitHub"
+	r.Detail = "the registered signing key has no verified @" + RequiredEmailDomain + " identity on " + label
 	r.Fix = []string{
-		"add and verify your @" + RequiredEmailDomain + " email in GitHub settings",
+		"add and verify your @" + RequiredEmailDomain + " email in " + label + " settings",
 		"ensure that email is a user id on the GPG key (gpg --edit-key " + signingKey + " adduid), then re-upload the key",
 	}
 	return r
-}
-
-func scopeFix(err error, scope, host string) []string {
-	if err == nil {
-		return nil
-	}
-	s := strings.ToLower(err.Error())
-	if strings.Contains(s, strings.ToLower(scope)) ||
-		strings.Contains(s, "404") ||
-		strings.Contains(s, "not found") {
-		return []string{"gh auth refresh -h " + hostOrDefault(host) + " -s " + scope}
-	}
-	return nil
-}
-
-func hostOrDefault(host string) string {
-	if host == "" {
-		return "github.com"
-	}
-	return host
-}
-
-func uploadFix(signingKey, host string) []string {
-	return []string{
-		"gpg --armor --export " + signingKey + " | gh gpg-key add -",
-		"or: gpg --armor --export " + signingKey + "   then paste at https://" + hostOrDefault(host) + "/settings/gpg/new",
-	}
 }
 
 func checkSSHLocal(ctx context.Context, signingKey string) (string, Result) {
@@ -288,38 +278,40 @@ func checkSSHLocal(ctx context.Context, signingKey string) (string, Result) {
 	return pub, r
 }
 
-func checkSSHGitHub(pubKey string, authOK bool, raw []byte, fetchErr error, host string) Result {
-	r := Result{Step: StepSSHGitHub, Title: "SSH signing key registered on GitHub"}
+func checkSSHRemote(p gitauth.Provider, pubKey string, authOK bool, chk gitauth.KeyCheck) Result {
+	label := providerLabel(p)
+	r := Result{Step: StepSSHRemote, Title: "SSH signing key registered on " + label}
 	switch {
 	case pubKey == "":
 		r.Detail = "blocked: configure a local SSH signing key first"
 		return r
 	case !authOK:
-		r.Detail = "blocked: authenticate with GitHub first"
+		r.Detail = "blocked: authenticate with " + label + " first"
 		return r
-	case fetchErr != nil:
-		if fix := scopeFix(fetchErr, "admin:ssh_signing_key", host); fix != nil {
-			r.Detail = "cannot read your GitHub SSH signing keys: your GitHub token is missing the admin:ssh_signing_key scope"
-			r.Fix = fix
+	case chk.Err != nil:
+		if len(chk.Fix) > 0 {
+			r.Detail = "cannot read your " + label + " SSH signing keys: the credential lacks permission"
+			r.Fix = chk.Fix
 			return r
 		}
-		r.Detail = "could not read your GitHub SSH signing keys: " + fetchErr.Error()
-		r.Fix = sshUploadFix(host)
+		r.Detail = "could not read your " + label + " SSH signing keys: " + chk.Err.Error()
+		r.Fix = p.UploadKeyFix(gitauth.SigningSSH, pubKey)
 		return r
 	}
-	if !sshKeyRegistered(raw, pubKey) {
-		r.Detail = "this SSH key is not registered as a signing key on your GitHub account"
-		r.Fix = sshUploadFix(host)
+	if !chk.Registered {
+		r.Detail = "this SSH key is not registered as a signing key on your " + label + " account"
+		r.Fix = p.UploadKeyFix(gitauth.SigningSSH, pubKey)
 		return r
 	}
-	r.OK, r.Detail = true, "SSH signing key is registered on GitHub; signed commits will show as Verified"
+	r.OK, r.Detail = true, "SSH signing key is registered on "+label+"; signed commits will show as Verified"
 	return r
 }
 
-func checkSSHEmailDomain(ctx context.Context, tokens auth.TokenStore, apiURL string, authOK bool) Result {
+func checkSSHEmailDomain(ctx context.Context, p gitauth.Provider, id gitauth.Identity, authOK bool) Result {
+	label := providerLabel(p)
 	r := Result{Step: StepEmailDomain, Title: "commit email belongs to @" + RequiredEmailDomain}
 	if !authOK {
-		r.Detail = "blocked: authenticate with GitHub first"
+		r.Detail = "blocked: authenticate with " + label + " first"
 		return r
 	}
 	out, err := runGit(ctx, "config", "--get", "user.email")
@@ -334,25 +326,18 @@ func checkSSHEmailDomain(ctx context.Context, tokens auth.TokenStore, apiURL str
 		r.Fix = []string{"git config --global user.email you@" + RequiredEmailDomain}
 		return r
 	}
-	raw, ferr := ghAPIGet(ctx, tokens, apiURL, "user/emails")
-	if ferr != nil {
-		r.Detail = "could not read your GitHub emails: " + ferr.Error()
+	verified, verr := p.EmailVerified(ctx, id, email)
+	if verr != nil {
+		r.Detail = "could not read your " + label + " emails: " + verr.Error()
 		return r
 	}
-	if !emailVerifiedOnGitHub(raw, email) {
-		r.Detail = email + " is not a verified email on your GitHub account"
-		r.Fix = []string{"add and verify " + email + " in GitHub email settings"}
+	if !verified {
+		r.Detail = "user.email " + email + " is not a verified email on your " + label + " account"
+		r.Fix = []string{"add and verify " + email + " in " + label + " settings"}
 		return r
 	}
-	r.OK, r.Detail = true, "verified identity "+email
+	r.OK, r.Detail = true, "verified commit email "+email
 	return r
-}
-
-func sshUploadFix(host string) []string {
-	return []string{
-		"gh ssh-key add <path-to-.pub> --type signing",
-		"or paste the key at https://" + hostOrDefault(host) + "/settings/ssh/new (Key type: Signing Key)",
-	}
 }
 
 func resolveSSHPublicKey(ctx context.Context, signingKey string) (string, error) {
@@ -424,123 +409,10 @@ func expandPath(p string) string {
 	return p
 }
 
-type ghSSHKey struct {
-	Key string `json:"key"`
-}
-
-func sshKeyRegistered(raw []byte, pubKey string) bool {
-	var keys []ghSSHKey
-	if err := json.Unmarshal(raw, &keys); err != nil {
-		return false
-	}
-	want := normalizeSSHKey(pubKey)
-	if want == "" {
-		return false
-	}
-	for _, k := range keys {
-		if normalizeSSHKey(k.Key) == want {
-			return true
-		}
-	}
-	return false
-}
-
-func emailVerifiedOnGitHub(raw []byte, email string) bool {
-	var list []struct {
-		Email    string `json:"email"`
-		Verified bool   `json:"verified"`
-	}
-	if err := json.Unmarshal(raw, &list); err != nil {
-		return false
-	}
-	for _, e := range list {
-		if e.Verified && strings.EqualFold(e.Email, email) {
-			return true
-		}
-	}
-	return false
-}
-
-type ghGPGKey struct {
-	KeyID  string `json:"key_id"`
-	Emails []struct {
-		Email    string `json:"email"`
-		Verified bool   `json:"verified"`
-	} `json:"emails"`
-	Subkeys []struct {
-		KeyID string `json:"key_id"`
-	} `json:"subkeys"`
-}
-
-func keyEmails(raw []byte, signingKey string) []string {
-	var keys []ghGPGKey
-	if err := json.Unmarshal(raw, &keys); err != nil {
-		return nil
-	}
-	want := normalizeKeyID(signingKey)
-	if want == "" {
-		return nil
-	}
-	var out []string
-	for _, k := range keys {
-		matched := keyIDMatch(k.KeyID, want)
-		for _, sk := range k.Subkeys {
-			if keyIDMatch(sk.KeyID, want) {
-				matched = true
-			}
-		}
-		if !matched {
-			continue
-		}
-		for _, e := range k.Emails {
-			if e.Verified && e.Email != "" {
-				out = append(out, e.Email)
-			}
-		}
-	}
-	return out
-}
-
 func emailInDomain(email, domain string) bool {
 	at := strings.LastIndex(email, "@")
 	if at < 0 {
 		return false
 	}
 	return strings.EqualFold(email[at+1:], domain)
-}
-
-func keyRegistered(raw []byte, signingKey string) bool {
-	var keys []ghGPGKey
-	if err := json.Unmarshal(raw, &keys); err != nil {
-		return false
-	}
-	want := normalizeKeyID(signingKey)
-	if want == "" {
-		return false
-	}
-	for _, k := range keys {
-		if keyIDMatch(k.KeyID, want) {
-			return true
-		}
-		for _, sk := range k.Subkeys {
-			if keyIDMatch(sk.KeyID, want) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func normalizeKeyID(s string) string {
-	s = strings.ReplaceAll(strings.ToUpper(strings.TrimSpace(s)), " ", "")
-	s = strings.TrimSuffix(s, "!")
-	return strings.TrimPrefix(s, "0X")
-}
-
-func keyIDMatch(ghKeyID, want string) bool {
-	g := normalizeKeyID(ghKeyID)
-	if g == "" || want == "" {
-		return false
-	}
-	return g == want || strings.HasSuffix(want, g) || strings.HasSuffix(g, want)
 }

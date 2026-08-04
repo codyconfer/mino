@@ -63,6 +63,7 @@ func Run(ctx context.Context, w io.Writer, cfg *config.Config, closeDBs func(), 
 		config.DataPath(home, config.ConfigDB),
 		config.DataPath(home, config.AuditDB),
 		config.DataPath(home, config.TokensDB),
+		config.DataPath(home, config.StateDB),
 	}
 	files = append(files, duckfile.BackupPaths()...)
 	files = append(files, plugin.DataPaths(home)...)
@@ -124,7 +125,7 @@ func uploadTo(ctx context.Context, w io.Writer, cfg *config.Config, dest, name s
 	}
 	defer tokens.Close()
 	owner, _ := plugin.BackupDestinationOwner(dest)
-	sink, err := open(pluginhost.ForPlugin(cfg, tokens, owner, dest))
+	sink, err := open(pluginhost.ForPlugin(cfg, tokens, "", owner, dest))
 	if err != nil {
 		return errs.Wrapf(errs.KindBackup, err, "opening backup destination %q", dest)
 	}

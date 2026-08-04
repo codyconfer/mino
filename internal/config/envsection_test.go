@@ -46,3 +46,33 @@ func TestParseConfigDoesNotWarnForALeafEnvVar(t *testing.T) {
 		t.Errorf("warned about a leaf env var that applied correctly:\n%s", buf.String())
 	}
 }
+
+func TestParseConfigAppliesThreeLevelHTTPEnvVars(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	t.Setenv("MINO_DAEMON_HTTP_ENABLED", "true")
+	t.Setenv("MINO_DAEMON_HTTP_PORT", "9999")
+	t.Setenv("MINO_DAEMON_HTTP_TOKEN", "sekret")
+
+	cfg, err := ParseConfig(t.TempDir(), nil, "yaml")
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+
+	// daemon.http is the deepest config nesting mino has; if the env overlay
+	// stops at two levels these silently do nothing and the API looks
+	// unconfigurable without a config file.
+	if !cfg.Daemon.HTTP.Enabled {
+		t.Errorf("MINO_DAEMON_HTTP_ENABLED did not apply: enabled = false")
+	}
+	if cfg.Daemon.HTTP.Port != 9999 {
+		t.Errorf("MINO_DAEMON_HTTP_PORT did not apply: port = %d, want 9999", cfg.Daemon.HTTP.Port)
+	}
+	if cfg.Daemon.HTTP.Token != "sekret" {
+		t.Errorf("MINO_DAEMON_HTTP_TOKEN did not apply: token = %q", cfg.Daemon.HTTP.Token)
+	}
+	if strings.Contains(buf.String(), "MINO_DAEMON_HTTP") {
+		t.Errorf("warned about env vars that applied correctly:\n%s", buf.String())
+	}
+}

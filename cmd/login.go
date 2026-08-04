@@ -30,9 +30,24 @@ func newLoginCmd() *cobra.Command {
 			if err := refuseUnreadableStore(p); err != nil {
 				return err
 			}
+			if err := refuseWhenServiceAuthWins(p); err != nil {
+				return err
+			}
 			return loginflow.RunCLI(cmd.Context(), shared, Scope(), p, cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
+}
+
+func refuseWhenServiceAuthWins(p loginflow.Provider) error {
+	if p.Key != "github" || shared == nil {
+		return nil
+	}
+	_, id, err := shared.GitAuth()
+	if err != nil || id == nil || !id.ServiceIdentity() {
+		return nil
+	}
+	return errs.Newf(errs.KindUsage, "git service auth is configured (%s), so a personal login would never be used", id.Origin()).
+		WithHint("unset github.app / github.service_token (and the matching MINO_GITHUB_* vars) to log in as yourself, or run `mino verify auth` to check the service credential")
 }
 
 func refuseUnreadableStore(p loginflow.Provider) error {

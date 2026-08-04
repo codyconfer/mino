@@ -55,15 +55,15 @@ func GHHostFlag(apiURL string) []string {
 	return []string{"--hostname", host}
 }
 
-func GHAPIGet(ctx context.Context, store TokenStore, apiURL, path string) ([]byte, error) {
-	if GHAvailable() {
+func GHAPIGet(ctx context.Context, sel GitHubSelection, path string) ([]byte, error) {
+	apiURL := sel.APIURL
+	if sel.UsesGHCLI() {
 		args := append([]string{"api"}, GHHostFlag(apiURL)...)
 		return GH(ctx, append(args, path)...)
 	}
-	tok, _ := GitHubToken(store)
-	if tok == "" {
-		return nil, errs.New(errs.KindAuth, "no GitHub authentication available").
-			WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `mino login github`")
+	tok, err := sel.Token(ctx)
+	if err != nil {
+		return nil, err
 	}
 	base := strings.TrimRight(apiURL, "/")
 	if base == "" {

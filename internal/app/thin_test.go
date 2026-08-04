@@ -64,14 +64,14 @@ func TestThinLoadOpensNoDatabasesAndRunsNoRoleHooks(t *testing.T) {
 		t.Errorf("thin load created DuckDB files: %v", files)
 	}
 	if _, err := os.Stat(filepath.Join(config.DataDir(home), "active-role")); !os.IsNotExist(err) {
-		t.Error("thin load must not write .data/active-role")
+		t.Error("thin load must not write the legacy active-role marker")
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Error("thin load must not run role enter hooks")
 	}
 
-	if a.Cfg.Role != "triage" {
-		t.Errorf("role = %q, want triage read from files", a.Cfg.Role)
+	if a.Cfg.DefaultRole != "triage" {
+		t.Errorf("role = %q, want triage read from files", a.Cfg.DefaultRole)
 	}
 	if _, ok := a.Directives.Roles["triage"]; !ok {
 		t.Errorf("directives should load from files, got roles %v", a.Directives.RoleNames())
@@ -102,5 +102,62 @@ func TestNonThinLoadOwnsDatabasesAndRunsRoleHooks(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); err != nil {
 		t.Errorf("normal load should run role enter hooks: %v", err)
+	}
+}
+
+func TestThinRoleResolutionOpensNoStore(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("role: triage\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rd := "type: role\nname: triage\nflights: []\nqueries: []\n"
+	if err := os.WriteFile(filepath.Join(home, "triage.yaml"), []byte(rd), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(config.DataDir(home), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(config.DataDir(home), "active-role")
+	if err := os.WriteFile(marker, []byte("weekly\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := Load(Options{Home: home, Thin: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(a.Shutdown)
+
+	if got := a.Role(); got != "triage" {
+		t.Errorf("Role() = %q, want the config default; panes are handed their role with --role", got)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Errorf("a thin pane consumed the legacy marker: %v", err)
+	}
+	if files := duckFiles(t, home); len(files) != 0 {
+		t.Errorf("resolving the role in a thin load created DuckDB files: %v", files)
+	}
+}
+
+func TestThinSessionRoleWinsOverTheConfigDefault(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte("role: triage\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"triage", "weekly"} {
+		rd := "type: role\nname: " + name + "\nflights: []\nqueries: []\n"
+		if err := os.WriteFile(filepath.Join(home, name+".yaml"), []byte(rd), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	a, err := Load(Options{Home: home, Thin: true, Role: "weekly"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(a.Shutdown)
+
+	if got := a.Role(); got != "weekly" {
+		t.Errorf("Role() = %q, want the --role a pane is spawned with", got)
 	}
 }

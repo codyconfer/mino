@@ -24,6 +24,7 @@ var auditvDBs = config.DuckDBDatabases()
 var auditvDefaultSQL = map[string]string{
 	"audit":  "SELECT name, kind, count(*) AS runs, coalesce(sum(count), 0) AS items FROM runs GROUP BY name, kind ORDER BY runs DESC",
 	"config": "SELECT name, format, applied_at FROM store_current ORDER BY name",
+	"state":  "SELECT namespace, key, value, updated_at FROM kv ORDER BY namespace, key",
 	"tokens": "SELECT namespace, key, updated_at, expiry IS NOT NULL AS has_expiry FROM kv ORDER BY namespace, key",
 }
 

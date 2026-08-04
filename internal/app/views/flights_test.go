@@ -43,7 +43,7 @@ func (v *flightView) set(t *testing.T, key, val string) {
 
 func TestFlightsListPutsNewFirstAndOpensTheEditor(t *testing.T) {
 	kit := testKit(t)
-	kit.d.App.Cfg.Role = ""
+	kit.d.App.UseRole("")
 
 	app := newTestApp(kit.Flights())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
@@ -245,7 +245,7 @@ func TestQueriesAndFlightsBothFilterByRole(t *testing.T) {
 		Flights: []string{"default"},
 		Queries: []string{"q1", "f1"},
 	}
-	kit.d.App.Cfg.Role = "triage"
+	kit.d.App.UseRole("triage")
 
 	render := func(v vkdeck.View) string {
 		app := newTestApp(v)
@@ -279,7 +279,7 @@ func TestNoRoleShowsEverythingOnBothSurfaces(t *testing.T) {
 		Flights: []string{"default"},
 		Queries: []string{"q1"},
 	}
-	kit.d.App.Cfg.Role = ""
+	kit.d.App.UseRole("")
 
 	render := func(v vkdeck.View) string {
 		app := newTestApp(v)

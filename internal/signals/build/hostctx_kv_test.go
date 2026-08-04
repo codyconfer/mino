@@ -59,7 +59,7 @@ func TestPluginKVCannotReachAnotherPluginsNamespace(t *testing.T) {
 		},
 	})
 
-	if _, err := build.ScheduledJob(signal, nil, config.Defaults(), nil, active.NewState(store)); err != nil {
+	if _, err := build.ScheduledJob(signal, nil, "", config.Defaults(), nil, active.NewState(store)); err != nil {
 		t.Fatalf("build.ScheduledJob: %v", err)
 	}
 	if captured == nil {

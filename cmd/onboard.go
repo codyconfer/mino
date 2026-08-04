@@ -12,7 +12,6 @@ import (
 	"github.com/codyconfer/mino/internal/app/onboard"
 	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/errs"
-	gh "github.com/codyconfer/mino/internal/signals/github"
 )
 
 const annoSkipOnboarding = "mino_skip_onboarding"
@@ -58,7 +57,14 @@ func requireOnboarding(cmd *cobra.Command) error {
 	return err
 }
 
-func onboardHint() string { return onboard.Hint() }
+func onboardHint() string {
+	if _, id, err := shared.GitAuth(); err == nil {
+		if h := onboard.ServiceHint(id); h != "" {
+			return h
+		}
+	}
+	return onboard.Hint()
+}
 
 func newOnboardCmd() *cobra.Command {
 	var reset, statusOnly bool
@@ -88,11 +94,11 @@ func runOnboard(cmd *cobra.Command, statusOnly bool) error {
 }
 
 func runOnboardTo(cmd *cobra.Command, w io.Writer, statusOnly bool) error {
-	apiURL, err := gh.NormalizeAPIURL(shared.Cfg.GitHub.APIURL)
+	prov, id, err := shared.GitAuth()
 	if err != nil {
 		return err
 	}
-	return onboard.RunCLI(cmd.Context(), shared.Tokens, apiURL, w, Scope(), statusOnly,
+	return onboard.RunCLI(cmd.Context(), prov, id, w, Scope(), statusOnly,
 		func(title, message, yes, no string) (bool, error) {
 			return deck.Confirm(vkdeck.ConfirmSpec{Title: title, Message: message, YesLabel: yes, NoLabel: no})
 		})

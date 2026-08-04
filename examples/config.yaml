@@ -44,8 +44,11 @@ backup:
   destination: local        # local, or a plugin destination such as gdrive
   keep: 0                   # retain newest N backups (0 = unlimited)
 
-# Active role. A role names the flights, queries, and filters that appear in
-# lists and the TUI; with no active role, everything is listed. Override
+# Default role, applied only until a role is activated. A role names the
+# flights, queries, and filters that appear in lists and the TUI; with no
+# active role, everything is listed. `mino role use <name>` records the active
+# role in .data/state.duckdb and never edits this file, so once you have
+# activated (or cleared) a role this setting is ignored. Override
 # per-invocation with --role, or the MINO_ROLE env var.
 role: ""
 
@@ -73,8 +76,20 @@ daemon:
   desktop: false    # send OS desktop notifications
   tray: false       # system tray icon on the installed daemon (Linux SNI/AppIndicator, macOS, Windows)
   theme: dark       # tray/notification icon theme: dark or light
+  http:             # HTTP trigger API under /api/v1, exposed only while serve runs
+    enabled: false  # off unless asked for
+    host: 127.0.0.1 # bind address; anything else exposes triggers off-box (containers)
+    port: 7717      # unprivileged port for that API
+    max_concurrent: 4 # simultaneous flight/query/action runs before 429
+    # token: ""     # bearer token; leave unset and mino generates one in .data/http.token (0600)
 
 # Per-signal defaults. A saved query may override any of these via its `params`.
+# Which git forge mino authenticates against for onboarding checks, the deck status
+# chip and `mino verify auth`. Only "github" ships in the stock binary; other providers
+# come from internal plugins and read their settings from plugins.<provider>.
+git:
+  provider: github
+
 github:
   queries:
     - "is:open is:pr author:@me"
@@ -83,7 +98,31 @@ github:
   # api_url: https://ghe.example.com/api/v3   # GitHub Enterprise REST base
   # Fallback when the gh CLI is absent: `mino login github` (OAuth device flow).
   # oauth_client_id: Iv1.xxxxxxxxxxxx
-  # oauth_scopes: "repo read:org"             # scopes requested by `mino login github`
+  # oauth_scopes: "repo read:org"             # scopes for `mino login github` only;
+                                              # a GitHub App uses installation permissions
+
+  # Service authentication, for unattended deployments. Either block below outranks
+  # the gh CLI, $GITHUB_TOKEN, $GH_TOKEN and the sealed store. Once configured, mino
+  # will NOT fall back to your personal credential: a half-configured app is a startup
+  # error, because a silent downgrade would run actions and comments under your name.
+  #
+  # Whether a service identity also satisfies the onboarding check is decided at build
+  # time (`make build SERVICE_AUTH=1`), never at runtime. The container image sets it.
+
+  # viewer: acme-bot        # replaces @me in queries; a service identity is not you, so
+                            # author:@me otherwise matches nothing and returns empty
+
+  # A machine-user PAT. Also MINO_GITHUB_SERVICE_TOKEN, or the sealed store key
+  # "github-service". This is what gives a container realtime GitHub: an App cannot
+  # read /notifications.
+  # service_token: ghp_xxxxxxxxxxxx
+
+  # A GitHub App installation. There is deliberately no private_key field here — key
+  # material must never live in config, which is stored verbatim in .data/config.duckdb.
+  # app:
+  #   id: "123456"
+  #   installation_id: "78901234"   # omit to discover it when there is exactly one
+  #   private_key_path: /run/secrets/mino-github-app.pem
 
 # Plugin settings. Every non-stock signal reads its knobs from this section,
 # namespaced by plugin: `plugins.<namespace>.<key>`. Stock mino ships GitHub and

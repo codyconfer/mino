@@ -18,11 +18,11 @@ import (
 	"github.com/codyconfer/sisyphus/secret"
 
 	"github.com/codyconfer/mino/internal/app/onboard"
-	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/filter"
 	"github.com/codyconfer/mino/internal/format"
+	"github.com/codyconfer/mino/internal/gitauth"
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/render"
 	"github.com/codyconfer/mino/internal/signals/build"
@@ -52,6 +52,7 @@ func sections() []section {
 		{"queries", "Queries"},
 		{"formatters", "Formatters"},
 		{"plugins", "Plugins"},
+		{"auth", "Authentication"},
 		{"onboarding", "Onboarding"},
 	}
 }
@@ -65,7 +66,7 @@ func Targets() []string {
 	return append(out, TargetAll)
 }
 
-func Run(ctx context.Context, w io.Writer, scope *ui.Scope, cfg *config.Config, directives *config.Directives, tokens auth.TokenStore, target string) error {
+func Run(ctx context.Context, w io.Writer, scope *ui.Scope, cfg *config.Config, directives *config.Directives, role string, prov gitauth.Provider, id gitauth.Identity, target string) error {
 	if target == "" {
 		target = TargetAll
 	}
@@ -81,7 +82,7 @@ func Run(ctx context.Context, w io.Writer, scope *ui.Scope, cfg *config.Config, 
 		if target != TargetAll && target != s.Key {
 			continue
 		}
-		findings := run(ctx, s.Key, cfg, directives, tokens)
+		findings := run(ctx, s.Key, cfg, directives, role, prov, id)
 		fmt.Fprintln(w, sty.Title.Render(s.Title))
 		if len(findings) == 0 {
 			fmt.Fprintln(w, "  "+sty.Dim.Render("(none)"))
@@ -98,10 +99,10 @@ func Run(ctx context.Context, w io.Writer, scope *ui.Scope, cfg *config.Config, 
 	return nil
 }
 
-func run(ctx context.Context, key string, cfg *config.Config, directives *config.Directives, tokens auth.TokenStore) []Finding {
+func run(ctx context.Context, key string, cfg *config.Config, directives *config.Directives, role string, prov gitauth.Provider, id gitauth.Identity) []Finding {
 	switch key {
 	case "config":
-		return Config(cfg, directives)
+		return Config(cfg, directives, role)
 	case "roles":
 		return Roles(directives)
 	case "flights":
@@ -112,13 +113,15 @@ func run(ctx context.Context, key string, cfg *config.Config, directives *config
 		return Formatters(directives)
 	case "plugins":
 		return Plugins()
+	case "auth":
+		return Auth(ctx, cfg, prov, id)
 	case "onboarding":
-		return Onboarding(ctx, tokens, cfg.GitHub.APIURL)
+		return Onboarding(ctx, prov, id)
 	}
 	return nil
 }
 
-func Config(cfg *config.Config, directives *config.Directives) []Finding {
+func Config(cfg *config.Config, directives *config.Directives, role string) []Finding {
 	var out []Finding
 
 	check := func(name string, ok bool, msg, snippet string) {
@@ -168,9 +171,18 @@ func Config(cfg *config.Config, directives *config.Directives) []Finding {
 			fmt.Sprintf("unknown destination %q", cfg.Backup.Destination), toYAML(cfg.Backup))
 	}
 
-	if cfg.Role != "" {
-		_, ok := directives.Roles[cfg.Role]
-		check("active role", ok, fmt.Sprintf("role %q is not defined (no matching *.yaml in the config dir)", cfg.Role), "role: "+cfg.Role)
+	if cfg.DefaultRole != "" {
+		_, ok := directives.Roles[cfg.DefaultRole]
+		check("default role", ok,
+			fmt.Sprintf("role %q is not defined (no matching *.yaml in the config dir)", cfg.DefaultRole),
+			"role: "+cfg.DefaultRole)
+	}
+
+	if role != "" && role != cfg.DefaultRole {
+		_, ok := directives.Roles[role]
+		check("active role", ok,
+			fmt.Sprintf("role %q is not defined (no matching *.yaml in the config dir)", role),
+			"active role: "+role)
 	}
 
 	if gs := config.LoadGlobalSettings(); gs.Theme != "" {
@@ -499,12 +511,8 @@ func Formatter(name string, fd config.FormatterDef) Finding {
 	return f
 }
 
-func Onboarding(ctx context.Context, tokens auth.TokenStore, apiURLRaw string) []Finding {
-	apiURL, err := gh.NormalizeAPIURL(apiURLRaw)
-	if err != nil {
-		return []Finding{{Name: "github.api_url", OK: false, Msg: err.Error()}}
-	}
-	st := onboard.Check(ctx, tokens, apiURL)
+func Onboarding(ctx context.Context, prov gitauth.Provider, id gitauth.Identity) []Finding {
+	st := onboard.Check(ctx, prov, id)
 	var out []Finding
 	for _, r := range st.Results {
 		f := Finding{Name: r.Title, OK: r.OK, Warn: !r.OK, Msg: r.Detail}

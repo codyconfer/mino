@@ -11,15 +11,18 @@ import (
 	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/audit"
-	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/gitauth"
 	"github.com/codyconfer/mino/internal/log"
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/role"
 	"github.com/codyconfer/mino/internal/signals/cache"
 	gh "github.com/codyconfer/mino/internal/signals/github"
+	"github.com/codyconfer/mino/internal/state"
 	"github.com/codyconfer/mino/internal/token"
+
+	_ "github.com/codyconfer/mino/internal/auth"
 )
 
 type App struct {
@@ -28,9 +31,12 @@ type App struct {
 	Audit      *audit.Store
 	Tokens     *token.Store
 	Cache      *cache.Store
+	State      *state.Store
 	Mgr        *sisyphus.ConfigStore
 
 	mu            sync.RWMutex
+	activeRole    string
+	roleResolved  bool
 	roleTransient bool
 
 	thin         bool
@@ -43,11 +49,21 @@ func (a *App) Role() string {
 		return ""
 	}
 	a.mu.RLock()
-	defer a.mu.RUnlock()
-	if a.Cfg == nil {
-		return ""
+	resolved, name := a.roleResolved, a.activeRole
+	a.mu.RUnlock()
+	if resolved {
+		return name
 	}
-	return a.Cfg.Role
+	return a.resolveRole()
+}
+
+func (a *App) UseRole(name string) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	a.activeRole, a.roleResolved, a.roleTransient = name, true, true
+	a.mu.Unlock()
 }
 
 func (a *App) Dirs() *config.Directives {
@@ -76,9 +92,7 @@ func (a *App) setRole(name string) {
 		return
 	}
 	a.mu.Lock()
-	if a.Cfg != nil {
-		a.Cfg.Role = name
-	}
+	a.activeRole, a.roleResolved = name, true
 	a.mu.Unlock()
 }
 
@@ -117,31 +131,96 @@ func (a *App) home() string {
 }
 
 type ghAuthCache struct {
-	mu      sync.Mutex
-	checked bool
-	ok      bool
+	mu       sync.Mutex
+	checked  bool
+	ok       bool
+	resolved bool
+	provider gitauth.Provider
+	id       gitauth.Identity
+	err      error
 }
 
-func (a *App) GitHubAuthed() bool {
+// GitAuth resolves the configured git provider and its credential once per process.
+func (a *App) GitAuth() (gitauth.Provider, gitauth.Identity, error) {
+	a.ghAuth.mu.Lock()
+	defer a.ghAuth.mu.Unlock()
+	if !a.ghAuth.resolved {
+		a.ghAuth.provider, a.ghAuth.id, a.ghAuth.err = a.resolveGitAuth()
+		a.ghAuth.resolved = true
+		if a.ghAuth.err == nil && a.ghAuth.id != nil {
+			log.Debugf("%s", a.ghAuth.id.Trace())
+			if a.ghAuth.id.ServiceIdentity() {
+				log.Infof("%s: authenticating with %s", a.ghAuth.provider.Name(), a.ghAuth.id.Origin())
+			}
+		}
+	}
+	return a.ghAuth.provider, a.ghAuth.id, a.ghAuth.err
+}
+
+// GitProvider is the configured provider, even when its credential did not resolve.
+func (a *App) GitProvider() (gitauth.Provider, error) {
+	p, _, err := a.GitAuth()
+	return p, err
+}
+
+func (a *App) resolveGitAuth() (gitauth.Provider, gitauth.Identity, error) {
+	if a == nil || a.Cfg == nil {
+		return nil, nil, nil
+	}
+	name := a.Cfg.GitProvider()
+	if name == "" {
+		name = gitauth.Default
+	}
+	base, err := gh.NormalizeAPIURL(a.Cfg.GitHub.APIURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	setting := a.Cfg.GitSettings(name)
+	p, err := gitauth.New(name, gitauth.Env{
+		Store: a.Tokens,
+		Role:  a.Role(),
+		Setting: func(key string) string {
+			if key == "api_url" {
+				return base
+			}
+			return setting(key)
+		},
+	})
+	if err != nil {
+		return nil, nil, errs.Wrapf(errs.KindConfig, err, "git.provider %q", name).
+			WithHint("known providers: %v", gitauth.Names())
+	}
+	id, err := p.Resolve()
+	if err != nil {
+		return p, nil, err
+	}
+	return p, id, nil
+}
+
+func (a *App) GitAuthed() bool {
+	p, id, err := a.GitAuth()
+	if err != nil || p == nil || id == nil {
+		return false
+	}
 	a.ghAuth.mu.Lock()
 	defer a.ghAuth.mu.Unlock()
 	if !a.ghAuth.checked {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		var apiURL string
-		if a.Cfg != nil {
-			apiURL, _ = gh.NormalizeAPIURL(a.Cfg.GitHub.APIURL)
-		}
-		a.ghAuth.ok, _ = auth.GitHubAuthStatus(ctx, a.Tokens, apiURL)
+		a.ghAuth.ok = p.Status(ctx, id).OK
 		a.ghAuth.checked = true
 	}
 	return a.ghAuth.ok
 }
 
-func (a *App) ResetGitHubAuth() {
+func (a *App) ResetGitAuth() {
 	a.ghAuth.mu.Lock()
 	a.ghAuth.checked = false
+	id := a.ghAuth.id
 	a.ghAuth.mu.Unlock()
+	if id != nil {
+		id.Invalidate()
+	}
 }
 
 type Options struct {
@@ -186,9 +265,6 @@ func Load(opts Options) (*App, error) {
 	if opts.Output != "" {
 		cfg.Output = opts.Output
 	}
-	if opts.Role != "" {
-		cfg.Role = opts.Role
-	}
 	if opts.Timeout != "" {
 		d, err := time.ParseDuration(opts.Timeout)
 		if err != nil {
@@ -211,6 +287,9 @@ func Load(opts Options) (*App, error) {
 	}
 	a := &App{Cfg: cfg, Directives: directives, Mgr: mgr, thin: opts.Thin, roleTransient: sessionScopedRole(opts)}
 	keepMgr = true
+	if opts.Role != "" {
+		a.UseRole(opts.Role)
+	}
 	if opts.Thin || opts.Completion {
 		return a, nil
 	}
@@ -231,6 +310,39 @@ func loadConfig(opts Options) (*config.Config, *config.Directives, *sisyphus.Con
 
 func (a *App) Thin() bool { return a != nil && a.thin }
 
+func (a *App) resolveRole() string {
+	name := a.lookupRole()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.roleResolved {
+		a.activeRole, a.roleResolved = name, true
+	}
+	return a.activeRole
+}
+
+func (a *App) lookupRole() string {
+	if a.Cfg == nil {
+		return ""
+	}
+	if a.transientRole() || a.thin {
+		return a.Cfg.DefaultRole
+	}
+	if name, set := a.persistedRole(); set {
+		return name
+	}
+	if name, ok := role.TakeLegacyActive(a.home()); ok {
+		if err := a.stateStore().SetActiveRole(context.Background(), name); err != nil {
+			log.Debugf("seeding the active role from the legacy marker: %v", err)
+		}
+		return name
+	}
+	return a.Cfg.DefaultRole
+}
+
+func (a *App) persistedRole() (string, bool) {
+	return a.stateStore().ActiveRole(context.Background())
+}
+
 const envSessionRole = "MINO_ROLE"
 
 func sessionScopedRole(opts Options) bool {
@@ -248,20 +360,16 @@ func (a *App) ActivateRole(name string) error {
 		return errs.Newf(errs.KindUsage, "unknown role %q", name).
 			WithHint("run `mino role` to list defined roles")
 	}
-	if err := a.persistRole(name); err != nil {
+	prev, _ := a.persistedRole()
+	if err := a.stateStore().SetActiveRole(context.Background(), name); err != nil {
 		return err
 	}
 	a.invalidateRoleDebounce()
 	a.setRole(name)
-	a.settleRoleChange()
-	return nil
-}
-
-func (a *App) persistRole(name string) error {
-	if _, err := config.SetValues(a.home(), map[string]any{"role": name}); err != nil {
-		return err
-	}
 	a.clearTransientRole()
+	p := a.planRoleChange(prev, name)
+	a.runRolePlan(p)
+	a.commitRolePlan(p)
 	return nil
 }
 
@@ -370,6 +478,18 @@ func (a *App) openTokens() {
 	a.Tokens = token.New(config.DataPath(a.Cfg.Home, config.TokensDB))
 }
 
+func (a *App) stateStore() *state.Store {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.State == nil && a.home() != "" {
+		a.State = state.New(config.DataPath(a.home(), config.StateDB))
+	}
+	return a.State
+}
+
 func (a *App) openAudit() {
 	if !a.Cfg.Audit.Enabled {
 		return
@@ -393,6 +513,9 @@ func (a *App) Shutdown() {
 		_ = a.Tokens.Close()
 	}
 	_ = a.Cache.Close()
+	if a.State != nil {
+		_ = a.State.Close()
+	}
 	if a.Mgr != nil {
 		_ = a.Mgr.Close()
 	}
@@ -408,6 +531,10 @@ func (a *App) CloseDBs() {
 		a.Tokens = nil
 	}
 	_ = a.Cache.Close()
+	if a.State != nil {
+		_ = a.State.Close()
+		a.State = nil
+	}
 	if a.Mgr != nil {
 		_ = a.Mgr.Close()
 		a.Mgr = nil

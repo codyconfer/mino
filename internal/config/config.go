@@ -93,8 +93,11 @@ func Defaults() *Config {
 		Audit:    AuditConfig{Enabled: true},
 		Backup:   BackupConfig{SecretBackend: "auto", SecretName: "mino-backup-key", Destination: "local"},
 		GitHub:   GitHubConfig{OAuthScopes: "repo read:org", Max: 30},
-		Daemon:   DaemonConfig{Interval: "60s", Bell: true, Theme: "dark"},
-		Cache:    CacheConfig{TTL: "60s"},
+		Daemon: DaemonConfig{
+			Interval: "60s", Bell: true, Theme: "dark",
+			HTTP: HTTPConfig{Host: DefaultHTTPHost, Port: DefaultHTTPPort, MaxConcurrent: DefaultHTTPMaxConcurrent},
+		},
+		Cache: CacheConfig{TTL: "60s"},
 	}
 }
 

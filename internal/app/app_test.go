@@ -27,7 +27,7 @@ func TestVisibleNamesRespectActiveRole(t *testing.T) {
 		},
 	}
 
-	a := &App{Cfg: &config.Config{Role: ""}, Directives: directives}
+	a := &App{Cfg: &config.Config{DefaultRole: ""}, Directives: directives}
 	if got := a.VisibleQueries(); !reflect.DeepEqual(got, []string{"incidents", "no-bots", "only-mine", "today"}) {
 		t.Errorf("no role, queries = %v, want all", got)
 	}
@@ -38,7 +38,7 @@ func TestVisibleNamesRespectActiveRole(t *testing.T) {
 		t.Errorf("no role, filters = %v, want all", got)
 	}
 
-	a.Cfg = &config.Config{Role: "triage"}
+	a.UseRole("triage")
 	if got := a.VisibleQueries(); !reflect.DeepEqual(got, []string{"incidents", "no-bots"}) {
 		t.Errorf("triage, queries = %v, want [incidents no-bots]", got)
 	}

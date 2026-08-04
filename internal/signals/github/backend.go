@@ -109,9 +109,16 @@ func graphQLCLIError(err error) error {
 }
 
 type APIBackend struct {
-	Token   string
+	Auth    auth.GitHubSource
 	HTTP    *http.Client
 	BaseURL string
+}
+
+func (b APIBackend) token(ctx context.Context) (string, error) {
+	if b.Auth == nil {
+		return "", errs.New(errs.KindAuth, "github: no authentication configured for this backend")
+	}
+	return b.Auth.Token(ctx)
 }
 
 func (b APIBackend) client() *http.Client {
@@ -123,7 +130,11 @@ func (b APIBackend) client() *http.Client {
 
 func (b APIBackend) SearchIssues(ctx context.Context, query string, perPage int) ([]byte, error) {
 	path := fmt.Sprintf("/search/issues?q=%s&per_page=%d", url.QueryEscape(query), perPage)
-	req, err := newGitHubRequest(ctx, b.BaseURL, path, b.Token)
+	tok, err := b.token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	req, err := newGitHubRequest(ctx, b.BaseURL, path, tok)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindSignal, err, "github: building search request")
 	}
@@ -162,7 +173,11 @@ func (b APIBackend) WorkflowJobs(ctx context.Context, owner, repo string, runID 
 }
 
 func (b APIBackend) get(ctx context.Context, path, label, permission string) ([]byte, error) {
-	req, err := newGitHubRequest(ctx, b.BaseURL, path, b.Token)
+	tok, err := b.token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	req, err := newGitHubRequest(ctx, b.BaseURL, path, tok)
 	if err != nil {
 		return nil, errs.Wrapf(errs.KindSignal, err, "github: building %s request", label)
 	}
@@ -186,7 +201,11 @@ func (b APIBackend) GraphQL(ctx context.Context, query string, vars map[string]a
 	if err != nil {
 		return nil, errs.Wrap(errs.KindSignal, err, "github: encoding graphql request")
 	}
-	req, err := newGitHubPost(ctx, graphQLURL(b.BaseURL), b.Token, payload)
+	tok, err := b.token(ctx)
+	if err != nil {
+		return nil, err
+	}
+	req, err := newGitHubPost(ctx, graphQLURL(b.BaseURL), tok, payload)
 	if err != nil {
 		return nil, errs.Wrap(errs.KindSignal, err, "github: building graphql request")
 	}

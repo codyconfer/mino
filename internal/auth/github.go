@@ -19,15 +19,21 @@ func GHAvailable() bool {
 	return err == nil
 }
 
+const (
+	originGitHubToken = "$GITHUB_TOKEN"
+	originGHToken     = "$GH_TOKEN"
+	originStoredToken = "cached OAuth token"
+)
+
 func GitHubToken(store TokenStore) (token, origin string) {
 	if t := os.Getenv("GITHUB_TOKEN"); t != "" {
-		return t, "$GITHUB_TOKEN"
+		return t, originGitHubToken
 	}
 	if t := os.Getenv("GH_TOKEN"); t != "" {
-		return t, "$GH_TOKEN"
+		return t, originGHToken
 	}
 	if c, ok := getCred(store, "github"); ok {
-		return c.AccessToken, "cached OAuth token"
+		return c.AccessToken, originStoredToken
 	}
 	return "", ""
 }
@@ -36,17 +42,21 @@ func CacheGitHubToken(store TokenStore, token, scope string) error {
 	return store.Put(context.Background(), "github", Credential{AccessToken: token, Scope: scope})
 }
 
-func GitHubAuthStatus(ctx context.Context, store TokenStore, apiURL string) (ok bool, detail string) {
-	if GHAvailable() {
-		args := append([]string{"auth", "status"}, GHHostFlag(apiURL)...)
+func GitHubAuthStatus(ctx context.Context, sel GitHubSelection) (ok bool, detail string) {
+	if sel.UsesGHCLI() {
+		args := append([]string{"auth", "status"}, GHHostFlag(sel.APIURL)...)
 		if _, err := GH(ctx, args...); err == nil {
 			return true, "gh CLI is logged in"
 		}
+		return false, ""
 	}
-	if tok, origin := GitHubToken(store); tok != "" {
-		return true, "using " + origin
+	if !sel.Authenticated() {
+		return false, ""
 	}
-	return false, ""
+	if _, err := sel.Token(ctx); err != nil {
+		return false, "using " + sel.Origin + ": " + err.Error()
+	}
+	return true, "using " + sel.Origin
 }
 
 var (

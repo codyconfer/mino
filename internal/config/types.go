@@ -6,16 +6,17 @@ import (
 )
 
 type Config struct {
-	Home     string            `koanf:"-"`
-	Output   string            `koanf:"output"`
-	Timeout  string            `koanf:"timeout"`
-	Role     string            `koanf:"role"`
-	Keybinds map[string]string `koanf:"keybinds"`
-	Audit    AuditConfig       `koanf:"audit"`
-	Backup   BackupConfig      `koanf:"backup"`
-	GitHub   GitHubConfig      `koanf:"github"`
-	Daemon   DaemonConfig      `koanf:"daemon"`
-	Cache    CacheConfig       `koanf:"cache"`
+	Home        string            `koanf:"-"`
+	Output      string            `koanf:"output"`
+	Timeout     string            `koanf:"timeout"`
+	DefaultRole string            `koanf:"role"`
+	Keybinds    map[string]string `koanf:"keybinds"`
+	Audit       AuditConfig       `koanf:"audit"`
+	Backup      BackupConfig      `koanf:"backup"`
+	Git         GitConfig         `koanf:"git"`
+	GitHub      GitHubConfig      `koanf:"github"`
+	Daemon      DaemonConfig      `koanf:"daemon"`
+	Cache       CacheConfig       `koanf:"cache"`
 
 	Plugins map[string]map[string]any `koanf:"plugins"`
 }
@@ -59,11 +60,23 @@ type CacheConfig struct {
 }
 
 type DaemonConfig struct {
-	Interval string `koanf:"interval"`
-	Bell     bool   `koanf:"bell"`
-	Desktop  bool   `koanf:"desktop"`
-	Tray     bool   `koanf:"tray"`
-	Theme    string `koanf:"theme"`
+	Interval string     `koanf:"interval"`
+	Bell     bool       `koanf:"bell"`
+	Desktop  bool       `koanf:"desktop"`
+	Tray     bool       `koanf:"tray"`
+	Theme    string     `koanf:"theme"`
+	HTTP     HTTPConfig `koanf:"http"`
+}
+
+// HTTPConfig configures the HTTP trigger API serve exposes. Host defaults to
+// loopback; any other value puts triggers on the network with the bearer token
+// as the only control.
+type HTTPConfig struct {
+	Enabled       bool   `koanf:"enabled"`
+	Host          string `koanf:"host"`
+	Port          int    `koanf:"port"`
+	Token         string `koanf:"token"`
+	MaxConcurrent int    `koanf:"max_concurrent"`
 }
 
 type AuditConfig struct {
@@ -78,13 +91,29 @@ type BackupConfig struct {
 	Keep          int    `koanf:"keep"`
 }
 
+type GitConfig struct {
+	Provider string `koanf:"provider"`
+}
+
 type GitHubConfig struct {
 	Queries       []string `koanf:"queries"`
 	OAuthClientID string   `koanf:"oauth_client_id"`
 	OAuthScopes   string   `koanf:"oauth_scopes"`
 	APIURL        string   `koanf:"api_url"`
 	Max           int      `koanf:"max"`
+	Viewer        string   `koanf:"viewer"`
+	ServiceToken  string   `koanf:"service_token"`
+
+	App GitHubAppConfig `koanf:"app"`
 }
+
+type GitHubAppConfig struct {
+	ID             string `koanf:"id"`
+	InstallationID string `koanf:"installation_id"`
+	PrivateKeyPath string `koanf:"private_key_path"`
+}
+
+func (g GitHubAppConfig) Requested() bool { return g != GitHubAppConfig{} }
 
 type RoleDef struct {
 	Name       string            `yaml:"name,omitempty" json:"name,omitempty"`

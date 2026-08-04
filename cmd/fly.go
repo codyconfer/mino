@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/codyconfer/mino/internal/app/run"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render"
 )
@@ -60,29 +61,18 @@ func runFlightNamed(cmd *cobra.Command, name string, o runOpts) error {
 
 	queries := flightQueries(name, fl.Queries)
 
-	flightID := shared.Audit.StartFlight(name, shared.Cfg.Role)
+	flightID := shared.Audit.StartFlight(name, shared.Role())
 	defer shared.Audit.FinishFlight(flightID)
 
 	return runQueriesWith(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), name, queries, flightID, o)
 }
 
 func flightQueries(flight string, names []string) []query {
-	out := make([]query, 0, len(names))
-	for _, name := range names {
-		q, err := buildQuery(name)
-		if err != nil {
-			verbosef("flight %q: %v", flight, err)
-			title := shared.Directives.Queries[name].Display()
-			out = append(out, query{Label: name, Title: title, Src: errSignal{name: name, err: err}})
-			continue
-		}
-		out = append(out, q)
-	}
-	return out
+	return run.FlightQueries(shared, flight, names)
 }
 
 func defaultFlightName() string {
-	if rd, ok := shared.Directives.Roles[shared.Cfg.Role]; ok && len(rd.Flights) > 0 {
+	if rd, ok := shared.Directives.Roles[shared.Role()]; ok && len(rd.Flights) > 0 {
 		return rd.Flights[0]
 	}
 	return defaultFlight

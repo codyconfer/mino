@@ -27,7 +27,7 @@ func newNotesCmd() *cobra.Command {
 
 func notesHomeRole() (home, role string) {
 	home = shared.Cfg.Home
-	role = shared.Cfg.Role
+	role = shared.Role()
 	if role == "" {
 		role = "default"
 	}

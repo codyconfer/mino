@@ -10,13 +10,25 @@ import (
 
 	"github.com/codyconfer/viewkit/ui"
 
-	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/gitauth"
 	"github.com/codyconfer/mino/internal/render"
 )
 
 type ConfirmFunc func(title, message, yes, no string) (bool, error)
+
+func ServiceHint(id gitauth.Identity) string {
+	if id == nil || !id.ServiceIdentity() {
+		return ""
+	}
+	if !ServiceAuthAllowed() {
+		return "this mino was not built with service-auth support, so a provider-verified signing key is " +
+			"still required even though " + id.Origin() + " is configured; rebuild with SERVICE_AUTH=1 " +
+			"(the container image does) or authenticate as yourself"
+	}
+	return ""
+}
 
 func Hint() string {
 	if RequiredEmailDomain != "" {
@@ -35,16 +47,20 @@ func Reset(w io.Writer) error {
 	return nil
 }
 
-func RunCLI(ctx context.Context, tokens auth.TokenStore, apiURL string, w io.Writer, scope *ui.Scope, statusOnly bool, confirm ConfirmFunc) error {
+func RunCLI(ctx context.Context, p gitauth.Provider, id gitauth.Identity, w io.Writer, scope *ui.Scope, statusOnly bool, confirm ConfirmFunc) error {
 	sty := render.NewReportStyles(w, scope)
 	interactive := !statusOnly && term.IsTerminal(os.Stdout.Fd())
 	for {
-		st := Check(ctx, tokens, apiURL)
+		st := Check(ctx, p, id)
 		PrintStatus(w, sty, st)
 
 		if st.Ready() {
 			if statusOnly {
 				fmt.Fprintln(w, sty.OK.Render("✓ all checks pass."))
+				return nil
+			}
+			if ServiceAuthAllowed() && id != nil && id.ServiceIdentity() {
+				fmt.Fprintln(w, sty.OK.Render("✓ running as a service identity — nothing to onboard."))
 				return nil
 			}
 			gs := config.LoadGlobalSettings()
@@ -58,8 +74,11 @@ func RunCLI(ctx context.Context, tokens auth.TokenStore, apiURL string, w io.Wri
 		}
 
 		if !interactive {
-			return errs.New(errs.KindOnboarding, "onboarding incomplete").
-				WithHint("resolve the steps above, then run `mino onboard` again")
+			e := errs.New(errs.KindOnboarding, "onboarding incomplete")
+			if h := ServiceHint(id); h != "" {
+				return e.WithHint("%s", h)
+			}
+			return e.WithHint("resolve the steps above, then run `mino onboard` again")
 		}
 		if confirm == nil {
 			return errs.New(errs.KindOnboarding, "onboarding incomplete")

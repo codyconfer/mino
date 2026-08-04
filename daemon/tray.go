@@ -17,19 +17,41 @@ func watch(ctx context.Context, opt options) error {
 	if opt.Desktop || opt.Tray {
 		icons.LoadStateIcons(cmd.App().Cfg.Home, opt.Theme)
 	}
-	if opt.Tray {
-		return runTray(ctx, opt)
+	runOpts, err := runOptions(opt)
+	if err != nil {
+		return err
 	}
-	return server().Run(ctx, serve.RunOptions{
+	if opt.Tray {
+		return runTray(ctx, runOpts)
+	}
+	runOpts.Terminal = true
+	return server().Run(ctx, runOpts)
+}
+
+// runOptions builds the shared serve options, resolving the API token when the
+// HTTP trigger API is on.
+func runOptions(opt options) (serve.RunOptions, error) {
+	out := serve.RunOptions{
 		Flight:   opt.Flight,
 		Interval: opt.Interval,
 		Bell:     opt.Bell,
 		Desktop:  opt.Desktop,
-		Terminal: true,
-	})
+		HTTP:     opt.HTTP,
+		HTTPHost: opt.HTTPHost,
+		HTTPPort: opt.HTTPPort,
+	}
+	if !opt.HTTP {
+		return out, nil
+	}
+	tok, src, err := cmd.ResolveServeHTTPToken()
+	if err != nil {
+		return serve.RunOptions{}, err
+	}
+	out.HTTPToken, out.HTTPTokenSource = tok, src
+	return out, nil
 }
 
-func runTray(parent context.Context, opt options) error {
+func runTray(parent context.Context, runOpts serve.RunOptions) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	errCh := make(chan error, 1)
@@ -48,13 +70,8 @@ func runTray(parent context.Context, opt options) error {
 			close(ready)
 			go func() {
 				tray.SetState(systray.StateRunning)
-				errCh <- server().Run(ctx, serve.RunOptions{
-					Flight:   opt.Flight,
-					Interval: opt.Interval,
-					Bell:     opt.Bell,
-					Desktop:  opt.Desktop,
-					OnState:  tray.SetState,
-				})
+				runOpts.OnState = tray.SetState
+				errCh <- server().Run(ctx, runOpts)
 				cancel()
 				tray.Stop()
 			}()

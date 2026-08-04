@@ -21,8 +21,10 @@ func newRoleCmd() *cobra.Command {
 		Use:   "role",
 		Short: "Show the active role and defined roles",
 		Long: "Roles scope what mino shows. `mino role use <name>` activates one for\n" +
-			"good: it writes `role:` into config.yaml and runs the previous role's\n" +
-			"exit hooks and the new role's enter hooks. `--role <name>` and the\n" +
+			"good: it records the active role in mino's state store and runs the\n" +
+			"previous role's exit hooks and the new role's enter hooks. It never\n" +
+			"edits your config file — `role:` there is only the default applied\n" +
+			"until a role is activated or cleared. `--role <name>` and the\n" +
 			"MINO_ROLE env var scope a single invocation instead and run no hooks,\n" +
 			"so they are safe in prompts, statuslines, and wrappers. A role names\n" +
 			"the flights, queries, and filters that appear in lists and the TUI;\n" +
@@ -70,11 +72,12 @@ func newRoleCmd() *cobra.Command {
 func newRoleUseCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "use <name>",
-		Short: "Activate a role: persist it to config.yaml and run its hooks",
-		Long: "Writes `role: <name>` into config.yaml, runs the previous role's exit\n" +
-			"hooks then <name>'s enter hooks, applies its contexts, and refreshes\n" +
-			"its status blocks. Use --role or MINO_ROLE to scope one invocation\n" +
-			"without touching the config file and without running hooks.",
+		Short: "Activate a role: record it as active and run its hooks",
+		Long: "Records <name> as the active role, runs the previous role's exit hooks\n" +
+			"then <name>'s enter hooks, applies its contexts, and refreshes its\n" +
+			"status blocks. Your config file is left alone. Use --role or\n" +
+			"MINO_ROLE to scope one invocation without recording anything and\n" +
+			"without running hooks.",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeRoleNames,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -94,8 +97,9 @@ func newRoleClearCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "clear",
 		Short: "Deactivate the active role and run its exit hooks",
-		Long: "Clears `role:` in config.yaml, runs the active role's exit hooks, and\n" +
-			"drops its status blocks. Lists show everything again.",
+		Long: "Records that no role is active, runs the active role's exit hooks, and\n" +
+			"drops its status blocks. Lists show everything again. The cleared\n" +
+			"state outranks `role:` in config, so the default does not come back.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := shared.ActivateRole(""); err != nil {

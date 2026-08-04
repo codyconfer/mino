@@ -43,7 +43,7 @@ func TestSyncRoleLifecycleRunsStatusOnEnterAndClearsOnExit(t *testing.T) {
 		},
 	}
 
-	a := &App{Cfg: &config.Config{Home: home, Role: "triage"}, Directives: dirs}
+	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "triage"}, Directives: dirs}
 	a.syncRoleLifecycle()
 	chips := role.StatusChips()
 	if len(chips) != 1 || chips[0].Glyph != "github" || chips[0].Text != "triage-out" {
@@ -69,7 +69,7 @@ func TestSyncRoleLifecycleRunsStatusOnEnterAndClearsOnExit(t *testing.T) {
 func TestSyncRoleLifecycleRefreshesStatusWhenAlreadyActive(t *testing.T) {
 	home := t.TempDir()
 	t.Cleanup(role.ClearStatusChips)
-	_ = role.SaveActive(home, "triage")
+	seedActiveRoleState(t, home, "triage")
 
 	origRun := role.Run
 	role.Run = func(string, string) error {
@@ -83,7 +83,7 @@ func TestSyncRoleLifecycleRefreshesStatusWhenAlreadyActive(t *testing.T) {
 	t.Cleanup(func() { role.Capture = origCap })
 
 	a := &App{
-		Cfg: &config.Config{Home: home, Role: "triage"},
+		Cfg: &config.Config{Home: home, DefaultRole: "triage"},
 		Directives: &config.Directives{
 			Roles: map[string]config.RoleDef{
 				"triage": {
@@ -134,9 +134,9 @@ func TestSyncRoleLifecycleOrderAndPersist(t *testing.T) {
 		},
 	}
 
-	a := &App{Cfg: &config.Config{Home: home, Role: "triage"}, Directives: dirs}
+	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "triage"}, Directives: dirs}
 	a.syncRoleLifecycle()
-	if got := role.LoadActive(home); got != "triage" {
+	if got := activeRoleState(t, home); got != "triage" {
 		t.Fatalf("active after enter = %q", got)
 	}
 	if len(calls) != 1 || calls[0] != "enter-triage" {
@@ -153,10 +153,10 @@ func TestSyncRoleLifecycleOrderAndPersist(t *testing.T) {
 	if err := a.ActivateRole("ops"); err != nil {
 		t.Fatal(err)
 	}
-	if a.Cfg.Role != "ops" {
-		t.Fatalf("role = %q", a.Cfg.Role)
+	if a.Role() != "ops" {
+		t.Fatalf("role = %q", a.Role())
 	}
-	if got := role.LoadActive(home); got != "ops" {
+	if got := activeRoleState(t, home); got != "ops" {
 		t.Fatalf("active after switch = %q", got)
 	}
 	if len(calls) != 2 || calls[0] != "exit-triage" || calls[1] != "enter-ops" {
@@ -167,7 +167,7 @@ func TestSyncRoleLifecycleOrderAndPersist(t *testing.T) {
 	if err := a.ActivateRole(""); err != nil {
 		t.Fatal(err)
 	}
-	if got := role.LoadActive(home); got != "" {
+	if got := activeRoleState(t, home); got != "" {
 		t.Fatalf("active after clear = %q", got)
 	}
 	if len(calls) != 1 || calls[0] != "exit-ops" {
@@ -189,7 +189,7 @@ func TestActivateRoleSameIsNoop(t *testing.T) {
 	t.Cleanup(func() { role.Run = orig })
 
 	a := &App{
-		Cfg: &config.Config{Home: home, Role: "triage"},
+		Cfg: &config.Config{Home: home, DefaultRole: "triage"},
 		Directives: &config.Directives{
 			Roles: map[string]config.RoleDef{
 				"triage": {Name: "triage", Hooks: config.RoleHooks{
@@ -198,7 +198,7 @@ func TestActivateRoleSameIsNoop(t *testing.T) {
 			},
 		},
 	}
-	_ = role.SaveActive(home, "triage")
+	seedActiveRoleState(t, home, "triage")
 	if err := a.ActivateRole("triage"); err != nil {
 		t.Fatal(err)
 	}
@@ -215,14 +215,14 @@ func TestSyncRoleLifecycleWarnsMissingDef(t *testing.T) {
 	t.Cleanup(func() { role.Run = orig })
 
 	a := &App{
-		Cfg:        &config.Config{Home: home, Role: "ghost"},
+		Cfg:        &config.Config{Home: home, DefaultRole: "ghost"},
 		Directives: &config.Directives{Roles: map[string]config.RoleDef{}},
 	}
 	a.syncRoleLifecycle()
 	if called {
 		t.Fatal("hooks should not run for undefined role")
 	}
-	if got := role.LoadActive(home); got != "ghost" {
+	if got := activeRoleState(t, home); got != "ghost" {
 		t.Fatalf("still persist intended role = %q", got)
 	}
 }

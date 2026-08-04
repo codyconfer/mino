@@ -44,7 +44,7 @@ func runShow(cmd *cobra.Command, url, signalName string) error {
 		signalName = defaultDetailSignal
 	}
 	it := signals.Item{URL: url}
-	d, err := build.Detail(cmd.Context(), signalName, it, shared.Cfg, shared.Tokens, shared.Cache)
+	d, err := build.Detail(cmd.Context(), signalName, it, shared.Role(), shared.Cfg, shared.Tokens, shared.Cache)
 	if err != nil {
 		return err
 	}

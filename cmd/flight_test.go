@@ -42,7 +42,7 @@ func useFlightTestApp(t *testing.T) {
 	orig := shared
 	t.Cleanup(func() { shared = orig })
 	shared = &app.App{
-		Cfg:        &config.Config{Home: t.TempDir(), Output: "json", Timeout: "5s", Role: "test"},
+		Cfg:        &config.Config{Home: t.TempDir(), Output: "json", Timeout: "5s", DefaultRole: "test"},
 		Directives: &config.Directives{},
 	}
 }

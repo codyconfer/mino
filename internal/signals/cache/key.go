@@ -27,7 +27,7 @@ func Fingerprint(cfg *config.Config) string {
 		return ""
 	}
 	c := *cfg
-	c.Home, c.Output, c.Role, c.Timeout = "", "", "", ""
+	c.Home, c.Output, c.DefaultRole, c.Timeout = "", "", "", ""
 	c.Keybinds = nil
 	c.Audit, c.Backup, c.Daemon, c.Cache = config.AuditConfig{}, config.BackupConfig{}, config.DaemonConfig{}, config.CacheConfig{}
 	raw, err := json.Marshal(c)

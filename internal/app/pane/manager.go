@@ -49,6 +49,7 @@ type tracked struct {
 type Manager struct {
 	home   string
 	flight string
+	role   string
 	self   string
 	own    tmux.PaneID
 	env    []string
@@ -59,7 +60,7 @@ type Manager struct {
 	closed bool
 }
 
-func NewManager(home, flight string) (*Manager, error) {
+func NewManager(home, flight, role string) (*Manager, error) {
 	if !tmux.Inside() {
 		return nil, errs.New(errs.KindInternal, "pane manager requires a tmux session")
 	}
@@ -70,6 +71,7 @@ func NewManager(home, flight string) (*Manager, error) {
 	return &Manager{
 		home:   home,
 		flight: flight,
+		role:   role,
 		self:   self,
 		own:    tmux.SelfPane(),
 		env:    []string{OwnerEnv + "=" + strconv.Itoa(os.Getpid())},
@@ -256,10 +258,13 @@ func (m *Manager) prune() {
 }
 
 func (m *Manager) withHome(argv []string) []string {
-	if m.home == "" {
-		return argv
+	if m.home != "" {
+		argv = append(argv, "--home", m.home)
 	}
-	return append(argv, "--home", m.home)
+	if m.role != "" {
+		argv = append(argv, "--role", m.role)
+	}
+	return argv
 }
 
 func CleanupSnapshots(home string) {

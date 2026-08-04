@@ -28,7 +28,7 @@ func TestDetailSignalsListsOnlyDetailCapableSignals(t *testing.T) {
 }
 
 func TestDetailRejectsUnknownSignal(t *testing.T) {
-	_, err := Detail(context.Background(), "nosuchsignal", signals.Item{}, config.Defaults(), nil, nil)
+	_, err := Detail(context.Background(), "nosuchsignal", signals.Item{}, "", config.Defaults(), nil, nil)
 	if err == nil {
 		t.Fatal("want an error")
 	}
@@ -48,7 +48,7 @@ func TestDetailRejectsSignalWithoutTheCapability(t *testing.T) {
 	if name == "" {
 		t.Skip("every queryable signal supports details")
 	}
-	_, err := Detail(context.Background(), name, signals.Item{}, config.Defaults(), nil, nil)
+	_, err := Detail(context.Background(), name, signals.Item{}, "", config.Defaults(), nil, nil)
 	if err == nil {
 		t.Fatalf("want an error for %q", name)
 	}

@@ -11,24 +11,15 @@ import (
 
 const activeRoleFile = "active-role"
 
-func LoadActive(home string) string {
+func TakeLegacyActive(home string) (string, bool) {
 	if home == "" {
-		return ""
+		return "", false
 	}
-	b, err := os.ReadFile(config.DataPath(home, activeRoleFile))
+	path := config.DataPath(home, activeRoleFile)
+	b, err := os.ReadFile(path)
 	if err != nil {
-		return ""
+		return "", false
 	}
-	return strings.TrimSpace(string(b))
-}
-
-func SaveActive(home, role string) error {
-	if home == "" {
-		return nil
-	}
-	if role == "" {
-		return sconfig.RemoveItem(config.DataPath(home, activeRoleFile))
-	}
-	_, err := sconfig.WriteItem(config.DataDir(home), activeRoleFile, []byte(role+"\n"))
-	return err
+	_ = sconfig.RemoveItem(path)
+	return strings.TrimSpace(string(b)), true
 }

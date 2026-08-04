@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -45,7 +47,7 @@ func fakeGH(t *testing.T, script string) {
 func TestGHAPIGetPinsConfiguredHostname(t *testing.T) {
 	fakeGH(t, "#!/bin/sh\necho \"$@\"\n")
 
-	out, err := GHAPIGet(context.Background(), memStore{}, "https://ghe.example.com/api/v3", "user")
+	out, err := GHAPIGet(context.Background(), ambientSelection(t, "https://ghe.example.com/api/v3"), "user")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +55,7 @@ func TestGHAPIGetPinsConfiguredHostname(t *testing.T) {
 		t.Fatalf("gh args = %q", out)
 	}
 
-	out, err = GHAPIGet(context.Background(), memStore{}, "", "user")
+	out, err = GHAPIGet(context.Background(), ambientSelection(t, ""), "user")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +69,7 @@ func TestGitHubAuthStatusPinsConfiguredHostname(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
 	t.Setenv("MINO_TEST_GH_ARGS", argsFile)
 
-	ok, detail := GitHubAuthStatus(context.Background(), memStore{}, "https://ghe.example.com/api/v3")
+	ok, detail := GitHubAuthStatus(context.Background(), ambientSelection(t, "https://ghe.example.com/api/v3"))
 	if !ok || detail != "gh CLI is logged in" {
 		t.Fatalf("GitHubAuthStatus = %v, %q", ok, detail)
 	}
@@ -85,7 +87,7 @@ func TestGitHubAuthStatusUnpinnedWhenUnset(t *testing.T) {
 	argsFile := filepath.Join(t.TempDir(), "args")
 	t.Setenv("MINO_TEST_GH_ARGS", argsFile)
 
-	ok, detail := GitHubAuthStatus(context.Background(), memStore{}, "")
+	ok, detail := GitHubAuthStatus(context.Background(), ambientSelection(t, ""))
 	if !ok || detail != "gh CLI is logged in" {
 		t.Fatalf("GitHubAuthStatus = %v, %q", ok, detail)
 	}
@@ -95,5 +97,53 @@ func TestGitHubAuthStatusUnpinnedWhenUnset(t *testing.T) {
 	}
 	if got := strings.TrimSpace(string(recorded)); got != "auth status" {
 		t.Fatalf("gh args = %q", got)
+	}
+}
+
+func TestGHAPIGetUsesServiceAuthAndNeverShellsOutToGH(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"login":"machine-user"}`))
+	}))
+	defer srv.Close()
+
+	argsFile := filepath.Join(t.TempDir(), "gh-args")
+	fakeGH(t, "#!/bin/sh\necho \"$@\" > "+argsFile+"\n")
+
+	sel, err := SelectGitHub(GitHubSpec{APIURL: srv.URL, ServiceToken: "ghp_service", Store: memStore{}})
+	if err != nil {
+		t.Fatalf("SelectGitHub: %v", err)
+	}
+	if _, err := GHAPIGet(context.Background(), sel, "user"); err != nil {
+		t.Fatalf("GHAPIGet: %v", err)
+	}
+
+	if gotAuth != "Bearer ghp_service" {
+		t.Errorf("Authorization = %q, want the service token", gotAuth)
+	}
+	if _, err := os.Stat(argsFile); err == nil {
+		t.Error("GHAPIGet shelled out to `gh api` while a service identity was configured; gh would " +
+			"authenticate as whoever ran `gh auth login`, so the call would silently return that " +
+			"person's data instead of the service's")
+	}
+}
+
+func TestGHAPIGetStillUsesTheGHCLIWhenNoServiceAuth(t *testing.T) {
+	argsFile := filepath.Join(t.TempDir(), "gh-args")
+	fakeGH(t, "#!/bin/sh\necho \"$@\" > "+argsFile+"\necho '{}'\n")
+
+	sel, err := SelectGitHub(GitHubSpec{Store: memStore{}})
+	if err != nil {
+		t.Fatalf("SelectGitHub: %v", err)
+	}
+	if !sel.UsesGHCLI() {
+		t.Fatalf("mech = %v, want the gh CLI when nothing else is configured", sel.Mech)
+	}
+	if _, err := GHAPIGet(context.Background(), sel, "user"); err != nil {
+		t.Fatalf("GHAPIGet: %v", err)
+	}
+	if _, err := os.Stat(argsFile); err != nil {
+		t.Error("GHAPIGet did not use `gh api` despite the CLI being the selected mechanism")
 	}
 }

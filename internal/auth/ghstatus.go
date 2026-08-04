@@ -11,7 +11,7 @@ import (
 
 const maxGitHubRetryAfter = time.Hour
 
-const githubScopeHint = "your GitHub token may be missing or lack scopes; run `mino login github` or set $GITHUB_TOKEN"
+const githubScopeHint = "your GitHub credential may lack the required scopes; run `mino login github`, set $GITHUB_TOKEN, or check the GitHub App's installation permissions"
 
 func classifyGitHubStatus(resp *http.Response, msg string) error {
 	statusErr := func(kind errs.Kind) *errs.Error {

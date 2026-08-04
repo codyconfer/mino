@@ -48,7 +48,7 @@ func (f *fakeStream) Stream(ctx context.Context) (<-chan signals.Event, error) {
 func TestOpenStreamsSkipsBlockingPlugin(t *testing.T) {
 	home := t.TempDir()
 	s := &Server{App: &app.App{
-		Cfg:        &config.Config{Home: home, Role: "test", Timeout: "200ms"},
+		Cfg:        &config.Config{Home: home, DefaultRole: "test", Timeout: "200ms"},
 		Directives: &config.Directives{},
 	}}
 
@@ -86,7 +86,7 @@ func TestOpenStreamsSkipsBlockingPlugin(t *testing.T) {
 func TestSocketOpensDespiteBlockingPlugin(t *testing.T) {
 	home := shortHome(t)
 	s := &Server{App: &app.App{
-		Cfg:        &config.Config{Home: home, Role: "test", Timeout: "200ms"},
+		Cfg:        &config.Config{Home: home, DefaultRole: "test", Timeout: "200ms"},
 		Directives: &config.Directives{},
 	}}
 

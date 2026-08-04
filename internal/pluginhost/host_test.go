@@ -141,7 +141,7 @@ func TestForSignalScopesSettingsAndNotesADiagnostic(t *testing.T) {
 		"grantsettings": {"max": "3"},
 		"google":        {"oauth_client_id": "abc"},
 	}}
-	h := pluginhost.ForSignal(cfg, nil, "grantsettings")
+	h := pluginhost.ForSignal(cfg, nil, "", "grantsettings")
 	if got := plugin.Setting(h.Settings("grantsettings"), "max", ""); got != "3" {
 		t.Errorf("own settings = %q, want 3", got)
 	}
@@ -168,7 +168,7 @@ func TestForLoginGrantsTheProviderKey(t *testing.T) {
 		"grantlogin": {"oauth_client_id": "abc"},
 		"slack":      {"limit": "9"},
 	}}
-	h := pluginhost.ForLogin(cfg, nil, p)
+	h := pluginhost.ForLogin(cfg, nil, "", p)
 	if got := plugin.Setting(h.Settings("grantlogin"), "oauth_client_id", ""); got != "abc" {
 		t.Errorf("own settings = %q, want abc", got)
 	}

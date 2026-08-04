@@ -3,7 +3,6 @@ package app
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/codyconfer/mino/internal/config"
@@ -104,24 +103,24 @@ func TestCycleToNoRoleClearsActiveState(t *testing.T) {
 			}},
 		},
 	}
-	a := &App{Cfg: &config.Config{Home: home, Role: "ops"}, Directives: dirs}
+	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
 	a.syncRoleLifecycle()
 	calls = nil
 
-	next, ok := NextRole(a.Directives.RoleNames(), a.Cfg.Role, 1)
+	next, ok := NextRole(a.Directives.RoleNames(), a.Role(), 1)
 	if !ok || next != NoRole {
 		t.Fatalf("cycling off the only role = %q,%v", next, ok)
 	}
 	if err := a.ActivateRole(next); err != nil {
 		t.Fatal(err)
 	}
-	if a.Cfg.Role != NoRole {
-		t.Fatalf("role = %q, want cleared", a.Cfg.Role)
+	if a.Role() != NoRole {
+		t.Fatalf("role = %q, want cleared", a.Role())
 	}
 	if len(calls) != 1 || calls[0] != "exit-ops" {
 		t.Fatalf("hooks = %v, want just exit-ops", calls)
 	}
-	if got := role.LoadActive(home); got != NoRole {
+	if got := activeRoleState(t, home); got != NoRole {
 		t.Fatalf("persisted active role = %q, want cleared", got)
 	}
 	if chips := role.StatusChips(); len(chips) != 0 {
@@ -180,7 +179,7 @@ func TestRoleCycleDebounceSkipsIntermediateHooks(t *testing.T) {
 		},
 	}
 
-	a := &App{Cfg: &config.Config{Home: home, Role: "ops"}, Directives: dirs}
+	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
 	a.syncRoleLifecycle()
 	if len(calls) != 1 || calls[0] != "enter-ops" {
 		t.Fatalf("initial enter = %v", calls)
@@ -188,12 +187,12 @@ func TestRoleCycleDebounceSkipsIntermediateHooks(t *testing.T) {
 	calls = nil
 
 	genB, changed := a.BeginRoleCycle("triage")
-	if !changed || a.Cfg.Role != "triage" {
-		t.Fatalf("begin triage: role=%q changed=%v", a.Cfg.Role, changed)
+	if !changed || a.Role() != "triage" {
+		t.Fatalf("begin triage: role=%q changed=%v", a.Role(), changed)
 	}
 	genC, changed := a.BeginRoleCycle("weekly")
-	if !changed || a.Cfg.Role != "weekly" {
-		t.Fatalf("begin weekly: role=%q changed=%v", a.Cfg.Role, changed)
+	if !changed || a.Role() != "weekly" {
+		t.Fatalf("begin weekly: role=%q changed=%v", a.Role(), changed)
 	}
 	if len(calls) != 0 {
 		t.Fatalf("hooks during burst = %v", calls)
@@ -213,7 +212,7 @@ func TestRoleCycleDebounceSkipsIntermediateHooks(t *testing.T) {
 	if !a.SettleRoleCycle(genC) {
 		t.Fatal("final settle should run")
 	}
-	if got := role.LoadActive(home); got != "weekly" {
+	if got := activeRoleState(t, home); got != "weekly" {
 		t.Fatalf("active after settle = %q", got)
 	}
 	if len(calls) != 2 || calls[0] != "exit-ops" || calls[1] != "enter-weekly" {
@@ -242,7 +241,7 @@ func TestFlushRoleLifecycleAppliesPending(t *testing.T) {
 			}},
 		},
 	}
-	a := &App{Cfg: &config.Config{Home: home, Role: "ops"}, Directives: dirs}
+	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
 	a.syncRoleLifecycle()
 	calls = nil
 
@@ -280,7 +279,7 @@ func TestActivateRoleCancelsPendingCycle(t *testing.T) {
 			}},
 		},
 	}
-	a := &App{Cfg: &config.Config{Home: home, Role: "ops"}, Directives: dirs}
+	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
 	a.syncRoleLifecycle()
 	calls = nil
 
@@ -323,7 +322,7 @@ func settleFixture(t *testing.T) (*App, string, *[]string) {
 			}},
 		},
 	}
-	a := &App{Cfg: &config.Config{Home: home, Role: "ops"}, Directives: dirs}
+	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
 	a.syncRoleLifecycle()
 	*calls = nil
 	return a, home, calls
@@ -331,15 +330,11 @@ func settleFixture(t *testing.T) (*App, string, *[]string) {
 
 func requireRolePersisted(t *testing.T, home, want string) {
 	t.Helper()
-	if got := role.LoadActive(home); got != want {
-		t.Errorf("active-role marker = %q, want %q (the UI showed %q all session)", got, want, want)
+	if got := activeRoleState(t, home); got != want {
+		t.Errorf("stored active role = %q, want %q (the UI showed %q all session)", got, want, want)
 	}
-	raw, err := os.ReadFile(filepath.Join(home, "config.yaml"))
-	if err != nil {
-		t.Fatalf("config.yaml was never written: %v", err)
-	}
-	if !strings.Contains(string(raw), "role: "+want) {
-		t.Errorf("config.yaml = %q, want role: %s", raw, want)
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); !os.IsNotExist(err) {
+		t.Errorf("a role change rewrote config.yaml, err=%v", err)
 	}
 }
 

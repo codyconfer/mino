@@ -2,7 +2,6 @@ package statusstrip
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	vkglyph "github.com/codyconfer/viewkit/glyph"
@@ -11,9 +10,9 @@ import (
 	"github.com/codyconfer/mino/internal/app/onboard"
 	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/deck"
+	"github.com/codyconfer/mino/internal/gitauth"
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/pluginhost"
-	gh "github.com/codyconfer/mino/internal/signals/github"
 )
 
 type ChipFunc func() (deck.ServiceStatus, bool)
@@ -26,16 +25,16 @@ func resetChips() { chips = nil }
 
 func Provider(a *app.App) deck.StatusFunc {
 	return func(ctx context.Context) deck.StatusInfo {
-		apiURL, _ := gh.NormalizeAPIURL(a.Cfg.GitHub.APIURL)
+		prov, id, _ := a.GitAuth()
 		var info deck.StatusInfo
 
 		if plugin.SignalEnabled("github") {
-			user, rate, ghOK := githubStatus(ctx, a, apiURL)
+			user, rate, ghOK := providerStatus(ctx, prov, id)
 			info.GitHubUser = user
 			info.Services = append(info.Services, rate)
 
 			if ghOK {
-				st := onboard.Check(ctx, a.Tokens, apiURL)
+				st := onboard.Check(ctx, prov, id)
 				info.SigningVerified = signingVerified(st)
 			}
 		}
@@ -69,57 +68,41 @@ func credentialStoreChip() (deck.ServiceStatus, bool) {
 	}, true
 }
 
-func githubStatus(ctx context.Context, a *app.App, apiURL string) (user string, svc deck.ServiceStatus, ok bool) {
-	svc = deck.ServiceStatus{Name: "github"}
-	raw, err := auth.GHAPIGet(ctx, a.Tokens, apiURL, "user")
+func providerStatus(ctx context.Context, p gitauth.Provider, id gitauth.Identity) (user string, svc deck.ServiceStatus, ok bool) {
+	name := "git"
+	if p != nil {
+		name = p.Name()
+	}
+	svc = deck.ServiceStatus{Name: name}
+	if p == nil || id == nil {
+		svc.Severity = vkglyph.SeverityNegative
+		return "", svc, false
+	}
+	acct, err := p.Account(ctx, id)
 	if err != nil {
 		svc.Severity = vkglyph.SeverityNegative
 		return "", svc, false
 	}
-	var u struct {
-		Login string `json:"login"`
-	}
-	_ = json.Unmarshal(raw, &u)
-
-	limit, remaining, rateOK := githubRate(ctx, a, apiURL)
-	if !rateOK {
+	rl, rerr := p.RateLimit(ctx, id)
+	if rerr != nil {
 		svc.Severity = vkglyph.SeverityPositive
-		return u.Login, svc, true
+		return acct.Login, svc, true
 	}
-	svc.Detail = fmt.Sprintf("%d/%d", remaining, limit)
+	svc.Detail = fmt.Sprintf("%d/%d", rl.Remaining, rl.Limit)
 	switch {
-	case remaining == 0:
+	case rl.Remaining == 0:
 		svc.Severity = vkglyph.SeverityNegative
-	case remaining*5 < limit:
+	case rl.Remaining*5 < rl.Limit:
 		svc.Severity = vkglyph.SeverityWarning
 	default:
 		svc.Severity = vkglyph.SeverityPositive
 	}
-	return u.Login, svc, true
-}
-
-func githubRate(ctx context.Context, a *app.App, apiURL string) (limit, remaining int, ok bool) {
-	raw, err := auth.GHAPIGet(ctx, a.Tokens, apiURL, "rate_limit")
-	if err != nil {
-		return 0, 0, false
-	}
-	var r struct {
-		Resources struct {
-			Core struct {
-				Limit     int `json:"limit"`
-				Remaining int `json:"remaining"`
-			} `json:"core"`
-		} `json:"resources"`
-	}
-	if err := json.Unmarshal(raw, &r); err != nil || r.Resources.Core.Limit == 0 {
-		return 0, 0, false
-	}
-	return r.Resources.Core.Limit, r.Resources.Core.Remaining, true
+	return acct.Login, svc, true
 }
 
 func signingVerified(st onboard.Status) bool {
 	for _, r := range st.Results {
-		if r.Step == onboard.StepGPGGitHub || r.Step == onboard.StepSSHGitHub {
+		if r.Step == onboard.StepGPGRemote || r.Step == onboard.StepSSHRemote {
 			return r.OK
 		}
 	}
@@ -133,7 +116,7 @@ func providerStatuses(a *app.App) []deck.ServiceStatus {
 			continue
 		}
 		level := vkglyph.SeverityNeutral
-		if p.Authed != nil && p.Authed(pluginhost.ForLogin(a.Cfg, a.Tokens, p)) {
+		if p.Authed != nil && p.Authed(pluginhost.ForLogin(a.Cfg, a.Tokens, a.Role(), p)) {
 			level = vkglyph.SeverityPositive
 		}
 		out = append(out, deck.ServiceStatus{ID: p.Key, Name: p.Key, Severity: level})

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/state"
 )
 
 func roleSubcommand(t *testing.T, name string) *cobra.Command {
@@ -83,12 +85,11 @@ func TestRoleUsePersistsTheRole(t *testing.T) {
 	if !strings.Contains(out.String(), "focus") {
 		t.Errorf("output = %q, want it to confirm the role", out.String())
 	}
-	raw, err := os.ReadFile(filepath.Join(home, "config.yaml"))
-	if err != nil {
-		t.Fatalf("role use should write config.yaml: %v", err)
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); !os.IsNotExist(err) {
+		t.Errorf("`role use` must not write config.yaml, err=%v", err)
 	}
-	if !strings.Contains(string(raw), "role: focus") {
-		t.Errorf("config.yaml = %q, want role: focus", raw)
+	if got := storedRole(t, home); got != "focus" {
+		t.Errorf("stored active role = %q, want focus", got)
 	}
 }
 
@@ -108,13 +109,20 @@ func TestRoleClearRemovesTheRole(t *testing.T) {
 	if got := shared.Role(); got != "" {
 		t.Errorf("role = %q, want cleared", got)
 	}
-	raw, err := os.ReadFile(filepath.Join(home, "config.yaml"))
-	if err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); !os.IsNotExist(err) {
+		t.Errorf("`role clear` must not write config.yaml, err=%v", err)
 	}
-	if strings.Contains(string(raw), "role: focus") {
-		t.Errorf("config.yaml = %q, want the role cleared", raw)
+	if got := storedRole(t, home); got != "" {
+		t.Errorf("stored active role = %q, want cleared", got)
 	}
+}
+
+func storedRole(t *testing.T, home string) string {
+	t.Helper()
+	st := state.New(config.DataPath(home, config.StateDB))
+	defer st.Close()
+	name, _ := st.ActiveRole(context.Background())
+	return name
 }
 
 func TestRoleHelpDocumentsTransientFlag(t *testing.T) {

@@ -40,6 +40,7 @@ type signalOpts struct {
 	detail Cache
 	policy CachePolicy
 	title  string
+	viewer string
 }
 
 type Option func(*signalOpts)
@@ -53,6 +54,10 @@ func WithDetailCache(c Cache, pol CachePolicy) Option {
 // queries keep their own per-query titles, since one name cannot cover them all.
 func WithTitle(title string) Option {
 	return func(o *signalOpts) { o.title = title }
+}
+
+func WithViewer(login string) Option {
+	return func(o *signalOpts) { o.viewer = strings.TrimSpace(login) }
 }
 
 func applyOptions(opts []Option) signalOpts {

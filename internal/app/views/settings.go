@@ -3,7 +3,6 @@ package views
 import (
 	"context"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,7 +18,6 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/mino/internal/app"
-	"github.com/codyconfer/mino/internal/app/suggest"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/keymap"
@@ -27,47 +25,6 @@ import (
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/render"
 )
-
-func (k *Kit) Settings() vkdeck.View {
-	return vkdeck.NewMenu("settings", k.setvCtx(), k.settingsMenuItems()...)
-}
-
-func (k *Kit) settingsMenuItems() []vkdeck.MenuItem {
-	items := []vkdeck.MenuItem{
-		{Label: "Edit config", Desc: "output, audit, timeout, backup", OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.setvEditConfigView())
-		}},
-	}
-	if k.setvHasConfigFile() {
-		items = append(items,
-			vkdeck.MenuItem{Label: "Delete config", Desc: "remove config.yaml/.yml/.json", OnSelect: func(a *vkdeck.Model) tea.Cmd {
-				return a.Push(k.setvDeleteConfirmView())
-			}},
-			vkdeck.MenuItem{Label: "Import config", Desc: "overwrite DuckDB with on-disk config", OnSelect: func(a *vkdeck.Model) tea.Cmd {
-				return a.Push(k.setvImportConfirmView())
-			}},
-		)
-	} else {
-		items = append(items, vkdeck.MenuItem{
-			Label:    "Create config",
-			Desc:     "write a default config.yaml",
-			OnSelect: k.setvCreateConfig,
-		})
-	}
-	items = append(items,
-		vkdeck.MenuItem{Label: "Export config", Desc: "write DuckDB stores back to disk", OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.setvExportConfirmView())
-		}},
-		vkdeck.MenuItem{Label: "Open config in editor", Desc: "open on-disk config with $EDITOR", OnSelect: k.setvOpenConfigInEditor},
-		vkdeck.MenuItem{Label: "Appearance", Desc: "theme and key scheme", OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.setvAppearanceView())
-		}},
-		vkdeck.MenuItem{Label: "Status bar", Desc: "hide or show chips; plugins stay enabled", OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.setvStatusBarView())
-		}},
-	)
-	return items
-}
 
 func (k *Kit) setvCtx() []keys.Hint {
 	return k.menuCtx()
@@ -95,55 +52,6 @@ func (k *Kit) setvFinish(a *vkdeck.Model, pops int, title, body string) tea.Cmd 
 
 func (k *Kit) setvRed(title, msg string) vkdeck.View {
 	return vkdeck.NewMessage(title, k.scope().Theme.Cant.Render(msg), k.setvCtx())
-}
-
-func (k *Kit) setvEditConfigView() vkdeck.View {
-	c := k.d.App.Cfg
-	fields := []forms.Field{
-		{Key: "output", Label: "output", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"terminal", "json"}, c.Output)},
-		{Key: "audit.enabled", Label: "audit.enabled", Kind: forms.FieldToggle, On: c.Audit.Enabled},
-		{Key: "timeout", Label: "timeout", Kind: forms.FieldText, Text: c.Timeout, Suggest: suggest.DurationValues()},
-		{Key: "cache.ttl", Label: "cache.ttl", Kind: forms.FieldText, Text: c.Cache.TTL, Suggest: suggest.DurationValues()},
-		{Key: "backup.destination", Label: "backup.destination", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"local", "gdrive"}, c.Backup.Destination)},
-		{Key: "backup.keep", Label: "backup.keep", Kind: forms.FieldText, Text: strconv.Itoa(c.Backup.Keep)},
-		{Key: "daemon.interval", Label: "daemon.interval", Kind: forms.FieldText, Text: c.Daemon.Interval, Suggest: suggest.DurationValues()},
-		{Key: "daemon.bell", Label: "daemon.bell", Kind: forms.FieldToggle, On: c.Daemon.Bell},
-		{Key: "daemon.desktop", Label: "daemon.desktop", Kind: forms.FieldToggle, On: c.Daemon.Desktop},
-		{Key: "daemon.theme", Label: "daemon.theme", Kind: forms.FieldSelect, Options: forms.SelectFirst([]string{"dark", "light"}, c.Daemon.Theme)},
-	}
-	fields = append(fields, sectionFields(c)...)
-	return vkdeck.NewFormView(vkdeck.FormSpec{
-		Title:       "edit config",
-		Fields:      fields,
-		Keys:        vkdeck.FormKeys{Map: keymap.Form(k.scope().Keys), Save: keymap.Save},
-		ContextFunc: k.setvCtx,
-		Hints:       []keys.Hint{{Key: "↑/↓", Label: "field"}, {Key: "←/→", Label: "change"}, {Key: "ctrl+s", Label: "save"}},
-		OnSubmit:    k.setvSaveConfig,
-	})
-}
-
-func (k *Kit) setvSaveConfig(a *vkdeck.Model, vals map[string]any) tea.Cmd {
-	keep := forms.Int(vals, "backup.keep")
-	set := map[string]any{
-		"output":             forms.Str(vals, "output"),
-		"timeout":            forms.Str(vals, "timeout"),
-		"cache.ttl":          forms.Str(vals, "cache.ttl"),
-		"audit.enabled":      forms.Bool(vals, "audit.enabled"),
-		"backup.destination": forms.Str(vals, "backup.destination"),
-		"backup.keep":        keep,
-		"daemon.interval":    forms.Str(vals, "daemon.interval"),
-		"daemon.bell":        forms.Bool(vals, "daemon.bell"),
-		"daemon.desktop":     forms.Bool(vals, "daemon.desktop"),
-		"daemon.theme":       forms.Str(vals, "daemon.theme"),
-	}
-	sectionValues(vals, set)
-	path, err := config.SetValues(k.setvHome(), set)
-	if err != nil {
-		return a.Push(k.setvRed("edit config", err.Error()))
-	}
-	pop := a.Pop()
-	push := a.Push(vkdeck.NewMessage("edit config", "wrote "+path, k.setvCtx()))
-	return tea.Batch(pop, push)
 }
 
 func (k *Kit) setvAppearanceView() vkdeck.View {
@@ -269,37 +177,6 @@ func (k *Kit) setvSaveStatusBar(a *vkdeck.Model, entries []statusBarEntry, vals 
 	pop := a.Pop()
 	push := a.Push(vkdeck.NewMessage("status bar", body, k.setvCtx()))
 	return tea.Batch(pop, push, a.RefreshStatus())
-}
-
-func (k *Kit) setvCreateConfig(a *vkdeck.Model) tea.Cmd {
-	home, raw, _, err := config.ReadConfigFile(k.setvHome())
-	if err != nil {
-		return a.Push(k.setvRed("create config", err.Error()))
-	}
-	if len(raw) > 0 {
-		return a.Push(vkdeck.NewMessage("create config", "config file already exists", k.setvCtx()))
-	}
-	path, err := sconfig.WriteConfigFile(home, []byte("output: terminal\naudit:\n  enabled: true\n"), "yaml")
-	if err != nil {
-		return a.Push(k.setvRed("create config", err.Error()))
-	}
-	return k.setvFinish(a, 1, "create config", "wrote "+path)
-}
-
-func (k *Kit) setvDeleteConfirmView() vkdeck.View {
-	return vkdeck.NewMenu("delete config?", k.setvCtx(),
-		vkdeck.MenuItem{Label: "No, keep it", Desc: "keep the config file", OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			return a.Pop()
-		}},
-		vkdeck.MenuItem{Label: "Yes, delete", Desc: "remove config.yaml/.yml/.json", OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			removed := setvDeleteConfigFiles(k.setvHome())
-			body := "no config file found"
-			if len(removed) > 0 {
-				body = "removed:\n" + strings.Join(removed, "\n")
-			}
-			return k.setvFinish(a, 2, "delete config", body)
-		}},
-	)
 }
 
 func setvDeleteConfigFiles(home string) []string {

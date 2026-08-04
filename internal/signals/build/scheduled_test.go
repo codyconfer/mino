@@ -38,7 +38,7 @@ func TestScheduledJobBuildsExternalPluginJobs(t *testing.T) {
 	if !build.HasScheduledBuilder(signal) {
 		t.Fatal("build.HasScheduledBuilder = false")
 	}
-	job, err := build.ScheduledJob(signal, nil, config.Defaults(), nil, nil)
+	job, err := build.ScheduledJob(signal, nil, "", config.Defaults(), nil, nil)
 	if err != nil {
 		t.Fatalf("build.ScheduledJob: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestScheduledJobRejectsNilNil(t *testing.T) {
 		Scheduled: func(plugin.BuildContext) (plugin.Scheduled, error) { return nil, nil },
 	})
 
-	job, err := build.ScheduledJob(signal, nil, config.Defaults(), nil, nil)
+	job, err := build.ScheduledJob(signal, nil, "", config.Defaults(), nil, nil)
 	if err == nil {
 		t.Fatalf("build.ScheduledJob returned (%v, nil); want an error", job)
 	}
@@ -83,7 +83,7 @@ func TestScheduledJobRejectsSignalWithoutTheCapability(t *testing.T) {
 		},
 	})
 
-	if _, err := build.ScheduledJob(signal, nil, config.Defaults(), nil, nil); err == nil {
+	if _, err := build.ScheduledJob(signal, nil, "", config.Defaults(), nil, nil); err == nil {
 		t.Fatal("want an error for a signal that does not advertise CapScheduled")
 	}
 }
@@ -99,7 +99,7 @@ func TestScheduledJobWithoutBuilder(t *testing.T) {
 		Query: func(plugin.BuildContext) (plugin.Query, error) { return overlayQuery{name: signal}, nil },
 	})
 
-	_, err := build.ScheduledJob(signal, nil, config.Defaults(), nil, nil)
+	_, err := build.ScheduledJob(signal, nil, "", config.Defaults(), nil, nil)
 	if !errors.Is(err, build.ErrNoScheduled) {
 		t.Fatalf("err = %v, want ErrNoScheduled", err)
 	}
@@ -116,7 +116,7 @@ func TestScheduledJobReportsCapWithoutBuilder(t *testing.T) {
 		Query: func(plugin.BuildContext) (plugin.Query, error) { return overlayQuery{name: signal}, nil },
 	})
 
-	_, err := build.ScheduledJob(signal, nil, config.Defaults(), nil, nil)
+	_, err := build.ScheduledJob(signal, nil, "", config.Defaults(), nil, nil)
 	if err == nil {
 		t.Fatal("want an error naming the missing scheduled builder")
 	}

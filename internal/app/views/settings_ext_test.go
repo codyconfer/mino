@@ -9,19 +9,19 @@ import (
 	"github.com/codyconfer/mino/internal/config"
 )
 
-func TestSettingsEditConfigHasCoreServeFields(t *testing.T) {
+func TestConfigEditorHasCoreServeFields(t *testing.T) {
 	kit := testKit(t)
-	vals := setvFormValues(kit.setvEditConfigView())
+	vals := configValues(t, kit)
 	for _, key := range []string{"daemon.interval", "daemon.bell", "daemon.desktop", "daemon.theme"} {
 		if _, ok := vals[key]; !ok {
-			t.Errorf("edit config missing serve field %q: %v", key, vals)
+			t.Errorf("config editor missing serve field %q: %v", key, vals)
 		}
 	}
 	if _, ok := vals["daemon.tray"]; ok {
 		t.Error("daemon.tray belongs to the optional daemon package, not core views")
 	}
-	if body := setvRender(kit.setvEditConfigView()); !strings.Contains(body, "daemon.interval") {
-		t.Fatalf("edit config body missing daemon rows: %q", body)
+	if body := setvRender(kit.Config()); !strings.Contains(body, "daemon.interval") {
+		t.Fatalf("config editor body missing daemon rows: %q", body)
 	}
 }
 
@@ -51,8 +51,8 @@ func TestRegisteredSectionReachesFormAndStatusBar(t *testing.T) {
 	})
 
 	kit := testKit(t)
-	if _, ok := setvFormValues(kit.setvEditConfigView())["ext.toggle"]; !ok {
-		t.Error("registered section field missing from edit config")
+	if _, ok := configValues(t, kit)["ext.toggle"]; !ok {
+		t.Error("registered section field missing from the config editor")
 	}
 	if _, ok := setvFormValues(kit.setvStatusBarView())["ext"]; !ok {
 		t.Error("registered section status-bar entry missing")

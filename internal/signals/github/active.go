@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/log"
 	"github.com/codyconfer/mino/internal/signals"
@@ -20,18 +21,18 @@ const (
 )
 
 type activeSignal struct {
-	token    string
+	src      auth.GitHubSource
 	baseURL  string
 	interval time.Duration
 	http     *http.Client
 	state    *active.State
 }
 
-func NewActive(token, baseURL string, interval time.Duration, state *active.State) signals.ActiveSignal {
+func NewActive(src auth.GitHubSource, baseURL string, interval time.Duration, state *active.State) signals.ActiveSignal {
 	if interval <= 0 {
 		interval = 60 * time.Second
 	}
-	return &activeSignal{token: token, baseURL: baseURL, interval: interval, http: signals.HTTPClient(), state: state}
+	return &activeSignal{src: src, baseURL: baseURL, interval: interval, http: signals.HTTPClient(), state: state}
 }
 
 func (h *activeSignal) Name() string { return "github" }
@@ -145,7 +146,11 @@ type notificationPage struct {
 
 func (h *activeSignal) fetchPage(ctx context.Context, rawURL, since string) (notificationPage, error) {
 	pg := notificationPage{next: h.interval}
-	req, err := newGitHubURLRequest(ctx, rawURL, h.token)
+	tok, err := h.src.Token(ctx)
+	if err != nil {
+		return pg, err
+	}
+	req, err := newGitHubURLRequest(ctx, rawURL, tok)
 	if err != nil {
 		return pg, errs.Wrap(errs.KindSignal, err, "github: building notifications request")
 	}

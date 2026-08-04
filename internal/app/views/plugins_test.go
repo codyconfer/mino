@@ -367,25 +367,18 @@ func TestPluginsTogglePersists(t *testing.T) {
 	}
 }
 
-func TestToolingMenuIncludesPluginsEntry(t *testing.T) {
+func TestSettingsMenuIncludesPluginsEntry(t *testing.T) {
 	kit := testKit(t)
-	labels := make([]string, 0, len(kit.toolingMenuItems()))
+	labels := make([]string, 0, len(kit.settingsMenuItems()))
 	var pluginsDesc string
-	for _, it := range kit.toolingMenuItems() {
+	for _, it := range kit.settingsMenuItems() {
 		labels = append(labels, it.Label)
 		if it.Label == "Plugins" {
 			pluginsDesc = it.Desc
 		}
 	}
-	found := false
-	for _, l := range labels {
-		if l == "Plugins" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("tooling menu missing Plugins entry: %v", labels)
+	if !hasLabel(labels, "Plugins") {
+		t.Fatalf("settings menu missing Plugins entry: %v", labels)
 	}
 	if !strings.Contains(pluginsDesc, "install") {
 		t.Fatalf("Plugins desc should mention install: %q", pluginsDesc)

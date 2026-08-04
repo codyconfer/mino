@@ -24,8 +24,8 @@ func TestLoadDefaults(t *testing.T) {
 	if len(cfg.Plugins) != 0 {
 		t.Errorf("plugin settings should default empty, got %#v", cfg.Plugins)
 	}
-	if cfg.Role != "" {
-		t.Errorf("role should default empty, got %q", cfg.Role)
+	if cfg.DefaultRole != "" {
+		t.Errorf("role should default empty, got %q", cfg.DefaultRole)
 	}
 	if cfg.Home != dir {
 		t.Errorf("Home = %q, want %q", cfg.Home, dir)
@@ -77,8 +77,8 @@ plugins:
 	if cfg.Output != "json" {
 		t.Errorf("output = %q, want json", cfg.Output)
 	}
-	if cfg.Role != "triage" {
-		t.Errorf("role = %q, want triage", cfg.Role)
+	if cfg.DefaultRole != "triage" {
+		t.Errorf("role = %q, want triage", cfg.DefaultRole)
 	}
 	gmail := cfg.PluginSettings("gmail")
 	if gmail["query"] != "is:starred" {
@@ -106,8 +106,8 @@ func TestLoadConfigJSON(t *testing.T) {
 	if cfg.Output != "json" {
 		t.Errorf("output = %q, want json", cfg.Output)
 	}
-	if cfg.Role != "oncall" {
-		t.Errorf("json role = %q, want oncall", cfg.Role)
+	if cfg.DefaultRole != "oncall" {
+		t.Errorf("json role = %q, want oncall", cfg.DefaultRole)
 	}
 	if got := cfg.PluginSettings("gmail")["max"]; got != float64(3) && got != 3 {
 		t.Errorf("json plugins.gmail.max = %#v, want 3", got)

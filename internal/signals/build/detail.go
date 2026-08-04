@@ -24,7 +24,7 @@ func DetailSignals() []string {
 	return out
 }
 
-func Detail(ctx context.Context, signal string, it signals.Item, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.ItemDetail, error) {
+func Detail(ctx context.Context, signal string, it signals.Item, role string, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.ItemDetail, error) {
 	if !plugin.HasBuilder(signal) {
 		return signals.ItemDetail{}, errs.Newf(errs.KindConfig, "unknown signal %q", signal)
 	}
@@ -35,7 +35,7 @@ func Detail(ctx context.Context, signal string, it signals.Item, cfg *config.Con
 		}
 		return signals.ItemDetail{}, err
 	}
-	q, err := plugin.BuildQuery(signal, newHostBuildCtx(signal, nil, cfg, tokens, nil, results))
+	q, err := plugin.BuildQuery(signal, newHostBuildCtx(signal, nil, role, cfg, tokens, nil, results))
 	if err != nil {
 		return signals.ItemDetail{}, err
 	}

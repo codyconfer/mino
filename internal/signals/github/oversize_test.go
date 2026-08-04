@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/errs"
 )
 
@@ -55,7 +56,7 @@ func TestSearchIssuesKeepsA401BehindAnOversizeBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	b := APIBackend{Token: "t", BaseURL: srv.URL, HTTP: srv.Client()}
+	b := APIBackend{Auth: auth.StaticGitHubToken("t"), BaseURL: srv.URL, HTTP: srv.Client()}
 	_, err := b.SearchIssues(context.Background(), "is:open", 5)
 	if err == nil {
 		t.Fatal("want an error")

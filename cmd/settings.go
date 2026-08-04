@@ -13,7 +13,7 @@ import (
 func newSettingsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "settings",
-		Short: "Open the settings TUI (config, directives, DuckDB)",
+		Short: "Open the settings TUI (accounts, plugins, config, appearance)",
 		Long: "Opens only the settings screens. Invoked from the shell, quitting returns\n" +
 			"to the shell (not the main menu).",
 		Args: cobra.NoArgs,

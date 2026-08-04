@@ -20,6 +20,7 @@ import (
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render"
+	"github.com/codyconfer/mino/internal/state"
 	"github.com/codyconfer/mino/internal/token"
 )
 
@@ -263,6 +264,10 @@ func seedStores(home string, created *[]string) error {
 	if tk, err := token.Open(context.Background(), config.DataPath(home, config.TokensDB)); err == nil {
 		_ = tk.Close()
 		*created = append(*created, config.DataPath(home, config.TokensDB))
+	}
+	if st, err := state.Open(context.Background(), config.DataPath(home, config.StateDB)); err == nil {
+		_ = st.Close()
+		*created = append(*created, config.DataPath(home, config.StateDB))
 	}
 	return nil
 }

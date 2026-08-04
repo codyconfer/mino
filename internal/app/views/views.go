@@ -90,8 +90,8 @@ func (k *Kit) mainMenuItems() []vkdeck.MenuItem {
 		{Label: "DuckDB", Desc: "build, run, save, and manage SQL queries", Icon: glyph.Audit(), Hue: 4, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.DuckDB())
 		}},
-		{Label: "Tooling", Desc: "accounts, plugins, settings", Icon: glyph.Settings(), Hue: 2, OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.Tooling())
+		{Label: "Settings", Desc: "accounts, plugins, config, appearance", Icon: glyph.Settings(), Hue: 2, OnSelect: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.Settings())
 		}},
 		{Label: "Quit", Desc: "back to shell", Icon: glyph.Quit(), Hue: 3, OnSelect: func(*vkdeck.Model) tea.Cmd {
 			return tea.Quit
@@ -126,22 +126,39 @@ func (k *Kit) directiveMenuItems() []vkdeck.MenuItem {
 	return items
 }
 
-func (k *Kit) Tooling() vkdeck.View {
-	return vkdeck.NewMenu("tooling", k.menuCtx(), k.toolingMenuItems()...)
+func (k *Kit) Settings() vkdeck.View {
+	return vkdeck.NewMenu("settings", k.menuCtx(), k.settingsMenuItems()...)
 }
 
-func (k *Kit) toolingMenuItems() []vkdeck.MenuItem {
-	return []vkdeck.MenuItem{
+func (k *Kit) settingsMenuItems() []vkdeck.MenuItem {
+	items := []vkdeck.MenuItem{
 		{Label: "Accounts", Desc: "authenticate signal providers", Icon: glyph.Login(), Hue: 1, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Login())
 		}},
 		{Label: "Plugins", Desc: "install, enable/disable, or uninstall managed plugins", Icon: glyph.Plugins(), Hue: 0, OnSelect: func(a *vkdeck.Model) tea.Cmd {
 			return a.Push(k.Plugins())
 		}},
-		{Label: "Settings", Desc: "config, import, export", Icon: glyph.Settings(), Hue: 5, OnSelect: func(a *vkdeck.Model) tea.Cmd {
-			return a.Push(k.Settings())
+		{Label: "Config", Desc: "edit, validate, and save the config file", Icon: glyph.Builder(), Hue: 5, OnSelect: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.Config())
+		}},
+		{Label: "Appearance", Desc: "theme and key scheme", Icon: glyph.Brand(), Hue: 3, OnSelect: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.setvAppearanceView())
+		}},
+		{Label: "Status bar", Desc: "hide or show chips; plugins stay enabled", Icon: glyph.Bullet(), Hue: 6, OnSelect: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.setvStatusBarView())
 		}},
 	}
+	if k.setvHasConfigFile() {
+		items = append(items, vkdeck.MenuItem{Label: "Import config", Desc: "overwrite DuckDB with on-disk config", OnSelect: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.setvImportConfirmView())
+		}})
+	}
+	return append(items,
+		vkdeck.MenuItem{Label: "Export config", Desc: "write DuckDB stores back to disk", OnSelect: func(a *vkdeck.Model) tea.Cmd {
+			return a.Push(k.setvExportConfirmView())
+		}},
+		vkdeck.MenuItem{Label: "Open config in $EDITOR", Desc: "open on-disk config with $EDITOR", OnSelect: k.setvOpenConfigInEditor},
+	)
 }
 
 func (k *Kit) hasHistory() bool {

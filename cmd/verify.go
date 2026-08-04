@@ -21,7 +21,11 @@ func newVerifyCmd() *cobra.Command {
 			if len(args) == 1 {
 				target = args[0]
 			}
-			return verify.Run(cmd.Context(), cmd.OutOrStdout(), Scope(), shared.Cfg, shared.Directives, shared.Tokens, target)
+			prov, id, err := shared.GitAuth()
+			if err != nil {
+				return err
+			}
+			return verify.Run(cmd.Context(), cmd.OutOrStdout(), Scope(), shared.Cfg, shared.Directives, shared.Role(), prov, id, target)
 		},
 	}
 }

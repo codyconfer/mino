@@ -109,19 +109,20 @@ func (s scopedCredentials) Delete(ctx context.Context, service string) error {
 type host struct {
 	cfg    *config.Config
 	tokens *token.Store
+	role   string
 	grant  Grant
 }
 
-func ForSignal(cfg *config.Config, tokens *token.Store, signal string) plugin.Host {
-	return host{cfg: cfg, tokens: tokens, grant: GrantForSignal(signal)}
+func ForSignal(cfg *config.Config, tokens *token.Store, role, signal string) plugin.Host {
+	return host{cfg: cfg, tokens: tokens, role: role, grant: GrantForSignal(signal)}
 }
 
-func ForPlugin(cfg *config.Config, tokens *token.Store, pluginID, fallback string) plugin.Host {
-	return host{cfg: cfg, tokens: tokens, grant: GrantFor(pluginID, fallback)}
+func ForPlugin(cfg *config.Config, tokens *token.Store, role, pluginID, fallback string) plugin.Host {
+	return host{cfg: cfg, tokens: tokens, role: role, grant: GrantFor(pluginID, fallback)}
 }
 
-func ForLogin(cfg *config.Config, tokens *token.Store, p plugin.LoginProvider) plugin.Host {
-	return host{cfg: cfg, tokens: tokens, grant: GrantFor(p.PluginID, p.Key)}
+func ForLogin(cfg *config.Config, tokens *token.Store, role string, p plugin.LoginProvider) plugin.Host {
+	return host{cfg: cfg, tokens: tokens, role: role, grant: GrantFor(p.PluginID, p.Key)}
 }
 
 func (h host) Home() string {
@@ -131,12 +132,7 @@ func (h host) Home() string {
 	return h.cfg.Home
 }
 
-func (h host) Role() string {
-	if h.cfg == nil {
-		return ""
-	}
-	return h.cfg.Role
-}
+func (h host) Role() string { return h.role }
 
 func (h host) Settings(namespace string) map[string]any {
 	if !h.grant.AllowsNamespace(namespace) {

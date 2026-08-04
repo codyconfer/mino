@@ -127,7 +127,7 @@ func TestFingerprintTracksSignalConfigOnly(t *testing.T) {
 	cfg := config.Defaults()
 	base := Fingerprint(cfg)
 
-	cfg.Output, cfg.Role, cfg.Home, cfg.Timeout = "json", "work", "/tmp/x", "9s"
+	cfg.Output, cfg.DefaultRole, cfg.Home, cfg.Timeout = "json", "work", "/tmp/x", "9s"
 	cfg.Cache.TTL = "99m"
 	if got := Fingerprint(cfg); got != base {
 		t.Errorf("non-signal config changed the fingerprint: %q vs %q", got, base)

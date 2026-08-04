@@ -26,7 +26,7 @@ func testServer(t *testing.T, home string) (*Server, *audit.Store) {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 	return &Server{App: &app.App{
-		Cfg:        &config.Config{Home: home, Role: "test"},
+		Cfg:        &config.Config{Home: home, DefaultRole: "test"},
 		Directives: &config.Directives{},
 		Audit:      st,
 	}}, st
@@ -54,7 +54,7 @@ func TestWatchRecordsAllEventsBeforeRollUp(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		s.watch(ctx, cancel, sources{events: in, join: func() {}}, notifySink{})
+		s.watch(ctx, cancel, sources{events: in, join: func() {}}, notifySink{}, nil, RunOptions{})
 	}()
 
 	const want = 400

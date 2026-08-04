@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/codyconfer/viewkit/glyph"
 
 	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/serve/httpapi"
 	"github.com/codyconfer/mino/internal/app/views"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/deck"
@@ -99,27 +102,36 @@ func (s *Server) openState() (*active.State, func()) {
 
 func (s *Server) sources(ctx context.Context, name string, interval time.Duration, state *active.State) (sources, error) {
 	flight := s.Dirs().Flights[name]
-	queries := s.activeQueries(name, flight.Queries, interval, state)
+	queries, skipped := s.activeQueries(name, flight.Queries, interval, state)
 
 	var wg sync.WaitGroup
 	var chans []<-chan signals.Event
+	var infos []httpapi.SourceInfo
 	for _, open := range s.openStreams(ctx, queries) {
 		chans = append(chans, applyFilters(ctx, &wg, track(ctx, &wg, open.ch, open.stop), open.q.filters))
 		fmt.Fprintf(os.Stderr, "watching %-10s %s\n", open.q.src.Name(), latencyLabel(open.q.src.LatencyFloor()))
+		infos = append(infos, httpapi.SourceInfo{
+			Signal:       open.q.src.Name(),
+			LatencyFloor: open.q.src.LatencyFloor().String(),
+		})
 	}
 	if sch := s.scheduledEvents(ctx, name, flight.Queries, state); sch != nil {
 		chans = append(chans, track(ctx, &wg, sch, nil))
 	}
 	if len(chans) == 0 {
-		return sources{}, errs.Newf(errs.KindUsage, "flight %q has no signals with realtime or scheduled support", name).
-			WithHint("active: slack, github, calendar, tasks, demo; scheduled: ntr")
+		e := errs.Newf(errs.KindUsage, "flight %q has no signals with realtime or scheduled support", name)
+		if len(skipped) > 0 {
+			return sources{}, e.WithHint("%s", strings.Join(skipped, "; "))
+		}
+		return sources{}, e.WithHint("active: slack, github, calendar, tasks, demo; scheduled: ntr")
 	}
-	return sources{events: stream.FanIn(ctx, chans...), join: wg.Wait}, nil
+	return sources{events: stream.FanIn(ctx, chans...), join: wg.Wait, infos: infos}, nil
 }
 
 type sources struct {
 	events <-chan signals.Event
 	join   func()
+	infos  []httpapi.SourceInfo
 }
 
 type openStream struct {
@@ -231,46 +243,55 @@ func drain(in <-chan signals.Event) {
 	}
 }
 
-func (s *Server) activeQueries(flight string, names []string, interval time.Duration, state *active.State) []activeQuery {
+func (s *Server) activeQueries(flight string, names []string, interval time.Duration, state *active.State) ([]activeQuery, []string) {
 	var out []activeQuery
+	var skipped []string
+	skip := func(query, reason string) { skipped = append(skipped, query+": "+reason) }
 	d := s.Dirs()
 	for _, name := range names {
 		q, ok := d.Queries[name]
 		if !ok {
 			log.Debugf("serve: unknown query %q in flight %q", name, flight)
+			skip(name, "no such query")
 			continue
 		}
 		if !q.Runnable() {
 			log.Debugf("serve: %q is filter-only, not a runnable query (skipping)", name)
+			skip(name, "filter-only, not a runnable query")
 			continue
 		}
 		resolved, err := d.Resolve(q)
 		if err != nil {
 			log.Warnf("serve: query %q: %v (skipping)", name, err)
+			skip(name, err.Error())
 			continue
 		}
 		params, err := filter.ExpandParams(q.Params, resolved)
 		if err != nil {
 			log.Warnf("serve: query %q: %v (skipping)", name, err)
+			skip(name, err.Error())
 			continue
 		}
-		hs, err := build.ActiveSignal(q.Signal, activeParams(params, interval), s.Cfg, s.Tokens, state)
+		hs, err := build.ActiveSignal(q.Signal, activeParams(params, interval), s.Role(), s.Cfg, s.Tokens, state)
 		if err != nil {
 			if errors.Is(err, build.ErrNoActive) {
 				log.Debugf("serve: query %q signal %q has no realtime support (skipping)", name, q.Signal)
+				skip(name, q.Signal+" has no realtime support")
 			} else {
 				log.Warnf("serve: query %q: %v (skipping)", name, err)
+				skip(name, err.Error())
 			}
 			continue
 		}
 		compiled, err := filter.CompileAll(resolved)
 		if err != nil {
 			log.Warnf("serve: query %q: %v (skipping)", name, err)
+			skip(name, err.Error())
 			continue
 		}
 		out = append(out, activeQuery{label: name, src: hs, filters: compiled})
 	}
-	return out
+	return out, skipped
 }
 
 func activeParams(params map[string]string, interval time.Duration) map[string]string {
@@ -442,7 +463,7 @@ func (s *Server) serveView(name string, events <-chan signals.Event) *views.Serv
 func (s *Server) fetchDetail(signal string, it signals.Item) (*signals.ItemDetail, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.SourceTimeout())
 	defer cancel()
-	d, err := build.Detail(ctx, signal, it, s.Cfg, s.Tokens, s.Cache)
+	d, err := build.Detail(ctx, signal, it, s.Role(), s.Cfg, s.Tokens, s.Cache)
 	if err != nil {
 		return nil, err
 	}
@@ -465,21 +486,38 @@ type RunOptions struct {
 	Desktop  bool
 	Terminal bool
 	OnState  func(tray.State)
+
+	// HTTP exposes the trigger API on HTTPHost:HTTPPort while serving.
+	HTTP            bool
+	HTTPHost        string
+	HTTPPort        int
+	HTTPToken       string
+	HTTPTokenSource string
 }
 
 func (s *Server) Run(ctx context.Context, opt RunOptions) error {
 	cctx, cancel := context.WithCancel(ctx)
+
+	// Bind before opening any source, so a taken port fails with nothing started.
+	ln, err := s.apiListener(opt)
+	if err != nil {
+		cancel()
+		return err
+	}
 
 	state, closeState := s.openState()
 	defer closeState()
 
 	src, err := s.sources(cctx, opt.Flight, opt.Interval, state)
 	if err != nil {
+		if ln != nil {
+			_ = ln.Close()
+		}
 		cancel()
 		return err
 	}
 	sink := notifySink{bell: opt.Bell, desktop: opt.Desktop, terminal: opt.Terminal, onState: opt.OnState}
-	s.watch(cctx, cancel, src, sink)
+	s.watch(cctx, cancel, src, sink, ln, opt)
 	return nil
 }
 
@@ -487,6 +525,7 @@ type session struct {
 	cancel    context.CancelFunc
 	src       sources
 	closeSock func()
+	closeAPI  func()
 	subj      *stream.Subject[signals.Event]
 	audited   <-chan struct{}
 	stopAudit context.CancelFunc
@@ -494,9 +533,10 @@ type session struct {
 	flightID  int64
 }
 
-func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sources, sink notifySink) {
+func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sources, sink notifySink, ln net.Listener, opt RunOptions) {
 	subj := stream.NewSubject[signals.Event]()
 	closeSock := s.socket(ctx, subj)
+	closeAPI := s.httpAPI(ctx, ln, subj, opt, src.infos)
 	flightID := s.Audit.StartFlightContext(ctx, "serve", s.Role())
 
 	auditCtx, stopAudit := context.WithCancel(context.WithoutCancel(ctx))
@@ -513,6 +553,7 @@ func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sourc
 		cancel:    cancel,
 		src:       src,
 		closeSock: closeSock,
+		closeAPI:  closeAPI,
 		subj:      subj,
 		audited:   audited,
 		stopAudit: stopAudit,
@@ -524,6 +565,12 @@ func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sourc
 
 func (s *Server) endSession(ses session) {
 	ses.cancel()
+	// Before subj.Close so SSE handlers unsubscribe from a live Subject, and
+	// before drainAudit/FinishFlight so an in-flight run's audit rows land
+	// inside the flight they belong to.
+	if ses.closeAPI != nil {
+		ses.closeAPI()
+	}
 	if ses.src.join != nil {
 		ses.src.join()
 	}

@@ -72,7 +72,7 @@ func TestSessionRoleFlagRunsNoHooksAndWritesNoMarker(t *testing.T) {
 	if fileExists(exit) {
 		t.Error("--role must not run the exit hook")
 	}
-	if got := role.LoadActive(home); got != "" {
+	if got := activeRoleState(t, home); got != "" {
 		t.Errorf("hook marker = %q, want unwritten by --role", got)
 	}
 }
@@ -90,7 +90,7 @@ func TestSessionRoleEnvRunsNoHooksAndWritesNoMarker(t *testing.T) {
 	if fileExists(enter) {
 		t.Error("MINO_ROLE must not run the enter hook")
 	}
-	if got := role.LoadActive(home); got != "" {
+	if got := activeRoleState(t, home); got != "" {
 		t.Errorf("hook marker = %q, want unwritten by MINO_ROLE", got)
 	}
 }
@@ -111,7 +111,7 @@ func TestRepeatedSessionRoleInvocationsRunNoHooks(t *testing.T) {
 	if fileExists(enter) || fileExists(exit) {
 		t.Error("alternating --role invocations must not run role hooks")
 	}
-	if got := role.LoadActive(home); got != "" {
+	if got := activeRoleState(t, home); got != "" {
 		t.Errorf("hook marker = %q, want unwritten", got)
 	}
 }
@@ -124,7 +124,7 @@ func TestConfigRoleRunsHooksOnceAcrossInvocations(t *testing.T) {
 	if !fileExists(enter) {
 		t.Fatal("role: in config must run the enter hook")
 	}
-	if got := role.LoadActive(home); got != "hooky" {
+	if got := activeRoleState(t, home); got != "hooky" {
 		t.Fatalf("hook marker = %q, want hooky", got)
 	}
 
@@ -140,10 +140,22 @@ func TestConfigRoleRunsHooksOnceAcrossInvocations(t *testing.T) {
 		t.Fatal(err)
 	}
 	loadHome(t, Options{Home: home}).Shutdown()
-	if !fileExists(exit) {
-		t.Error("changing role: must run the previous role's exit hook")
+	if fileExists(enter) || fileExists(exit) {
+		t.Error("role: is only a default; editing it must not switch an already-active role")
 	}
-	if got := role.LoadActive(home); got != "quiet" {
+	if got := activeRoleState(t, home); got != "hooky" {
+		t.Errorf("hook marker = %q, want the stored role to win over the config default", got)
+	}
+
+	a := loadHome(t, Options{Home: home})
+	if err := a.ActivateRole("quiet"); err != nil {
+		t.Fatal(err)
+	}
+	a.Shutdown()
+	if !fileExists(exit) {
+		t.Error("activating a role must run the previous role's exit hook")
+	}
+	if got := activeRoleState(t, home); got != "quiet" {
 		t.Errorf("hook marker = %q, want quiet", got)
 	}
 }
@@ -165,7 +177,7 @@ func TestSessionRoleDoesNotDisturbPersistedRole(t *testing.T) {
 	if fileExists(enter) {
 		t.Error("--role must not re-run the enter hook")
 	}
-	if got := role.LoadActive(home); got != "hooky" {
+	if got := activeRoleState(t, home); got != "hooky" {
 		t.Errorf("hook marker = %q, want the persisted role hooky", got)
 	}
 }
@@ -185,7 +197,7 @@ func TestActivateRolePersistsRoleAndRunsHooks(t *testing.T) {
 	if !fileExists(exit) {
 		t.Error("role use should run the previous role's exit hook")
 	}
-	if got := role.LoadActive(home); got != "quiet" {
+	if got := activeRoleState(t, home); got != "quiet" {
 		t.Errorf("hook marker = %q, want quiet", got)
 	}
 	if got := a.Role(); got != "quiet" {
@@ -196,12 +208,8 @@ func TestActivateRolePersistsRoleAndRunsHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := string(raw)
-	if !strings.Contains(got, "role: quiet") {
-		t.Errorf("config.yaml did not persist the role:\n%s", got)
-	}
-	if !strings.Contains(got, "# keep me") || !strings.Contains(got, "# trailing") {
-		t.Errorf("config.yaml lost comments:\n%s", got)
+	if got := string(raw); got != "# keep me\nrole: hooky\n\noutput: terminal # trailing\n" {
+		t.Errorf("activating a role rewrote config.yaml:\n%s", got)
 	}
 }
 
@@ -238,7 +246,7 @@ func TestActivateRoleClearsSessionRole(t *testing.T) {
 	if !fileExists(enter) {
 		t.Error("activating the session role should run its enter hook")
 	}
-	if got := role.LoadActive(home); got != "hooky" {
+	if got := activeRoleState(t, home); got != "hooky" {
 		t.Errorf("hook marker = %q, want hooky", got)
 	}
 	if a.transientRole() {
@@ -277,12 +285,10 @@ func TestBeginRoleSettleReturnsHooksWithoutRunningThem(t *testing.T) {
 		return nil
 	}
 	t.Cleanup(func() { role.Run = orig })
-	if err := role.SaveActive(home, "triage"); err != nil {
-		t.Fatal(err)
-	}
+	seedActiveRoleState(t, home, "triage")
 
 	a := &App{
-		Cfg: &config.Config{Home: home, Role: "triage"},
+		Cfg: &config.Config{Home: home, DefaultRole: "triage"},
 		Directives: &config.Directives{Roles: map[string]config.RoleDef{
 			"triage": {Name: "triage", Hooks: config.RoleHooks{
 				Exit: config.RoleShellHooks{Bash: "exit-triage", PowerShell: "exit-triage"},
@@ -325,7 +331,7 @@ func TestBeginRoleSettleReturnsHooksWithoutRunningThem(t *testing.T) {
 			t.Error("Command() must leave stdio for the caller to wire")
 		}
 	}
-	if got := role.LoadActive(home); got != "triage" {
+	if got := activeRoleState(t, home); got != "triage" {
 		t.Errorf("marker = %q, want unchanged until the settle finishes", got)
 	}
 
@@ -334,15 +340,11 @@ func TestBeginRoleSettleReturnsHooksWithoutRunningThem(t *testing.T) {
 	}
 
 	a.FinishRoleSettle(s)
-	if got := role.LoadActive(home); got != "weekly" {
+	if got := activeRoleState(t, home); got != "weekly" {
 		t.Errorf("marker = %q, want weekly after FinishRoleSettle", got)
 	}
-	raw, err := os.ReadFile(filepath.Join(home, "config.yaml"))
-	if err != nil {
-		t.Fatalf("FinishRoleSettle should persist role: %v", err)
-	}
-	if !strings.Contains(string(raw), "role: weekly") {
-		t.Errorf("config.yaml = %q, want role: weekly", raw)
+	if _, err := os.Stat(filepath.Join(home, "config.yaml")); !os.IsNotExist(err) {
+		t.Errorf("FinishRoleSettle should not write config.yaml, err=%v", err)
 	}
 }
 
@@ -403,4 +405,91 @@ func TestRoleAndDirectivesAccessorsAreRaceFree(t *testing.T) {
 
 	close(start)
 	wg.Wait()
+}
+
+func TestClearedRoleSurvivesAConfigDefault(t *testing.T) {
+	requireBash(t)
+	home, enter, exit := hookHome(t, "role: hooky\n")
+
+	loadHome(t, Options{Home: home}).Shutdown()
+	if !fileExists(enter) {
+		t.Fatal("role: should seed the active role and run its enter hook")
+	}
+
+	a := loadHome(t, Options{Home: home})
+	if err := a.ActivateRole(""); err != nil {
+		t.Fatal(err)
+	}
+	a.Shutdown()
+	if !fileExists(exit) {
+		t.Error("clearing the role should run its exit hook")
+	}
+	if err := os.Remove(enter); err != nil {
+		t.Fatal(err)
+	}
+
+	b := loadHome(t, Options{Home: home})
+	if got := b.Role(); got != "" {
+		t.Errorf("Role() = %q, want the cleared role to outrank the config default", got)
+	}
+	if fileExists(enter) {
+		t.Error("a cleared role must not be resurrected by role: in config")
+	}
+}
+
+func TestSessionRoleOutranksTheStoredRole(t *testing.T) {
+	home, _, _ := hookHome(t, "output: terminal\n")
+
+	a := loadHome(t, Options{Home: home})
+	if err := a.ActivateRole("quiet"); err != nil {
+		t.Fatal(err)
+	}
+	a.Shutdown()
+
+	b := loadHome(t, Options{Home: home, Role: "hooky"})
+	if got := b.Role(); got != "hooky" {
+		t.Errorf("Role() = %q, want --role to outrank the stored role", got)
+	}
+	b.Shutdown()
+	if got := activeRoleState(t, home); got != "quiet" {
+		t.Errorf("stored active role = %q, want --role to leave it alone", got)
+	}
+
+	t.Setenv("MINO_ROLE", "hooky")
+	c := loadHome(t, Options{Home: home})
+	if got := c.Role(); got != "hooky" {
+		t.Errorf("Role() = %q, want MINO_ROLE to outrank the stored role", got)
+	}
+	c.Shutdown()
+	if got := activeRoleState(t, home); got != "quiet" {
+		t.Errorf("stored active role = %q, want MINO_ROLE to leave it alone", got)
+	}
+}
+
+func TestLegacyActiveRoleMarkerSeedsTheStoreWithoutRerunningHooks(t *testing.T) {
+	requireBash(t)
+	home, enter, exit := hookHome(t, "role: hooky\n")
+	marker := filepath.Join(home, ".data", "active-role")
+	if err := os.MkdirAll(filepath.Dir(marker), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(marker, []byte("hooky\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a := loadHome(t, Options{Home: home})
+	if got := a.Role(); got != "hooky" {
+		t.Errorf("Role() = %q, want the legacy marker to seed the store", got)
+	}
+	a.Shutdown()
+
+	if fileExists(enter) || fileExists(exit) {
+		t.Error("an upgrade must not re-run hooks for an already-active role")
+	}
+	if fileExists(marker) {
+		t.Error("the legacy marker should be removed once the store holds the role")
+	}
+	if got := activeRoleState(t, home); got != "hooky" {
+		t.Errorf("stored active role = %q, want hooky", got)
+	}
 }

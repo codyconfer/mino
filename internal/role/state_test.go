@@ -6,37 +6,34 @@ import (
 	"testing"
 )
 
-func TestLoadSaveActive(t *testing.T) {
+func TestTakeLegacyActiveReadsAndRemovesTheMarker(t *testing.T) {
 	home := t.TempDir()
-	if got := LoadActive(home); got != "" {
-		t.Fatalf("empty home active = %q", got)
-	}
-	if err := SaveActive(home, "triage"); err != nil {
+	dir := filepath.Join(home, ".data")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if got := LoadActive(home); got != "triage" {
-		t.Fatalf("LoadActive = %q", got)
-	}
-	path := filepath.Join(home, ".data", activeRoleFile)
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("state file missing: %v", err)
-	}
-	if err := SaveActive(home, ""); err != nil {
+	path := filepath.Join(dir, activeRoleFile)
+	if err := os.WriteFile(path, []byte("triage\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := LoadActive(home); got != "" {
-		t.Fatalf("cleared active = %q", got)
+
+	got, ok := TakeLegacyActive(home)
+	if !ok || got != "triage" {
+		t.Fatalf("TakeLegacyActive = %q, %v; want triage, true", got, ok)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("expected removed state file, err=%v", err)
+		t.Fatalf("marker still present, err=%v", err)
+	}
+	if _, ok := TakeLegacyActive(home); ok {
+		t.Fatal("a second take should report no marker")
 	}
 }
 
-func TestLoadSaveActiveEmptyHome(t *testing.T) {
-	if LoadActive("") != "" {
-		t.Fatal("expected empty")
+func TestTakeLegacyActiveWithoutAMarker(t *testing.T) {
+	if _, ok := TakeLegacyActive(t.TempDir()); ok {
+		t.Fatal("no marker should report false")
 	}
-	if err := SaveActive("", "x"); err != nil {
-		t.Fatal(err)
+	if _, ok := TakeLegacyActive(""); ok {
+		t.Fatal("empty home should report false")
 	}
 }

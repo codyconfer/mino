@@ -215,7 +215,7 @@ func (v *loginFlowView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		v.err = m.err
 		v.step = loginStepDone
 		if m.err == nil && v.prov.Key == "github" {
-			v.kit.d.App.ResetGitHubAuth()
+			v.kit.d.App.ResetGitAuth()
 		}
 		return nil
 	case spinner.TickMsg:

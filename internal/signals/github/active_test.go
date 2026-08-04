@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/signals"
 	"github.com/codyconfer/mino/internal/signals/active"
@@ -37,7 +38,7 @@ func TestActiveStreamBoundsHangingPoll(t *testing.T) {
 	defer srv.Close()
 	defer close(release)
 
-	sig := NewActive("tok", srv.URL, 300*time.Millisecond, active.NewState(nil))
+	sig := NewActive(auth.StaticGitHubToken("tok"), srv.URL, 300*time.Millisecond, active.NewState(nil))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	events, err := sig.Stream(ctx)
@@ -82,7 +83,7 @@ func TestActiveStreamFollowsNotificationPages(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sig := NewActive("tok", srv.URL, 150*time.Millisecond, active.NewState(nil))
+	sig := NewActive(auth.StaticGitHubToken("tok"), srv.URL, 150*time.Millisecond, active.NewState(nil))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	events, err := sig.Stream(ctx)
@@ -182,7 +183,7 @@ func TestNextIntervalCapsAnAbsurdPollIntervalHint(t *testing.T) {
 }
 
 func TestNewActiveUsesSharedClient(t *testing.T) {
-	h, ok := NewActive("tok", "", time.Minute, nil).(*activeSignal)
+	h, ok := NewActive(auth.StaticGitHubToken("tok"), "", time.Minute, nil).(*activeSignal)
 	if !ok {
 		t.Fatal("NewActive did not return an *activeSignal")
 	}
@@ -207,7 +208,7 @@ func TestActiveStreamRateLimitSurfacesSignalError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sig := NewActive("tok", srv.URL, 200*time.Millisecond, active.NewState(nil))
+	sig := NewActive(auth.StaticGitHubToken("tok"), srv.URL, 200*time.Millisecond, active.NewState(nil))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	events, err := sig.Stream(ctx)
@@ -258,7 +259,7 @@ func TestActiveStreamStopsAtNotificationPageCap(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	h := &activeSignal{token: "tok", baseURL: srv.URL, interval: time.Minute, http: srv.Client()}
+	h := &activeSignal{src: auth.StaticGitHubToken("tok"), baseURL: srv.URL, interval: time.Minute, http: srv.Client()}
 	res, err := h.poll(context.Background(), "")
 	if err != nil {
 		t.Fatalf("poll: %v", err)
@@ -305,7 +306,7 @@ func TestActivePollSurfacesALaterPageFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	h := &activeSignal{token: "tok", baseURL: srv.URL, interval: time.Minute, http: srv.Client()}
+	h := &activeSignal{src: auth.StaticGitHubToken("tok"), baseURL: srv.URL, interval: time.Minute, http: srv.Client()}
 	res, err := h.poll(context.Background(), "")
 	if err == nil {
 		t.Fatalf("poll returned no error after page 2 failed; %d thread(s) from page 1 were kept and the "+
@@ -362,7 +363,7 @@ func TestActiveStepEscalatesUntilAPollFullySucceeds(t *testing.T) {
 	defer srv.Close()
 
 	h := &activeSignal{
-		token:    "tok",
+		src:      auth.StaticGitHubToken("tok"),
 		baseURL:  srv.URL,
 		interval: time.Minute,
 		http:     srv.Client(),
@@ -442,7 +443,7 @@ func TestActivePollNotModified(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	h := &activeSignal{token: "tok", baseURL: srv.URL, interval: time.Minute, http: srv.Client()}
+	h := &activeSignal{src: auth.StaticGitHubToken("tok"), baseURL: srv.URL, interval: time.Minute, http: srv.Client()}
 	res, err := h.poll(context.Background(), "Wed, 29 Jul 2026 12:00:00 GMT")
 	if err != nil {
 		t.Fatalf("poll: %v", err)

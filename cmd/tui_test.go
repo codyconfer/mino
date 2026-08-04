@@ -122,7 +122,7 @@ func TestDeckFlightNameTracksRoleHome(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			shared = &app.App{
-				Cfg: &config.Config{Home: t.TempDir(), Role: "triage"},
+				Cfg: &config.Config{Home: t.TempDir(), DefaultRole: "triage"},
 				Directives: &config.Directives{
 					Flights: map[string]config.Flight{
 						"morning":      {Name: "morning"},

@@ -20,11 +20,18 @@ const defaultPerPage = 30
 
 const maxResponseBytes = 8 << 20
 
-const githubAuthHintPrefix = "your GitHub token may be missing or lack "
-const githubAuthHintSuffix = "; run `mino login github` or set $GITHUB_TOKEN"
+const githubAuthHintPrefix = "your GitHub credential may lack "
+const githubAuthHintSuffix = "; grant it with `mino login github` or $GITHUB_TOKEN, or add the matching installation permission to the GitHub App"
 
 func githubAuthHint(scope string) string {
 	return githubAuthHintPrefix + scope + githubAuthHintSuffix
+}
+
+func substituteViewer(s, login string) string {
+	if login == "" {
+		return s
+	}
+	return strings.ReplaceAll(s, viewerAlias, login)
 }
 
 func githubBaseURL(raw string) string {
@@ -133,13 +140,23 @@ type Signal struct {
 	policy  CachePolicy
 }
 
+func DefaultQueries() []string {
+	out := make([]string, 0, len(defaultQueries))
+	for _, q := range defaultQueries {
+		out = append(out, q.q)
+	}
+	return out
+}
+
+var defaultQueries = []query{
+	{q: "is:open is:pr author:@me", title: "Open Pull Requests"},
+	{q: "is:open is:pr review-requested:@me", title: "Review Requests"},
+}
+
 func New(queries []string, backend Backend, max int, opts ...Option) signals.Signal {
 	qs := make([]query, 0, len(queries))
 	if len(queries) == 0 {
-		qs = []query{
-			{q: "is:open is:pr author:@me", title: "Open Pull Requests"},
-			{q: "is:open is:pr review-requested:@me", title: "Review Requests"},
-		}
+		qs = append(qs, defaultQueries...)
 	} else {
 		for _, q := range queries {
 			qs = append(qs, query{q: q, title: q})
@@ -151,6 +168,12 @@ func New(queries []string, backend Backend, max int, opts ...Option) signals.Sig
 	o := applyOptions(opts)
 	if o.title != "" && len(qs) == 1 {
 		qs[0].title = o.title
+	}
+	if o.viewer != "" {
+		for i := range qs {
+			qs[i].q = substituteViewer(qs[i].q, o.viewer)
+			qs[i].title = substituteViewer(qs[i].title, o.viewer)
+		}
 	}
 	return &Signal{queries: qs, backend: backend, max: max, detail: o.detail, policy: o.policy}
 }

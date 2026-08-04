@@ -94,12 +94,12 @@ func loadKitDirectives(t *testing.T, kit *Kit) {
 func TestMenuCtxOmitsDeckAndConditionalRole(t *testing.T) {
 	kit := testKit(t)
 
-	kit.d.App.Cfg.Role = ""
+	kit.d.App.UseRole("")
 	if got := kit.menuCtx(); len(got) != 0 {
 		t.Errorf("menuCtx with no role = %v, want empty (no role, no deck)", got)
 	}
 
-	kit.d.App.Cfg.Role = "triage"
+	kit.d.App.UseRole("triage")
 	got := kit.menuCtx()
 	if len(got) != 1 || got[0].Key != "role" || got[0].Label != "triage" {
 		t.Errorf("menuCtx = %v, want a single role=triage cue and no deck cue", got)
@@ -108,7 +108,7 @@ func TestMenuCtxOmitsDeckAndConditionalRole(t *testing.T) {
 
 func TestMainMenuIncludesNotesEntry(t *testing.T) {
 	kit := testKit(t)
-	kit.d.App.Cfg.Role = "triage"
+	kit.d.App.UseRole("triage")
 
 	labels := make([]string, 0, len(kit.mainMenuItems()))
 	for _, it := range kit.mainMenuItems() {
@@ -241,45 +241,33 @@ func TestDirectivesSubmenuIncludesHistoryWhenPresent(t *testing.T) {
 	}
 }
 
-func TestMainMenuToolingSubmenu(t *testing.T) {
+func TestMainMenuSettingsSubmenu(t *testing.T) {
 	kit := testKit(t)
 
 	mainLabels := make([]string, 0, len(kit.mainMenuItems()))
 	for _, it := range kit.mainMenuItems() {
 		mainLabels = append(mainLabels, it.Label)
 	}
-	foundTooling := false
-	for _, l := range mainLabels {
-		if l == "Tooling" {
-			foundTooling = true
-			break
-		}
+	if !hasLabel(mainLabels, "Settings") {
+		t.Fatalf("main menu missing Settings: %v", mainLabels)
 	}
-	if !foundTooling {
-		t.Fatalf("main menu missing Tooling: %v", mainLabels)
-	}
-	for _, banned := range []string{"Accounts", "Plugins", "Settings"} {
-		for _, l := range mainLabels {
-			if l == banned {
-				t.Fatalf("main menu still has %q: %v", banned, mainLabels)
-			}
+	for _, banned := range []string{"Tooling", "Accounts", "Plugins", "Config"} {
+		if hasLabel(mainLabels, banned) {
+			t.Fatalf("main menu still has %q: %v", banned, mainLabels)
 		}
 	}
 
-	toolingLabels := make([]string, 0, len(kit.toolingMenuItems()))
-	for _, it := range kit.toolingMenuItems() {
-		toolingLabels = append(toolingLabels, it.Label)
-	}
-	want := []string{"Accounts", "Plugins", "Settings"}
-	if len(toolingLabels) != len(want) {
-		t.Fatalf("tooling submenu = %v, want %v", toolingLabels, want)
+	settingsLabels := settingsLabels(kit)
+	want := []string{"Accounts", "Plugins", "Config", "Appearance", "Status bar", "Export config", "Open config in $EDITOR"}
+	if len(settingsLabels) != len(want) {
+		t.Fatalf("settings submenu = %v, want %v", settingsLabels, want)
 	}
 	for i, w := range want {
-		if toolingLabels[i] != w {
-			t.Fatalf("tooling submenu[%d] = %q, want %q (full %v)", i, toolingLabels[i], w, toolingLabels)
+		if settingsLabels[i] != w {
+			t.Fatalf("settings submenu[%d] = %q, want %q (full %v)", i, settingsLabels[i], w, settingsLabels)
 		}
 	}
-	for _, it := range kit.toolingMenuItems() {
+	for _, it := range kit.settingsMenuItems() {
 		if it.Label == "Plugins" && !strings.Contains(it.Desc, "install") {
 			t.Fatalf("Plugins desc should mention install: %q", it.Desc)
 		}
@@ -287,8 +275,8 @@ func TestMainMenuToolingSubmenu(t *testing.T) {
 
 	app := newTestApp(kit.MainMenu())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
-	if !strings.Contains(app.View(), "Tooling") {
-		t.Fatalf("main menu view missing Tooling: %q", app.View())
+	if !strings.Contains(app.View(), "Settings") {
+		t.Fatalf("main menu view missing Settings: %q", app.View())
 	}
 	for range 3 {
 		app = step(app, tea.KeyMsg{Type: tea.KeyDown})
@@ -306,7 +294,7 @@ func TestMainMenuToolingSubmenu(t *testing.T) {
 	got := app.View()
 	for _, w := range want {
 		if !strings.Contains(got, w) {
-			t.Fatalf("tooling submenu view missing %q: %q", w, got)
+			t.Fatalf("settings submenu view missing %q: %q", w, got)
 		}
 	}
 }
@@ -334,7 +322,7 @@ func TestViewsSmoke(t *testing.T) {
 	roots := map[string]vkdeck.View{
 		"main":       kit.MainMenu(),
 		"directives": kit.Directives(),
-		"tooling":    kit.Tooling(),
+		"config":     kit.Config(),
 		"queries":    kit.Queries(),
 		"flights":    kit.Flights(),
 		"flightnew":  kit.FlightBuilder(),
@@ -393,7 +381,7 @@ func TestReportsListNewFirstAndScopesToRole(t *testing.T) {
 		"triage": {Name: "triage", Flights: []string{"default"}, Formatters: []string{"brief"}},
 	}
 
-	kit.d.App.Cfg.Role = ""
+	kit.d.App.UseRole("")
 	app := newTestApp(kit.Reports())
 	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
 	body := app.View()
@@ -408,7 +396,7 @@ func TestReportsListNewFirstAndScopesToRole(t *testing.T) {
 		t.Errorf("unscoped list should show every report: %q", body)
 	}
 
-	kit.d.App.Cfg.Role = "triage"
+	kit.d.App.UseRole("triage")
 	scoped := newTestApp(kit.Reports())
 	scoped = step(scoped, tea.WindowSizeMsg{Width: 100, Height: 40})
 	if body := scoped.View(); strings.Contains(body, "verbose") {
@@ -855,7 +843,7 @@ func TestHomeFlightLandsWhileAnotherViewIsOnTop(t *testing.T) {
 	kit.d.App.Directives.Roles = map[string]config.RoleDef{
 		"triage": {Name: "triage", Home: "default", Flights: []string{"default"}},
 	}
-	kit.d.App.Cfg.Role = "triage"
+	kit.d.App.UseRole("triage")
 
 	home := kit.Home()
 	host := newTestApp(home)

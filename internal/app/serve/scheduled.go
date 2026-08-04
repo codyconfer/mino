@@ -74,7 +74,7 @@ func (s *Server) scheduledJobs(flight string, names []string, state *active.Stat
 			log.Warnf("serve: query %q: %v (skipping)", name, err)
 			continue
 		}
-		job, err := build.ScheduledJob(q.Signal, params, s.Cfg, s.Tokens, state)
+		job, err := build.ScheduledJob(q.Signal, params, s.Role(), s.Cfg, s.Tokens, state)
 		if err != nil {
 			if errors.Is(err, build.ErrNoScheduled) {
 				log.Debugf("serve: query %q signal %q has no scheduled support (skipping)", name, q.Signal)

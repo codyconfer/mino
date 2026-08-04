@@ -59,7 +59,7 @@ func TestSignalRejectsTypedNilQuery(t *testing.T) {
 		},
 	})
 
-	src, err := build.Signal(signal, nil, config.Defaults(), nil, nil)
+	src, err := build.Signal(signal, nil, "", config.Defaults(), nil, nil)
 	if err == nil {
 		t.Fatalf("build.Signal accepted a nil *hostTypedNilQuery inside a non-nil interface: %v", src)
 	}
@@ -85,7 +85,7 @@ func TestActiveSignalRejectsTypedNilStream(t *testing.T) {
 		},
 	})
 
-	src, err := build.ActiveSignal(signal, nil, config.Defaults(), nil, active.NewState(nil))
+	src, err := build.ActiveSignal(signal, nil, "", config.Defaults(), nil, active.NewState(nil))
 	if err == nil {
 		t.Fatalf("build.ActiveSignal accepted a nil *hostTypedNilStream inside a non-nil interface: %v", src)
 	}
@@ -108,7 +108,7 @@ func TestScheduledJobRejectsTypedNilJob(t *testing.T) {
 		},
 	})
 
-	job, err := build.ScheduledJob(signal, nil, config.Defaults(), nil, active.NewState(nil))
+	job, err := build.ScheduledJob(signal, nil, "", config.Defaults(), nil, active.NewState(nil))
 	if err == nil {
 		t.Fatalf("build.ScheduledJob accepted a nil *hostTypedNilJob inside a non-nil interface: %v", job)
 	}

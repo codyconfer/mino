@@ -1,0 +1,36 @@
+# go.work and go.work.local `use ../sisyphus` and ../viewkit, sibling checkouts
+# that are not in the build context. They are gitignored but present in the working
+# tree, and the context comes from the tree.
+go.work
+go.work.local
+go.work.sum
+go.work.local.sum
+
+/dist/
+
+.git
+.gitignore
+.gitattributes
+.github
+
+.mino/
+.mino-*/
+*.duckdb
+*.duckdb.wal
+*.duckdb.lock
+*.duckdb.wait
+*.duckdb.gen
+
+.claude/
+.golangci.yml
+
+Dockerfile
+.dockerignore
+docker-compose.yaml
+docker-compose.override.yaml
+
+*.md
+docs/
+LICENSE
+
+*.test

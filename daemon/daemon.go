@@ -15,6 +15,7 @@ import (
 	"github.com/codyconfer/sisyphus/daemon/service"
 
 	"github.com/codyconfer/mino/cmd"
+	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render"
@@ -96,7 +97,9 @@ func newDaemonCmd() *cobra.Command {
 
 func newDaemonRunCmd() *cobra.Command {
 	var interval time.Duration
-	var bell, desktop bool
+	var bell, desktop, httpAPI bool
+	var httpPort int
+	var httpHost string
 	var theme string
 	c := &cobra.Command{
 		Use:         "run [flight]",
@@ -121,6 +124,24 @@ func newDaemonRunCmd() *cobra.Command {
 			if !f.Changed("theme") {
 				theme = cmd.ServeTheme()
 			}
+			cfgHTTP, cfgHost, cfgPort := cmd.ServeHTTP()
+			if !f.Changed("http") {
+				httpAPI = cfgHTTP
+			}
+			if !f.Changed("http-port") {
+				httpPort = cfgPort
+			}
+			if !f.Changed("http-host") {
+				httpHost = cfgHost
+			}
+			if httpAPI {
+				if err := cmd.CheckServeHTTPPort(f.Changed("http-port"), httpPort); err != nil {
+					return err
+				}
+				if err := cmd.CheckServeHTTPHost(f.Changed("http-host"), httpHost); err != nil {
+					return err
+				}
+			}
 			name, err := cmd.ResolveFlight(args)
 			if err != nil {
 				return err
@@ -132,6 +153,9 @@ func newDaemonRunCmd() *cobra.Command {
 				Desktop:  desktop,
 				Tray:     cmd.App().Cfg.Daemon.Tray,
 				Theme:    theme,
+				HTTP:     httpAPI,
+				HTTPHost: httpHost,
+				HTTPPort: httpPort,
 			})
 		},
 	}
@@ -139,6 +163,10 @@ func newDaemonRunCmd() *cobra.Command {
 	c.Flags().BoolVar(&bell, "bell", true, "ring the terminal bell on each notification")
 	c.Flags().BoolVar(&desktop, "desktop", false, "send OS desktop notifications")
 	c.Flags().StringVar(&theme, "theme", "dark", "icon theme for tray/desktop notifications: dark or light")
+	c.Flags().BoolVar(&httpAPI, "http", false, "expose a bearer-token HTTP trigger API")
+	c.Flags().IntVar(&httpPort, "http-port", config.DefaultHTTPPort, "port for the HTTP trigger API")
+	c.Flags().StringVar(&httpHost, "http-host", config.DefaultHTTPHost,
+		"bind address for the HTTP trigger API; anything but loopback exposes it off-box")
 	return c
 }
 

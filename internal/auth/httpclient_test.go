@@ -98,7 +98,7 @@ func TestGHAPIGetGivesUpOnASilentServer(t *testing.T) {
 	srv := silentServer(t)
 
 	err := withinDeadline(t, "GHAPIGet", func() error {
-		_, err := GHAPIGet(context.Background(), memStore{}, srv.URL, "user")
+		_, err := GHAPIGet(context.Background(), ambientSelection(t, srv.URL), "user")
 		return err
 	})
 	if err == nil {
@@ -112,7 +112,7 @@ func TestGHAPIGetBoundsAnEndlessBody(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := GHAPIGet(context.Background(), memStore{}, srv.URL, "user")
+		_, err := GHAPIGet(context.Background(), ambientSelection(t, srv.URL), "user")
 		done <- err
 	}()
 	var err error
@@ -134,7 +134,7 @@ func ghAPIGetAgainst(t *testing.T, h http.HandlerFunc) error {
 	noGHOnPath(t)
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
-	_, err := GHAPIGet(context.Background(), memStore{}, srv.URL, "user")
+	_, err := GHAPIGet(context.Background(), ambientSelection(t, srv.URL), "user")
 	if err == nil {
 		t.Fatal("want an error")
 	}
@@ -235,7 +235,7 @@ func TestGHAPIGetClassifies401And403Distinctly(t *testing.T) {
 				_, _ = w.Write([]byte(`{"message":"Must have admin rights to Repository."}`))
 			},
 			wantKind: errs.KindAuth,
-			wantHint: "lack scopes",
+			wantHint: "scopes",
 		},
 		{
 			name: "404 not found",
@@ -284,7 +284,7 @@ func TestGHAPIGetReturnsSmallBodiesUnchanged(t *testing.T) {
 		_, _ = w.Write([]byte(`{"login":"octocat"}`))
 	}))
 	t.Cleanup(srv.Close)
-	body, err := GHAPIGet(context.Background(), memStore{}, srv.URL, "user")
+	body, err := GHAPIGet(context.Background(), ambientSelection(t, srv.URL), "user")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,5 +315,20 @@ func TestDeviceFlowTokenExchangeSurvivesASlowButBoundedServer(t *testing.T) {
 	}
 	if tok != "gho_slow" {
 		t.Fatalf("token = %q", tok)
+	}
+}
+
+func TestScopeHintsCoverAppsAsWellAsTokens(t *testing.T) {
+	// A GitHub App has installation permissions, not OAuth scopes, and
+	// `gh auth refresh` does not apply to it. A hint that only ever says "scope"
+	// sends an App operator to a setting that does not exist for them.
+	for name, hint := range map[string]string{"githubScopeHint": githubScopeHint} {
+		if !strings.Contains(hint, "scope") {
+			t.Errorf("%s does not mention scopes, which is the fix for a token: %q", name, hint)
+		}
+		if !strings.Contains(hint, "permission") {
+			t.Errorf("%s does not mention installation permissions, so an operator authenticated as a "+
+				"GitHub App has no actionable fix: %q", name, hint)
+		}
 	}
 }

@@ -33,12 +33,28 @@ mino github query            # ad-hoc: your open PRs + review requests
 mino fly default -o json | jq .
 ```
 
+Or run `serve` plus its HTTP trigger API as a container service:
+
+```sh
+export MINO_HTTP_TOKEN=$(openssl rand -base64 32)
+export MINO_GITHUB_SERVICE_TOKEN=ghp_…   # a machine-user PAT, not your own token
+export MINO_GITHUB_VIEWER=acme-bot       # what @me should mean for a service identity
+docker compose up -d                     # API on 127.0.0.1:7717/api/v1
+```
+
+See [Container](docs/readme.md#container) — note that binding off-loopback leaves the
+bearer token as the only control on endpoints that run flights and plugin actions.
+mino can also authenticate to GitHub as a service rather than as you: see
+[Service authentication](docs/readme.md#service-authentication).
+
 On first use Mino guides you through onboarding — GitHub auth plus a GitHub-verified
 signing key — and how strictly it gates depends on the mode; see
 [Onboarding](docs/readme.md#onboarding). Authentication reuses tools you already have
 (the `gh` CLI, `gcloud` ADC, `$SLACK_TOKEN`) and falls back to `mino login <service>`
 when they are absent; see [Authentication](docs/readme.md#authentication) for the
-resolution order and required scopes.
+resolution order and required scopes. For unattended deployments a GitHub App or a
+machine-user PAT can take over instead — see
+[Service authentication](docs/readme.md#service-authentication).
 
 ## Modes
 
@@ -47,7 +63,7 @@ Four modes over the same engine:
 | Mode | Command | What it does |
 |---|---|---|
 | **cli** | `mino <directive>` | Run a directive and print the result |
-| **serve** | `mino serve [flight]` | Foreground realtime watcher in the current shell |
+| **serve** | `mino serve [flight]` | Foreground realtime watcher in the current shell; `--http` adds a loopback trigger API |
 | **daemon** *(experimental, `-tags daemon`)* | `mino daemon [flight]` | Install (if needed) then start the OS service |
 | **deck** | `mino deck [flight]` | Full-screen interactive TUI |
 
@@ -76,6 +92,10 @@ Four modes over the same engine:
 Common flags: `-o json` (pipeable output), `-F <name>` (render through a formatter),
 `--role <name>`, `--home <dir>`, `-v` (debug logging).
 
+`mino serve --http` also exposes a token-guarded HTTP API under `/api/v1` — loopback by
+default — that triggers flights, queries and actions and streams events over SSE, as an
+alternative to typing the command. See [HTTP trigger API](docs/readme.md#http-trigger-api).
+
 → [Command reference](docs/readme.md#command-reference) ·
 [Common flags](docs/readme.md#common-flags)
 
@@ -88,6 +108,9 @@ The full manual lives in **[docs/readme.md](docs/readme.md)**:
 - [Roles](docs/readme.md#roles) — scope what Mino shows
 - [Formatters](docs/readme.md#formatters) — templated reports over a run
 - [Realtime: serve & daemon](docs/readme.md#realtime-serve--daemon) — active signals, notifications
+- [HTTP trigger API](docs/readme.md#http-trigger-api) — `/api/v1` triggers and the SSE stream
+- [Container](docs/readme.md#container) — image, compose, and the `0.0.0.0` caveat
+- [Service authentication](docs/readme.md#service-authentication) — GitHub App / machine-user auth
 - [Configuration](docs/readme.md#configuration) — config dir layout, DuckDB store, logs
 - [Data signals](docs/readme.md#data-signals) — what each signal reads and writes
 - [Development & internals](docs/readme.md#development--internals) — build, test, plugins

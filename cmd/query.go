@@ -8,45 +8,15 @@ import (
 
 	"github.com/codyconfer/viewkit/theme"
 
+	"github.com/codyconfer/mino/internal/app/run"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
-	"github.com/codyconfer/mino/internal/filter"
 )
 
-func buildQuery(name string) (query, error) {
-	q, ok := shared.Directives.Queries[name]
-	if !ok {
-		return query{}, errs.Newf(errs.KindUsage, "no saved query named %q", name).WithHint("run `mino query list` to see saved queries")
-	}
-	if !q.Runnable() {
-		return query{}, errs.Newf(errs.KindUsage, "%q defines no signal, so there is nothing to run", name).
-			WithHint("it is a filter-only document; reference it from a query's `filters:` list")
-	}
-	return buildQueryFrom(name, q)
-}
+func buildQuery(name string) (query, error) { return run.BuildQuery(shared, name) }
 
 func buildQueryFrom(label string, q config.Query) (query, error) {
-	resolved, err := shared.Directives.Resolve(q)
-	if err != nil {
-		return query{}, err
-	}
-	params, err := filter.ExpandParams(q.Params, resolved)
-	if err != nil {
-		return query{}, errs.Wrapf(errs.KindConfig, err, "query %q", label)
-	}
-	src, err := buildSignal(q.Signal, params)
-	if err != nil {
-		return query{}, errs.Wrapf(errs.KindSignal, err, "query %q", label)
-	}
-	compiled, err := filter.CompileAll(resolved)
-	if err != nil {
-		return query{}, err
-	}
-	title := q.Display()
-	if title == "" {
-		title = label
-	}
-	return query{Label: label, Title: title, Src: src, Filters: compiled}, nil
+	return run.BuildQueryFrom(shared, label, q)
 }
 
 func newQueryCmd() *cobra.Command {

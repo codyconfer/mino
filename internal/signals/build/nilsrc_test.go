@@ -32,7 +32,7 @@ func TestSignalRejectsNilQueryFromBuilder(t *testing.T) {
 		Query: func(plugin.BuildContext) (plugin.Query, error) { return nil, nil },
 	})
 
-	src, err := build.Signal(signal, nil, config.Defaults(), nil, nil)
+	src, err := build.Signal(signal, nil, "", config.Defaults(), nil, nil)
 	if err == nil {
 		t.Fatalf("build.Signal returned (%v, nil); a (nil, nil) builder must be an error", src)
 	}
@@ -55,7 +55,7 @@ func TestActiveSignalRejectsNilStreamFromBuilder(t *testing.T) {
 		Stream: func(plugin.BuildContext) (plugin.Stream, error) { return nil, nil },
 	})
 
-	src, err := build.ActiveSignal(signal, nil, config.Defaults(), nil, nil)
+	src, err := build.ActiveSignal(signal, nil, "", config.Defaults(), nil, nil)
 	if err == nil {
 		t.Fatalf("build.ActiveSignal returned (%v, nil); a (nil, nil) builder must be an error", src)
 	}
@@ -78,7 +78,7 @@ func TestActiveSignalStillBuildsRealStreams(t *testing.T) {
 		Stream: func(plugin.BuildContext) (plugin.Stream, error) { return nilStream{}, nil },
 	})
 
-	src, err := build.ActiveSignal(signal, nil, config.Defaults(), nil, nil)
+	src, err := build.ActiveSignal(signal, nil, "", config.Defaults(), nil, nil)
 	if err != nil || src == nil {
 		t.Fatalf("build.ActiveSignal = %v, %v", src, err)
 	}

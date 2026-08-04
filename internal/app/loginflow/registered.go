@@ -56,7 +56,7 @@ func currentValue(p plugin.LoginProvider, f plugin.LoginField) func(*app.App) st
 
 func hostFor(a *app.App, p plugin.LoginProvider) plugin.Host {
 	if a == nil {
-		return pluginhost.ForLogin(nil, nil, p)
+		return pluginhost.ForLogin(nil, nil, "", p)
 	}
-	return pluginhost.ForLogin(a.Cfg, a.Tokens, p)
+	return pluginhost.ForLogin(a.Cfg, a.Tokens, a.Role(), p)
 }

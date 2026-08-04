@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/codyconfer/sisyphus/daemon/service"
@@ -22,12 +23,16 @@ type options struct {
 	Desktop  bool
 	Tray     bool
 	Theme    string
+	HTTP     bool
+	HTTPHost string
+	HTTPPort int
 }
 
 func server() *serve.Server { return serve.NewServer(cmd.App()) }
 
 func configOptions(flight string) options {
 	c := cmd.App().Cfg
+	httpAPI, httpHost, httpPort := cmd.ServeHTTP()
 	return options{
 		Flight:   flight,
 		Interval: cmd.ServeInterval(),
@@ -35,6 +40,9 @@ func configOptions(flight string) options {
 		Desktop:  c.Daemon.Desktop,
 		Tray:     c.Daemon.Tray,
 		Theme:    cmd.ServeTheme(),
+		HTTP:     httpAPI,
+		HTTPHost: httpHost,
+		HTTPPort: httpPort,
 	}
 }
 
@@ -51,23 +59,31 @@ func newService(opt options, userService bool) (*service.Service, error) {
 		Name:        daemonName,
 		DisplayName: "mino",
 		Description: "mino realtime signal watcher",
-		Arguments:   RunArgs(opt.Flight, opt.Interval, opt.Bell, opt.Desktop, opt.Theme),
+		Arguments:   RunArgs(opt),
 		Scope:       scope,
 	}, func(ctx context.Context) error {
 		return watch(ctx, opt)
 	})
 }
 
-func RunArgs(flight string, interval time.Duration, bell, desktop bool, theme string) []string {
-	args := []string{"daemon", "run", flight, "--interval", interval.String()}
-	if !bell {
+// RunArgs is the argv baked into the service unit at install time, so editing
+// config later cannot silently change an installed service's behavior.
+func RunArgs(opt options) []string {
+	args := []string{"daemon", "run", opt.Flight, "--interval", opt.Interval.String()}
+	if !opt.Bell {
 		args = append(args, "--bell=false")
 	}
-	if desktop {
+	if opt.Desktop {
 		args = append(args, "--desktop")
 	}
-	if theme != "" && theme != "dark" {
-		args = append(args, "--theme", theme)
+	if opt.Theme != "" && opt.Theme != "dark" {
+		args = append(args, "--theme", opt.Theme)
+	}
+	if opt.HTTP {
+		args = append(args, "--http", "--http-port", strconv.Itoa(opt.HTTPPort))
+		if opt.HTTPHost != "" {
+			args = append(args, "--http-host", opt.HTTPHost)
+		}
 	}
 	return args
 }

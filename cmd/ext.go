@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/serve/httpapi"
 	"github.com/codyconfer/mino/internal/pluginhost"
 	"github.com/codyconfer/mino/internal/signals/build"
 	"github.com/codyconfer/mino/plugin"
@@ -36,7 +37,9 @@ func registered() []*cobra.Command {
 
 func App() *app.App { return shared }
 
-func Host(signal string) plugin.Host { return pluginhost.ForSignal(shared.Cfg, shared.Tokens, signal) }
+func Host(signal string) plugin.Host {
+	return pluginhost.ForSignal(shared.Cfg, shared.Tokens, shared.Role(), signal)
+}
 
 func SignalCmd(name, short string) *cobra.Command { return sourceCmd(name, short) }
 
@@ -85,6 +88,19 @@ func ServeInterval() time.Duration { return configServeInterval() }
 func CheckServeInterval(fromFlag bool, d time.Duration) error { return checkServeInterval(fromFlag, d) }
 
 func ServeTheme() string { return configServeTheme() }
+
+func ServeHTTP() (enabled bool, host string, port int) {
+	return shared.Cfg.Daemon.HTTP.Enabled, configServeHTTPHost(), configServeHTTPPort()
+}
+
+func CheckServeHTTPPort(fromFlag bool, port int) error { return checkServeHTTPPort(fromFlag, port) }
+
+func CheckServeHTTPHost(fromFlag bool, host string) error { return checkServeHTTPHost(fromFlag, host) }
+
+// ResolveServeHTTPToken returns the API bearer token and where it came from.
+func ResolveServeHTTPToken() (token, source string, err error) {
+	return httpapi.ResolveToken(shared.Cfg.Home, shared.Cfg.Daemon.HTTP.Token)
+}
 
 func StartLoading() { startLaunchLoading() }
 

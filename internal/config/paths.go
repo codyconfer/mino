@@ -19,6 +19,7 @@ const (
 	TokensDB = "tokens.duckdb"
 	ServeDB  = "serve.duckdb"
 	CacheDB  = "cache.duckdb"
+	StateDB  = "state.duckdb"
 )
 
 const (
@@ -26,7 +27,19 @@ const (
 	SocketPrefix = "mino"
 )
 
+// Defaults for the HTTP trigger API serve can expose.
+const (
+	HTTPTokenFile            = "http.token"
+	HTTPLoopback             = "127.0.0.1"
+	DefaultHTTPHost          = HTTPLoopback
+	DefaultHTTPPort          = 7717
+	DefaultHTTPMaxConcurrent = 4
+)
+
 func ServeSocketPath(home string) string { return filepath.Join(home, ServeSocket) }
+
+// HTTPTokenPath is where a generated API bearer token is persisted.
+func HTTPTokenPath(home string) string { return filepath.Join(DataDir(home), HTTPTokenFile) }
 
 func DataDir(home string) string { return filepath.Join(home, DirData) }
 

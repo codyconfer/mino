@@ -157,9 +157,22 @@ both honour the active role, so the two lists stay consistent with `mino list`.
 flight is listed. That is a first-class position in the role ring, not just the
 startup default: `alt+]` / `alt+[` in the deck cycle *through* no-role, so you can
 step off a role — even the only one you have defined — and see everything again.
-Leaving it also runs the role's `exit` hooks and clears its status chips. Set the
-active role with `--role`, `$MINO_ROLE`, or `role:` in config, and inspect your
-context with `mino role` (which prints `(none)` when no role is active).
+Leaving it also runs the role's `exit` hooks and clears its status chips.
+
+**Where the active role lives.** `mino role use <name>` and `mino role clear`
+record it in `.data/state.duckdb`; they never edit your config file. Four
+sources resolve it, highest first:
+
+| Source | Scope | Hooks | Persists |
+| --- | --- | --- | --- |
+| `--role <name>` | one invocation | no | no |
+| `$MINO_ROLE` | one invocation | no | no |
+| the recorded active role | until changed | on change | yes |
+| `role:` in config | seeds the first run | on first apply | seeds the record |
+
+So `role:` is a **default**, not a live switch: editing it once a role has been
+activated (or explicitly cleared) changes nothing. Inspect your context with
+`mino role`, which prints `(none)` when no role is active.
 
 → [How to create a role config](#create-a-role-config)
 
@@ -233,7 +246,8 @@ signals — a foreground watcher and a managed OS service:
 - **`mino serve [flight]`** runs a long-running watcher in the **current shell**
   (Ctrl-C exits): it opens every active signal in the flight, fans their events
   into one loop, and emits a notification per new item. Flags: `--interval`,
-  `--bell`, `--desktop` (OS desktop notifications), `--theme`. It does **not**
+  `--bell`, `--desktop` (OS desktop notifications), `--theme`, `--http`,
+  `--http-port` (see [HTTP trigger API](#http-trigger-api)). It does **not**
   install an OS service or own the system tray — its lifecycle is the shell it
   runs in, and it logs to that shell and the log dir.
 - **`mino daemon [flight]`** — **experimental and off by default**; present only
@@ -253,6 +267,168 @@ mino daemon start | stop | restart | status | uninstall
 mino daemon attach                       # attach a live-notification TUI to the running daemon
 ```
 
+### HTTP trigger API
+
+`mino serve --http` (or `daemon.http.enabled: true`) exposes a small HTTP API under
+`/api/v1` for as long as serve runs. Its endpoints are alternative triggers for
+commands you would otherwise type: run a flight, run a saved query, run a plugin action,
+or watch the event stream. It is **off unless you ask for it**.
+
+The bind address defaults to `127.0.0.1`. `--http-host` (or `daemon.http.host`) can widen
+it — that exists for containers, and it is the one setting here that removes a defence
+rather than adding one. See [Container](#container).
+
+**Authentication.** Every route except `GET /healthz` needs a bearer token. With
+`daemon.http.token` unset, serve generates one on first use and writes it to
+`<home>/.data/http.token` (mode `0600`); the startup line names that path, never the
+token itself. Reuse it across restarts, or rotate by deleting the file and restarting.
+While bound to loopback, requests must also address the listener by a loopback name — a
+non-loopback `Host` header is rejected, which blunts DNS-rebinding from a browser on the
+same machine. That check is skipped when you have deliberately bound off-box, where callers
+legitimately address mino by container IP or DNS name and the token is the only credential.
+There is no `?token=` query fallback, so browser `EventSource` cannot reach
+`/api/v1/events`; use `curl -N`.
+
+```sh
+T=$(cat ~/.mino/.data/http.token)
+curl -sS -H "Authorization: Bearer $T" -XPOST http://127.0.0.1:7717/api/v1/flights/default | jq
+curl -sS -H "Authorization: Bearer $T" -XPOST http://127.0.0.1:7717/api/v1/queries/my-open-prs
+curl -sS -H "Authorization: Bearer $T" -XPOST http://127.0.0.1:7717/api/v1/actions/ntr/note.add \
+     -H 'Content-Type: application/json' -d '{"params":{"title":"from curl"}}'
+curl -N  -H "Authorization: Bearer $T" http://127.0.0.1:7717/api/v1/events
+```
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/healthz` | Liveness. **No auth**; reports only status, flight, uptime |
+| GET | `/api/v1/status` | Flight, role, home, interval, socket, open sources, SSE clients, runs in flight |
+| GET | `/api/v1/list?kind=flights\|queries` | Role-visible names; `&all=1` ignores the role scope |
+| GET | `/api/v1/config` | The active config, with the API token redacted. `DefaultRole` is the config default; the session's active role is `role` in `/api/v1/status` |
+| GET | `/api/v1/actions` · `/api/v1/actions/{signal}` | Registered `CapAction` bindings |
+| POST | `/api/v1/flights/{name}` | Run a flight |
+| POST | `/api/v1/queries/{name}` | Run a saved query |
+| POST | `/api/v1/actions/{signal}/{name}` | Run an action; body `{"params":{…}}` |
+| GET | `/api/v1/events` | The serve event stream as SSE |
+
+`/healthz` sits at the root, outside `/api/v1`, so a container healthcheck needs no token
+and no version. A wrong method returns `405` with `Allow`; nothing redirects, so a trailing
+slash is a hard `404`.
+
+The run endpoints are `POST` because they write audit rows, write the result cache and hit
+rate-limited upstreams — no browser or proxy should prefetch them.
+
+**Response shape.** A successful run returns byte-for-byte what `-o json` prints, so
+`curl … /api/v1/flights/default` and `mino fly default -o json` agree exactly. A partly-failed
+flight is still `200` with the full array (matching the CLI, which prints partial results)
+plus `X-Mino-Sections-Failed: <failed>/<total>`. When *every* source failed the body is
+unchanged but the status is `502` and `X-Mino-Outcome: failed` is set — so `curl -f` works
+and the per-section `error` fields are always readable.
+
+**Errors** come back as `{"error":{"kind","message","hint"}}`, with `kind` from mino's own
+error kinds and messages sanitized (signal errors relay remote text). `401` is reserved
+for this API's bearer token; an upstream credential failure is `kind: "auth"` with status
+`502`, so "your token is wrong" is never confused with "mino cannot reach GitHub".
+Unknown names are `404`, a name outside the active role is `403`, a disabled signal is
+`409`, and a stalled action is `504`.
+
+**Limits.** At most `daemon.http.max_concurrent` runs execute at once (default 4); beyond
+that requests get `429` with `Retry-After`. This matters because one flight fans out to
+several concurrent fetches, so an unattended `curl` loop would otherwise walk straight into
+an upstream rate limit. `/api/v1/events` accepts at most 16 connections.
+
+**The event stream is lossy**, exactly like the unix socket: a client that stops reading
+misses events rather than stalling serve, and there is no replay, so you get events from
+the moment you connect and `Last-Event-ID` is not honoured. The audit log is the durable
+record. Note the two feeds spell a section error differently — run endpoints use `error`
+(the `-o json` shape) and SSE frames use `err` (the socket shape); each matches its
+existing CLI counterpart.
+
+Requests run as the **serve session's role**; there is no per-request role override. A
+taken address is a **hard startup failure**, not a silent downgrade — unlike the unix socket,
+the port may belong to an unrelated program and there is no attach-to-the-existing-one
+story. The provider `mino deck` starts for itself always passes `--http=false`, so it
+never competes for the port.
+
+### Container
+
+`mino serve` plus the HTTP API runs in a container. The repo ships a `Dockerfile` and a
+`docker-compose.yaml`:
+
+```sh
+export MINO_HTTP_TOKEN=$(openssl rand -base64 32)
+export MINO_GITHUB_SERVICE_TOKEN=ghp_…   # a machine-user PAT; needs repo read:org
+docker compose up -d
+curl -s localhost:7717/healthz
+curl -s -H "Authorization: Bearer $MINO_HTTP_TOKEN" localhost:7717/api/v1/status | jq
+```
+
+The image is built with `SERVICE_AUTH=1`, so a configured service identity satisfies the
+onboarding gate — a container has no human signing key. A stock `mino` binary is **not**
+built that way, and will keep asking for onboarding even with a valid service credential.
+
+Every config leaf takes a `MINO_*` override, so the image is configured entirely by
+environment:
+
+| Variable | Why it matters |
+|---|---|
+| `MINO_HOME` | Set to `/var/lib/mino` in the image. Must be set: with neither it nor `$HOME` resolvable, mino cannot pick a home. All five DuckDB files live in `$MINO_HOME/.data/` |
+| `MINO_DAEMON_HTTP_HOST` | `0.0.0.0` in the image. Without this the listener is on the container's loopback and `-p 7717:7717` cannot reach it |
+| `MINO_DAEMON_HTTP_TOKEN` | The bearer token, minimum 16 characters. Left unset, one is generated inside the volume where only `docker compose exec` can read it |
+| `MINO_DAEMON_HTTP_ENABLED` / `_PORT` | On, `7717` |
+| `MINO_GITHUB_SERVICE_TOKEN` | A machine-user PAT. Outranks the `gh` CLI and `$GITHUB_TOKEN`, and is what gives the container a realtime GitHub source |
+| `MINO_GITHUB_APP_ID` / `_INSTALLATION_ID` / `_PRIVATE_KEY_PATH` | GitHub App installation auth. Mount the `.pem` as a file; see [Service authentication](#service-authentication) |
+| `MINO_GITHUB_VIEWER` | The login that replaces `@me` in queries. A service identity is not you, so `author:@me` otherwise matches nothing |
+| `GITHUB_TOKEN` / `GH_TOKEN` | Still honoured, below service auth. A human's token, with a human's rate limit and name on every action |
+| `MINO_LOG_DIR` | Optional; otherwise logs go to `$MINO_HOME/logs` |
+
+Env var names are matched exactly. `MINO_GITHUB_APPID` and `MINO_GITHUB_PRIVATE_KEY` resolve
+to nothing and are silently ignored.
+
+**Binding off-loopback removes a defence, it does not add one.** On a desktop the bind
+address is loopback and a non-loopback `Host` header is rejected outright, so the bearer
+token is the *second* of two controls. `MINO_DAEMON_HTTP_HOST=0.0.0.0` removes the first:
+the token is then the **only** thing between the network and endpoints that run flights, run
+saved queries, and execute plugin actions against your GitHub credentials. Generate at least
+32 random bytes, keep it out of shell history and out of `docker inspect`-visible build args,
+publish the port to `127.0.0.1` on the host unless you have a reason not to, and put a
+TLS-terminating proxy in front of it if it must cross a network — the API speaks plaintext
+HTTP, so the token travels in the clear. serve prints a warning on startup whenever the bind
+is not loopback.
+
+Three constraints are worth knowing before you deploy it:
+
+- **One container per volume.** DuckDB allows a single read-write process per file, so a
+  second mino against the same `.data/` fails with a lock error. There is no leader election
+  and no shared-state story; `deploy.replicas: 2` is a footgun.
+- **No OS keyring, and service auth does not need one.** The App private key is a mounted
+  file and the service PAT is an env var, so neither touches the sealed store — that is the
+  point. What still does not work: `mino login` cannot persist a credential, cached OAuth
+  tokens are unreadable, and encrypted backups cannot resolve a key, all because
+  `tokens.duckdb` is sealed with a key escrowed in the D-Bus Secret Service. The Google
+  signals in the overlay need `gcloud` ADC or a browser OAuth flow and will not authenticate.
+- **A GitHub App does not give you realtime GitHub.** `GET /notifications` lists notifications
+  *for the authenticated user*, and an App installation token has no user — GitHub answers
+  `403 Resource not accessible by integration`. The notification poller is mino's only
+  realtime GitHub source, so realtime needs a **machine-user PAT**
+  (`MINO_GITHUB_SERVICE_TOKEN`), not an App. serve refuses the combination at startup with a
+  message naming the fix rather than failing every poll. An App is still the better identity
+  for the fetch paths: flights, saved queries, projects, Actions and detail views.
+- **A realtime source must open, or serve exits.** With no GitHub credential the container
+  starts, provisions, and then exits. As of this change the error lists *which* query was
+  skipped and why, instead of only saying the flight has no realtime signals.
+
+On first run the entrypoint runs `mino install` when `$MINO_HOME` has no `config.yaml`,
+because `mino serve` errors against an unprovisioned home and nothing auto-provisions. It
+never passes `--force`, so your edited config survives restarts. The image runs as uid
+`10001`; an **empty named volume** inherits that ownership automatically, but a **bind
+mount** does not — `chown -R 10001:10001` it on the host first, or you will see a confusing
+DuckDB open failure rather than a permission error.
+
+The image is Debian-based, not distroless: mino links DuckDB through cgo and needs
+`libstdc++6` and glibc at runtime, so `scratch` and `distroless/static` cannot run it. The
+builder and runtime images must stay on the same Debian release, since the builder's glibc
+sets the binary's symbol floor.
+
 `mino deck` / `make run` ties these together: attach to a running daemon if one
 exists, otherwise start a **silent** session-owned background `serve` (stdio
 discarded; logs still go to the log dir). That serve dies with the deck session —
@@ -269,7 +445,8 @@ and nothing else. Slack Socket Mode needs an app-level `xapp-` token + a bot
 
 Desktop/notification icons are embedded (bird, dark + light — pick with `--theme`)
 and overridable by dropping `~/.mino/icons/<state>.png`. Realtime defaults live
-under `daemon:` in config and are overridden by flags.
+under `daemon:` in config (including `daemon.http` for the
+[HTTP trigger API](#http-trigger-api)) and are overridden by flags.
 
 ## Create a query and filter config
 
@@ -448,7 +625,10 @@ an ordered comma-separated list of query names, checked against your saved queri
 before it will run or save. **Notes** reuses the same editor through a second,
 plugin-local document type, so it inherits the shell but not every key or
 behaviour, and its lists reload from the record store rather than being menus
-built once from the files on disk.
+built once from the files on disk. **Settings → Config** is the same shell over
+`config.yaml`: `ctrl+y` previews the YAML it will merge, `ctrl+t` and `ctrl+r`
+report the same checks `mino verify config` prints, `ctrl+s` writes the file
+(creating `config.yaml` when there isn't one), and `ctrl+x` deletes it.
 
 **History** is the one entry that is not a builder: past runs cannot be edited, so
 selecting one opens its recorded results with `r` to refresh and `ctrl+x` to drop
@@ -712,11 +892,11 @@ formatters are visible with `formatters:`. Copy-paste starters live in
 
 A role is a `type: role` document. `mino install` writes them loose at the top of
 `~/.mino/`, one per file, but — like every directive — a role may live anywhere
-under the home dir. The active role is set in `config.yaml` (or `--role` /
-`$MINO_ROLE`):
+under the home dir. Activate one with `mino role use triage`; `role:` in
+`config.yaml` only seeds the first run (see [Roles](#roles)):
 
 ```yaml
-# config.yaml — the active role
+# config.yaml — the default role, applied until one is activated
 role: triage
 ```
 ```yaml
@@ -876,11 +1056,14 @@ these namespaces instead, because they ship in
 sections under `plugins:` when you build the overlay.
 
 **Realtime defaults** for `serve`/`daemon` live under `daemon:` in `config.yaml`
-(`interval`, `bell`, `desktop`, `tray`, `theme`). The deck also uses `interval`
+(`interval`, `bell`, `desktop`, `tray`, `theme`, plus `http.enabled`, `http.host`, `http.port`,
+`http.token` and `http.max_concurrent` for the
+[HTTP trigger API](#http-trigger-api) — leave `http.token` unset and mino generates
+one in `.data/http.token`). The deck also uses `interval`
 to refresh home-flight, flight-result, and detail views while they show an
 in-progress spinner; command flags override the serve/daemon value
 where exposed (`tray` is config-only on the installed daemon). Editing config in
-the deck (**Settings → Edit config**) merges into the existing file, preserving
+the deck (**Settings → Config**) merges into the existing file, preserving
 sections it doesn't touch.
 
 See [`examples/`](../examples/) for copy-paste starters.
@@ -960,7 +1143,7 @@ options instead of failing opaquely.
 
 | Signal | Primary | Fallbacks |
 |---|---|---|
-| **GitHub** (stock) | `gh` CLI (`gh auth login`) | `$GITHUB_TOKEN` / `$GH_TOKEN` → `mino login github` (device flow) |
+| **GitHub** (stock) | `github.app` / `github.service_token` (service identity) | `gh` CLI (`gh auth login`) → `$GITHUB_TOKEN` / `$GH_TOKEN` → `mino login github` (device flow) |
 | **Calendar / Gmail / Docs / Drive / Tasks** (overlay) | `gcloud` ADC | `mino login google` (browser OAuth) |
 | **Slack** (overlay) | `$SLACK_TOKEN` (xoxp-…) | `mino login slack` (browser OAuth) |
 
@@ -977,7 +1160,90 @@ auto-refresh.
 
 - **GitHub Enterprise** — set `github.api_url` (e.g.
   `https://ghe.example.com/api/v3`) so the REST fallback targets your instance.
-  Device-flow scopes are `github.oauth_scopes` (default `repo read:org`).
+  Device-flow scopes are `github.oauth_scopes` (default `repo read:org`); they apply to the
+  device flow only, and a GitHub App uses installation permissions instead.
+
+#### Git providers
+
+The auth checks mino performs — is the credential live, is your signing key registered on
+the forge, is your commit email verified, what is the account login and rate limit — go
+through a **provider** interface (`internal/gitauth`), not through GitHub directly. The
+stock binary ships one provider, `github`, and `git.provider` selects it:
+
+```yaml
+git:
+  provider: github     # the default; MINO_GIT_PROVIDER also works
+```
+
+A provider registers itself with `gitauth.Register(name, factory)` and reads its own
+settings through `Env.Get(key)`, so adding a forge needs no change in `internal/app` or
+`internal/config`. GitHub reads `api_url`, `service_token`, `app.id` and friends from the
+typed `github:` section; a provider contributed by a plugin reads the same-shaped keys from
+its own `plugins.<provider>:` namespace. `mino verify auth` names the active provider, and
+an unknown `git.provider` fails with the list of registered names.
+
+What is *not* abstracted: the GitHub signal itself. Flights, saved queries, projects,
+Actions and the notification stream are still GitHub-specific, so a second forge needs its
+own signal alongside its provider.
+
+#### Service authentication
+
+For unattended deployments mino can authenticate to GitHub as a **service** rather than as
+you — either a GitHub App installation or a machine-user PAT. Both outrank everything ambient:
+
+```
+github.app  →  github.service_token  →  gh CLI  →  $GITHUB_TOKEN  →  $GH_TOKEN  →  mino login github
+```
+
+```yaml
+github:
+  viewer: acme-bot           # replaces @me in queries; a service identity is not you
+  # service_token: ghp_…     # or MINO_GITHUB_SERVICE_TOKEN, or the sealed store key
+                             # "github-service"
+  # app:
+  #   id: "123456"
+  #   installation_id: "78901234"   # omit and mino discovers it if there is exactly one
+  #   private_key_path: /run/secrets/mino-github-app.pem
+```
+
+Exact env var names: `MINO_GITHUB_SERVICE_TOKEN`, `MINO_GITHUB_VIEWER`,
+`MINO_GITHUB_APP_ID`, `MINO_GITHUB_APP_INSTALLATION_ID`, `MINO_GITHUB_APP_PRIVATE_KEY_PATH`,
+and `MINO_GITHUB_APP_PRIVATE_KEY` for an inline PEM (raw or base64). Anything else — say
+`MINO_GITHUB_APPID` — resolves to nothing and is silently ignored.
+
+**Configuring a service identity is a commitment, not a preference.** Once `github.app` or
+`github.service_token` is set, mino will not fall back to your personal credential: a
+half-configured App is a startup error naming the missing field, not a quiet downgrade. mino
+writes — actions, comments, workflow re-runs — and a silent fallback would land those under
+your name and move rate-limit accounting to your account.
+
+**The private key never belongs in config.** There is no `github.app.private_key` field, by
+design: with nothing for the env overlay to bind to, key material cannot be reflected back out
+of the loaded config, so `/api/v1/config`, `mino config export` and `mino verify` snippets are
+safe by construction rather than by remembering to redact. Mount the `.pem` as a file and point
+`private_key_path` at it. Prefer that over `MINO_GITHUB_APP_PRIVATE_KEY`, whose value is
+visible to `docker inspect` and lands in shell history.
+
+**Apps have permissions, not scopes.** `repo` maps to Contents / Pull requests / Issues read,
+`read:org` to Members read, `read:project` to Projects read, and `mino github --actions` needs
+Actions read. `gh auth refresh -s …` does not apply to an App at all.
+
+Two limits worth knowing before you choose:
+
+- **An App cannot read `/notifications`**, so it drives no realtime source. Use a machine-user
+  PAT for the notification stream; serve refuses App-only realtime at startup and says so.
+- **`@me` means nothing to a service identity.** Set `github.viewer` to the login mino should
+  stand in for. Without it, `author:@me` matches nothing and queries return empty *with no
+  error* — mino warns at build time and `mino verify auth` reports it.
+
+Whether a service identity satisfies the onboarding gate is a **compile-time** decision:
+`make build SERVICE_AUTH=1`. The default is off, so nothing reachable at runtime — no config
+value, env var, or credential — can opt a machine out of the commit-signing requirement. The
+container image sets it; the stock binary does not.
+
+`mino verify auth` reports the selected mechanism, validates the App id, installation id and
+key file, mints a token to prove the installation works, and never prints key material. Run
+it with `-v` to see the full resolution trace, including which tiers lost and why.
 - **Google scopes** — a plain `gcloud auth application-default login` does *not*
   grant the read scopes. Mino preflight-checks them and reprints the exact
   `gcloud … --scopes=…` command to run if any are missing.
@@ -1075,7 +1341,7 @@ DB.
 |---|---|
 | `mino fly [flight]` | **cli**: run a named flight (defaults to the role's flight / `default`); `--formatter`/`--copy`/`--out` render it through a formatter. |
 | `mino query [name]` | **cli**: run a saved query by name; no name lists saved queries. Takes the same `--formatter`/`--copy`/`--out`. |
-| `mino serve [flight]` | **serve**: foreground realtime watcher in the current shell; `--desktop`/`--interval`/`--bell`/`--theme`. |
+| `mino serve [flight]` | **serve**: foreground realtime watcher in the current shell; `--desktop`/`--interval`/`--bell`/`--theme`/`--http`/`--http-port`. |
 | `mino daemon [flight]` | **daemon**: install (if needed) then start the OS service; idempotent. |
 | `mino daemon install/uninstall/start/stop/restart/status/attach` | Manage the OS service (systemd user unit / launchd agent / Windows service). |
 | `mino deck [flight]` | **deck**: open the interactive TUI (daemon if running, else silent session-owned serve that dies with deck). Alias: `tui`. |

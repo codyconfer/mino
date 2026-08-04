@@ -48,7 +48,7 @@ func coreProviders() []Provider {
 			Fields: []CredField{
 				{Key: "github.oauth_client_id", Label: "OAuth client id", Cur: func(a *app.App) string { return a.Cfg.GitHub.OAuthClientID }},
 			},
-			Authed: func(a *app.App) bool { return a.GitHubAuthed() },
+			Authed: func(a *app.App) bool { return a.GitAuthed() },
 			Login: func(ctx context.Context, a *app.App, creds map[string]string, w io.Writer) error {
 				id := eff(creds, "github.oauth_client_id", a.Cfg.GitHub.OAuthClientID)
 				return auth.LoginGitHub(ctx, a.Tokens, id, a.Cfg.GitHub.OAuthScopes, w)

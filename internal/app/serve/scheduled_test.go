@@ -32,7 +32,7 @@ func TestScheduledEventsEmitsDueReminder(t *testing.T) {
 	}
 
 	s := &Server{App: &app.App{
-		Cfg: &config.Config{Home: home, Role: "default"},
+		Cfg: &config.Config{Home: home, DefaultRole: "default"},
 		Directives: &config.Directives{
 			Queries: map[string]config.Query{
 				"ntr-list": {Name: "ntr-list", Signal: ntr.SignalName},

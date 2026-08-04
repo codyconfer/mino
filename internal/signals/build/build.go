@@ -39,7 +39,7 @@ func ResolveWriteTarget(what, setting, configured, requested string) (string, er
 	return "", errs.Newf(errs.KindUsage, "%s %q is read-only; only %q is writable (%s)", what, requested, configured, setting)
 }
 
-func Signal(name string, params map[string]string, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.Signal, error) {
+func Signal(name string, params map[string]string, role string, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.Signal, error) {
 	if !plugin.HasBuilder(name) {
 		return nil, errs.Newf(errs.KindConfig, "unknown signal %q", name)
 	}
@@ -47,17 +47,17 @@ func Signal(name string, params map[string]string, cfg *config.Config, tokens *t
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `mino plugins enable` for the backing plugin")
 	}
-	q, err := plugin.BuildQuery(name, newHostBuildCtx(name, params, cfg, tokens, nil, results))
+	q, err := plugin.BuildQuery(name, newHostBuildCtx(name, params, role, cfg, tokens, nil, results))
 	if err != nil {
 		return nil, err
 	}
 	if isNilRef(q) {
 		return nil, errs.Newf(errs.KindInternal, "builder for signal %q returned no query", name)
 	}
-	return results.Wrap(q, name, cfg.Role, params), nil
+	return results.Wrap(q, name, role, params), nil
 }
 
-func ActiveSignal(name string, params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {
+func ActiveSignal(name string, params map[string]string, role string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {
 	if !plugin.HasBuilder(name) && !plugin.HasStreamBuilder(name) {
 		return nil, errs.Newf(errs.KindConfig, "unknown signal %q", name)
 	}
@@ -74,7 +74,7 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	if !plugin.HasCapability(name, plugin.CapStream) {
 		return nil, errs.Newf(errs.KindConfig, "signal %q does not advertise CapStream", name)
 	}
-	src, err := plugin.BuildStream(name, newHostBuildCtx(name, params, cfg, tokens, state, nil))
+	src, err := plugin.BuildStream(name, newHostBuildCtx(name, params, role, cfg, tokens, state, nil))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func ActiveSignal(name string, params map[string]string, cfg *config.Config, tok
 	return src, nil
 }
 
-func ScheduledJob(name string, params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (plugin.Scheduled, error) {
+func ScheduledJob(name string, params map[string]string, role string, cfg *config.Config, tokens *token.Store, state *active.State) (plugin.Scheduled, error) {
 	if !pub.HasScheduledBuilder(name) {
 		if plugin.HasCapability(name, plugin.CapScheduled) {
 			return nil, errs.Newf(errs.KindInternal, "signal %q advertises CapScheduled but has no scheduled builder", name)
@@ -98,7 +98,7 @@ func ScheduledJob(name string, params map[string]string, cfg *config.Config, tok
 		return nil, errs.Newf(errs.KindConfig, "signal %q is disabled", name).
 			WithHint("enable with `mino plugins enable` for the backing plugin")
 	}
-	job, err := pub.BuildScheduled(name, newHostBuildCtx(name, params, cfg, tokens, state, nil))
+	job, err := pub.BuildScheduled(name, newHostBuildCtx(name, params, role, cfg, tokens, state, nil))
 	if err != nil {
 		return nil, err
 	}
@@ -161,11 +161,20 @@ func registerStockBuilders() {
 }
 
 func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.Signal, error) {
-	backend, err := githubBackend(cfg, tokens)
+	sel, err := githubAuth(cfg, tokens)
+	if err != nil {
+		return nil, err
+	}
+	backend, err := githubBackendFor(sel)
 	if err != nil {
 		return nil, err
 	}
 	var opts []gh.Option
+	if viewer := strings.TrimSpace(cfg.GitHub.Viewer); viewer != "" {
+		opts = append(opts, gh.WithViewer(viewer))
+	} else {
+		warnViewerlessQueries(sel, params, cfg)
+	}
 	if results != nil {
 		opts = append(opts, gh.WithDetailCache(results,
 			gh.CachePolicy{Read: results.Reads(), Write: results.Writes(), TTL: results.DetailTTL()}))
@@ -210,35 +219,88 @@ func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Sto
 	return gh.New(queries, backend, cfg.GitHub.Max, opts...), nil
 }
 
-func githubBackend(cfg *config.Config, tokens *token.Store) (gh.Backend, error) {
+func githubAuth(cfg *config.Config, tokens *token.Store) (auth.GitHubSelection, error) {
 	base, err := gh.NormalizeAPIURL(cfg.GitHub.APIURL)
+	if err != nil {
+		return auth.GitHubSelection{}, err
+	}
+	sel, err := auth.SelectGitHub(cfg.GitHub.AuthSpec(base, tokens))
+	if err != nil {
+		return auth.GitHubSelection{}, err
+	}
+	log.Debugf("%s", sel.Trace())
+	return sel, nil
+}
+
+func warnViewerlessQueries(sel auth.GitHubSelection, params map[string]string, cfg *config.Config) {
+	if !sel.ServiceIdentity() {
+		return
+	}
+	for _, q := range effectiveGithubQueries(params, cfg) {
+		if strings.Contains(q, "@me") {
+			log.Warnf("github: query %q uses @me, which resolves to nothing as %s; "+
+				"set github.viewer to the login mino should stand in for, or rewrite the query "+
+				"with author:<login> or org:<org>", q, sel.Origin)
+		}
+	}
+	if f := params["filter"]; strings.Contains(f, "@me") {
+		log.Warnf("github: project filter %q uses @me, which resolves to nothing as %s; "+
+			"set github.viewer", f, sel.Origin)
+	}
+}
+
+func effectiveGithubQueries(params map[string]string, cfg *config.Config) []string {
+	if q := params["query"]; q != "" {
+		return []string{q}
+	}
+	if len(cfg.GitHub.Queries) > 0 {
+		return cfg.GitHub.Queries
+	}
+	return gh.DefaultQueries()
+}
+
+func githubBackend(cfg *config.Config, tokens *token.Store) (gh.Backend, error) {
+	sel, err := githubAuth(cfg, tokens)
 	if err != nil {
 		return nil, err
 	}
-	if auth.GHAvailable() {
-		return gh.CLIBackend{Hostname: auth.GHHostname(base)}, nil
+	return githubBackendFor(sel)
+}
+
+func githubBackendFor(sel auth.GitHubSelection) (gh.Backend, error) {
+	if sel.UsesGHCLI() {
+		return gh.CLIBackend{Hostname: auth.GHHostname(sel.APIURL)}, nil
 	}
-	if tok, origin := auth.GitHubToken(tokens); tok != "" {
-		log.Debugf("github: gh CLI not found; using %s via the REST API", origin)
-		return gh.APIBackend{Token: tok, BaseURL: base}, nil
+	if !sel.Authenticated() {
+		return nil, errs.New(errs.KindAuth, "no GitHub authentication available").
+			WithHint("configure github.app or github.service_token for a service identity, install the " +
+				"gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `mino login github`")
 	}
-	return nil, errs.New(errs.KindAuth, "no GitHub authentication available").WithHint("install the gh CLI and run `gh auth login`, set GITHUB_TOKEN, or run `mino login github`")
+	log.Debugf("github: using %s via the REST API", sel.Origin)
+	return gh.APIBackend{Auth: sel, BaseURL: sel.APIURL}, nil
 }
 
 func buildActiveGithub(params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {
-	tok, _ := auth.GitHubToken(tokens)
-	if tok == "" {
-		return nil, ErrNoActive
-	}
-	base, err := gh.NormalizeAPIURL(cfg.GitHub.APIURL)
+	sel, err := githubAuth(cfg, tokens)
 	if err != nil {
 		return nil, err
+	}
+	if !sel.Authenticated() {
+		return nil, errs.New(errs.KindAuth, "github: realtime needs GitHub authentication").
+			WithHint("configure github.service_token, set GITHUB_TOKEN, run `gh auth login`, or " +
+				"run `mino login github`")
+	}
+	if sel.Mech == auth.GitHubAppAuth {
+		return nil, errs.New(errs.KindConfig,
+			"github: realtime notifications need a user token; a GitHub App installation token cannot read /notifications").
+			WithHint("set github.service_token to a machine-user PAT alongside github.app, or drop github " +
+				"from the flight")
 	}
 	interval, err := paramPollInterval(params, "github", 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	return gh.NewActive(tok, base, interval, state), nil
+	return gh.NewActive(sel, sel.APIURL, interval, state), nil
 }
 
 func paramPollInterval(params map[string]string, signal string, def time.Duration) (time.Duration, error) {

@@ -71,7 +71,7 @@ func newActionRunCmd() *cobra.Command {
 		ValidArgsFunction: completeActionRun,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = build.KnownSignals()
-			p := map[string]string{"home": shared.Cfg.Home, "role": shared.Cfg.Role}
+			p := map[string]string{"home": shared.Cfg.Home, "role": shared.Role()}
 			for _, kv := range params {
 				k, v, ok := strings.Cut(kv, "=")
 				if !ok || k == "" {

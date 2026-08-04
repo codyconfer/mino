@@ -64,8 +64,8 @@ switch mino runs the previous role’s **exit** hooks, then the new role’s
 **enter** hooks, then applies `contexts:`. Bash is preferred on Unix;
 PowerShell on Windows. If the preferred script is empty, the other is used when
 present. Missing interpreters are warned and skipped (activation continues).
-The last entered role is remembered under `~/.mino/.data/active-role` so exit
-hooks still run across separate CLI invocations.
+The active role is recorded in `~/.mino/.data/state.duckdb` so exit hooks still
+run across separate CLI invocations.
 
 ```yaml
 hooks:

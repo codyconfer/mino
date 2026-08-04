@@ -248,7 +248,7 @@ func TestRunFormattersTargetCountsProblems(t *testing.T) {
 		"formatters/standup.yaml": "name: standup\ntype: formatter\ntemplate: \"{{ .Count }} items\"\n",
 	})
 	var buf bytes.Buffer
-	if err := Run(context.Background(), &buf, nil, cfg, clean, nil, "formatters"); err != nil {
+	if err := Run(context.Background(), &buf, nil, cfg, clean, "", nil, nil, "formatters"); err != nil {
 		t.Fatalf("Run on a healthy formatter = %v\n%s", err, buf.String())
 	}
 	out := buf.String()
@@ -262,7 +262,7 @@ func TestRunFormattersTargetCountsProblems(t *testing.T) {
 	broken := formatterFixture(t)
 	broken.Formatters["bare"] = config.FormatterDef{Name: "bare", Type: config.TypeFormatter}
 	buf.Reset()
-	err := Run(context.Background(), &buf, nil, cfg, broken, nil, "formatters")
+	err := Run(context.Background(), &buf, nil, cfg, broken, "", nil, nil, "formatters")
 	if err == nil {
 		t.Fatalf("Run with a template-less formatter should fail\n%s", buf.String())
 	}
@@ -279,7 +279,7 @@ func TestRunAllIncludesFormatters(t *testing.T) {
 	d := directivesFrom(t, map[string]string{
 		"formatters/standup.yaml": "name: standup\ntype: formatter\ntemplate: \"{{ .Count }} items\"\n",
 	})
-	_ = Run(context.Background(), &buf, nil, &config.Config{Output: "terminal"}, d, nil, "all")
+	_ = Run(context.Background(), &buf, nil, &config.Config{Output: "terminal"}, d, "", nil, nil, "all")
 
 	out := buf.String()
 	for _, want := range []string{"Config", "Roles", "Flights", "Queries", "Formatters"} {
@@ -330,7 +330,7 @@ func TestRoleChecksAnUnsavedDraft(t *testing.T) {
 func TestRunRejectsAnUnknownTarget(t *testing.T) {
 	var buf bytes.Buffer
 	err := Run(context.Background(), &buf, nil, &config.Config{Output: "terminal"},
-		directivesFrom(t, map[string]string{}), nil, "flight")
+		directivesFrom(t, map[string]string{}), "", nil, nil, "flight")
 	if err == nil {
 		t.Fatalf("Run with a typo'd target = nil, want a usage error\n%s", buf.String())
 	}
@@ -347,7 +347,7 @@ func TestRunAcceptsEveryAdvertisedTarget(t *testing.T) {
 	for _, target := range Targets() {
 		var buf bytes.Buffer
 		err := Run(context.Background(), &buf, nil, &config.Config{Output: "terminal"},
-			directivesFrom(t, map[string]string{}), nil, target)
+			directivesFrom(t, map[string]string{}), "", nil, nil, target)
 		if errs.KindOf(err) == errs.KindUsage {
 			t.Errorf("target %q rejected: %v", target, err)
 		}
@@ -366,7 +366,7 @@ func TestSecretBackendMatchesSisyphus(t *testing.T) {
 		t.Helper()
 		cfg := &config.Config{Output: "terminal"}
 		cfg.Backup.SecretBackend = backend
-		return findingByName(t, Config(cfg, directivesFrom(t, map[string]string{})), "backup.secret_backend")
+		return findingByName(t, Config(cfg, directivesFrom(t, map[string]string{}), ""), "backup.secret_backend")
 	}
 
 	for _, backend := range append(secret.Backends(), "") {

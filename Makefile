@@ -46,6 +46,16 @@ ifneq ($(ALL_OR_NOTHING_AUTH),)
 LDFLAGS += -X 'github.com/codyconfer/mino/internal/app/onboard.AllOrNothingAuth=true'
 endif
 
+# SERVICE_AUTH, when set, compiles a build where a configured GitHub service identity
+# (github.app or github.service_token) satisfies the onboarding auth check, since a
+# machine has no human signing key. It is OFF by default and cannot be turned on at
+# runtime: no config value, env var or credential grants it, so a stock binary can
+# never be talked out of the signing requirement. The container image sets it.
+SERVICE_AUTH ?=
+ifneq ($(SERVICE_AUTH),)
+LDFLAGS += -X 'github.com/codyconfer/mino/internal/app/onboard.ServiceAuth=true'
+endif
+
 # Regenerate the embedded system-tray / notification state icons from the bird
 # SVGs in internal/render/icons/svg into internal/render/icons/data/<theme>/<state>.png.
 # Uses rsvg-convert if present (best), else ImageMagick. Override size with

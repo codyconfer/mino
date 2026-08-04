@@ -57,6 +57,99 @@ jobs:
       - name: make test-overlay
         run: make test-overlay
 
+  # Service-auth build. Its own job rather than a `build` matrix entry, because that
+  # matrix varies build TAGS while this varies an ldflag. Compiling it here means the
+  # SERVICE_AUTH code path is exercised outside the image too, and both branches of the
+  # gate are covered because the tests set onboard.ServiceAuth directly.
+  service-auth:
+    name: service-auth build
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: make build SERVICE_AUTH=1
+        run: make build SERVICE_AUTH=1
+      - name: make test SERVICE_AUTH=1
+        run: make test SERVICE_AUTH=1
+
+  # Container image. Its own job, not a step on `build`: it needs no Go toolchain on
+  # the runner and it exercises a different failure surface — the cgo link against a
+  # different glibc, the runtime base's shared libraries, and the GOWORK=off module
+  # graph. Build only; nothing is pushed.
+  image:
+    name: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Plain docker build, not build-push-action: the runner's default buildx
+      # driver cannot export cache, and the Dockerfile's --mount=type=cache dirs are
+      # not persisted by layer caching either.
+      - name: docker build
+        run: docker build --build-arg VERSION="ci-${GITHUB_SHA::12}" -t mino:ci .
+
+      # A green build proves it links, not that it runs. This catches a missing
+      # libstdc++6, a glibc floor mismatch between builder and runtime, an
+      # unresolvable MINO_HOME, the empty-volume provisioning path, and a non-root
+      # user that cannot write /var/lib/mino.
+      #
+      # The service token is deliberately a dummy: serve exits when no realtime source
+      # can open, and the notification poller opens (then fails its polls) with any token
+      # present. The polls erroring is fine — this asserts the image runs and serves, not
+      # that GitHub works. Using MINO_GITHUB_SERVICE_TOKEN rather than GITHUB_TOKEN also
+      # exercises the service-identity path the image is built for, including the
+      # SERVICE_AUTH gate bypass: an onboarding warning here would mean the flag did not
+      # take effect in the image.
+      - name: smoke test
+        run: |
+          set -euo pipefail
+          docker run -d --name mino-smoke --init -p 7717:7717 \
+            -e MINO_DAEMON_HTTP_TOKEN=ci-smoke-token-0123456789 \
+            -e MINO_GITHUB_SERVICE_TOKEN=ci-smoke-dummy-service-token \
+            -e MINO_GITHUB_VIEWER=ci-smoke-bot \
+            -e MINO_DAEMON_INTERVAL=10m \
+            mino:ci >/dev/null
+          ok=
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:7717/healthz; then ok=1; break; fi
+            sleep 2
+          done
+          echo
+          docker logs mino-smoke 2>&1 | tail -30
+          test -n "$ok"
+          # SERVICE_AUTH=1 must actually be compiled in, or the container nags forever.
+          if docker logs mino-smoke 2>&1 | grep -q "mino onboard"; then
+            echo "the image asked for onboarding despite a configured service identity;"
+            echo "SERVICE_AUTH=1 did not take effect in the build"
+            exit 1
+          fi
+          # The API must be reachable from outside the container, which is the whole
+          # point of daemon.http.host. /healthz passing does not prove this: it is
+          # exempt from both the bearer check and the loopback Host check.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Authorization: Bearer ci-smoke-token-0123456789' \
+            http://127.0.0.1:7717/api/v1/status)
+          test "$code" = "200" || { echo "GET /api/v1/status = $code, want 200"; exit 1; }
+          # Prove PID 1 handles SIGTERM. If this takes the full timeout, every deploy
+          # hangs for 10s.
+          start=$SECONDS
+          docker stop -t 15 mino-smoke >/dev/null
+          echo "stopped in $(( SECONDS - start ))s"
+          test "$(( SECONDS - start ))" -lt 12
+
+      - name: image size
+        if: always()
+        run: docker image inspect mino:ci --format '{{.Size}}' || true
+
+      - name: cleanup
+        if: always()
+        run: docker rm -f mino-smoke || true
+
   # Race detector. Its own job, not a flag on `build`: race builds are slow and
   # CGO-heavy here (duckdb), and the fast signal is worth keeping. Default tags
   # only — one race configuration is enough, no need to multiply the tag matrix.

@@ -114,7 +114,7 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 			Enter: config.RoleShellHooks{Bash: "enter-weekly", PowerShell: "enter-weekly"},
 		}},
 	}
-	kit.d.App.Cfg.Role = ""
+	kit.d.App.UseRole("")
 	if err := kit.d.App.ActivateRole("ops"); err != nil {
 		t.Fatal(err)
 	}
@@ -135,8 +135,8 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 			settleCmds = append(settleCmds, cmd)
 		}
 	}
-	if kit.d.App.Cfg.Role != "weekly" {
-		t.Fatalf("role after burst = %q, want weekly", kit.d.App.Cfg.Role)
+	if kit.d.App.Role() != "weekly" {
+		t.Fatalf("role after burst = %q, want weekly", kit.d.App.Role())
 	}
 	if len(calls) != 0 {
 		t.Fatalf("hooks during burst = %v", calls)
@@ -160,7 +160,7 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 	}
 
 	home := kit.d.App.Cfg.Home
-	if got := role.LoadActive(home); got == "weekly" {
+	if got := activeRoleState(t, home); got == "weekly" {
 		t.Fatal("the role was committed before its hooks ran")
 	}
 
@@ -181,13 +181,13 @@ func TestHotkeyCyclesRoleDebounced(t *testing.T) {
 	if len(calls) != 0 {
 		t.Fatalf("hooks ran without a process: %v", calls)
 	}
-	if got := role.LoadActive(home); got == "triage" {
+	if got := activeRoleState(t, home); got == "triage" {
 		t.Fatalf("the settle committed before its last hook step: active=%q", got)
 	}
 	if cmd := kit.runRoleHookStep(host, settle, len(settle.Steps)); cmd == nil {
 		t.Fatal("the end of the chain did not refresh the deck")
 	}
-	if got := role.LoadActive(home); got != "triage" {
+	if got := activeRoleState(t, home); got != "triage" {
 		t.Fatalf("active role after the chain finished = %q, want triage", got)
 	}
 }
@@ -210,7 +210,7 @@ func TestHomeFlightRerunsOnReloadAndRoleCycle(t *testing.T) {
 		"triage": {Name: "triage", Home: "default", Flights: []string{"default"}},
 		"weekly": {Name: "weekly", Home: "weekly-check", Flights: []string{"weekly-check"}},
 	}
-	kit.d.App.Cfg.Role = ""
+	kit.d.App.UseRole("")
 	if err := kit.d.App.ActivateRole("triage"); err != nil {
 		t.Fatal(err)
 	}
@@ -232,8 +232,8 @@ func TestHomeFlightRerunsOnReloadAndRoleCycle(t *testing.T) {
 	}
 
 	host, cycle := update(host, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}, Alt: true})
-	if kit.d.App.Cfg.Role != "weekly" {
-		t.Fatalf("role after alt+] = %q, want weekly", kit.d.App.Cfg.Role)
+	if kit.d.App.Role() != "weekly" {
+		t.Fatalf("role after alt+] = %q, want weekly", kit.d.App.Role())
 	}
 	host = settle(host, cycle)
 	if want := []string{"default", "default", "weekly-check"}; !equalStrings(fetched, want) {

@@ -3,8 +3,13 @@ package github
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/codyconfer/mino/internal/auth"
 )
 
 const searchFixture = `{
@@ -170,5 +175,70 @@ func TestWithTitleIgnoredForMultipleQueries(t *testing.T) {
 	}
 	if def[0].Title != "Open Pull Requests" {
 		t.Errorf("default section = %q, want %q", def[0].Title, "Open Pull Requests")
+	}
+}
+
+func TestViewerSubstitutesForAtMeInDefaultQueries(t *testing.T) {
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.URL.Query().Get("q"))
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer srv.Close()
+
+	b := APIBackend{Auth: auth.StaticGitHubToken("tok"), BaseURL: srv.URL, HTTP: srv.Client()}
+	sig := New(nil, b, 10, WithViewer("octocat"))
+	if _, err := sig.Fetch(context.Background()); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+
+	for _, q := range seen {
+		if strings.Contains(q, "@me") {
+			t.Errorf("query %q still contains @me; a service identity has no viewer, so GitHub matches "+
+				"nothing and the section comes back empty with no error at all", q)
+		}
+		if !strings.Contains(q, "octocat") {
+			t.Errorf("query %q does not name the configured viewer", q)
+		}
+	}
+}
+
+func TestViewerSubstitutesInConfiguredQueriesAndTitles(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer srv.Close()
+
+	b := APIBackend{Auth: auth.StaticGitHubToken("tok"), BaseURL: srv.URL, HTTP: srv.Client()}
+	sig := New([]string{"is:open assignee:@me"}, b, 10, WithViewer("botuser"))
+	secs, err := sig.Fetch(context.Background())
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if len(secs) != 1 {
+		t.Fatalf("got %d sections, want 1", len(secs))
+	}
+	if strings.Contains(secs[0].Title, "@me") {
+		t.Errorf("section title %q still shows @me, so the rendered report claims a filter that was not "+
+			"the one actually sent", secs[0].Title)
+	}
+}
+
+func TestWithoutAViewerQueriesAreUntouched(t *testing.T) {
+	var seen string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.URL.Query().Get("q")
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer srv.Close()
+
+	b := APIBackend{Auth: auth.StaticGitHubToken("tok"), BaseURL: srv.URL, HTTP: srv.Client()}
+	sig := New([]string{"is:open author:@me"}, b, 10)
+	if _, err := sig.Fetch(context.Background()); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if seen != "is:open author:@me" {
+		t.Errorf("query = %q; with no viewer configured @me must reach GitHub unchanged, because for a "+
+			"human token it is the correct and expected qualifier", seen)
 	}
 }

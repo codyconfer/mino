@@ -6,6 +6,7 @@ import (
 
 	vkdeck "github.com/codyconfer/viewkit/deck"
 	"github.com/codyconfer/viewkit/keys"
+	"github.com/codyconfer/viewkit/theme"
 
 	"gopkg.in/yaml.v3"
 
@@ -61,6 +62,10 @@ type editorOutput interface {
 	WriteOutput() (string, error)
 }
 
+type editorFindingLister interface {
+	editorFindingList(any) []Finding
+}
+
 type editorAdapter struct{ doc editorDoc }
 
 type editorOutputAdapter struct {
@@ -101,6 +106,9 @@ func (a *editorAdapter) ValidateLines(fr layout.Frame) ([]string, error) {
 		return nil, err
 	}
 	th := fr.Theme()
+	if lister, ok := a.doc.(editorFindingLister); ok {
+		return editorFindingLines(th, lister.editorFindingList(val)), nil
+	}
 	f := a.doc.editorVerify(val)
 	lines := []string{directiveFindingLine(th, f)}
 	if f.Msg != "" {
@@ -110,6 +118,20 @@ func (a *editorAdapter) ValidateLines(fr layout.Frame) ([]string, error) {
 		lines = append(lines, "    "+th.Dim.Render("no problems found"))
 	}
 	return lines, nil
+}
+
+func editorFindingLines(th theme.Theme, findings []Finding) []string {
+	if len(findings) == 0 {
+		return []string{th.Dim.Render("no problems found")}
+	}
+	lines := make([]string, 0, len(findings))
+	for _, f := range findings {
+		lines = append(lines, directiveFindingLine(th, f))
+		if !f.OK && f.Msg != "" {
+			lines = append(lines, "    "+th.Dim.Render(f.Msg))
+		}
+	}
+	return lines
 }
 
 func (a *editorAdapter) Run() (string, func() vkdeck.Results, error) {
