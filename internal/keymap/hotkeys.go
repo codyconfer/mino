@@ -8,6 +8,7 @@ const (
 	TargetNoteNew   = "ntr.note.new"
 	TargetTaskNew   = "ntr.task.new"
 	TargetRemindNew = "ntr.remind.new"
+	TargetBuckets   = "ntr.buckets"
 	TargetRoleNext  = "role.next"
 	TargetRolePrev  = "role.prev"
 	TargetPaneInbox = "pane.inbox"
@@ -23,7 +24,7 @@ func FlightTarget(target string) (name string, ok bool) {
 		return "", false
 	}
 	switch target {
-	case TargetNoteNew, TargetTaskNew, TargetRemindNew, TargetRoleNext, TargetRolePrev,
+	case TargetNoteNew, TargetTaskNew, TargetRemindNew, TargetBuckets, TargetRoleNext, TargetRolePrev,
 		TargetPaneInbox, TargetPanePop, TargetPaneShell, TargetPaneClose:
 		return "", false
 	}

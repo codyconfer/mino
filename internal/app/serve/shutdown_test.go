@@ -54,7 +54,7 @@ func TestWatchRecordsAllEventsBeforeRollUp(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		s.watch(ctx, cancel, sources{events: in, join: func() {}}, notifySink{}, nil, RunOptions{})
+		s.watch(ctx, cancel, sources{events: in, join: func() {}}, notifySink{}, nil, nil, RunOptions{})
 	}()
 
 	const want = 400

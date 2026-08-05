@@ -201,7 +201,10 @@ func (k *Kit) Home() vkdeck.View {
 		}
 		return cues
 	}
-	shell := deck.NewHome("home", ctx(), k.mainMenuItems(), k.homeFlightName, k.d.FetchHomeFlight, k.openDetail).
+	load := func(name string) []signals.Section {
+		return k.withFiledCounts(k.d.FetchHomeFlight(name))
+	}
+	shell := deck.NewHome("home", ctx(), k.mainMenuItems(), k.homeFlightName, load, k.openDetail).
 		PollEvery(workflowPollInterval)
 	return vkdeck.WithExtraHints(vkdeck.WithLiveContext(shell, ctx), k.hotkeyHints())
 }
@@ -229,11 +232,11 @@ func (k *Kit) FlightResults(name string) vkdeck.View {
 	ctx := append(k.menuCtx(), keys.Hint{Key: "flight", Label: name})
 	var held sectionHolder
 	lst := deck.NewResults("flight: "+name, ctx, func() []signals.Section {
-		sections := k.d.FetchFlightAudited(name)
+		sections := k.withFiledCounts(k.d.FetchFlightAudited(name))
 		held.set(sections)
 		return sections
 	}, k.openDetail).PollEvery(workflowPollInterval)
-	return WithPaneSnapshot(lst, func() (pane.Snapshot, bool) {
+	return WithPaneSnapshot(k.withFile(lst, ctx), func() (pane.Snapshot, bool) {
 		sections := held.get()
 		if len(sections) == 0 {
 			return pane.Snapshot{}, false

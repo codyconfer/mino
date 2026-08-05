@@ -9,6 +9,7 @@ import (
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/tree"
 
+	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render/glyph"
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -47,6 +48,22 @@ func TestFlightTreeStructure(t *testing.T) {
 	}
 	if !errBranch {
 		t.Error("expected the error section to render a (!) count")
+	}
+}
+
+func TestFlightTreeShowsErrorHint(t *testing.T) {
+	glyph.SetMode(glyph.ModeNone)
+	err := errs.New(errs.KindAuth, "github: graphql: your GitHub token is missing the read:project scope").
+		WithHint("run `gh auth refresh -s read:project` and retry")
+	rows := FlightTree(layout.NewFrame(120), "flight", []signals.Section{{Signal: "github", Err: err}})
+
+	var plain strings.Builder
+	for _, r := range rows {
+		plain.WriteString(ansi.Strip(strings.Join(r.Lines, "\n")) + "\n")
+	}
+	out := plain.String()
+	if !strings.Contains(out, "hint: run `gh auth refresh -s read:project` and retry") {
+		t.Errorf("tree should surface the fix command, got:\n%s", out)
 	}
 }
 

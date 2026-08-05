@@ -198,6 +198,9 @@ func localRows(ref ItemRef) [][2]string {
 	if ref.Item.Meta["draft"] == "true" {
 		rows = append(rows, [2]string{"draft", "yes"})
 	}
+	if n := strings.TrimSpace(ref.Item.Meta[signals.MetaFiled]); n != "" && n != "0" {
+		rows = append(rows, [2]string{"notes", n})
+	}
 	return rows
 }
 

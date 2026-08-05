@@ -120,6 +120,8 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 			return nil
 		}
 		return m.Push(ntr.NewRemindBuilder(home, role, modelScope(m).Keys))
+	case keymap.TargetBuckets:
+		return m.Push(k.NTRBuckets())
 	case keymap.TargetRoleNext:
 		return k.cycleRoleCmd(1)
 	case keymap.TargetRolePrev:
@@ -219,6 +221,7 @@ func (k *Kit) hotkeyHints() []keys.Hint {
 		{keymap.TargetNoteNew, "new note"},
 		{keymap.TargetTaskNew, "new task"},
 		{keymap.TargetRemindNew, "new reminder"},
+		{keymap.TargetBuckets, "buckets"},
 		{keymap.TargetRolePrev, "prev role"},
 		{keymap.TargetRoleNext, "next role"},
 	}

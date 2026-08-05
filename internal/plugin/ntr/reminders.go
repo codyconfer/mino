@@ -29,12 +29,13 @@ func remindRecord(r Reminder) record {
 func newRemindView(home, role string, base record, dirty func(), sc keys.Scheme) *remindView {
 	v := &remindView{base: base}
 	v.recordCore = recordCore{
-		home:  home,
-		role:  role,
-		kind:  kindReminder,
-		id:    base.ID,
-		copy:  clipboard.Copy,
-		dirty: dirty,
+		home:   home,
+		role:   role,
+		kind:   kindReminder,
+		id:     base.ID,
+		bucket: base.Bucket,
+		copy:   clipboard.Copy,
+		dirty:  dirty,
 	}
 	v.read = v.remind
 	due := dueSeed(base.Due)
@@ -106,7 +107,7 @@ func (v *remindView) Persist() (string, error) {
 			return err
 		}
 		id = r.ID
-		return nil
+		return v.fileNew(ctx, st, id)
 	})
 	if err != nil {
 		return "", err

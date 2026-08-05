@@ -10,11 +10,8 @@ import (
 	"github.com/codyconfer/mino/external/plugins/gcx"
 	"github.com/codyconfer/mino/external/plugins/gmail"
 	"github.com/codyconfer/mino/external/plugins/google"
-	"github.com/codyconfer/mino/external/plugins/gooseai"
 	"github.com/codyconfer/mino/external/plugins/kubectl"
 	"github.com/codyconfer/mino/external/plugins/ollama"
-	"github.com/codyconfer/mino/external/plugins/opencode"
-	"github.com/codyconfer/mino/external/plugins/pi"
 	"github.com/codyconfer/mino/external/plugins/slack"
 	"github.com/codyconfer/mino/external/plugins/tasks"
 	"github.com/codyconfer/mino/plugin"
@@ -31,9 +28,6 @@ func Register() {
 	plugin.Guarded(demo.PluginID, demo.Register)
 	plugin.Guarded(gcx.PluginID, gcx.Register)
 	plugin.Guarded(kubectl.PluginID, kubectl.Register)
-	plugin.Guarded(gooseai.PluginID, gooseai.Register)
-	plugin.Guarded(pi.PluginID, pi.Register)
-	plugin.Guarded(opencode.PluginID, opencode.Register)
 	plugin.Guarded(ollama.PluginID, ollama.Register)
 	plugin.Guarded(argocd.PluginID, argocd.Register)
 	plugin.Guarded(example.PluginID, example.Register)

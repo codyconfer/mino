@@ -344,7 +344,7 @@ func (v *builderView) editorRun() (string, func() []signals.Section, error) {
 	if label == "" {
 		label = editorAdhocLabel
 	}
-	return label, func() []signals.Section { return fetch(q) }, nil
+	return label, func() []signals.Section { return v.kit.withFiledCounts(fetch(q)) }, nil
 }
 
 func (v *builderView) editorVerify(val any) Finding {

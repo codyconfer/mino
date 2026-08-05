@@ -11,3 +11,4 @@ go.work*
 
 # compiled test binaries (go test -c)
 *.test
+.directory

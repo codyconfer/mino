@@ -72,11 +72,32 @@ type DaemonConfig struct {
 // loopback; any other value puts triggers on the network with the bearer token
 // as the only control.
 type HTTPConfig struct {
-	Enabled       bool   `koanf:"enabled"`
-	Host          string `koanf:"host"`
-	Port          int    `koanf:"port"`
-	Token         string `koanf:"token"`
-	MaxConcurrent int    `koanf:"max_concurrent"`
+	Enabled       bool               `koanf:"enabled"`
+	Host          string             `koanf:"host"`
+	Port          int                `koanf:"port"`
+	Token         string             `koanf:"token"`
+	MaxConcurrent int                `koanf:"max_concurrent"`
+	Identity      HTTPIdentityConfig `koanf:"identity"`
+}
+
+type HTTPIdentityConfig struct {
+	Enabled       bool     `koanf:"enabled"`
+	Provider      string   `koanf:"provider"`
+	ClientID      string   `koanf:"client_id"`
+	AllowedLogins []string `koanf:"allowed_logins"`
+	SessionTTL    string   `koanf:"session_ttl"`
+	Scopes        string   `koanf:"scopes"`
+}
+
+func (h HTTPIdentityConfig) LoginNames() []string { return ListValues(h.AllowedLogins) }
+
+func (h HTTPIdentityConfig) Active() bool { return h.Enabled }
+
+func (h HTTPIdentityConfig) ProviderName() string {
+	if p := strings.TrimSpace(h.Provider); p != "" {
+		return strings.ToLower(p)
+	}
+	return DefaultHTTPIdentityProvider
 }
 
 type AuditConfig struct {

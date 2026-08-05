@@ -50,6 +50,7 @@ func Role() string        { return vk.User() }
 func Quit() string        { return vk.SignOut() }
 func Clock() string       { return vk.Clock() }
 func Notes() string       { return notes.String() }
+func Bucket() string      { return bucket.String() }
 func Plugins() string     { return plugins.String() }
 func Builder() string     { return builder.String() }
 func Reply() string       { return reply.String() }
@@ -62,12 +63,14 @@ var (
 	notes      = vk.Variants{Nerd: "", Uni: "✎", ASCII: "nt"}
 	plugins    = vk.Variants{Nerd: "", Uni: "▣", ASCII: "P"}
 	builder    = vk.Variants{Nerd: "", Uni: "⚒", ASCII: "qb"}
+	bucket     = vk.Variants{Nerd: "", Uni: "▤", ASCII: "bk"}
 	reply      = vk.Variants{Nerd: "", Uni: "↩", ASCII: "<-"}
 )
 
 func init() {
 	vk.Register("notes", notes)
 	vk.Register("ntr", notes)
+	vk.Register("bucket", bucket)
 	vk.Register("plugins", plugins)
 	vk.Register("builder", builder)
 	vk.Register("reply", reply)
@@ -83,6 +86,8 @@ func Login() string      { return login.String() }
 
 // BrandIn renders mino's brand mark in the given glyph set.
 func BrandIn(s vk.Set) string { return s.Resolve("mino.brand") }
+
+func NotesIn(s vk.Set) string { return s.Resolve("notes") }
 
 // SigningOKIn renders the verified-signing mark in the given glyph set.
 func SigningOKIn(s vk.Set) string { return s.Resolve("mino.signing.ok") }

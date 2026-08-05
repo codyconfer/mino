@@ -64,3 +64,10 @@ func TestResolveHotkeyRoleCycle(t *testing.T) {
 		t.Errorf("alt+] = %q,%v", got, ok)
 	}
 }
+
+func TestFlightTargetRejectsTheBucketsTarget(t *testing.T) {
+	if name, ok := FlightTarget(TargetBuckets); ok {
+		t.Fatalf("FlightTarget(%q) = %q, true; want it excluded so it is not read as a flight name",
+			TargetBuckets, name)
+	}
+}

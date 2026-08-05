@@ -573,3 +573,141 @@ func TestEditorValidateSurfacesCheckLines(t *testing.T) {
 		t.Errorf("validation panel = %v, want it cleared when the record cannot be built", v.Notice())
 	}
 }
+
+// A record built without a bucket must file nothing, which is what keeps every
+// existing caller — the three list screens and the alt+n/t/r hotkeys — unchanged.
+func TestPersistWithoutABucketFilesNothing(t *testing.T) {
+	home := t.TempDir()
+	st := openStore(t, home, "r")
+
+	note := newNoteView(home, "r", record{Kind: kindNote}, nil, testScheme())
+	setField(t, note.Form(), "title", "loose note")
+	if _, err := note.Persist(); err != nil {
+		t.Fatal(err)
+	}
+
+	buckets, err := st.ListBuckets(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(buckets) != 0 {
+		t.Fatalf("ListBuckets = %v, want none created by a bucketless save", buckets)
+	}
+	filed, err := st.BucketsFor(context.Background(), note.id)
+	if err != nil || len(filed) != 0 {
+		t.Fatalf("BucketsFor = %v err=%v, want no memberships", filed, err)
+	}
+}
+
+func TestPersistFilesEachKindIntoItsSeedBucket(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	st := openStore(t, home, "r")
+	b, err := st.CreateBucket(ctx, "shift", BucketKindUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := recordNow(t)
+
+	note := newNoteView(home, "r", record{Kind: kindNote, Bucket: b.ID}, nil, testScheme())
+	setField(t, note.Form(), "title", "a note")
+	if _, err := note.Persist(); err != nil {
+		t.Fatal(err)
+	}
+
+	task := newTaskView(home, "r", record{Kind: kindTask, Bucket: b.ID}, nil, testScheme())
+	task.now = func() time.Time { return now }
+	setField(t, task.Form(), "title", "a task")
+	setToggle(t, task.Form(), "done", true)
+	if _, err := task.Persist(); err != nil {
+		t.Fatal(err)
+	}
+
+	rem := newRemindView(home, "r", record{Kind: kindReminder, Bucket: b.ID}, nil, testScheme())
+	rem.now = func() time.Time { return now }
+	setField(t, rem.Form(), "title", "a reminder")
+	setField(t, rem.Form(), "due", "+3h")
+	if _, err := rem.Persist(); err != nil {
+		t.Fatal(err)
+	}
+
+	recs, err := st.bucketRecords(ctx, b.ID)
+	if err != nil || len(recs) != 3 {
+		t.Fatalf("bucketRecords = %v err=%v, want all three kinds filed", recs, err)
+	}
+	for _, rec := range recs {
+		if rec.Kind == kindTask && !rec.Done {
+			t.Error("task filed but its done toggle was dropped")
+		}
+	}
+}
+
+func TestPersistOnUpdateDoesNotRefile(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	st := openStore(t, home, "r")
+	seed, err := st.CreateBucket(ctx, "seed", BucketKindUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := st.CreateBucket(ctx, "other", BucketKindUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	v := newNoteView(home, "r", record{Kind: kindNote, Bucket: seed.ID}, nil, testScheme())
+	setField(t, v.Form(), "title", "first")
+	if _, err := v.Persist(); err != nil {
+		t.Fatal(err)
+	}
+	v.bucket = other.ID
+	setField(t, v.Form(), "title", "second")
+	if _, err := v.Persist(); err != nil {
+		t.Fatal(err)
+	}
+
+	filed, err := st.BucketsFor(ctx, v.id)
+	if err != nil || len(filed) != 1 || filed[0].ID != seed.ID {
+		t.Fatalf("BucketsFor = %v err=%v, want only the original bucket", filed, err)
+	}
+}
+
+func TestPersistFilesIntoExtraBuckets(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	st := openStore(t, home, "r")
+	chosen, _ := st.CreateBucket(ctx, "escalations", BucketKindUser, "")
+	anchor, _ := st.EnsureAnchorBucket(ctx, BucketKindItem, "https://x/1", "PR #1")
+
+	v := newNoteView(home, "r", record{Kind: kindNote, Bucket: chosen.ID}, nil, testScheme())
+	v.extra = []int64{anchor.ID}
+	setField(t, v.Form(), "title", "about the PR")
+	if _, err := v.Persist(); err != nil {
+		t.Fatal(err)
+	}
+
+	filed, err := st.BucketsFor(ctx, v.id)
+	if err != nil || len(filed) != 2 {
+		t.Fatalf("BucketsFor = %v err=%v, want both the chosen and the anchor bucket", filed, err)
+	}
+	counts, err := st.AnchorCounts(ctx, BucketKindItem, []string{"https://x/1"})
+	if err != nil || counts["https://x/1"] != 1 {
+		t.Fatalf("AnchorCounts = %v err=%v, want the item cue to see it", counts, err)
+	}
+}
+
+func TestPersistIgnoresZeroBucketIDs(t *testing.T) {
+	home := t.TempDir()
+	st := openStore(t, home, "r")
+
+	v := newNoteView(home, "r", record{Kind: kindNote}, nil, testScheme())
+	v.extra = []int64{0, 0}
+	setField(t, v.Form(), "title", "loose")
+	if _, err := v.Persist(); err != nil {
+		t.Fatalf("Persist with zero bucket ids = %v, want them skipped", err)
+	}
+	filed, _ := st.BucketsFor(context.Background(), v.id)
+	if len(filed) != 0 {
+		t.Fatalf("BucketsFor = %v, want none", filed)
+	}
+}

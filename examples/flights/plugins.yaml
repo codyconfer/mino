@@ -4,8 +4,5 @@ type: flight
 queries:
   - gcx-status
   - kubectl-context
-  - gooseai-context
-  - pi-context
-  - opencode-context
   - ollama-context
   - argocd-context

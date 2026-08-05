@@ -135,6 +135,14 @@ jobs:
             -H 'Authorization: Bearer ci-smoke-token-0123456789' \
             http://127.0.0.1:7717/api/v1/status)
           test "$code" = "200" || { echo "GET /api/v1/status = $code, want 200"; exit 1; }
+          # Identity sign-in must ship off: with no daemon.http.identity block the routes
+          # are not registered at all, so there is no code path from an anonymous caller
+          # to the forge. A 404 here is the assertion; anything else means the image
+          # exposes a sign-in nobody configured.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -XPOST \
+            -H 'Content-Type: application/json' -d '{}' \
+            http://127.0.0.1:7717/api/v1/auth/device/github)
+          test "$code" = "404" || { echo "POST /api/v1/auth/device/github = $code, want 404"; exit 1; }
           # Prove PID 1 handles SIGTERM. If this takes the full timeout, every deploy
           # hangs for 10s.
           start=$SECONDS

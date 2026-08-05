@@ -270,6 +270,12 @@ func itemLinesInFrame(f layout.Frame, t itemTheme, it signals.Item, frame int) [
 		}
 		tail += th.Dim.Render(timefmt.Rel(it.Timestamp))
 	}
+	if chip := filedChip(t, it); chip != "" {
+		if tail != "" {
+			tail += "  "
+		}
+		tail += chip
+	}
 	lines := make([]string, 0, 2)
 	if tail != "" {
 		lines = append(lines, f.Spread(head, tail))
@@ -280,6 +286,14 @@ func itemLinesInFrame(f layout.Frame, t itemTheme, it signals.Item, frame int) [
 		lines = append(lines, th.Dim.Render(it.URL))
 	}
 	return lines
+}
+
+func filedChip(t itemTheme, it signals.Item) string {
+	n := strings.TrimSpace(it.Meta[signals.MetaFiled])
+	if n == "" || n == "0" {
+		return ""
+	}
+	return t.th.Dim.Render(glyph.Lead(glyph.NotesIn(t.g)) + "notes " + n)
 }
 
 func (t itemTheme) itemIcon(it signals.Item, frame int) string {

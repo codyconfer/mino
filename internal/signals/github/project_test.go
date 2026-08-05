@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/signals"
 )
 
@@ -235,6 +236,29 @@ func TestProjectFetchScopeError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "read:project") {
 		t.Errorf("error = %v", err)
+	}
+}
+
+func TestProjectFetchScopeErrorCollapsesRepeatedComplaints(t *testing.T) {
+	page := `{"errors":[
+		{"type":"INSUFFICIENT_SCOPES","message":"The 'number' field requires one of the following scopes: ['read:project'], but your token has only been granted the: ['repo'] scopes."},
+		{"type":"INSUFFICIENT_SCOPES","message":"The 'name' field requires one of the following scopes: ['read:project'], but your token has only been granted the: ['repo'] scopes."}
+	]}`
+	be := &fakeGraphQL{pages: []string{page}}
+	sig := NewProject(ProjectSpec{Owner: "grafana", Number: 1085}, be, 30, nil)
+
+	_, err := sig.Fetch(context.Background())
+	if err == nil {
+		t.Fatal("want error")
+	}
+	if !strings.Contains(err.Error(), "missing the read:project scope") {
+		t.Errorf("error = %q, want the collapsed summary", err.Error())
+	}
+	if strings.Contains(err.Error(), "field requires one of the following") {
+		t.Errorf("error = %q, want GitHub's repeated complaint dropped", err.Error())
+	}
+	if hint := errs.Hint(err); !strings.Contains(hint, "`gh auth refresh -s read:project`") {
+		t.Errorf("hint = %q, want the refresh command", hint)
 	}
 }
 

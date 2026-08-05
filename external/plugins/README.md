@@ -1,9 +1,9 @@
 # external/plugins
 
 The Google (Calendar, Gmail, Docs, Drive, Tasks), Slack, and demo signals, plus
-the Lane C / C2 packages (`gcx`, `kubectl`, `gooseai`, `pi`, `opencode`,
-`ollama`, `argocd`, the shared `stub` helper, and the `example` overlay
-sample). They are a **separate Go module**
+the Lane C / C2 packages (`gcx`, `kubectl`, `ollama`, `argocd`, the shared
+`stub` helper, and the `example` overlay sample). They are a **separate Go
+module**
 (`github.com/codyconfer/mino/external/plugins`) built only against mino's
 public SDK — `mino/plugin` for contributions and `mino/cmd` for the CLI
 bridge. Stock `mino` does not link them.
@@ -35,9 +35,6 @@ go run ./overlay calendar query     # the same CLI, plus these signals
 | `demo` | `demo` | query + stream, the `demo-no-lorem` filter engine |
 | `gcx` | `gcx` | offline Grafana Cloud status (sealed token key `gcx`), `declare-incident` / `add-activity` action stubs, seed query |
 | `kubectl` | `kubectl` | in-process context + read-only `kubectl config current-context` probe, seed query |
-| `gooseai` | `gooseai` | Lane C2 context stub via `stub`, seed query |
-| `pi` | `pi` | Lane C2 context stub via `stub`, seed query |
-| `opencode` | `opencode` | Lane C2 context stub via `stub`, seed query |
 | `ollama` | `ollama` | Lane C2 context stub via `stub`, seed query |
 | `argocd` | `argocd` | Lane C2 context stub via `stub`, seed query |
 | `example` | `example` | sample team-overlay signal (`overlay.example`) |

@@ -91,13 +91,13 @@ func (n notifySink) handle(ev signals.Event) {
 
 func (s *Server) SocketPath() string { return config.ServeSocketPath(s.Cfg.Home) }
 
-func (s *Server) openState() (*active.State, func()) {
+func (s *Server) openState() (*active.State, *kv.Store, func()) {
 	store, err := kv.Open(context.Background(), config.DataPath(s.Cfg.Home, config.ServeDB))
 	if err != nil {
 		log.Debugf("serve: cursor persistence unavailable: %v", err)
-		return active.NewState(nil), func() {}
+		return active.NewState(nil), nil, func() {}
 	}
-	return active.NewState(store), func() { _ = store.Close() }
+	return active.NewState(store), store, func() { _ = store.Close() }
 }
 
 func (s *Server) sources(ctx context.Context, name string, interval time.Duration, state *active.State) (sources, error) {
@@ -493,6 +493,7 @@ type RunOptions struct {
 	HTTPPort        int
 	HTTPToken       string
 	HTTPTokenSource string
+	HTTPIdentity    HTTPIdentityOptions
 }
 
 func (s *Server) Run(ctx context.Context, opt RunOptions) error {
@@ -505,7 +506,7 @@ func (s *Server) Run(ctx context.Context, opt RunOptions) error {
 		return err
 	}
 
-	state, closeState := s.openState()
+	state, kvStore, closeState := s.openState()
 	defer closeState()
 
 	src, err := s.sources(cctx, opt.Flight, opt.Interval, state)
@@ -517,7 +518,7 @@ func (s *Server) Run(ctx context.Context, opt RunOptions) error {
 		return err
 	}
 	sink := notifySink{bell: opt.Bell, desktop: opt.Desktop, terminal: opt.Terminal, onState: opt.OnState}
-	s.watch(cctx, cancel, src, sink, ln, opt)
+	s.watch(cctx, cancel, src, sink, ln, kvStore, opt)
 	return nil
 }
 
@@ -533,10 +534,10 @@ type session struct {
 	flightID  int64
 }
 
-func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sources, sink notifySink, ln net.Listener, opt RunOptions) {
+func (s *Server) watch(ctx context.Context, cancel context.CancelFunc, src sources, sink notifySink, ln net.Listener, kvStore *kv.Store, opt RunOptions) {
 	subj := stream.NewSubject[signals.Event]()
 	closeSock := s.socket(ctx, subj)
-	closeAPI := s.httpAPI(ctx, ln, subj, opt, src.infos)
+	closeAPI := s.httpAPI(ctx, ln, subj, kvStore, opt, src.infos)
 	flightID := s.Audit.StartFlightContext(ctx, "serve", s.Role())
 
 	auditCtx, stopAudit := context.WithCancel(context.WithoutCancel(ctx))

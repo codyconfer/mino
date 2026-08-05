@@ -13,7 +13,7 @@ import (
 )
 
 func TestNTRViewsRegistered(t *testing.T) {
-	for _, id := range []string{"ntr.home", "ntr.notes", "ntr.tasks", "ntr.reminders"} {
+	for _, id := range []string{"ntr.home", "ntr.notes", "ntr.tasks", "ntr.reminders", BucketsViewID} {
 		if _, ok := vkdeck.NamedView(id); !ok {
 			t.Fatalf("missing view %s (have %v)", id, vkdeck.ViewKeys())
 		}
@@ -127,4 +127,44 @@ func settleDepth(a *vkdeck.Model, cmd tea.Cmd, depth int) *vkdeck.Model {
 		a = settleDepth(next, more, depth-1)
 	}
 	return a
+}
+
+func TestHomeMenuOffersBucketsEvenWhileDetached(t *testing.T) {
+	pub.SetServiceAttachedFunc(func() bool { return false })
+	t.Cleanup(func() { pub.SetServiceAttachedFunc(plugin.ServiceAttached) })
+
+	v := NewHomeView(t.TempDir(), "default")
+	app := deck.New(v)
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+	got := app.View()
+	for _, want := range []string{"Notes", "Tasks", "Buckets"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("home menu missing %q: %q", want, got)
+		}
+	}
+	if strings.Contains(got, "Reminders") {
+		t.Fatalf("home menu showed Reminders while detached: %q", got)
+	}
+}
+
+func TestHomeMenuBucketsOpensTheIndex(t *testing.T) {
+	pub.SetServiceAttachedFunc(func() bool { return false })
+	t.Cleanup(func() { pub.SetServiceAttachedFunc(plugin.ServiceAttached) })
+
+	v := NewHomeView(t.TempDir(), "default")
+	app := deck.New(v, deck.WithScope(testScope()))
+	app = step(app, tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
+	app = step(app, tea.KeyMsg{Type: tea.KeyDown})
+	app = settle(app, tea.Cmd(nil))
+	app = step(app, tea.KeyMsg{Type: tea.KeyEnter})
+	app = settle(app, nil)
+
+	if _, ok := app.Top().(*bucketList); !ok {
+		t.Fatalf("the third notes-menu row pushed %T, want the buckets index", app.Top())
+	}
+	if got := app.Top().Title(); got != "buckets" {
+		t.Errorf("title = %q, want buckets", got)
+	}
 }

@@ -95,7 +95,13 @@ func Defaults() *Config {
 		GitHub:   GitHubConfig{OAuthScopes: "repo read:org", Max: 30},
 		Daemon: DaemonConfig{
 			Interval: "60s", Bell: true, Theme: "dark",
-			HTTP: HTTPConfig{Host: DefaultHTTPHost, Port: DefaultHTTPPort, MaxConcurrent: DefaultHTTPMaxConcurrent},
+			HTTP: HTTPConfig{
+				Host: DefaultHTTPHost, Port: DefaultHTTPPort, MaxConcurrent: DefaultHTTPMaxConcurrent,
+				Identity: HTTPIdentityConfig{
+					Provider:   DefaultHTTPIdentityProvider,
+					SessionTTL: DefaultHTTPSessionTTL,
+				},
+			},
 		},
 		Cache: CacheConfig{TTL: "60s"},
 	}

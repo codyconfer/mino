@@ -40,6 +40,24 @@ CREATE TABLE IF NOT EXISTS reminders (
   done BOOLEAN,
   created_at TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS buckets (
+  id INTEGER PRIMARY KEY,
+  role VARCHAR,
+  name VARCHAR,
+  kind VARCHAR,
+  anchor VARCHAR,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS bucket_members (
+  bucket_id INTEGER,
+  record_id INTEGER,
+  record_kind VARCHAR,
+  added_at TIMESTAMP,
+  PRIMARY KEY (bucket_id, record_id)
+);
+CREATE INDEX IF NOT EXISTS buckets_anchor_idx ON buckets (role, kind, anchor);
+CREATE INDEX IF NOT EXISTS bucket_members_record_idx ON bucket_members (record_id);
 CREATE SEQUENCE IF NOT EXISTS ntr_id_seq;
 `
 
@@ -134,7 +152,10 @@ func (s *Store) ListNotes(ctx context.Context) ([]Note, error) {
 }
 
 func (s *Store) DeleteNote(ctx context.Context, id int64) error {
-	return s.db.Exec(ctx, `DELETE FROM notes WHERE id = ? AND role = ?`, id, s.role)
+	if err := s.db.Exec(ctx, `DELETE FROM notes WHERE id = ? AND role = ?`, id, s.role); err != nil {
+		return err
+	}
+	return s.forgetRecord(ctx, id)
 }
 
 func (s *Store) CreateTask(ctx context.Context, title string, due time.Time) (Task, error) {
@@ -175,7 +196,10 @@ func (s *Store) SetTaskDone(ctx context.Context, id int64, done bool) error {
 }
 
 func (s *Store) DeleteTask(ctx context.Context, id int64) error {
-	return s.db.Exec(ctx, `DELETE FROM tasks WHERE id = ? AND role = ?`, id, s.role)
+	if err := s.db.Exec(ctx, `DELETE FROM tasks WHERE id = ? AND role = ?`, id, s.role); err != nil {
+		return err
+	}
+	return s.forgetRecord(ctx, id)
 }
 
 func (s *Store) CreateReminder(ctx context.Context, title string, due time.Time) (Reminder, error) {
@@ -280,7 +304,10 @@ func (s *Store) UpdateReminder(ctx context.Context, id int64, title string, due 
 }
 
 func (s *Store) DeleteReminder(ctx context.Context, id int64) error {
-	return s.db.Exec(ctx, `DELETE FROM reminders WHERE id = ? AND role = ?`, id, s.role)
+	if err := s.db.Exec(ctx, `DELETE FROM reminders WHERE id = ? AND role = ?`, id, s.role); err != nil {
+		return err
+	}
+	return s.forgetRecord(ctx, id)
 }
 
 func nullTime(t time.Time) any {

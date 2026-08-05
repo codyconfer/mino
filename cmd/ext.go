@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/mino/internal/app"
+	"github.com/codyconfer/mino/internal/app/serve"
 	"github.com/codyconfer/mino/internal/app/serve/httpapi"
 	"github.com/codyconfer/mino/internal/pluginhost"
 	"github.com/codyconfer/mino/internal/signals/build"
@@ -100,6 +101,10 @@ func CheckServeHTTPHost(fromFlag bool, host string) error { return checkServeHTT
 // ResolveServeHTTPToken returns the API bearer token and where it came from.
 func ResolveServeHTTPToken() (token, source string, err error) {
 	return httpapi.ResolveToken(shared.Cfg.Home, shared.Cfg.Daemon.HTTP.Token)
+}
+
+func ResolveServeHTTPIdentity() (serve.HTTPIdentityOptions, error) {
+	return resolveServeHTTPIdentity()
 }
 
 func StartLoading() { startLaunchLoading() }

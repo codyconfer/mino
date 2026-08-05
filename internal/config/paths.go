@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"path/filepath"
+	"time"
 
 	"github.com/codyconfer/sisyphus"
 	sconfig "github.com/codyconfer/sisyphus/config"
@@ -34,6 +35,13 @@ const (
 	DefaultHTTPHost          = HTTPLoopback
 	DefaultHTTPPort          = 7717
 	DefaultHTTPMaxConcurrent = 4
+)
+
+const (
+	DefaultHTTPIdentityProvider = "github"
+	DefaultHTTPSessionTTL       = "12h"
+	MinHTTPSessionTTL           = time.Minute
+	MaxHTTPSessionTTL           = 90 * 24 * time.Hour
 )
 
 func ServeSocketPath(home string) string { return filepath.Join(home, ServeSocket) }

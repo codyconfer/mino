@@ -8,6 +8,7 @@ import (
 	"github.com/codyconfer/viewkit/theme"
 	"github.com/codyconfer/viewkit/tree"
 
+	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/render/glyph"
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -134,6 +135,9 @@ func sectionLeavesFrame(f layout.Frame, t itemTheme, c tree.Connectors, spad str
 				continue
 			}
 			body = append(body, th.Dim.Render(l))
+		}
+		if hint := signals.CleanLine(errs.Hint(s.Err)); hint != "" {
+			body = append(body, th.Accent.Render("hint: ")+th.Dim.Render(hint))
 		}
 		return []tree.Row{tree.Leaf(c, spad, true, body, "")}
 	case len(s.Items) == 0:

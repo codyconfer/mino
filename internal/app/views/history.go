@@ -16,6 +16,7 @@ import (
 	"github.com/codyconfer/mino/internal/audit"
 	"github.com/codyconfer/mino/internal/deck"
 	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/plugin/ntr"
 	"github.com/codyconfer/mino/internal/signals"
 )
 
@@ -90,7 +91,9 @@ type historyRunView struct {
 	row     audit.AuditRow
 	ctx     []keys.Hint
 	del     *keys.Map
+	file    *keys.Map
 	confirm *forms.Confirm
+	stale   bool
 }
 
 func (k *Kit) historyRun(r audit.AuditRow) vkdeck.View {
@@ -109,24 +112,36 @@ func (k *Kit) historyRun(r audit.AuditRow) vkdeck.View {
 		if err != nil {
 			return []signals.Section{{Signal: r.Name, Title: r.Name, Err: err}}
 		}
-		return secs
+		return k.withFiledCounts(secs)
 	}, k.openDetail)
-	return &historyRunView{
+	out := &historyRunView{
 		Results: lst,
 		kit:     k,
 		row:     r,
 		ctx:     ctx,
 		del:     k.scope().Keys.MapFor(keymap.Delete),
 	}
+	if k.bucketsEnabled() {
+		out.file = k.scope().Keys.MapFor(keymap.File)
+	}
+	return out
 }
 
 func (v *historyRunView) Hints(scope *ui.Scope) []keys.Hint {
-	return append(v.Results.Hints(scope), v.del.Hint(keymap.Delete))
+	hints := append(v.Results.Hints(scope), v.del.Hint(keymap.Delete))
+	if v.file != nil {
+		hints = append(hints, v.file.Hint(keymap.File))
+	}
+	return hints
 }
 
 func (v *historyRunView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
+		if _, resize := msg.(tea.WindowSizeMsg); resize && v.stale {
+			v.stale = false
+			return tea.Batch(v.Results.Update(a, msg), reloadCmd())
+		}
 		return v.Results.Update(a, msg)
 	}
 	if v.confirm != nil {
@@ -136,7 +151,17 @@ func (v *historyRunView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		v.ask()
 		return nil
 	}
+	if v.file != nil {
+		if act, ok := v.file.Action(key.String()); ok && act == keymap.File {
+			return v.fileRun(a)
+		}
+	}
 	return v.Results.Update(a, msg)
+}
+
+func (v *historyRunView) fileRun(a *vkdeck.Model) tea.Cmd {
+	target := ntr.RunTarget(v.row.ID, v.row.Kind, v.row.Name)
+	return a.Push(v.kit.filePicker(target, modelScope(a).Keys, func() { v.stale = true }))
 }
 
 func (v *historyRunView) ask() {
@@ -173,6 +198,19 @@ func (v *historyRunView) remove(a *vkdeck.Model) tea.Cmd {
 	}
 	v.kit.forgetHistory()
 	return tea.Sequence(a.Pop(), reloadCmd())
+}
+
+func (v *historyRunView) Context(scope *ui.Scope) []keys.Hint {
+	cues := v.Results.Context(scope)
+	if v.file == nil {
+		return cues
+	}
+	home, role := v.kit.ntrHomeRole()
+	n, err := ntr.RunFiledCount(home, role, v.row.ID)
+	if err != nil || n == 0 {
+		return cues
+	}
+	return append(cues, keys.Hint{Key: "notes", Label: strconv.Itoa(n)})
 }
 
 func (v *historyRunView) Body(f layout.Frame) string {

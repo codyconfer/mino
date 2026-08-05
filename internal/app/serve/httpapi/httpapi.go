@@ -12,6 +12,9 @@ import (
 	"io"
 	"net/http"
 	"runtime/debug"
+	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -101,6 +104,35 @@ type Deps struct {
 
 	// Timeout bounds a single action run.
 	Timeout func() time.Duration
+
+	Identity    map[string]IdentityProvider
+	Sessions    SessionStore
+	AuthBinding func() string
+	AuditAuth   func(event string, attrs map[string]string)
+}
+
+type DeviceAuth struct {
+	DeviceCode              string
+	UserCode                string
+	VerificationURI         string
+	VerificationURIComplete string
+	Interval                time.Duration
+	ExpiresIn               time.Duration
+}
+
+type DeviceResult struct {
+	Pending  bool
+	SlowDown bool
+	Denied   bool
+	Expired  bool
+	Login    string
+	UserID   int64
+	Kind     string
+}
+
+type IdentityProvider interface {
+	Start(ctx context.Context) (DeviceAuth, error)
+	Poll(ctx context.Context, deviceCode string) (DeviceResult, error)
 }
 
 // Config configures the API handler.
@@ -110,6 +142,8 @@ type Config struct {
 	BindHost    string
 	// MaxConcurrent bounds simultaneous flight/query/action runs.
 	MaxConcurrent int
+	AllowedLogins []string
+	SessionTTL    time.Duration
 }
 
 // API serves the trigger endpoints.
@@ -119,9 +153,20 @@ type API struct {
 	tokenSource string
 	hostGuard   bool
 
-	runs    chan struct{}
-	sseSlot chan struct{}
-	started time.Time
+	identity      bool
+	allowed       map[string]bool
+	providerNames []string
+	authHint      string
+	sessions      *sessions
+
+	pendingMu sync.Mutex
+	pending   map[string]*pendingAuth
+	rate      map[string]*rateEntry
+
+	runs     chan struct{}
+	sseSlot  chan struct{}
+	authSlot chan struct{}
+	started  time.Time
 }
 
 // New returns an API ready to serve.
@@ -130,15 +175,54 @@ func New(cfg Config, d Deps) *API {
 	if limit <= 0 {
 		limit = 1
 	}
-	return &API{
+	ttl := cfg.SessionTTL
+	if ttl <= 0 {
+		ttl = 12 * time.Hour
+	}
+	a := &API{
 		deps:        d,
 		token:       cfg.Token,
 		tokenSource: cfg.TokenSource,
 		hostGuard:   LoopbackBind(cfg.BindHost),
+		allowed:     map[string]bool{},
+		pending:     map[string]*pendingAuth{},
+		rate:        map[string]*rateEntry{},
 		runs:        make(chan struct{}, limit),
 		sseSlot:     make(chan struct{}, maxSSEConns),
+		authSlot:    make(chan struct{}, maxAuthOutbound),
 		started:     time.Now(),
 	}
+	a.identity = len(d.Identity) > 0 && d.Sessions != nil
+	for _, l := range cfg.AllowedLogins {
+		if v := strings.ToLower(strings.TrimSpace(l)); v != "" {
+			a.allowed[v] = true
+		}
+	}
+	for name := range d.Identity {
+		a.providerNames = append(a.providerNames, name)
+	}
+	sort.Strings(a.providerNames)
+	a.sessions = newSessions(d.Sessions, ttl)
+	a.authHint = authHint(cfg.Token != "", a.identity, cfg.TokenSource, a.providerNames, a.hostGuard)
+	if a.identity {
+		a.sessions.load(context.Background(), a.binding())
+	}
+	return a
+}
+
+func authHint(hasToken, identity bool, tokenSource string, providers []string, loopback bool) string {
+	tokenPart := "pass the API bearer token"
+	if hasToken && loopback && tokenSource != "" {
+		tokenPart = "pass the token from " + tokenSource
+	}
+	if !identity {
+		return tokenPart
+	}
+	signIn := "POST /api/v1/auth/device/" + providers[0] + " to sign in"
+	if !hasToken {
+		return signIn
+	}
+	return tokenPart + ", or " + signIn
 }
 
 // Handler returns the routed handler.
@@ -151,12 +235,19 @@ func (a *API) Handler() http.Handler {
 	r.RedirectFixedPath = false
 	r.UseRawPath = true
 	r.UnescapePathValues = true
+	_ = r.SetTrustedProxies(nil)
 
 	r.Use(a.recover500())
 	r.NoRoute(a.notFound)
 	r.NoMethod(a.notAllowed)
 
 	r.GET("/healthz", a.healthz)
+
+	if a.identity {
+		login := r.Group("/api/v1/auth", a.hostGuardOnly())
+		login.POST("/device/:provider", a.authDevice)
+		login.POST("/device/:provider/token", a.authToken)
+	}
 
 	v1 := r.Group("/api/v1", a.authRequired())
 	v1.GET("/status", a.status)
@@ -168,6 +259,10 @@ func (a *API) Handler() http.Handler {
 	v1.POST("/flights/:name", a.runFlight)
 	v1.POST("/queries/:name", a.runQuery)
 	v1.POST("/actions/:signal/:name", a.runAction)
+	if a.identity {
+		v1.GET("/auth/session", a.authSession)
+		v1.DELETE("/auth/session", a.authLogout)
+	}
 	return r
 }
 

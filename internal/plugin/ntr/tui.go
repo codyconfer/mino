@@ -12,12 +12,19 @@ import (
 	"github.com/codyconfer/mino/internal/render/glyph"
 )
 
+const BucketsViewID = "ntr.buckets"
+
+const remindersViewID = "ntr.reminders"
+
 func init() {
 	plugin.RegisterView(PluginID, "ntr.home", func() vkdeck.View { return &HomeView{} })
 	plugin.RegisterView(PluginID, "ntr.notes", func() vkdeck.View { return newNotesList("", "") })
 	plugin.RegisterView(PluginID, "ntr.tasks", func() vkdeck.View { return newTasksList("", "") })
-	plugin.RegisterView(PluginID, "ntr.reminders", func() vkdeck.View { return newRemindersList("", "") }, plugin.WithServiceOnly())
+	plugin.RegisterView(PluginID, remindersViewID, func() vkdeck.View { return newRemindersList("", "") }, plugin.WithServiceOnly())
+	plugin.RegisterView(PluginID, BucketsViewID, func() vkdeck.View { return newBucketList("", "") })
 }
+
+func NewBucketsView(home, role string) vkdeck.View { return newBucketList(home, role) }
 
 func RunTUI(home, role string) error {
 	if role == "" {
@@ -60,7 +67,7 @@ func NewHomeView(home, role string) *HomeView {
 			},
 		},
 	}
-	if plugin.ViewUIVisible("ntr.reminders") {
+	if plugin.ViewUIVisible(remindersViewID) {
 		items = append(items, vkdeck.MenuItem{
 			Label: "Reminders",
 			Desc:  "build, edit, and complete reminders",
@@ -71,12 +78,21 @@ func NewHomeView(home, role string) *HomeView {
 			},
 		})
 	}
+	items = append(items, vkdeck.MenuItem{
+		Label: "Buckets",
+		Desc:  "group records; anchor them to items and runs",
+		Icon:  glyph.Bucket(),
+		Hue:   bucketHue,
+		OnSelect: func(h *vkdeck.Model) tea.Cmd {
+			return h.Push(newBucketList(home, role))
+		},
+	})
 	v.menu = vkdeck.NewMenu("notes", []keys.Hint{{Key: "role", Label: role}}, items...)
 	return v
 }
 
 func RemindersUIVisible() bool {
-	return plugin.ViewUIVisible("ntr.reminders")
+	return plugin.ViewUIVisible(remindersViewID)
 }
 
 func NewNoteBuilder(home, role string, sc keys.Scheme) vkdeck.View {

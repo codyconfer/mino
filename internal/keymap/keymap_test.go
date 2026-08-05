@@ -42,7 +42,7 @@ func TestFormDefaultSchemeKeepsOnlyMultiRuneKeys(t *testing.T) {
 		assertBound(t, m, k, want)
 	}
 
-	for _, k := range []string{"k", "j", "h", "l", " ", "q", "i", "u"} {
+	for _, k := range []string{"k", "j", "h", "l", " ", "q", "i", "u", "x", "e", "f"} {
 		assertUnbound(t, m, k)
 	}
 

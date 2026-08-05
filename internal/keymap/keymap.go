@@ -27,6 +27,8 @@ const (
 	PluginInstall   keys.Action = "mino.plugin.install"
 	PluginUninstall keys.Action = "mino.plugin.uninstall"
 	Toggle          keys.Action = "mino.toggle"
+	File            keys.Action = "mino.file"
+	Rename          keys.Action = "mino.rename"
 )
 
 func minoBindings() []keys.Binding {
@@ -42,6 +44,8 @@ func minoBindings() []keys.Binding {
 		{Keys: []string{"i"}, Action: PluginInstall, Glyph: "i", Label: "install"},
 		{Keys: []string{"u"}, Action: PluginUninstall, Glyph: "u", Label: "uninstall"},
 		{Keys: []string{"x"}, Action: Toggle, Glyph: "x", Label: "done"},
+		{Keys: []string{"f"}, Action: File, Glyph: "f", Label: "file"},
+		{Keys: []string{"e"}, Action: Rename, Glyph: "e", Label: "rename"},
 	}
 }
 
@@ -100,11 +104,11 @@ func Plugins(sc keys.Scheme) *keys.Map {
 }
 
 func Detail(sc keys.Scheme) *keys.Map {
-	return sc.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Open, keys.Cancel, keys.Quit)
+	return sc.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Open, File, keys.Cancel, keys.Quit)
 }
 
 func ItemList(sc keys.Scheme) *keys.Map {
-	return sc.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Confirm, keys.Open, keys.Cancel, keys.Quit)
+	return sc.MapFor(keys.Up, keys.Down, keys.PageUp, keys.PageDown, keys.Confirm, keys.Open, File, keys.Cancel, keys.Quit)
 }
 
 func ConfirmMap(sc keys.Scheme) *keys.Map {

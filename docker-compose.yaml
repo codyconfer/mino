@@ -38,6 +38,15 @@ services:
       # Still honoured, below service auth: a human's token, with a human's rate limit
       # and name on every action mino takes.
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # Optional: let named humans sign in with GitHub instead of sharing the token
+      # above. Off unless enabled, and an empty allowed_logins with it on is a startup
+      # error, not a permissive default. The client id must be an OAuth App with
+      # "Enable Device Flow" ticked — unrelated to MINO_GITHUB_* above, which is how
+      # mino talks *to* GitHub rather than who may talk *to mino*. Every allowed login
+      # gets the same power the token has.
+      # MINO_DAEMON_HTTP_IDENTITY_ENABLED: "true"
+      # MINO_DAEMON_HTTP_IDENTITY_CLIENT_ID: ${MINO_HTTP_IDENTITY_CLIENT_ID:-}
+      # MINO_DAEMON_HTTP_IDENTITY_ALLOWED_LOGINS: ${MINO_HTTP_IDENTITY_LOGINS:-}
     # Compose cannot express "one of these three credentials", so enforcement lives in
     # mino: with none of them set, no realtime source opens and serve exits naming the
     # queries it skipped and why.

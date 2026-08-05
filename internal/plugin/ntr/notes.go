@@ -27,12 +27,13 @@ func noteRecord(n Note) record {
 func newNoteView(home, role string, base record, dirty func(), sc keys.Scheme) *noteView {
 	v := &noteView{base: base}
 	v.recordCore = recordCore{
-		home:  home,
-		role:  role,
-		kind:  kindNote,
-		id:    base.ID,
-		copy:  clipboard.Copy,
-		dirty: dirty,
+		home:   home,
+		role:   role,
+		kind:   kindNote,
+		id:     base.ID,
+		bucket: base.Bucket,
+		copy:   clipboard.Copy,
+		dirty:  dirty,
 	}
 	v.read = v.note
 	v.editorShell = newRecordEditor(v, map[string]any{
@@ -84,7 +85,7 @@ func (v *noteView) Persist() (string, error) {
 			return err
 		}
 		id = n.ID
-		return nil
+		return v.fileNew(ctx, st, id)
 	})
 	if err != nil {
 		return "", err

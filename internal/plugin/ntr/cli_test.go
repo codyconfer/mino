@@ -3,6 +3,7 @@ package ntr
 import (
 	"bytes"
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -169,5 +170,147 @@ func TestCLICatchUpAck(t *testing.T) {
 	st.Close()
 	if err != nil || len(due) != 0 {
 		t.Fatalf("due after catch-up = %v err=%v", due, err)
+	}
+}
+
+func TestCLIBucketsRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	var out bytes.Buffer
+	scope := testScope()
+
+	if err := CLIBucketsAdd(ctx, &out, scope, home, "r", "escalations"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "created") {
+		t.Fatalf("add output = %q, want a created notice", out.String())
+	}
+
+	out.Reset()
+	if err := CLIBucketsList(ctx, &out, scope, home, "r"); err != nil {
+		t.Fatal(err)
+	}
+	line := strings.TrimSpace(out.String())
+	if !strings.Contains(line, "escalations") || !strings.Contains(line, "user") {
+		t.Fatalf("list output = %q, want the user bucket", line)
+	}
+	id := strings.Split(line, "\t")[0]
+
+	out.Reset()
+	if err := CLIBucketsRename(ctx, &out, scope, home, "r", id, "pages"); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := CLIBucketsList(ctx, &out, scope, home, "r"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "pages") {
+		t.Fatalf("list output = %q, want the renamed bucket", out.String())
+	}
+
+	out.Reset()
+	if err := CLINotesAdd(ctx, &out, scope, home, "r", "a note", ""); err != nil {
+		t.Fatal(err)
+	}
+	st := openStore(t, home, "r")
+	notes, _ := st.ListNotes(ctx)
+	noteID := strconv.FormatInt(notes[0].ID, 10)
+
+	out.Reset()
+	if err := CLIBucketsFile(ctx, &out, scope, home, "r", id, noteID); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "note") {
+		t.Fatalf("file output = %q, want the inferred kind", out.String())
+	}
+
+	out.Reset()
+	if err := CLIBucketsShow(ctx, &out, scope, home, "r", id); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "a note") {
+		t.Fatalf("show output = %q, want the member listed", out.String())
+	}
+
+	out.Reset()
+	if err := CLIBucketsFor(ctx, &out, scope, home, "r", noteID); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "pages") {
+		t.Fatalf("for output = %q, want the bucket listed", out.String())
+	}
+
+	out.Reset()
+	if err := CLIBucketsUnfile(ctx, &out, scope, home, "r", id, noteID); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "kept") {
+		t.Fatalf("unfile output = %q, want it to say the record is kept", out.String())
+	}
+
+	out.Reset()
+	if err := CLIBucketsRM(ctx, &out, scope, home, "r", id); err != nil {
+		t.Fatal(err)
+	}
+	if notes, _ := st.ListNotes(ctx); len(notes) != 1 {
+		t.Fatalf("ListNotes = %v, want the note to outlive the bucket", notes)
+	}
+}
+
+func TestCLIAddInFilesAndPlainAddDoesNot(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	var out bytes.Buffer
+	scope := testScope()
+	st := openStore(t, home, "r")
+	b, err := st.CreateBucket(ctx, "shift", BucketKindUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strconv.FormatInt(b.ID, 10)
+
+	if err := CLINotesAddIn(ctx, &out, scope, home, "r", "filed note", "", id); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "filed into bucket") {
+		t.Fatalf("output = %q, want the filing reported", out.String())
+	}
+	if err := CLITasksAddIn(ctx, &out, scope, home, "r", "filed task", id); err != nil {
+		t.Fatal(err)
+	}
+	if err := CLIRemindAddIn(ctx, &out, scope, home, "r", "filed reminder", "10m", id); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := st.bucketRecords(ctx, b.ID)
+	if err != nil || len(recs) != 3 {
+		t.Fatalf("bucketRecords = %v err=%v, want all three filed", recs, err)
+	}
+
+	if err := CLINotesAdd(ctx, &out, scope, home, "r", "loose note", ""); err != nil {
+		t.Fatal(err)
+	}
+	recs, _ = st.bucketRecords(ctx, b.ID)
+	if len(recs) != 3 {
+		t.Fatalf("bucketRecords = %v, want the plain add to file nothing", recs)
+	}
+}
+
+func TestCLIBucketsRejectsBadInput(t *testing.T) {
+	ctx := context.Background()
+	home := t.TempDir()
+	var out bytes.Buffer
+	scope := testScope()
+
+	if err := CLIBucketsAdd(ctx, &out, scope, home, "r", "   "); err == nil {
+		t.Error("CLIBucketsAdd accepted a blank name")
+	}
+	if err := CLIBucketsShow(ctx, &out, scope, home, "r", "9999"); err == nil {
+		t.Error("CLIBucketsShow accepted an unknown bucket")
+	}
+	if err := CLIBucketsFile(ctx, &out, scope, home, "r", "1", "notanumber"); err == nil {
+		t.Error("CLIBucketsFile accepted a non-numeric record id")
+	}
+	if err := CLINotesAddIn(ctx, &out, scope, home, "r", "t", "", "notanumber"); err == nil {
+		t.Error("CLINotesAddIn accepted a non-numeric bucket")
 	}
 }

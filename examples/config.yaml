@@ -59,6 +59,7 @@ keybinds:
   alt+n: ntr.note.new      # open a note builder
   alt+r: ntr.remind.new    # open a reminder builder
   alt+t: ntr.task.new      # open a task builder
+  alt+b: ntr.buckets       # open the buckets index
   alt+[: role.prev         # previous role; cycles through "no role" (hooks debounced)
   alt+]: role.next         # next role; cycles through "no role" (hooks debounced)
   # alt+f: morning         # example: jump straight to a flight
@@ -82,6 +83,21 @@ daemon:
     port: 7717      # unprivileged port for that API
     max_concurrent: 4 # simultaneous flight/query/action runs before 429
     # token: ""     # bearer token; leave unset and mino generates one in .data/http.token (0600)
+    identity:       # let a human sign in with a GitHub identity instead of sharing the token
+      enabled: false      # off unless asked for; the token above keeps working either way
+      provider: github    # the only provider the stock binary serves
+      # client_id: ""     # an OAuth App client id with "Enable Device Flow" ticked. Separate from
+                          # github.oauth_client_id (that one is the OUTBOUND `mino login github`
+                          # credential); falls back to it when unset. Device flow is a public
+                          # client, so there is no secret to set here.
+      allowed_logins: []  # who may sign in. Empty with enabled: true is a STARTUP ERROR, never
+                          # "allow everyone". Comma-separated works too, so
+                          # MINO_DAEMON_HTTP_IDENTITY_ALLOWED_LOGINS=alice,bob does what it looks like.
+      session_ttl: 12h    # sessions expire and are not renewed; sign in again. Capped at 90d.
+      # scopes: ""        # leave empty: resolving a login needs no scope, and mino throws the
+                          # GitHub token away as soon as it has the login.
+      # Every allowed login gets exactly the power the token has: requests still run as the
+      # serve session's role. This is authentication, not authorization.
 
 # Per-signal defaults. A saved query may override any of these via its `params`.
 # Which git forge mino authenticates against for onboarding checks, the deck status

@@ -2,6 +2,7 @@ package views
 
 import (
 	"maps"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,7 +14,9 @@ import (
 	"github.com/codyconfer/viewkit/ui"
 
 	"github.com/codyconfer/mino/internal/app/pane"
+	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/keymap"
+	"github.com/codyconfer/mino/internal/plugin/ntr"
 	"github.com/codyconfer/mino/internal/render"
 	"github.com/codyconfer/mino/internal/signals"
 )
@@ -30,6 +33,7 @@ const detailAnimationInterval = 80 * time.Millisecond
 
 type DetailView struct {
 	ref            render.ItemRef
+	kit            *Kit
 	fetch          func(signal string, it signals.Item) (*signals.ItemDetail, error)
 	open           func(url string) error
 	detail         *signals.ItemDetail
@@ -43,7 +47,19 @@ type DetailView struct {
 }
 
 func (k *Kit) Detail(ref render.ItemRef) vkdeck.View {
-	return &DetailView{ref: ref, fetch: k.d.FetchDetail, pollInterval: workflowPollInterval}
+	return &DetailView{ref: ref, kit: k, fetch: k.d.FetchDetail, pollInterval: workflowPollInterval}
+}
+
+func (v *DetailView) canFile() bool {
+	return v.kit != nil && v.ref.Item.URL != "" && v.kit.bucketsEnabled()
+}
+
+func (v *DetailView) fileItem(h *vkdeck.Model) tea.Cmd {
+	if !v.canFile() {
+		return nil
+	}
+	target := ntr.ItemTarget(v.ref.Signal, v.ref.Item)
+	return h.Push(v.kit.filePicker(target, modelScope(h).Keys, nil))
 }
 
 func (v *DetailView) Title() string { return render.ItemLabel(v.ref.Item) }
@@ -144,6 +160,8 @@ func (v *DetailView) handleKey(h *vkdeck.Model, m tea.KeyMsg) tea.Cmd {
 	switch act {
 	case keys.Open:
 		return v.openItem()
+	case keymap.File:
+		return v.fileItem(h)
 	case keys.Cancel:
 		return h.Pop()
 	}
@@ -177,7 +195,11 @@ func (v *DetailView) Body(f layout.Frame) string {
 	f = f.Screen()
 	body := render.DetailPanelFrame(f, v.ref, v.detail, v.animFrame())
 	if v.err != nil {
-		body = f.Theme().Cant.Render(signals.Clean(v.err.Error())) + "\n" + body
+		head := f.Theme().Cant.Render(signals.Clean(v.err.Error()))
+		if hint := signals.CleanLine(errs.Hint(v.err)); hint != "" {
+			head += "\n" + f.Theme().Accent.Render("hint: ") + f.Theme().Dim.Render(hint)
+		}
+		body = head + "\n" + body
 	}
 	return v.scroll.View(f, body, height)
 }
@@ -190,6 +212,9 @@ func (v *DetailView) Hints(scope *ui.Scope) []keys.Hint {
 	}
 	if v.ref.Item.URL != "" {
 		hints = append(hints, km.HintLabeled(keys.Open, "open"))
+	}
+	if v.canFile() {
+		hints = append(hints, km.Hint(keymap.File))
 	}
 	return hints
 }
@@ -222,6 +247,9 @@ func (v *DetailView) Context(scope *ui.Scope) []keys.Hint {
 		cues = append(cues, keys.Hint{Key: "detail", Label: "loading…"})
 	case v.err != nil:
 		cues = append(cues, keys.Hint{Key: "detail", Label: "unavailable"})
+	}
+	if n := strings.TrimSpace(v.ref.Item.Meta[signals.MetaFiled]); n != "" && n != "0" {
+		cues = append(cues, keys.Hint{Key: "notes", Label: n})
 	}
 	if v.ref.Meta["cache"] == "stale" {
 		cues = append(cues, keys.Hint{Key: "cache", Label: "stale " + signals.CleanLine(v.ref.Meta["age"])})

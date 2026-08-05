@@ -75,6 +75,7 @@ func newServeCmd() *cobra.Command {
 				httpHost = configServeHTTPHost()
 			}
 			var httpToken, httpTokenSource string
+			var httpIdentity serve.HTTPIdentityOptions
 			if httpAPI {
 				if err := checkServeHTTPPort(f.Changed("http-port"), httpPort); err != nil {
 					return err
@@ -87,6 +88,11 @@ func newServeCmd() *cobra.Command {
 					return err
 				}
 				httpToken, httpTokenSource = tok, src
+				id, err := resolveServeHTTPIdentity()
+				if err != nil {
+					return err
+				}
+				httpIdentity = id
 			}
 			name, err := resolveServeFlight(args)
 			if err != nil {
@@ -108,6 +114,7 @@ func newServeCmd() *cobra.Command {
 				HTTPPort:        httpPort,
 				HTTPToken:       httpToken,
 				HTTPTokenSource: httpTokenSource,
+				HTTPIdentity:    httpIdentity,
 			})
 			// Run only errors when startup failed, in which case nothing was
 			// serving and "shutting down" is a confusing thing to read above the

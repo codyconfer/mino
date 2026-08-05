@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codyconfer/sisyphus/kv"
 	"github.com/codyconfer/sisyphus/stream"
 
 	"github.com/codyconfer/mino/internal/app/flight"
@@ -59,7 +60,7 @@ func apiHost(opt RunOptions) string {
 }
 
 // httpAPI serves the trigger API over ln; the returned func shuts it down.
-func (s *Server) httpAPI(ctx context.Context, ln net.Listener, subj *stream.Subject[signals.Event], opt RunOptions, srcs []httpapi.SourceInfo) func() {
+func (s *Server) httpAPI(ctx context.Context, ln net.Listener, subj *stream.Subject[signals.Event], kvStore *kv.Store, opt RunOptions, srcs []httpapi.SourceInfo) func() {
 	if ln == nil {
 		return func() {}
 	}
@@ -68,7 +69,9 @@ func (s *Server) httpAPI(ctx context.Context, ln net.Listener, subj *stream.Subj
 		TokenSource:   opt.HTTPTokenSource,
 		BindHost:      apiHost(opt),
 		MaxConcurrent: s.apiMaxConcurrent(),
-	}, s.apiDeps(subj, opt, srcs))
+		AllowedLogins: opt.HTTPIdentity.AllowedLogins,
+		SessionTTL:    opt.HTTPIdentity.SessionTTL,
+	}, s.apiDeps(subj, kvStore, opt, srcs))
 
 	srv := &http.Server{
 		Handler:           api.Handler(),
@@ -88,9 +91,24 @@ func (s *Server) httpAPI(ctx context.Context, ln net.Listener, subj *stream.Subj
 	// the port and where to read the token from. Never print the token itself —
 	// it would land in the log dir and in tmux scrollback.
 	fmt.Fprintf(os.Stderr, "http api  http://%s (token: %s)\n", ln.Addr(), opt.HTTPTokenSource)
+	if opt.HTTPIdentity.Enabled {
+		if kvStore == nil {
+			fmt.Fprintf(os.Stderr, "http api  WARNING %s sign-in is configured but the session store at %s "+
+				"could not be opened, so every sign-in will fail\n",
+				opt.HTTPIdentity.Provider, config.DataPath(s.Cfg.Home, config.ServeDB))
+		} else {
+			fmt.Fprintf(os.Stderr, "http api  %s sign-in: %d allowed login(s), sessions expire after %s\n",
+				opt.HTTPIdentity.Provider, len(opt.HTTPIdentity.AllowedLogins), opt.HTTPIdentity.SessionTTL)
+		}
+	}
 	if !httpapi.LoopbackBind(apiHost(opt)) {
+		guard := "the bearer token is the only guard"
+		if opt.HTTPIdentity.Enabled {
+			guard = "the bearer token and an allow-listed " + opt.HTTPIdentity.Provider +
+				" sign-in are the only guards, and both cross the network in cleartext"
+		}
 		fmt.Fprintf(os.Stderr, "http api  WARNING bound to %s: flight, query and action triggers are "+
-			"reachable beyond this machine and the bearer token is the only guard\n", apiHost(opt))
+			"reachable beyond this machine and %s\n", apiHost(opt), guard)
 	}
 
 	return func() {
@@ -115,7 +133,7 @@ func (s *Server) apiMaxConcurrent() int {
 // apiDeps wires the API to this server. Handlers must use these accessors rather
 // than reading s.Directives or s.Cfg.Role directly: Dirs() and Role() take the
 // App read lock, so a concurrent RefreshDirectives is safe only through them.
-func (s *Server) apiDeps(subj *stream.Subject[signals.Event], opt RunOptions, srcs []httpapi.SourceInfo) httpapi.Deps {
+func (s *Server) apiDeps(subj *stream.Subject[signals.Event], kvStore *kv.Store, opt RunOptions, srcs []httpapi.SourceInfo) httpapi.Deps {
 	return httpapi.Deps{
 		RunFlight: func(ctx context.Context, name string) ([]signals.Section, error) {
 			return run.Flight(ctx, s.App, name)
@@ -171,7 +189,16 @@ func (s *Server) apiDeps(subj *stream.Subject[signals.Event], opt RunOptions, sr
 		},
 		Encode:  Encode,
 		Timeout: s.SourceTimeout,
+
+		Identity:    apiIdentityProviders(opt.HTTPIdentity),
+		Sessions:    newSessionStore(kvStore),
+		AuthBinding: func() string { return opt.HTTPIdentity.binding(s.Cfg.Home) },
+		AuditAuth:   s.apiAuditAuth,
 	}
+}
+
+func (s *Server) apiAuditAuth(event string, attrs map[string]string) {
+	s.Audit.RecordAuth(event, s.Role(), attrs)
 }
 
 // apiConfig returns the active config with every secret redacted.

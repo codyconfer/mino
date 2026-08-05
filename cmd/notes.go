@@ -19,6 +19,7 @@ func newNotesCmd() *cobra.Command {
 		newNotesRMCmd(),
 		newNotesTasksCmd(),
 		newNotesRemindCmd(),
+		newNotesBucketsCmd(),
 		newNotesCatchUpCmd(),
 		newNotesUICmd(),
 	)
@@ -58,7 +59,8 @@ func newNotesListCmd() *cobra.Command {
 }
 
 func newNotesAddCmd() *cobra.Command {
-	return &cobra.Command{
+	var bucket string
+	cmd := &cobra.Command{
 		Use:   "add <title> [body]",
 		Short: "Add a note",
 		Args:  cobra.RangeArgs(1, 2),
@@ -68,9 +70,11 @@ func newNotesAddCmd() *cobra.Command {
 				body = args[1]
 			}
 			home, role := notesHomeRole()
-			return ntr.CLINotesAdd(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], body)
+			return ntr.CLINotesAddIn(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], body, bucket)
 		},
 	}
+	cmd.Flags().StringVar(&bucket, "bucket", "", "file the new note into this bucket id")
+	return cmd
 }
 
 func newNotesUpdateCmd() *cobra.Command {
@@ -112,15 +116,7 @@ func newNotesTasksCmd() *cobra.Command {
 				return ntr.CLITasksList(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role)
 			},
 		},
-		&cobra.Command{
-			Use:   "add <title>",
-			Short: "Add a task",
-			Args:  cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				home, role := notesHomeRole()
-				return ntr.CLITasksAdd(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
-			},
-		},
+		newNotesTasksAddCmd(),
 		&cobra.Command{
 			Use:   "done <id>",
 			Short: "Mark a task done",
@@ -164,15 +160,7 @@ func newNotesRemindCmd() *cobra.Command {
 				return ntr.CLIRemindList(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role)
 			},
 		},
-		&cobra.Command{
-			Use:   "add <title> <duration>",
-			Short: "Create a reminder due after duration (e.g. 10m, 2h)",
-			Args:  cobra.ExactArgs(2),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				home, role := notesHomeRole()
-				return ntr.CLIRemindAdd(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], args[1])
-			},
-		},
+		newNotesRemindAddCmd(),
 		&cobra.Command{
 			Use:   "done <id>",
 			Short: "Mark a reminder done (removes from open list)",
@@ -196,4 +184,113 @@ func newNotesCatchUpCmd() *cobra.Command {
 			return ntr.CLICatchUp(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role)
 		},
 	}
+}
+
+func newNotesTasksAddCmd() *cobra.Command {
+	var bucket string
+	cmd := &cobra.Command{
+		Use:   "add <title>",
+		Short: "Add a task",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			home, role := notesHomeRole()
+			return ntr.CLITasksAddIn(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], bucket)
+		},
+	}
+	cmd.Flags().StringVar(&bucket, "bucket", "", "file the new task into this bucket id")
+	return cmd
+}
+
+func newNotesRemindAddCmd() *cobra.Command {
+	var bucket string
+	cmd := &cobra.Command{
+		Use:   "add <title> <duration>",
+		Short: "Create a reminder due after duration (e.g. 10m, 2h)",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			home, role := notesHomeRole()
+			return ntr.CLIRemindAddIn(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], args[1], bucket)
+		},
+	}
+	cmd.Flags().StringVar(&bucket, "bucket", "", "file the new reminder into this bucket id")
+	return cmd
+}
+
+func newNotesBucketsCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "buckets", Short: "Group records into buckets, anchored or hand-named"}
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "list",
+			Short: "List buckets (id, members, kind, name)",
+			Args:  cobra.NoArgs,
+			RunE: func(cmd *cobra.Command, _ []string) error {
+				home, role := notesHomeRole()
+				return ntr.CLIBucketsList(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role)
+			},
+		},
+		&cobra.Command{
+			Use:   "show <id>",
+			Short: "Show a bucket and the records filed into it",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				home, role := notesHomeRole()
+				return ntr.CLIBucketsShow(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "add <name>",
+			Short: "Create a bucket",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				home, role := notesHomeRole()
+				return ntr.CLIBucketsAdd(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "rename <id> <name>",
+			Short: "Rename a bucket",
+			Args:  cobra.ExactArgs(2),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				home, role := notesHomeRole()
+				return ntr.CLIBucketsRename(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], args[1])
+			},
+		},
+		&cobra.Command{
+			Use:   "rm <id>",
+			Short: "Delete a bucket; the records filed into it are kept",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				home, role := notesHomeRole()
+				return ntr.CLIBucketsRM(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
+			},
+		},
+		&cobra.Command{
+			Use:   "file <bucket> <id>",
+			Short: "File an existing note, task, or reminder into a bucket",
+			Args:  cobra.ExactArgs(2),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				home, role := notesHomeRole()
+				return ntr.CLIBucketsFile(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], args[1])
+			},
+		},
+		&cobra.Command{
+			Use:   "unfile <bucket> <id>",
+			Short: "Remove a record from a bucket, keeping the record",
+			Args:  cobra.ExactArgs(2),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				home, role := notesHomeRole()
+				return ntr.CLIBucketsUnfile(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0], args[1])
+			},
+		},
+		&cobra.Command{
+			Use:   "for <id>",
+			Short: "List the buckets a record is filed into",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				home, role := notesHomeRole()
+				return ntr.CLIBucketsFor(cmd.Context(), cmd.OutOrStdout(), Scope(), home, role, args[0])
+			},
+		},
+	)
+	return cmd
 }

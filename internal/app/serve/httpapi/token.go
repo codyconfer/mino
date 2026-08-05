@@ -57,21 +57,39 @@ func LoopbackBind(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-func (a *API) authorized(r *http.Request) bool {
-	if a.token == "" {
-		return false
-	}
+func (a *API) authenticate(r *http.Request) (Principal, bool) {
 	if a.hostGuard && !a.loopbackHost(r.Host) {
-		return false
+		return Principal{}, false
 	}
 	scheme, presented, ok := strings.Cut(r.Header.Get("Authorization"), " ")
 	if !ok || !strings.EqualFold(scheme, "bearer") {
-		return false
+		return Principal{}, false
 	}
 	got := strings.TrimSpace(presented)
-	// ConstantTimeCompare returns 0 on a length mismatch, so this also rejects
-	// a prefix of the real token.
-	return subtle.ConstantTimeCompare([]byte(got), []byte(a.token)) == 1
+	if got == "" {
+		return Principal{}, false
+	}
+	staticOK := a.token != "" && subtle.ConstantTimeCompare([]byte(got), []byte(a.token)) == 1
+	if staticOK {
+		return Principal{Kind: "token"}, true
+	}
+	if !a.identity {
+		return Principal{}, false
+	}
+	hash := hashToken(got)
+	rec, found := a.sessions.lookup(hash, a.binding())
+	if !found {
+		return Principal{}, false
+	}
+	return Principal{
+		Kind:      "session",
+		Provider:  rec.Provider,
+		Login:     rec.Login,
+		UserID:    rec.UserID,
+		SessionID: rec.ID,
+		ExpiresAt: rec.ExpiresAt,
+		hash:      hash,
+	}, true
 }
 
 func (a *API) loopbackHost(host string) bool {
@@ -89,12 +107,14 @@ func (a *API) loopbackHost(host string) bool {
 
 func (a *API) authRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !a.authorized(c.Request) {
+		p, ok := a.authenticate(c.Request)
+		if !ok {
 			c.Header("WWW-Authenticate", `Bearer realm="mino"`)
 			abortErrStatus(c, http.StatusUnauthorized, errs.KindAuth,
-				"missing or invalid bearer token", "pass the token from "+a.tokenSource)
+				"missing or invalid bearer token", a.authHint)
 			return
 		}
+		c.Set(principalKey, p)
 		c.Next()
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/codyconfer/viewkit/keys"
 	"github.com/codyconfer/viewkit/layout"
 	"github.com/codyconfer/viewkit/list"
+	"github.com/codyconfer/viewkit/theme"
 	"github.com/codyconfer/viewkit/timefmt"
 	"github.com/codyconfer/viewkit/ui"
 
@@ -81,12 +82,17 @@ type recordList struct {
 	home      string
 	role      string
 	kind      string
+	bucket    int64
 	canToggle bool
 	stale     bool
 }
 
 func newRecordList(home, role, kind string) *recordList {
-	v := &recordList{home: home, role: role, kind: kind}
+	return newRecordListIn(home, role, kind, 0)
+}
+
+func newRecordListIn(home, role, kind string, bucket int64) *recordList {
+	v := &recordList{home: home, role: role, kind: kind, bucket: bucket}
 	v.ItemList = vkdeck.NewItemList(vkdeck.ItemListSpec{
 		Title: recordListTitle(kind),
 		Ctx:   recordListCtx(role, kind),
@@ -139,7 +145,7 @@ func (v *recordList) Update(h *vkdeck.Model, msg tea.Msg) tea.Cmd {
 
 func (v *recordList) open(h *vkdeck.Model, it list.Item) tea.Cmd {
 	if it.Key == recordNewKey {
-		return h.Push(v.build(h.UI().Keys, record{Kind: v.kind}))
+		return h.Push(v.build(h.UI().Keys, record{Kind: v.kind, Bucket: v.bucket}))
 	}
 	rec, ok := it.Payload.(record)
 	if !ok {
@@ -149,13 +155,27 @@ func (v *recordList) open(h *vkdeck.Model, it list.Item) tea.Cmd {
 }
 
 func (v *recordList) build(sc keys.Scheme, rec record) vkdeck.View {
-	switch v.kind {
+	return buildRecordView(v.home, v.role, rec, v.markStale, sc)
+}
+
+func buildRecordView(home, role string, rec record, dirty func(), sc keys.Scheme) vkdeck.View {
+	return buildRecordViewIn(home, role, rec, nil, dirty, sc)
+}
+
+func buildRecordViewIn(home, role string, rec record, extra []int64, dirty func(), sc keys.Scheme) vkdeck.View {
+	switch rec.Kind {
 	case kindTask:
-		return newTaskView(v.home, v.role, rec, v.markStale, sc)
+		v := newTaskView(home, role, rec, dirty, sc)
+		v.extra = extra
+		return v
 	case kindReminder:
-		return newRemindView(v.home, v.role, rec, v.markStale, sc)
+		v := newRemindView(home, role, rec, dirty, sc)
+		v.extra = extra
+		return v
 	default:
-		return newNoteView(v.home, v.role, rec, v.markStale, sc)
+		v := newNoteView(home, role, rec, dirty, sc)
+		v.extra = extra
+		return v
 	}
 }
 
@@ -169,15 +189,19 @@ func (v *recordList) setDone(h *vkdeck.Model) tea.Cmd {
 		return nil
 	}
 	err := withStore(v.home, v.role, recordWriteTimeout, func(ctx context.Context, st *Store) error {
-		if v.kind == kindReminder {
-			return st.MarkReminderDone(ctx, rec.ID)
-		}
-		return st.SetTaskDone(ctx, rec.ID, !rec.Done)
+		return setRecordDone(ctx, st, rec)
 	})
 	if err != nil {
 		return h.Push(vkdeck.NewMessage("failed", err.Error(), v.Context(h.UI())))
 	}
 	return v.Reload()
+}
+
+func setRecordDone(ctx context.Context, st *Store, rec record) error {
+	if rec.Kind == kindReminder {
+		return st.MarkReminderDone(ctx, rec.ID)
+	}
+	return st.SetTaskDone(ctx, rec.ID, !rec.Done)
 }
 
 func (v *recordList) markStale() { v.stale = true }
@@ -218,14 +242,18 @@ func recordRows(width int, kind string, recs []record, err error) []list.Item {
 		return append(items, list.Item{Block: th.Dim.Render("(none yet)")})
 	}
 	for _, rec := range recs {
-		items = append(items, list.Item{
-			Block:      f.Spread(th.Val.Render(recordRowLabel(rec)), th.Dim.Render(recordRowMeta(rec))),
-			Key:        strconv.FormatInt(rec.ID, 10),
-			Selectable: true,
-			Payload:    rec,
-		})
+		items = append(items, recordRow(f, th, rec))
 	}
 	return items
+}
+
+func recordRow(f layout.Frame, th theme.Theme, rec record) list.Item {
+	return list.Item{
+		Block:      f.Spread(th.Val.Render(recordRowLabel(rec)), th.Dim.Render(recordRowMeta(rec))),
+		Key:        strconv.FormatInt(rec.ID, 10),
+		Selectable: true,
+		Payload:    rec,
+	}
 }
 
 func recordRowLabel(rec record) string {

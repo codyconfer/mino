@@ -202,7 +202,7 @@ func TestHTTPAPIServesAndShutsDown(t *testing.T) {
 	subj := stream.NewSubject[signals.Event]()
 	defer subj.Close()
 
-	stop := s.httpAPI(ctx, ln, subj, RunOptions{
+	stop := s.httpAPI(ctx, ln, subj, nil, RunOptions{
 		Flight: "default", HTTP: true, HTTPPort: port,
 		HTTPToken: "token-long-enough-here", HTTPTokenSource: "test",
 	}, nil)
@@ -229,7 +229,7 @@ func TestHTTPAPIWithNoListenerIsANoOp(t *testing.T) {
 	s, _ := testServer(t, t.TempDir())
 	subj := stream.NewSubject[signals.Event]()
 	defer subj.Close()
-	stop := s.httpAPI(context.Background(), nil, subj, RunOptions{}, nil)
+	stop := s.httpAPI(context.Background(), nil, subj, nil, RunOptions{}, nil)
 	if stop == nil {
 		t.Fatal("httpAPI returned a nil closer, which endSession would dereference")
 	}

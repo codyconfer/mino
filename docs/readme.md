@@ -95,7 +95,9 @@ killed when the deck exits, and they exit on their own within ~2s if the deck is
 `SIGKILL`ed.
 
 Flight and query results render as a **git-style tree** — the run is the trunk,
-each signal a branch, each item a leaf — in both cli output and the deck. The
+each signal a branch, each item a leaf — in both cli output and the deck. A row
+that already has notes filed against it carries a dim `notes N` chip (see
+[Buckets group records, and can be anchored](#buckets-group-records-and-can-be-anchored)). The
 trunk is labelled with what you ran: the flight name for `mino fly morning`, the
 query name for `mino query my-prs`, the signal for `mino github query`.
 
@@ -198,7 +200,7 @@ against the public SDK, with `overlay/main.go` as a reference host:
 
 ```text
 external/plugins/            # calendar, gmail, docs, drive, tasks, slack, demo, google login,
-                             # gcx, kubectl, gooseai, pi, opencode, ollama, argocd, stub, example
+                             # gcx, kubectl, ollama, argocd, stub, example
 external/plugins/overlay/    # thin binary: RegisterPlugins → plugins.Register,
                              # embedded overlay/defaults/ seed tree
 ```
@@ -278,7 +280,9 @@ The bind address defaults to `127.0.0.1`. `--http-host` (or `daemon.http.host`) 
 it — that exists for containers, and it is the one setting here that removes a defence
 rather than adding one. See [Container](#container).
 
-**Authentication.** Every route except `GET /healthz` needs a bearer token. With
+**Authentication.** Every route except `GET /healthz` and the two sign-in routes needs a
+bearer token — either `daemon.http.token` or a session minted by
+[GitHub sign-in](#github-sign-in). With
 `daemon.http.token` unset, serve generates one on first use and writes it to
 `<home>/.data/http.token` (mode `0600`); the startup line names that path, never the
 token itself. Reuse it across restarts, or rotate by deleting the file and restarting.
@@ -295,6 +299,10 @@ curl -sS -H "Authorization: Bearer $T" -XPOST http://127.0.0.1:7717/api/v1/fligh
 curl -sS -H "Authorization: Bearer $T" -XPOST http://127.0.0.1:7717/api/v1/queries/my-open-prs
 curl -sS -H "Authorization: Bearer $T" -XPOST http://127.0.0.1:7717/api/v1/actions/ntr/note.add \
      -H 'Content-Type: application/json' -d '{"params":{"title":"from curl"}}'
+# file an existing record against an item; the anchor bucket is created on demand
+curl -sS -H "Authorization: Bearer $T" -XPOST http://127.0.0.1:7717/api/v1/actions/ntr/bucket.file \
+     -H 'Content-Type: application/json' \
+     -d '{"params":{"id":"12","anchor":"https://github.com/o/r/pull/7","anchor_kind":"item"}}'
 curl -N  -H "Authorization: Bearer $T" http://127.0.0.1:7717/api/v1/events
 ```
 
@@ -309,6 +317,66 @@ curl -N  -H "Authorization: Bearer $T" http://127.0.0.1:7717/api/v1/events
 | POST | `/api/v1/queries/{name}` | Run a saved query |
 | POST | `/api/v1/actions/{signal}/{name}` | Run an action; body `{"params":{…}}` |
 | GET | `/api/v1/events` | The serve event stream as SSE |
+| POST | `/api/v1/auth/device/{provider}` | Start a sign-in. **No token**; only exists with identity on |
+| POST | `/api/v1/auth/device/{provider}/token` | Poll it; body `{"auth_id":"…"}`. **No token** |
+| GET | `/api/v1/auth/session` | Who this credential is |
+| DELETE | `/api/v1/auth/session` | Revoke the session you presented |
+
+#### GitHub sign-in
+
+Set `daemon.http.identity.enabled: true`, a `client_id`, and `allowed_logins`, and a person
+can trade a GitHub identity for a mino session instead of being handed `daemon.http.token`.
+It uses the OAuth **device flow**, so nothing needs a browser or a redirect listener on the
+machine running serve — which is the point, since serve is usually headless or in a
+container.
+
+```sh
+A=http://127.0.0.1:7717/api/v1/auth/device/github
+ID=$(curl -sS -XPOST $A -H 'Content-Type: application/json' -d '{}' | tee /dev/stderr | jq -r .auth_id)
+# open the verification_uri it printed, enter the user_code
+S=$(curl -sS -XPOST $A/token -H 'Content-Type: application/json' -d "{\"auth_id\":\"$ID\"}" | jq -r .session_token)
+curl -sS -H "Authorization: Bearer $S" http://127.0.0.1:7717/api/v1/auth/session | jq
+```
+
+The poll returns **`202` with `{"status":"pending","interval":N}`** until the human acts —
+that is not a failure, and `interval` is enforced server-side, so polling faster earns a
+`429` rather than burning the shared rate budget every caller of that client id depends on.
+A dead authorization — denied, expired, unknown, or already redeemed — is one
+indistinguishable `410`, so a stale `auth_id` never confirms it was once real. The GitHub
+`device_code` never leaves the daemon: callers hold an opaque single-use `auth_id` instead.
+
+**This is authentication, not authorization.** Every allowed login gets exactly the power
+`daemon.http.token` has — run any flight or action, read `/api/v1/config`, read the event
+stream — because requests still run as the serve session's role. Adding twelve logins does
+not improve least privilege; it twelve-times the number of people holding full API power.
+
+Other things worth knowing:
+
+- It is **additive and off by default**. The static token keeps working, so the tray, the
+  compose file and any existing script are unaffected.
+- **An empty `allowed_logins` with `enabled: true` is a startup failure**, not a permissive
+  default. So is a malformed login, a duplicate that differs only in case, a missing client
+  id, a `session_ttl` outside 1m–90d, and a non-`https` `github.api_url`.
+- Sessions **survive a serve restart** (a device flow needs a human, so dropping them would
+  be hostile) and are stored in `serve.duckdb` as a SHA-256 of the token, never the token.
+  Editing `allowed_logins` or the client id invalidates every outstanding session on the next
+  request. Deleting rows from the file under a running serve does *not* revoke — use
+  `DELETE /api/v1/auth/session`, or restart.
+- Sessions expire at `session_ttl` (default `12h`) and are **not renewed**; sign in again.
+  For unattended long-lived access use `daemon.http.token`.
+- mino asks GitHub for **no scopes at all**. Resolving a login needs none, and the GitHub
+  token is used once to answer "who is this" and then discarded — it is never cached as an
+  outbound credential. That is `mino login github`'s job, and the two are unrelated: one
+  decides how mino talks *to* GitHub, this one decides who may talk *to mino*.
+- The OAuth App needs **"Enable Device Flow"** ticked. `daemon.http.identity.client_id` is
+  separate from `github.oauth_client_id` so that app does not have to carry `repo` scope, and
+  rotating one does not break the other. Device flow is a public client: there is no secret.
+- Revoking a session does not tear down an already-open `/api/v1/events` stream, which
+  authenticated once when it connected. Same as the static token behaves today.
+- The sign-in routes are the only ones that take no credential, and they still enforce the
+  loopback `Host` check and require `Content-Type: application/json` (so a browser cannot
+  reach them without a CORS preflight that has no answer). There are no cookies and no
+  `Access-Control-*` headers anywhere in this API.
 
 `/healthz` sits at the root, outside `/api/v1`, so a container healthcheck needs no token
 and no version. A wrong method returns `405` with `Allow`; nothing redirects, so a trailing
@@ -326,10 +394,14 @@ and the per-section `error` fields are always readable.
 
 **Errors** come back as `{"error":{"kind","message","hint"}}`, with `kind` from mino's own
 error kinds and messages sanitized (signal errors relay remote text). `401` is reserved
-for this API's bearer token; an upstream credential failure is `kind: "auth"` with status
-`502`, so "your token is wrong" is never confused with "mino cannot reach GitHub".
-Unknown names are `404`, a name outside the active role is `403`, a disabled signal is
-`409`, and a stalled action is `504`.
+for this API's credentials — a wrong token, an unknown session and an expired session all
+return the same body, so a caller never learns which one mino holds. An upstream credential
+failure is `kind: "auth"` with status `502`, so "your token is wrong" is never confused with
+"mino cannot reach GitHub"; a sign-in refused by `allowed_logins` is `403` with the same
+kind, because that is mino's own decision and not GitHub's. Unknown names are `404`, a name
+outside the active role is `403`, a disabled signal is `409`, a dead sign-in is `410`, a
+missing `Content-Type: application/json` on a sign-in route is `415`, and a stalled action
+is `504`.
 
 **Limits.** At most `daemon.http.max_concurrent` runs execute at once (default 4); beyond
 that requests get `429` with `Retry-After`. This matters because one flight fans out to
@@ -343,7 +415,8 @@ record. Note the two feeds spell a section error differently — run endpoints u
 (the `-o json` shape) and SSE frames use `err` (the socket shape); each matches its
 existing CLI counterpart.
 
-Requests run as the **serve session's role**; there is no per-request role override. A
+Requests run as the **serve session's role**; there is no per-request role override — a
+session records *who* authenticated, never *what* they may do. A
 taken address is a **hard startup failure**, not a silent downgrade — unlike the unix socket,
 the port may belong to an unrelated program and there is no attach-to-the-existing-one
 story. The provider `mino deck` starts for itself always passes `--http=false`, so it
@@ -601,6 +674,14 @@ blank document or on that one, and everything happens there by keybinding:
 | `tab` | move focus between the form and the results |
 | `esc` | back |
 
+On the **Buckets** index and inside a bucket the row keys differ again:
+
+| key | does |
+|---|---|
+| `f` | on flight results, a history run, or an item detail: file that item or run into a bucket |
+| `e` | rename the selected bucket (Buckets index only) |
+| `ctrl+x` | on the Buckets index, delete the bucket and keep its records; **inside** a bucket, unfile the selected record and keep it. On a record list the same key deletes the record itself — the one place `ctrl+x` is not destructive is inside a bucket |
+
 Validation runs against what's in the form, not the file on disk, so it catches
 problems in edits you haven't saved yet — for a directive, an unknown signal, a
 disabled plugin, a filter reference that doesn't resolve, a regex that won't
@@ -717,10 +798,11 @@ panel, leaving the SQL visible for quick changes and reruns.
 **Notes** is a plugin contribution on the deck's main menu — a sibling of
 **Directives**, not one of its screens — and it holds one screen per kind of
 record: **Notes**, **Tasks**, and **Reminders** (the last only while a
-`serve`/`daemon` socket is attached). Each screen is the whole surface for that
-kind: **New** first, then every record with a one-line summary, and picking either
-entry opens one editor — on a blank record or on that one. The `alt+n` / `alt+t` /
-`alt+r` hotkeys open the same builders from anywhere on the deck.
+`serve`/`daemon` socket is attached), plus **Buckets**, which groups records across
+all three. Each record screen is the whole surface for that kind: **New** first,
+then every record with a one-line summary, and picking either entry opens one
+editor — on a blank record or on that one. The `alt+n` / `alt+t` / `alt+r` hotkeys
+open the same builders from anywhere on the deck, and `alt+b` opens **Buckets**.
 
 A record is not a file, so the keys do slightly different work:
 
@@ -755,6 +837,59 @@ The rest of the deltas against the directive builders:
 - A multiline note body cannot take a typed newline in the TUI — a pre-existing
   viewkit form limitation, not a new one. Use `mino notes add <title> <body>` or
   `mino notes update <id> <title> <body>` when the body needs more than one line.
+
+### Buckets group records, and can be anchored
+
+A **bucket** is a named, role-scoped container that notes, tasks, and reminders are
+filed into. Membership is many-to-many: one note can sit in a hand-named bucket
+*and* against the pull request that prompted it. Deleting a bucket only removes the
+grouping — the records survive, and so does their membership in every other bucket.
+
+Buckets come in three kinds, distinguished by what they hang off:
+
+| kind | anchor | created by |
+|---|---|---|
+| `user` | none | you, from the **Buckets** index or `mino notes buckets add` |
+| `item` | a result item's URL | filing against a row, on demand |
+| `run` | `run:<audit id>` | filing against a recorded run, on demand |
+
+An item's URL is its only identity in mino, so a row with no URL cannot be anchored
+and `f` reports "nothing to anchor" rather than guessing. Anchored buckets are
+created the first time you file against that item or run, and reused after.
+
+Four surfaces reach them:
+
+- **Buckets** on the notes menu — create, rename, delete, and drill into a bucket to
+  see its records, toggle a task or reminder done, unfile a row, or create a new
+  record straight into it.
+- `f` on **flight results** and on an **item detail** — pick an existing bucket, the
+  item's own bucket, or a new one, then pick note/task/reminder. The editor opens
+  seeded from the item, and saving files it.
+- `f` on a **history run** — the same, anchored to the run id.
+- A dim `notes N` chip on any result row that already has records filed against it,
+  plus a `notes` row in the detail gutter and a `notes` context cue.
+
+Filing into a hand-named bucket from an item files the record into the item's anchor
+bucket **as well**, so the `notes N` chip stays truthful — otherwise "file this PR's
+note under `q3-migration`" would leave the PR reading zero.
+
+The chip is computed per load with one query, not per row, and it is read from local
+state rather than from the recorded run, because the audit journal keeps only
+`signal/kind/title/subtitle/url` per item.
+
+From the shell:
+
+```sh
+mino notes buckets add escalations
+mino notes buckets list                  # id, members, kind, name
+mino notes buckets show 7                # the bucket and everything filed into it
+mino notes buckets file 7 12             # file record #12 into bucket #7
+mino notes buckets unfile 7 12           # keep the record, drop the membership
+mino notes buckets for 12                # which buckets is #12 in?
+mino notes add "check the runbook" --bucket 7
+```
+
+`--bucket` also works on `mino notes tasks add` and `mino notes remind add`.
 
 ## Create a flight config
 
@@ -1395,7 +1530,7 @@ DB.
 | Signal | Ships in | Command(s) | Access | Write restrictions |
 |---|---|---|---|---|
 | GitHub | stock | `github query` | Read-only | — |
-| Notes / Tasks / Reminders | stock | `mino notes` | **Read + write** | Local DuckDB store under `<home>/.data`. |
+| Notes / Tasks / Reminders / Buckets | stock | `mino notes` | **Read + write** | Local DuckDB store under `<home>/.data`: `notes`, `tasks`, `reminders`, plus `buckets` and `bucket_members`. |
 | Google Calendar | overlay | `calendar query` (`cal`) | Read-only | — |
 | Gmail | overlay | `gmail query` | Read-only | — |
 | Google Docs | overlay | `docs query` | Read-only | — |

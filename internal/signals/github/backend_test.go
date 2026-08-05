@@ -99,6 +99,39 @@ func TestCLIBackendUnpinnedWhenHostnameUnset(t *testing.T) {
 	}
 }
 
+func TestCLIBackendGraphQLScopeErrorIsConcise(t *testing.T) {
+	fakeGH(t, "#!/bin/sh\necho \""+ghScopeStderr+"\" >&2\nexit 1\n")
+
+	b := CLIBackend{Hostname: "ghe.example.com"}
+	_, err := b.GraphQL(context.Background(), "query{ project { number } }", nil)
+	if err == nil {
+		t.Fatal("want error")
+	}
+	if kind := errs.KindOf(err); kind != errs.KindAuth {
+		t.Errorf("kind = %q, want auth", kind)
+	}
+	if want := "github: graphql: your GitHub token is missing the read:project scope"; err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+	hint := errs.Hint(err)
+	if !strings.Contains(hint, "`gh auth refresh -h ghe.example.com -s read:project`") {
+		t.Errorf("hint = %q, want the refresh command pinned to the host", hint)
+	}
+}
+
+func TestCLIBackendGraphQLNonScopeErrorPassesThrough(t *testing.T) {
+	fakeGH(t, "#!/bin/sh\necho 'gh: could not resolve host' >&2\nexit 1\n")
+
+	b := CLIBackend{}
+	_, err := b.GraphQL(context.Background(), "query{viewer{login}}", nil)
+	if err == nil {
+		t.Fatal("want error")
+	}
+	if !strings.Contains(err.Error(), "could not resolve host") {
+		t.Errorf("error = %v, want the underlying gh failure", err)
+	}
+}
+
 func TestAPIBackendSearch(t *testing.T) {
 	var gotAuth, gotQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

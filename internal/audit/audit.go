@@ -147,6 +147,34 @@ func (s *Store) RecordActionContext(ctx context.Context, label, role string, sta
 	_, _ = j.Add(ctx, runFor(0, "write", label, role, started, finished, sections), recordsFor(sections))
 }
 
+func (s *Store) RecordAuth(event, role string, attrs map[string]string) {
+	s.RecordAuthContext(context.Background(), event, role, attrs)
+}
+
+func (s *Store) RecordAuthContext(ctx context.Context, event, role string, attrs map[string]string) {
+	j := s.journal(ctx)
+	if j == nil {
+		return
+	}
+	merged := make(map[string]string, len(attrs)+1)
+	for k, v := range attrs {
+		if v != "" {
+			merged[k] = v
+		}
+	}
+	if role != "" {
+		merged["role"] = role
+	}
+	now := time.Now()
+	_, _ = j.Add(ctx, journal.Run{
+		Kind:     "auth",
+		Name:     event,
+		Started:  now,
+		Finished: now,
+		Attrs:    merged,
+	}, nil)
+}
+
 func (s *Store) Delete(id int64) error {
 	return s.DeleteContext(context.Background(), id)
 }

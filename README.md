@@ -43,7 +43,8 @@ docker compose up -d                     # API on 127.0.0.1:7717/api/v1
 ```
 
 See [Container](docs/readme.md#container) — note that binding off-loopback leaves the
-bearer token as the only control on endpoints that run flights and plugin actions.
+bearer token (or an allow-listed GitHub sign-in) as the only control on endpoints that run
+flights and plugin actions.
 mino can also authenticate to GitHub as a service rather than as you: see
 [Service authentication](docs/readme.md#service-authentication).
 
@@ -94,7 +95,8 @@ Common flags: `-o json` (pipeable output), `-F <name>` (render through a formatt
 
 `mino serve --http` also exposes a token-guarded HTTP API under `/api/v1` — loopback by
 default — that triggers flights, queries and actions and streams events over SSE, as an
-alternative to typing the command. See [HTTP trigger API](docs/readme.md#http-trigger-api).
+alternative to typing the command. Callers can optionally sign in with a GitHub identity
+instead of sharing the token. See [HTTP trigger API](docs/readme.md#http-trigger-api).
 
 → [Command reference](docs/readme.md#command-reference) ·
 [Common flags](docs/readme.md#common-flags)

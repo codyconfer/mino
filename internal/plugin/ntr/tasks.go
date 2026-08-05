@@ -28,12 +28,13 @@ func taskRecord(t Task) record {
 func newTaskView(home, role string, base record, dirty func(), sc keys.Scheme) *taskView {
 	v := &taskView{base: base}
 	v.recordCore = recordCore{
-		home:  home,
-		role:  role,
-		kind:  kindTask,
-		id:    base.ID,
-		copy:  clipboard.Copy,
-		dirty: dirty,
+		home:   home,
+		role:   role,
+		kind:   kindTask,
+		id:     base.ID,
+		bucket: base.Bucket,
+		copy:   clipboard.Copy,
+		dirty:  dirty,
 	}
 	v.read = v.task
 	v.editorShell = newRecordEditor(v, map[string]any{
@@ -97,10 +98,12 @@ func (v *taskView) Persist() (string, error) {
 			return err
 		}
 		id = t.ID
-		if !rec.Done {
-			return nil
+		if rec.Done {
+			if err := st.SetTaskDone(ctx, id, true); err != nil {
+				return err
+			}
 		}
-		return st.SetTaskDone(ctx, id, true)
+		return v.fileNew(ctx, st, id)
 	})
 	if err != nil {
 		return "", err

@@ -48,6 +48,11 @@ func runOptions(opt options) (serve.RunOptions, error) {
 		return serve.RunOptions{}, err
 	}
 	out.HTTPToken, out.HTTPTokenSource = tok, src
+	id, err := cmd.ResolveServeHTTPIdentity()
+	if err != nil {
+		return serve.RunOptions{}, err
+	}
+	out.HTTPIdentity = id
 	return out, nil
 }
 

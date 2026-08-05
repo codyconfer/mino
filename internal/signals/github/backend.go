@@ -11,6 +11,7 @@ import (
 
 	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/log"
 	"github.com/codyconfer/mino/internal/signals"
 )
 
@@ -96,16 +97,24 @@ func (b CLIBackend) GraphQL(ctx context.Context, query string, vars map[string]a
 	}
 	out, err := auth.GH(ctx, args...)
 	if err != nil {
-		return nil, graphQLCLIError(err)
+		return nil, graphQLCLIError(b.Hostname, err)
 	}
 	return out, nil
 }
 
-func graphQLCLIError(err error) error {
-	if strings.Contains(err.Error(), "INSUFFICIENT_SCOPES") || strings.Contains(err.Error(), "read:project") {
-		return errs.Wrap(errs.KindAuth, err, "github: graphql").WithHint("%s", projectScopeHint)
+// graphQLCLIError turns a `gh api graphql` scope failure into a one-line error
+// plus the command that fixes it. gh echoes the whole query and repeats its
+// complaint once per offending field, which is unreadable in a signal tree, so
+// the raw output only goes to the debug log.
+func graphQLCLIError(hostname string, err error) error {
+	msg := err.Error()
+	scopes := missingScopes(msg)
+	if len(scopes) == 0 && !strings.Contains(msg, "INSUFFICIENT_SCOPES") && !strings.Contains(msg, "not been granted the required scopes") {
+		return err
 	}
-	return err
+	log.Debugf("github: graphql scope failure: %v", err)
+	return errs.Newf(errs.KindAuth, "github: graphql: %s", scopeSummary(scopes)).
+		WithHint("%s", scopeHint(hostname, scopes, projectScopeHint))
 }
 
 type APIBackend struct {

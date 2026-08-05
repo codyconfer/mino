@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -16,7 +17,7 @@ import (
 	"github.com/codyconfer/mino/internal/signals"
 )
 
-const projectScopeHint = "reading projects needs the read:project scope on a token (`gh auth refresh -s read:project`, or re-run `mino login github`), or read access to organization projects on a GitHub App"
+const projectScopeHint = "reading projects needs the read:project scope; run `gh auth refresh -s read:project` and retry, or re-run `mino login github`; on a GitHub App, grant read access to organization projects"
 
 const (
 	searchPageSize  = 50
@@ -510,25 +511,34 @@ type graphQLErrors struct {
 
 func (r graphQLResponse) err() error { return r.errHint(projectScopeHint) }
 
-func (g graphQLErrors) errHint(scopeHint string) error {
+func (g graphQLErrors) errHint(fallbackHint string) error {
 	if len(g.Errors) == 0 {
 		return nil
 	}
 	msgs := make([]string, 0, len(g.Errors))
-	scopes, missing := false, false
+	scoped, missing := false, false
 	for _, e := range g.Errors {
-		msgs = append(msgs, e.Message)
+		// GitHub repeats the same complaint once per offending field.
+		if !slices.Contains(msgs, e.Message) {
+			msgs = append(msgs, e.Message)
+		}
 		switch e.Type {
 		case "INSUFFICIENT_SCOPES":
-			scopes = true
+			scoped = true
 		case "NOT_FOUND":
 			missing = true
 		}
 	}
 	joined := strings.Join(msgs, "; ")
 	switch {
-	case scopes:
-		return errs.Newf(errs.KindAuth, "github: graphql: %s", joined).WithHint("%s", scopeHint)
+	case scoped:
+		scopes := missingScopes(joined)
+		detail := joined
+		if len(scopes) > 0 {
+			detail = scopeSummary(scopes)
+		}
+		return errs.Newf(errs.KindAuth, "github: graphql: %s", detail).
+			WithHint("%s", scopeHint("", scopes, fallbackHint))
 	case missing:
 		return errs.Newf(errs.KindUsage, "github: %s", joined)
 	}

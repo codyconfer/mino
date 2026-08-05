@@ -77,14 +77,28 @@ func newRecordEditor(view recordViewDoc, seed map[string]any, sc keys.Scheme) *e
 type recordCore struct {
 	*editorShell
 
-	home  string
-	role  string
-	kind  string
-	id    int64
-	read  func() (record, error)
-	copy  func(string) error
-	dirty func()
-	now   func() time.Time
+	home   string
+	role   string
+	kind   string
+	id     int64
+	bucket int64
+	extra  []int64
+	read   func() (record, error)
+	copy   func(string) error
+	dirty  func()
+	now    func() time.Time
+}
+
+func (c *recordCore) fileNew(ctx context.Context, st *Store, id int64) error {
+	for _, b := range append([]int64{c.bucket}, c.extra...) {
+		if b == 0 {
+			continue
+		}
+		if err := st.AddMember(ctx, b, id, c.kind); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *recordCore) Kind() string { return c.kind }

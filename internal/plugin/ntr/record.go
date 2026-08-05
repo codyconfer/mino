@@ -26,6 +26,8 @@ type record struct {
 	Body  string
 	Due   time.Time
 	Done  bool
+
+	Bucket int64
 }
 
 type recordYAML struct {
