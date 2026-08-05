@@ -44,6 +44,7 @@ func TestSyncRoleLifecycleRunsStatusOnEnterAndClearsOnExit(t *testing.T) {
 	}
 
 	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "triage"}, Directives: dirs}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	chips := role.StatusChips()
 	if len(chips) != 1 || chips[0].Glyph != "github" || chips[0].Text != "triage-out" {
@@ -98,6 +99,7 @@ func TestSyncRoleLifecycleRefreshesStatusWhenAlreadyActive(t *testing.T) {
 			},
 		},
 	}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	chips := role.StatusChips()
 	if len(chips) != 1 || chips[0].Text != "refreshed" {
@@ -135,6 +137,7 @@ func TestSyncRoleLifecycleOrderAndPersist(t *testing.T) {
 	}
 
 	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "triage"}, Directives: dirs}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	if got := activeRoleState(t, home); got != "triage" {
 		t.Fatalf("active after enter = %q", got)
@@ -198,6 +201,7 @@ func TestActivateRoleSameIsNoop(t *testing.T) {
 			},
 		},
 	}
+	closeDBs(t, a)
 	seedActiveRoleState(t, home, "triage")
 	if err := a.ActivateRole("triage"); err != nil {
 		t.Fatal(err)
@@ -218,6 +222,7 @@ func TestSyncRoleLifecycleWarnsMissingDef(t *testing.T) {
 		Cfg:        &config.Config{Home: home, DefaultRole: "ghost"},
 		Directives: &config.Directives{Roles: map[string]config.RoleDef{}},
 	}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	if called {
 		t.Fatal("hooks should not run for undefined role")

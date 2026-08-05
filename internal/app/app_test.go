@@ -60,6 +60,7 @@ func TestReloadDirectivesPicksUpNewFiles(t *testing.T) {
 			Roles:   map[string]config.RoleDef{},
 		},
 	}
+	closeDBs(t, a)
 	qdir := filepath.Join(home, config.DirQueries, "gh")
 	tdir := filepath.Join(home, "team")
 	if err := os.MkdirAll(qdir, 0o700); err != nil {

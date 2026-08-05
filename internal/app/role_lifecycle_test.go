@@ -298,6 +298,7 @@ func TestBeginRoleSettleReturnsHooksWithoutRunningThem(t *testing.T) {
 			}},
 		}},
 	}
+	closeDBs(t, a)
 
 	gen, changed := a.BeginRoleCycle("weekly")
 	if !changed {
@@ -358,6 +359,7 @@ func TestRoleAndDirectivesAccessorsAreRaceFree(t *testing.T) {
 		}}
 	}
 	a := &App{Cfg: &config.Config{Home: home}, Directives: newDirectives("c")}
+	closeDBs(t, a)
 
 	const iters = 5000
 	names := []string{"a", "b"}

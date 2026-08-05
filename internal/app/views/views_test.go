@@ -51,8 +51,10 @@ func testKit(t *testing.T) *Kit {
 		Flights: map[string]config.Flight{"default": {Name: "default", Queries: []string{"q1"}}},
 		Roles:   map[string]config.RoleDef{"triage": {Name: "triage", Flights: []string{"default"}}},
 	}
+	a := &app.App{Cfg: cfg, Directives: directives}
+	closeDBs(t, a)
 	return New(Deps{
-		App:                &app.App{Cfg: cfg, Directives: directives},
+		App:                a,
 		Scope:              app.BuildScope("", keymap.DefaultSchemeKey),
 		FetchQuery:         func(string) []signals.Section { return nil },
 		FetchFlightAudited: func(string) []signals.Section { return nil },

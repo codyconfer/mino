@@ -24,6 +24,7 @@ func useServeHTTPTestAppOn(t *testing.T, enabled bool, host string, port int) {
 	cfg.Daemon.HTTP.Host = host
 	cfg.Daemon.HTTP.Port = port
 	shared = &app.App{Cfg: cfg, Directives: &config.Directives{}}
+	closeSharedDBs(t)
 }
 
 func TestServeRefusesAPrivilegedHTTPPortFlag(t *testing.T) {

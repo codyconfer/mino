@@ -104,6 +104,7 @@ func TestCycleToNoRoleClearsActiveState(t *testing.T) {
 		},
 	}
 	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	calls = nil
 
@@ -180,6 +181,7 @@ func TestRoleCycleDebounceSkipsIntermediateHooks(t *testing.T) {
 	}
 
 	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	if len(calls) != 1 || calls[0] != "enter-ops" {
 		t.Fatalf("initial enter = %v", calls)
@@ -242,6 +244,7 @@ func TestFlushRoleLifecycleAppliesPending(t *testing.T) {
 		},
 	}
 	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	calls = nil
 
@@ -280,6 +283,7 @@ func TestActivateRoleCancelsPendingCycle(t *testing.T) {
 		},
 	}
 	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	calls = nil
 
@@ -323,6 +327,7 @@ func settleFixture(t *testing.T) (*App, string, *[]string) {
 		},
 	}
 	a := &App{Cfg: &config.Config{Home: home, DefaultRole: "ops"}, Directives: dirs}
+	closeDBs(t, a)
 	a.syncRoleLifecycle()
 	*calls = nil
 	return a, home, calls

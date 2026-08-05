@@ -89,6 +89,7 @@ func TestVerifyRejectsAnUnknownTarget(t *testing.T) {
 		Cfg:        &config.Config{Home: t.TempDir(), Output: "terminal"},
 		Directives: verifyDirectives(t, map[string]string{}),
 	}
+	closeSharedDBs(t)
 
 	var buf bytes.Buffer
 	c := newVerifyCmd()
@@ -131,6 +132,7 @@ func TestVerifyRunsTheFormattersTarget(t *testing.T) {
 			"formatters/standup.yaml": "name: standup\ntype: formatter\ntemplate: \"{{ .Count }} items\"\n",
 		}),
 	}
+	closeSharedDBs(t)
 
 	var buf bytes.Buffer
 	c := newVerifyCmd()
@@ -152,6 +154,7 @@ func TestVerifyFormattersReportsProblems(t *testing.T) {
 	})
 	d.Formatters["bare"] = config.FormatterDef{Name: "bare", Type: config.TypeFormatter}
 	shared = &app.App{Cfg: &config.Config{Home: t.TempDir(), Output: "terminal"}, Directives: d}
+	closeSharedDBs(t)
 
 	var buf bytes.Buffer
 	c := newVerifyCmd()
@@ -175,6 +178,7 @@ func TestVerifyFindingsRoutesFormatters(t *testing.T) {
 			"formatters/standup.yaml": "name: standup\ntype: formatter\ntemplate: \"{{ .Count }} items\"\n",
 		}),
 	}
+	closeSharedDBs(t)
 
 	findings := verifyFindings(config.KindFormatters)
 	if len(findings) != 1 || findings[0].Name != "standup" || !findings[0].OK {

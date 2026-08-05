@@ -26,6 +26,7 @@ func useCacheTestApp(t *testing.T) *cache.Store {
 		Directives: &config.Directives{},
 		Cache:      store,
 	}
+	closeSharedDBs(t)
 	return store
 }
 

@@ -19,6 +19,7 @@ func useServeTestApp(t *testing.T, configuredInterval string) {
 	cfg.Home = t.TempDir()
 	cfg.Daemon.Interval = configuredInterval
 	shared = &app.App{Cfg: cfg, Directives: &config.Directives{}}
+	closeSharedDBs(t)
 }
 
 func runServe(t *testing.T, args ...string) error {

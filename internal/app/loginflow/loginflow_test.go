@@ -80,6 +80,7 @@ func TestMissingReadsContributedFieldsFromPluginSettings(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Plugins = map[string]map[string]any{"google": {"oauth_client_id": "id-only"}}
 	a := &app.App{Cfg: cfg}
+	t.Cleanup(a.CloseDBs)
 
 	p, _ := Resolve("google")
 	miss := p.Missing(a)
@@ -98,6 +99,7 @@ func TestPersistCredentials(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Home = dir
 	a := &app.App{Cfg: cfg}
+	t.Cleanup(a.CloseDBs)
 
 	if err := PersistCredentials(a, map[string]string{
 		"plugins.google.oauth_client_id":     "abc",

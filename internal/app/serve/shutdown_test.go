@@ -25,11 +25,13 @@ func testServer(t *testing.T, home string) (*Server, *audit.Store) {
 		t.Fatalf("audit.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
-	return &Server{App: &app.App{
+	s := &Server{App: &app.App{
 		Cfg:        &config.Config{Home: home, DefaultRole: "test"},
 		Directives: &config.Directives{},
 		Audit:      st,
-	}}, st
+	}}
+	t.Cleanup(s.CloseDBs)
+	return s, st
 }
 
 func oneItemEvent(i int) signals.Event {

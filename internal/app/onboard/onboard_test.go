@@ -239,6 +239,7 @@ func TestNoDomainStepWhenUnset(t *testing.T) {
 const testSSHKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEY"
 
 func sshGood() {
+	allGood()
 	runGH = func(context.Context, ...string) ([]byte, error) { return nil, nil }
 	runGit = func(_ context.Context, args ...string) ([]byte, error) {
 		if len(args) >= 3 {

@@ -27,16 +27,18 @@ func storeKit(t *testing.T) *Kit {
 
 	cfg := config.Defaults()
 	cfg.Home = home
-	return New(Deps{
-		App: &app.App{
-			Cfg: cfg,
-			Mgr: mgr,
-			Directives: &config.Directives{
-				Queries: map[string]config.Query{},
-				Flights: map[string]config.Flight{},
-				Roles:   map[string]config.RoleDef{},
-			},
+	a := &app.App{
+		Cfg: cfg,
+		Mgr: mgr,
+		Directives: &config.Directives{
+			Queries: map[string]config.Query{},
+			Flights: map[string]config.Flight{},
+			Roles:   map[string]config.RoleDef{},
 		},
+	}
+	closeDBs(t, a)
+	return New(Deps{
+		App:                a,
 		FetchQuery:         func(string) []signals.Section { return nil },
 		FetchFlightAudited: func(string) []signals.Section { return nil },
 	})

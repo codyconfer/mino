@@ -58,6 +58,7 @@ func sharedWithTokenStore(t *testing.T, rekey bool) {
 		Directives: &config.Directives{},
 		Tokens:     reopened,
 	}
+	closeSharedDBs(t)
 }
 
 func TestLoginRefusesAnUnreadableCredentialStore(t *testing.T) {
@@ -95,6 +96,7 @@ func TestLoginRefusalIsInertWithoutATokenStore(t *testing.T) {
 	orig := shared
 	t.Cleanup(func() { shared = orig })
 	shared = &app.App{Cfg: &config.Config{Home: t.TempDir()}, Directives: &config.Directives{}}
+	closeSharedDBs(t)
 
 	p, err := loginflow.ResolveOrErr("github")
 	if err != nil {

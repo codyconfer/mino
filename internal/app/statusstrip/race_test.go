@@ -14,13 +14,15 @@ const raceIterations = 2000
 
 func roleCycleApp(t *testing.T) *app.App {
 	t.Helper()
-	return &app.App{
+	a := &app.App{
 		Cfg: &config.Config{Home: t.TempDir(), DefaultRole: "ops"},
 		Directives: &config.Directives{Roles: map[string]config.RoleDef{
 			"ops":    {Name: "ops"},
 			"triage": {Name: "triage"},
 		}},
 	}
+	t.Cleanup(a.CloseDBs)
+	return a
 }
 
 func TestProviderRaceWithRoleCycle(t *testing.T) {

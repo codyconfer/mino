@@ -26,6 +26,7 @@ func useFormatterTestApp(t *testing.T, output string) {
 			"formatters/standup.yaml": "name: standup\ntype: formatter\ntemplate: \"## Standup {{ .Count }} items\\n\"\n",
 		}),
 	}
+	closeSharedDBs(t)
 }
 
 func flyTestRoot(t *testing.T) *cobra.Command {

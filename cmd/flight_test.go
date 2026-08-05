@@ -45,6 +45,7 @@ func useFlightTestApp(t *testing.T) {
 		Cfg:        &config.Config{Home: t.TempDir(), Output: "json", Timeout: "5s", DefaultRole: "test"},
 		Directives: &config.Directives{},
 	}
+	closeSharedDBs(t)
 }
 
 func TestRunQueriesWithReturnsErrorWhenEveryQueryFails(t *testing.T) {

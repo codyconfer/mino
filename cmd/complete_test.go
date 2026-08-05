@@ -29,6 +29,7 @@ func withDirectives(t *testing.T) {
 		},
 	}
 	t.Cleanup(func() { shared = nil })
+	closeSharedDBs(t)
 }
 
 func names(t *testing.T, fn completer, args ...string) []string {

@@ -43,6 +43,7 @@ func sharedForShutdown(t *testing.T) string {
 		Mgr:        mgr,
 		Cache:      cache.New(home, config.CacheConfig{TTL: "1h"}, "fp", cache.ModeUse),
 	}
+	closeSharedDBs(t)
 	return home
 }
 

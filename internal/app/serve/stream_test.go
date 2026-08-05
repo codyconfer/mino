@@ -51,6 +51,7 @@ func TestOpenStreamsSkipsBlockingPlugin(t *testing.T) {
 		Cfg:        &config.Config{Home: home, DefaultRole: "test", Timeout: "200ms"},
 		Directives: &config.Directives{},
 	}}
+	t.Cleanup(s.CloseDBs)
 
 	blocker := newFakeStream("blocker", true)
 	good := newFakeStream("good", false)
@@ -89,6 +90,7 @@ func TestSocketOpensDespiteBlockingPlugin(t *testing.T) {
 		Cfg:        &config.Config{Home: home, DefaultRole: "test", Timeout: "200ms"},
 		Directives: &config.Directives{},
 	}}
+	t.Cleanup(s.CloseDBs)
 
 	blocker := newFakeStream("blocker", true)
 	good := newFakeStream("good", false)

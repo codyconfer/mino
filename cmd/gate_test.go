@@ -20,6 +20,7 @@ import (
 func TestGuidedAuthKeepsPromptsAndStatusOffStdout(t *testing.T) {
 	origShared := shared
 	shared = &app.App{Cfg: &config.Config{Home: t.TempDir()}, Directives: &config.Directives{}}
+	closeSharedDBs(t)
 	t.Cleanup(func() { shared = origShared })
 
 	origLogin, origOnboard := guidedLoginCLI, guidedOnboard

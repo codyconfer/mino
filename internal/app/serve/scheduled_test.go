@@ -39,6 +39,7 @@ func TestScheduledEventsEmitsDueReminder(t *testing.T) {
 			},
 		},
 	}}
+	t.Cleanup(s.CloseDBs)
 	ch := s.scheduledEvents(ctx, "ntr", []string{"ntr-list"}, active.NewState(nil))
 	if ch == nil {
 		t.Fatal("expected scheduled channel")

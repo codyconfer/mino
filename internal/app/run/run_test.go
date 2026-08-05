@@ -23,11 +23,13 @@ func testApp(t *testing.T, d *config.Directives, role string) *app.App {
 	if d == nil {
 		d = &config.Directives{}
 	}
-	return &app.App{
+	a := &app.App{
 		Cfg:        &config.Config{Home: home, DefaultRole: role, Timeout: "5s"},
 		Directives: d,
 		Audit:      st,
 	}
+	t.Cleanup(a.CloseDBs)
+	return a
 }
 
 func TestBuildQueryRejectsAnUnknownName(t *testing.T) {

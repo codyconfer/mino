@@ -48,6 +48,7 @@ func sharedForDeckRace(t *testing.T) *app.App {
 			Formatters: map[string]config.FormatterDef{},
 		},
 	}
+	closeSharedDBs(t)
 	return shared
 }
 

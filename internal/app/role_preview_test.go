@@ -48,6 +48,7 @@ func TestPreviewRoleRunsHooksAroundBodyThenRestores(t *testing.T) {
 	recordRuns(t, &ran)
 
 	a := &App{Cfg: &config.Config{Home: t.TempDir(), DefaultRole: "daily"}, Directives: previewDirectives()}
+	closeDBs(t, a)
 	steps := a.PreviewRole(a.Directives.Roles["triage"], 0, func() RolePreviewStep {
 		ran = append(ran, "body")
 		return RolePreviewStep{Label: "flight: inbox", Detail: "3 items"}
@@ -74,6 +75,7 @@ func TestPreviewRoleHoldsBetweenBodyAndExit(t *testing.T) {
 	recordRuns(t, &ran)
 
 	a := &App{Cfg: &config.Config{Home: t.TempDir()}, Directives: previewDirectives()}
+	closeDBs(t, a)
 	start := time.Now()
 	steps := a.PreviewRole(a.Directives.Roles["triage"], 30*time.Millisecond, func() RolePreviewStep {
 		return RolePreviewStep{Label: "flight: inbox"}
@@ -99,6 +101,7 @@ func TestPreviewRoleWithNoActiveRoleReportsNoRestore(t *testing.T) {
 	recordRuns(t, &ran)
 
 	a := &App{Cfg: &config.Config{Home: t.TempDir()}, Directives: previewDirectives()}
+	closeDBs(t, a)
 	steps := a.PreviewRole(a.Directives.Roles["triage"], 0, func() RolePreviewStep {
 		return RolePreviewStep{Label: "flight: inbox"}
 	})
@@ -126,6 +129,7 @@ func TestPreviewRoleSurfacesHookErrorsAndStillRestores(t *testing.T) {
 	t.Cleanup(func() { previewHook = orig })
 
 	a := &App{Cfg: &config.Config{Home: t.TempDir(), DefaultRole: "daily"}, Directives: previewDirectives()}
+	closeDBs(t, a)
 	steps := a.PreviewRole(a.Directives.Roles["triage"], 0, func() RolePreviewStep {
 		ran = append(ran, "body")
 		return RolePreviewStep{Label: "flight: inbox"}
@@ -146,6 +150,7 @@ func TestPreviewRoleWithoutHooksJustRunsTheBody(t *testing.T) {
 	recordRuns(t, &ran)
 
 	a := &App{Cfg: &config.Config{Home: t.TempDir(), DefaultRole: "daily"}, Directives: previewDirectives()}
+	closeDBs(t, a)
 	start := time.Now()
 	steps := a.PreviewRole(config.RoleDef{Name: "bare"}, time.Hour, func() RolePreviewStep {
 		return RolePreviewStep{Label: "flight: inbox"}
@@ -166,6 +171,7 @@ func TestPreviewRoleIsInertInThinMode(t *testing.T) {
 	recordRuns(t, &ran)
 
 	a := &App{Cfg: &config.Config{Home: t.TempDir(), DefaultRole: "daily"}, Directives: previewDirectives(), thin: true}
+	closeDBs(t, a)
 	steps := a.PreviewRole(a.Directives.Roles["triage"], time.Hour, func() RolePreviewStep {
 		return RolePreviewStep{Label: "flight: inbox"}
 	})
@@ -214,6 +220,7 @@ func TestPreviewRoleKeepsHookOutputOffTheTerminal(t *testing.T) {
 			}},
 		}},
 	}
+	closeDBs(t, a)
 	rd := config.RoleDef{Name: "loud", Hooks: config.RoleHooks{
 		Enter: config.RoleShellHooks{Bash: "echo enter-tty-leak"},
 		Exit:  config.RoleShellHooks{Bash: "echo exit-tty-leak"},

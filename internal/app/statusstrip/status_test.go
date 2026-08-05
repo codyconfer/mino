@@ -258,6 +258,10 @@ func TestProviderHonoursTheDeckDeadlineForPluginStatus(t *testing.T) {
 
 	const deadline = 150 * time.Millisecond
 	a := &app.App{Cfg: &config.Config{Home: t.TempDir()}}
+	t.Cleanup(a.CloseDBs)
+	_, _, _ = a.GitAuth()
+	_ = a.Role()
+
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
 

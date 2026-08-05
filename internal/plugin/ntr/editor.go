@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	recordWriteTimeout = 2 * time.Second
+	recordWriteTimeout = 5 * time.Second
 	recordReadTimeout  = 5 * time.Second
 )
 

@@ -24,6 +24,7 @@ func useIdentityTestApp(t *testing.T, mut func(*config.Config)) {
 		mut(cfg)
 	}
 	shared = &app.App{Cfg: cfg, Directives: &config.Directives{}}
+	closeSharedDBs(t)
 }
 
 func TestIdentityLoginResolvesFromConfig(t *testing.T) {

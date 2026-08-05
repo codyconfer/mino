@@ -61,6 +61,7 @@ func TestRoleUseRejectsUnknownRoleLoudly(t *testing.T) {
 
 func TestRoleUseRejectsAnyNameWhenNoRolesAreDefined(t *testing.T) {
 	shared = &app.App{Cfg: &config.Config{Home: t.TempDir()}, Directives: &config.Directives{}}
+	closeSharedDBs(t)
 	t.Cleanup(func() { shared = nil })
 
 	use := roleSubcommand(t, "use")

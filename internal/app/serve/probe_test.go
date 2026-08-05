@@ -27,6 +27,7 @@ func TestEnsureLiveProviderProbeLeaksNoConnection(t *testing.T) {
 		Cfg:        &config.Config{Home: home, DefaultRole: "test"},
 		Directives: &config.Directives{},
 	}}
+	t.Cleanup(s.CloseDBs)
 
 	ln, err := ipc.Listen(config.SocketPrefix, s.SocketPath())
 	if err != nil {

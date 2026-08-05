@@ -28,7 +28,7 @@ func reloadableApp(t *testing.T) *app.App {
 			t.Fatal(err)
 		}
 	}
-	return &app.App{
+	a := &app.App{
 		Cfg: &config.Config{Home: home},
 		Directives: &config.Directives{
 			Queries:    map[string]config.Query{},
@@ -37,6 +37,8 @@ func reloadableApp(t *testing.T) *app.App {
 			Formatters: map[string]config.FormatterDef{},
 		},
 	}
+	t.Cleanup(a.CloseDBs)
+	return a
 }
 
 func TestRoleNamesRaceWithDirectiveReload(t *testing.T) {

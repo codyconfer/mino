@@ -21,6 +21,7 @@ func TestRunCLIKeepsCredentialPromptsOffStdout(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Home = t.TempDir()
 	a := &app.App{Cfg: cfg}
+	t.Cleanup(a.CloseDBs)
 
 	var loginWriter io.Writer
 	p := Provider{

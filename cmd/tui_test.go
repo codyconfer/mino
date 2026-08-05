@@ -73,6 +73,7 @@ func TestBuildViewsHistorySelectable(t *testing.T) {
 		Cfg:        &config.Config{Home: t.TempDir()},
 		Directives: &config.Directives{},
 	}
+	closeSharedDBs(t)
 
 	kit := buildViews()
 	app := deck.New(kit.MainMenu())
@@ -131,6 +132,7 @@ func TestDeckFlightNameTracksRoleHome(t *testing.T) {
 					Roles: map[string]config.RoleDef{"triage": tc.role},
 				},
 			}
+			closeSharedDBs(t)
 			if got := deckFlightName(); got != tc.want {
 				t.Errorf("deckFlightName() = %q, want %q", got, tc.want)
 			}
