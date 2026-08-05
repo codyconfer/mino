@@ -26,4 +26,4 @@ go test ./...
 ```
 
 See [`external/plugins/README.md`](../../../external/plugins/README.md) and
-[`docs/readme.md`](../../../docs/readme.md#plugins--notes).
+[`docs/plugins.md`](../../../docs/plugins.md).

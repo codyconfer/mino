@@ -42,20 +42,20 @@ export MINO_GITHUB_VIEWER=acme-bot       # what @me should mean for a service id
 docker compose up -d                     # API on 127.0.0.1:7717/api/v1
 ```
 
-See [Container](docs/readme.md#container) — note that binding off-loopback leaves the
+See [Container](docs/realtime/container.md) — note that binding off-loopback leaves the
 bearer token (or an allow-listed GitHub sign-in) as the only control on endpoints that run
 flights and plugin actions.
 mino can also authenticate to GitHub as a service rather than as you: see
-[Service authentication](docs/readme.md#service-authentication).
+[Service authentication](docs/configuration/authentication.md#service-authentication).
 
 On first use Mino guides you through onboarding — GitHub auth plus a GitHub-verified
 signing key — and how strictly it gates depends on the mode; see
-[Onboarding](docs/readme.md#onboarding). Authentication reuses tools you already have
+[Onboarding](docs/configuration/onboarding.md). Authentication reuses tools you already have
 (the `gh` CLI, `gcloud` ADC, `$SLACK_TOKEN`) and falls back to `mino login <service>`
-when they are absent; see [Authentication](docs/readme.md#authentication) for the
+when they are absent; see [Authentication](docs/configuration/authentication.md) for the
 resolution order and required scopes. For unattended deployments a GitHub App or a
 machine-user PAT can take over instead — see
-[Service authentication](docs/readme.md#service-authentication).
+[Service authentication](docs/configuration/authentication.md#service-authentication).
 
 ## Modes
 
@@ -68,7 +68,7 @@ Four modes over the same engine:
 | **daemon** *(experimental, `-tags daemon`)* | `mino daemon [flight]` | Install (if needed) then start the OS service |
 | **deck** | `mino deck [flight]` | Full-screen interactive TUI |
 
-→ [Operating modes](docs/readme.md#operating-modes) for the stdio and logging contracts,
+→ [Operating modes](docs/operating-modes.md) for the stdio and logging contracts,
 `make` targets, and the tmux workspace.
 
 ## Quick reference
@@ -96,26 +96,30 @@ Common flags: `-o json` (pipeable output), `-F <name>` (render through a formatt
 `mino serve --http` also exposes a token-guarded HTTP API under `/api/v1` — loopback by
 default — that triggers flights, queries and actions and streams events over SSE, as an
 alternative to typing the command. Callers can optionally sign in with a GitHub identity
-instead of sharing the token. See [HTTP trigger API](docs/readme.md#http-trigger-api).
+instead of sharing the token. See [HTTP trigger API](docs/realtime/http-api.md).
 
-→ [Command reference](docs/readme.md#command-reference) ·
-[Common flags](docs/readme.md#common-flags)
+→ [Command reference](docs/reference/commands.md) ·
+[Common flags](docs/reference/commands.md#common-flags)
 
 ## Documentation
 
-The full manual lives in **[docs/readme.md](docs/readme.md)**:
+The full manual lives under **[docs/](docs/readme.md)**, which indexes every page:
 
-- [Queries and filters](docs/readme.md#queries-and-filters) — signals, params, regex rules
-- [Flights](docs/readme.md#flights) — named concurrent sweeps
-- [Roles](docs/readme.md#roles) — scope what Mino shows
-- [Formatters](docs/readme.md#formatters) — templated reports over a run
-- [Realtime: serve & daemon](docs/readme.md#realtime-serve--daemon) — active signals, notifications
-- [HTTP trigger API](docs/readme.md#http-trigger-api) — `/api/v1` triggers and the SSE stream
-- [Container](docs/readme.md#container) — image, compose, and the `0.0.0.0` caveat
-- [Service authentication](docs/readme.md#service-authentication) — GitHub App / machine-user auth
-- [Configuration](docs/readme.md#configuration) — config dir layout, DuckDB store, logs
-- [Data signals](docs/readme.md#data-signals) — what each signal reads and writes
-- [Development & internals](docs/readme.md#development--internals) — build, test, plugins
+- [Getting started](docs/getting-started.md) — install, bootstrap, and the pipeline
+- [Operating modes](docs/operating-modes.md) — cli, serve, daemon, deck; the tmux workspace
+- [Queries and filters](docs/directives/queries-and-filters.md) — signals, params, regex rules
+- [Flights](docs/directives/flights.md) — named concurrent sweeps
+- [Roles](docs/directives/roles.md) — scope what Mino shows
+- [Formatters](docs/directives/formatters.md) — templated reports over a run
+- [Realtime: serve & daemon](docs/realtime/serve-and-daemon.md) — active signals, notifications
+- [HTTP trigger API](docs/realtime/http-api.md) — `/api/v1` triggers and the SSE stream
+- [Container](docs/realtime/container.md) — image, compose, and the `0.0.0.0` caveat
+- [Service authentication](docs/configuration/authentication.md#service-authentication) — GitHub App / machine-user auth
+- [Configuration](docs/configuration/readme.md) — config dir layout, DuckDB store, logs
+- [Data signals](docs/reference/signals.md) — what each signal reads and writes
+- [Command reference](docs/reference/commands.md) — every command and common flag
+- [Plugins & notes](docs/plugins.md) — the plugin model and the overlay binary
+- [Development & internals](docs/development.md) — build, test, build tags
 
 Copy-paste starters live in [`examples/`](examples/).
 
