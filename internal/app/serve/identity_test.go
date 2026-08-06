@@ -132,9 +132,15 @@ func TestIdentityProvidersAreClosedInPackage(t *testing.T) {
 		t.Errorf("providers = %v, want exactly github", got)
 	}
 	unknown := testIdentityOptions()
-	unknown.Provider = "gitlab"
+	unknown.Provider = "bitbucket"
 	if got := apiIdentityProviders(unknown); got != nil {
 		t.Error("an unknown provider was wired; the inbound set is closed in-package on purpose")
+	}
+	forge := testIdentityOptions()
+	forge.Provider = "gitlab"
+	if got := apiIdentityProviders(forge); got != nil {
+		t.Error("gitlab was wired for inbound identity just because it is a registered git provider; " +
+			"the two registries are deliberately separate")
 	}
 }
 

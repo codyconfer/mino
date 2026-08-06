@@ -45,6 +45,7 @@ func TestResolveAliases(t *testing.T) {
 	registerFakeGoogle(t)
 	cases := map[string]string{
 		"github":   "github",
+		"gitlab":   "gitlab",
 		"google":   "google",
 		"gmail":    "google",
 		"calendar": "google",

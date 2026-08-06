@@ -184,35 +184,39 @@ func GitHubWhoAmI(ctx context.Context, apiURL, tok string) (GitHubIdentity, erro
 	return GitHubIdentity{Login: out.Login, ID: out.ID, Type: out.Type}, nil
 }
 
-func githubPostForm(ctx context.Context, endpoint string, form url.Values, out any) (int, error) {
+func oauthPostForm(ctx context.Context, label, endpoint string, form url.Values, clientErr func(int) error, out any) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return 0, errs.Wrap(errs.KindSignal, err, "github device flow: building request")
+		return 0, errs.Wrapf(errs.KindSignal, err, "%s: building request", label)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 	resp, err := sharedHTTPClient.Do(req)
 	if err != nil {
-		return 0, errs.Wrap(errs.KindSignal, err, "github device flow")
+		return 0, errs.Wrap(errs.KindSignal, err, label)
 	}
 	defer resp.Body.Close()
-	body, err := readBounded(resp, "github device flow", maxTokenResponseBytes)
+	body, err := readBounded(resp, label, maxTokenResponseBytes)
 	if err != nil {
 		return resp.StatusCode, err
 	}
 	if len(body) == 0 {
 		if resp.StatusCode >= 400 {
-			return resp.StatusCode, clientIDError(resp.StatusCode)
+			return resp.StatusCode, clientErr(resp.StatusCode)
 		}
-		return resp.StatusCode, errs.New(errs.KindSignal, "github device flow: the response was empty")
+		return resp.StatusCode, errs.Newf(errs.KindSignal, "%s: the response was empty", label)
 	}
 	if err := json.Unmarshal(body, out); err != nil {
 		if resp.StatusCode >= 400 {
-			return resp.StatusCode, clientIDError(resp.StatusCode)
+			return resp.StatusCode, clientErr(resp.StatusCode)
 		}
-		return resp.StatusCode, errs.Newf(errs.KindSignal, "github device flow: %s returned no usable JSON", resp.Status)
+		return resp.StatusCode, errs.Newf(errs.KindSignal, "%s: %s returned no usable JSON", label, resp.Status)
 	}
 	return resp.StatusCode, nil
+}
+
+func githubPostForm(ctx context.Context, endpoint string, form url.Values, out any) (int, error) {
+	return oauthPostForm(ctx, "github device flow", endpoint, form, clientIDError, out)
 }
 
 func clientIDError(status int) error {

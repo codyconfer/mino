@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/codyconfer/mino/internal/plugin"
+	gl "github.com/codyconfer/mino/internal/signals/gitlab"
 )
 
 type ParamSpec = plugin.ParamSpec
@@ -33,6 +34,14 @@ func registerStockQueryParams() {
 		ParamSpec{Key: "title", Desc: "project board section title (needs project)", Example: "Sprint board"},
 		ParamSpec{Key: "field", Desc: "project board field to group by (needs project)", Example: "Status"},
 		ParamSpec{Key: "team", Desc: "org team whose members count as ours (needs project)", Example: "acme/platform"},
+	)
+	plugin.RegisterQueryParams("gitlab",
+		ParamSpec{
+			Key: "query", Desc: "GitLab selector", Example: "kind:mr scope:assigned state:opened",
+			Values: gl.SelectorTerms(), Delim: " ",
+		},
+		ParamSpec{Key: "title", Desc: "section title", Example: "My merge requests"},
+		ParamSpec{Key: "interval", Desc: "stream poll interval", Example: "60s"},
 	)
 }
 

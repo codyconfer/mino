@@ -98,7 +98,7 @@ a flag; overrides are never persisted.
 validates the key.
 
 **Plugin settings** live under `plugins:`, namespaced per plugin — stock mino's own
-knobs (`github:`, `gitea:`, `cache:`, `daemon:`, `backup:`, `audit:`) stay at the top level, and
+knobs (`github:`, `gitlab:`, `gitea:`, `cache:`, `daemon:`, `backup:`, `audit:`) stay at the top level, and
 everything a plugin reads goes under `plugins.<namespace>.<key>`, reached through
 `plugin.Host.Settings`:
 

@@ -170,6 +170,10 @@ func (a *App) resolveGitAuth() (gitauth.Provider, gitauth.Identity, error) {
 	if name == "" {
 		name = gitauth.Default
 	}
+	if !gitauth.Known(name) {
+		return nil, nil, errs.Newf(errs.KindConfig, "unknown git.provider %q", name).
+			WithHint("known providers: %v", gitauth.Names())
+	}
 	p, err := gitauth.New(name, gitauth.Env{
 		Store:   a.Tokens,
 		Role:    a.Role(),

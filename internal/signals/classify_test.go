@@ -31,6 +31,15 @@ func TestClassifyItemUsesState(t *testing.T) {
 		{"argocd out of sync", Item{Kind: "application", Meta: map[string]string{"state": "out of sync"}}, glyph.SeverityWarning},
 		{"argocd suspended", Item{Kind: "application", Meta: map[string]string{"state": "suspended"}}, glyph.SeverityNeutral},
 		{"argocd unknown", Item{Kind: "application", Meta: map[string]string{"state": "unknown"}}, glyph.SeverityNeutral},
+		{"opened mr", Item{Kind: "mr", Meta: map[string]string{"state": "opened"}}, glyph.SeverityNeutral},
+		{"merged mr", Item{Kind: "mr", Meta: map[string]string{"state": "merged"}}, glyph.SeverityPositive},
+		{"closed mr", Item{Kind: "mr", Meta: map[string]string{"state": "closed"}}, glyph.SeverityNegative},
+		{"opened issue", Item{Kind: "issue", Meta: map[string]string{"state": "opened"}}, glyph.SeverityNeutral},
+		{"failed pipeline", Item{Kind: "pipeline", Meta: map[string]string{"status": "failed"}}, glyph.SeverityNegative},
+		{"running pipeline", Item{Kind: "pipeline", Meta: map[string]string{"status": "running"}}, glyph.SeverityWarning},
+		{"manual pipeline", Item{Kind: "pipeline", Meta: map[string]string{"status": "manual"}}, glyph.SeverityWarning},
+		{"successful pipeline", Item{Kind: "pipeline", Meta: map[string]string{"status": "success"}}, glyph.SeverityPositive},
+		{"canceled pipeline", Item{Kind: "pipeline", Meta: map[string]string{"status": "canceled"}}, glyph.SeverityNeutral},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

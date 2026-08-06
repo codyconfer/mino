@@ -2,8 +2,9 @@
 
 | Signal | Ships in | Command(s) | Access | Write restrictions |
 |---|---|---|---|---|
-| GitHub | stock | `github query` | Read-only | — |
-| Gitea / Forgejo | stock | `gitea query` (`forgejo`) | Read-only | — |
+| GitHub | stock | `github query`, `github show` | Read-only | — |
+| GitLab | stock | `gitlab query`, `gitlab show` | Read-only | — |
+| Gitea / Forgejo | stock | `gitea query`, `gitea show` (`forgejo`) | Read-only | — |
 | Notes / Tasks / Reminders / Buckets | stock | `mino notes` | **Read + write** | Local DuckDB store under `<home>/.data`: `notes`, `tasks`, `reminders`, plus `buckets` and `bucket_members`. |
 | Google Calendar | overlay | `calendar query` (`cal`) | Read-only | — |
 | Gmail | overlay | `gmail query` | Read-only | — |
@@ -127,6 +128,54 @@ device-flow scope set: `gh auth refresh -s read:project`, or add it to
 
 Each item carries the field value in `meta.status`, so filter rules can narrow
 further (`field: meta.status`, `field: meta.labels`, `field: meta.assignees`).
+
+## GitLab selectors
+
+GitLab's REST API has no free-text search DSL, so the `gitlab` signal takes a
+**selector**: space-separated `key:value` terms, each mapping 1:1 onto a
+documented REST parameter or path prefix. It is a parameter spelling, not a
+search language, and an unsupported term is a config error rather than a
+silently-ignored text term.
+
+```yaml
+name: gitlab-my-mrs
+type: query
+signal: gitlab
+params:
+  query: "kind:mr scope:assigned state:opened label:backend"
+```
+
+| Term | Values | Maps to |
+|---|---|---|
+| `kind:` | `mr` (default), `issue`, `pipeline` | the surface and its endpoint |
+| `project:` | `group/sub/project` or a numeric id | `/projects/{id}/…` |
+| `group:` | `group/subgroup` | `/groups/{id}/…` |
+| `state:` | `opened`, `closed`, `merged`, `locked`, `all` | `state` (`merged`/`locked` are MR-only) |
+| `scope:` | `assigned`, `created`, `all` (or GitLab's own literals); for pipelines `running`, `pending`, `finished`, `branches`, `tags` | `scope` |
+| `author:` `assignee:` `reviewer:` | a username or `@me` | `author_username`, `assignee_username`, `reviewer_username` (`reviewer:` is MR-only) |
+| `label:` | repeatable | `labels`, comma-joined (GitLab ANDs them) |
+| `milestone:` | a title; quote to include spaces | `milestone` |
+| `search:` | free text | `search` — the escape hatch |
+| `draft:` | `true`, `false` | `wip` (MR-only) |
+| `since:` | `7d` or `2026-01-02` | `updated_after` |
+| `sort:` | `updated`, `created` | `order_by` + `sort=desc` |
+| `status:` `ref:` `username:` | pipeline-only | `status`, `ref`, `username` |
+
+Two constraints worth knowing:
+
+- **`kind:pipeline` requires a `project:`.** GitLab has no instance-wide
+  pipelines endpoint.
+- **`@me` is resolved by mino, not by GitLab.** GitLab has no server-side alias:
+  `author_username=@me` matches a user literally named `@me` and returns an empty
+  list with a 200. Mino substitutes `gitlab.viewer` if set, otherwise one cached
+  `GET /user`; if neither resolves, the query fails rather than returning
+  nothing. `scope:assigned` and `scope:created` resolve server-side and need no
+  viewer at all — prefer them, especially for a service identity.
+
+`mino gitlab show <url>` renders a merge request, issue or pipeline. `mino show`
+picks the signal from the URL's host, so it works without `--signal` for
+gitlab.com, github.com, and any host matching a configured `gitlab.api_url` or
+`github.api_url`.
 
 ## ArgoCD
 

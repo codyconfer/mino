@@ -13,7 +13,10 @@ func ClassifyItem(it Item) glyph.Severity {
 		}
 		return ClassifyKind(it.Meta["status"])
 	}
-	isPR := strings.EqualFold(it.Kind, "pr")
+	if strings.EqualFold(it.Kind, "pipeline") {
+		return ClassifyState(it.Meta["status"])
+	}
+	isPR := strings.EqualFold(it.Kind, "pr") || strings.EqualFold(it.Kind, "mr")
 	switch strings.ToLower(it.Meta["state"]) {
 	case "merged":
 		return glyph.SeverityPositive
@@ -22,7 +25,7 @@ func ClassifyItem(it Item) glyph.Severity {
 			return glyph.SeverityNegative
 		}
 		return glyph.SeverityPositive
-	case "open":
+	case "open", "opened":
 		return glyph.SeverityNeutral
 	}
 	if sev := ClassifyState(it.Meta["state"]); sev != glyph.SeverityNeutral {
@@ -38,7 +41,8 @@ func ClassifyState(state string) glyph.Severity {
 	case "FAILURE", "FAILED", "ERROR", "TIMED_OUT", "STARTUP_FAILURE", "DEGRADED", "MISSING":
 		return glyph.SeverityNegative
 	case "IN_PROGRESS", "QUEUED", "PENDING", "WAITING", "REQUESTED", "ACTION_REQUIRED",
-		"PROGRESSING", "RUNNING", "TERMINATING", "OUT_OF_SYNC":
+		"PROGRESSING", "RUNNING", "TERMINATING", "OUT_OF_SYNC",
+		"CREATED", "PREPARING", "SCHEDULED", "WAITING_FOR_RESOURCE", "MANUAL":
 		return glyph.SeverityWarning
 	default:
 		return glyph.SeverityNeutral

@@ -1,0 +1,5 @@
+name: gitlab-my-mrs
+type: query
+signal: gitlab
+params:
+  query: "kind:mr scope:assigned state:opened"

@@ -52,6 +52,10 @@ func Auth(ctx context.Context, cfg *config.Config, p gitauth.Provider, id gitaut
 }
 
 func viewerFinding(cfg *config.Config, p gitauth.Provider, id gitauth.Identity) (Finding, bool) {
+	switch p.Name() {
+	case "gitlab":
+		return gitlabViewerFinding(cfg, id), true
+	}
 	if cfg == nil {
 		return Finding{Name: "github.viewer", OK: true}, true
 	}
@@ -100,4 +104,39 @@ func effectiveQueries(gh config.GitHubConfig) []string {
 		return gh.Queries
 	}
 	return []string{"is:open is:pr author:@me", "is:open is:pr review-requested:@me"}
+}
+
+// gitlabViewerFinding is stricter than GitHub's: GitLab has no server-side @me, so an
+// unresolved alias is a hard error at fetch time rather than an empty result.
+func gitlabViewerFinding(cfg *config.Config, id gitauth.Identity) Finding {
+	f := Finding{Name: "gitlab.viewer"}
+	if cfg == nil {
+		f.OK = true
+		return f
+	}
+	if v := strings.TrimSpace(cfg.GitLab.Viewer); v != "" {
+		f.OK, f.Msg = true, v+" replaces @me in selectors"
+		return f
+	}
+	if id == nil || !id.ServiceIdentity() {
+		f.OK, f.Msg = true, "unset; @me resolves through /user to the authenticated user"
+		return f
+	}
+	for _, q := range effectiveGitLabSelectors(cfg.GitLab) {
+		if strings.Contains(q, "@me") {
+			f.Warn = true
+			f.Msg = "unset, but " + strconv.Quote(q) + " uses @me, which resolves to the service " +
+				"account itself; set gitlab.viewer or use scope:assigned"
+			return f
+		}
+	}
+	f.OK, f.Msg = true, "unset; no configured selector uses @me"
+	return f
+}
+
+func effectiveGitLabSelectors(gl config.GitLabConfig) []string {
+	if len(gl.Queries) > 0 {
+		return gl.Queries
+	}
+	return []string{"kind:mr scope:assigned state:opened", "kind:mr reviewer:@me state:opened"}
 }

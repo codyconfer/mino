@@ -140,50 +140,33 @@ func BuilderSignals() map[string]bool {
 }
 
 func registerStockBuilders() {
-	registerGithubBuilders()
-	registerGiteaBuilders()
+	registerStock("github", buildGithub, buildActiveGithub)
+	registerStock("gitea", buildGitea, buildActiveGitea)
+	registerStock("gitlab", buildGitlab, buildActiveGitlab)
 }
 
-func registerGithubBuilders() {
-	if _, ok := plugin.LookupBuilders("github"); ok {
+func registerStock(
+	name string,
+	query func(map[string]string, *config.Config, *token.Store, *cache.Store) (signals.Signal, error),
+	stream func(map[string]string, *config.Config, *token.Store, *active.State) (signals.ActiveSignal, error),
+) {
+	if _, ok := plugin.LookupBuilders(name); ok {
 		return
 	}
-	plugin.RegisterBuilders("github", plugin.Builders{
+	plugin.RegisterBuilders(name, plugin.Builders{
 		Query: func(bc plugin.BuildContext) (plugin.Query, error) {
 			h, ok := asHost(bc)
 			if !ok {
-				return nil, errs.New(errs.KindInternal, "github builder requires host build context")
+				return nil, errs.Newf(errs.KindInternal, "%s builder requires host build context", name)
 			}
-			return buildGithub(h.params, h.cfg, h.tokens, h.cache)
+			return query(h.params, h.cfg, h.tokens, h.cache)
 		},
 		Stream: func(bc plugin.BuildContext) (plugin.Stream, error) {
 			h, ok := asHost(bc)
 			if !ok {
-				return nil, errs.New(errs.KindInternal, "github stream builder requires host build context")
+				return nil, errs.Newf(errs.KindInternal, "%s stream builder requires host build context", name)
 			}
-			return buildActiveGithub(h.params, h.cfg, h.tokens, h.state)
-		},
-	})
-}
-
-func registerGiteaBuilders() {
-	if _, ok := plugin.LookupBuilders("gitea"); ok {
-		return
-	}
-	plugin.RegisterBuilders("gitea", plugin.Builders{
-		Query: func(bc plugin.BuildContext) (plugin.Query, error) {
-			h, ok := asHost(bc)
-			if !ok {
-				return nil, errs.New(errs.KindInternal, "gitea builder requires host build context")
-			}
-			return buildGitea(h.params, h.cfg, h.tokens, h.cache)
-		},
-		Stream: func(bc plugin.BuildContext) (plugin.Stream, error) {
-			h, ok := asHost(bc)
-			if !ok {
-				return nil, errs.New(errs.KindInternal, "gitea stream builder requires host build context")
-			}
-			return buildActiveGitea(h.params, h.cfg, h.tokens, h.state)
+			return stream(h.params, h.cfg, h.tokens, h.state)
 		},
 	})
 }

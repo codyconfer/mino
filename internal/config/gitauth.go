@@ -18,6 +18,8 @@ func (c *Config) GitSettings(provider string) func(string) string {
 		return c.githubSetting
 	case "gitea", "forgejo":
 		return c.giteaSetting
+	case "gitlab":
+		return c.gitlabSetting
 	}
 	section := c.PluginSettings(provider)
 	return func(key string) string {
@@ -62,6 +64,22 @@ func (c *Config) githubSetting(key string) string {
 		return c.GitHub.OAuthClientID
 	case "oauth_scopes":
 		return c.GitHub.OAuthScopes
+	}
+	return ""
+}
+
+func (c *Config) gitlabSetting(key string) string {
+	switch key {
+	case "api_url":
+		return c.GitLab.APIURL
+	case "service_token":
+		return c.GitLab.ServiceToken
+	case "viewer":
+		return c.GitLab.Viewer
+	case "oauth_client_id":
+		return c.GitLab.OAuthClientID
+	case "oauth_scopes":
+		return c.GitLab.OAuthScopes
 	}
 	return ""
 }

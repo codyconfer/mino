@@ -94,6 +94,7 @@ func Defaults() *Config {
 		Backup:   BackupConfig{SecretBackend: "auto", SecretName: "mino-backup-key", Destination: "local"},
 		GitHub:   GitHubConfig{OAuthScopes: "repo read:org", Max: 30},
 		Gitea:    GiteaConfig{Max: 30},
+		GitLab:   GitLabConfig{OAuthScopes: "read_api read_user", Max: 30},
 		Daemon: DaemonConfig{
 			Interval: "60s", Bell: true, Theme: "dark",
 			HTTP: HTTPConfig{

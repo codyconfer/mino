@@ -164,6 +164,7 @@ func newRootCmd() *cobra.Command {
 		newVersionCmd(),
 		newGithubCmd(),
 		newGiteaCmd(),
+		newGitlabCmd(),
 		newServeCmd(),
 		newPaneCmd(),
 	)

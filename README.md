@@ -3,7 +3,7 @@
 [![CI](https://github.com/codyconfer/mino/actions/workflows/ci.yml/badge.svg)](https://github.com/codyconfer/mino/actions/workflows/ci.yml)
 
 Mino is a command-line assistant for the signals you check at the start of — and
-throughout — an SRE shift. Stock Mino ships **GitHub**, **Gitea/Forgejo**, and
+throughout — an SRE shift. Stock Mino ships **GitHub**, **GitLab**, **Gitea/Forgejo**, and
 **notes / tasks / reminders**; **Google** (Calendar / Gmail / Docs / Drive / Tasks), **Slack**, and the
 demo signal live in [`external/plugins`](external/plugins/) and are linked by an
 overlay binary. Query a single signal ad-hoc, save reusable **queries** and
@@ -30,6 +30,7 @@ mino install                 # create ~/.mino with defaults
 mino onboard                 # one-time: git provider auth + a provider-verified GPG key
 mino fly                     # run the default flight
 mino github query            # ad-hoc: your open PRs + review requests
+mino gitlab query            # the same for GitLab merge requests
 mino fly default -o json | jq .
 ```
 

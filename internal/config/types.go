@@ -17,6 +17,7 @@ type Config struct {
 	Git         GitConfig         `koanf:"git"`
 	GitHub      GitHubConfig      `koanf:"github"`
 	Gitea       GiteaConfig       `koanf:"gitea"`
+	GitLab      GitLabConfig      `koanf:"gitlab"`
 	Daemon      DaemonConfig      `koanf:"daemon"`
 	Cache       CacheConfig       `koanf:"cache"`
 
@@ -150,6 +151,16 @@ type GiteaConfig struct {
 	Max          int      `koanf:"max"`
 	Viewer       string   `koanf:"viewer"`
 	ServiceToken string   `koanf:"service_token"`
+}
+
+type GitLabConfig struct {
+	Queries       []string `koanf:"queries"`
+	OAuthClientID string   `koanf:"oauth_client_id"`
+	OAuthScopes   string   `koanf:"oauth_scopes"`
+	APIURL        string   `koanf:"api_url"`
+	Max           int      `koanf:"max"`
+	Viewer        string   `koanf:"viewer"`
+	ServiceToken  string   `koanf:"service_token"`
 }
 
 type RoleDef struct {

@@ -1,0 +1,6 @@
+name: gitlab-review-requests
+type: query
+signal: gitlab
+params:
+  query: "kind:mr reviewer:@me state:opened"
+  title: "Review Requests"

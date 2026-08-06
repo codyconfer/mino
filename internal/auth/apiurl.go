@@ -10,6 +10,7 @@ import (
 
 const (
 	githubAPIURLHint = "set github.api_url to an https:// endpoint, e.g. https://api.github.com or your enterprise host"
+	gitlabAPIURLHint = "set gitlab.api_url to an https:// endpoint, e.g. https://gitlab.com/api/v4 or your self-managed host"
 	giteaURLHint     = "set gitea.url to your instance root, e.g. https://git.example.com (MINO_GITEA_URL also works); mino appends /api/v1"
 	giteaAPIURLHint  = "set gitea.api_url to your instance API root, e.g. https://git.example.com/api/v1"
 )
@@ -23,6 +24,10 @@ type forgeURL struct {
 
 func NormalizeGitHubAPIURL(raw string) (string, error) {
 	return forgeURL{forge: "github", field: "api_url", hint: githubAPIURLHint}.normalize(raw)
+}
+
+func NormalizeGitLabAPIURL(raw string) (string, error) {
+	return forgeURL{forge: "gitlab", field: "api_url", hint: gitlabAPIURLHint}.normalize(raw)
 }
 
 func NormalizeGiteaURL(raw string) (string, error) {

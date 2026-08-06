@@ -39,6 +39,7 @@ func Warn() string        { return vk.Warn() }
 func Arrow() string       { return vk.Arrow() }
 func Bullet() string      { return vk.Bullet() }
 func GitHub() string      { return vk.GitHub() }
+func GitLab() string      { return gitlab.String() }
 func Slack() string       { return vk.Slack() }
 func Google() string      { return vk.Google() }
 func Flight() string      { return vk.Diamond() }
@@ -65,6 +66,7 @@ var (
 	builder    = vk.Variants{Nerd: "", Uni: "⚒", ASCII: "qb"}
 	bucket     = vk.Variants{Nerd: "", Uni: "▤", ASCII: "bk"}
 	reply      = vk.Variants{Nerd: "", Uni: "↩", ASCII: "<-"}
+	gitlab     = vk.Variants{Nerd: "", Uni: "▲", ASCII: "gl"}
 )
 
 func init() {
@@ -74,6 +76,7 @@ func init() {
 	vk.Register("plugins", plugins)
 	vk.Register("builder", builder)
 	vk.Register("reply", reply)
+	vk.Register("gitlab", gitlab)
 	vk.Register("mino.brand", brand)
 	vk.Register("mino.signing.ok", signingOK)
 	vk.Register("mino.signing.bad", signingBad)

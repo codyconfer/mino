@@ -11,7 +11,6 @@ import (
 	"github.com/codyconfer/mino/internal/app/loginflow"
 	"github.com/codyconfer/mino/internal/app/onboard"
 	"github.com/codyconfer/mino/internal/errs"
-	"github.com/codyconfer/mino/internal/gitauth"
 	"github.com/codyconfer/mino/internal/log"
 )
 
@@ -115,12 +114,7 @@ func cliGuidedAuth(cmd *cobra.Command) error {
 			WithHint("mino will not prompt for a personal login while %s is configured; fix that "+
 				"credential, or unset it to log in as yourself", id.Origin())
 	}
-	provider := gitauth.Default
-	if shared != nil && shared.Cfg != nil {
-		if name := shared.Cfg.GitProvider(); name != "" {
-			provider = name
-		}
-	}
+	provider := loginflow.ActiveGitProvider(shared)
 	p, ok := loginflow.Resolve(provider)
 	if !ok {
 		return errs.Newf(errs.KindInternal, "%s login provider unavailable", provider)

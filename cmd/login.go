@@ -16,8 +16,8 @@ func newLoginCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "login <provider|signal>",
 		Short: "Authenticate a signal provider via OAuth (guided)",
-		Long: "Sign in to a signal provider. Accepts a provider (`github`, `gitea`,\n" +
-			"`forgejo`, `google`, `slack`) or any signal name — Google signals\n" +
+		Long: "Sign in to a signal provider. Accepts a provider (`github`, `gitlab`,\n" +
+			"`gitea`, `forgejo`, `google`, `slack`) or any signal name — Google signals\n" +
 			"(`calendar`, `gmail`, `docs`, `drive`, `tasks`) all resolve to the shared\n" +
 			"Google login. When run interactively, mino prompts for whatever the provider\n" +
 			"needs: OAuth client credentials are saved to config, while a pasted Gitea\n" +
@@ -61,6 +61,9 @@ func serviceAuthHint(provider string) string {
 	switch provider {
 	case "gitea", "forgejo":
 		return "unset gitea.service_token (and MINO_GITEA_SERVICE_TOKEN) to log in as yourself, or run " +
+			"`mino verify auth` to check the service credential"
+	case "gitlab":
+		return "unset gitlab.service_token (and MINO_GITLAB_SERVICE_TOKEN) to log in as yourself, or run " +
 			"`mino verify auth` to check the service credential"
 	case "github":
 		return "unset github.app / github.service_token (and the matching MINO_GITHUB_* vars) to log in as " +

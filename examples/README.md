@@ -101,6 +101,17 @@ status:
       Write-Output "triage"
 ```
 
+## GitLab starters
+
+GitLab is stock, but not everyone has an account, so these are examples rather
+than shipped defaults. Copy the ones you want into `~/.mino/queries/`.
+
+| Query | Selector | Notes |
+|---|---|---|
+| `gitlab-my-mrs` | `kind:mr scope:assigned state:opened` | `scope:assigned` resolves server-side, so it needs no `gitlab.viewer` and costs no extra request |
+| `gitlab-review-requests` | `kind:mr reviewer:@me state:opened` | `@me` is resolved client-side from `/user`, or from `gitlab.viewer` |
+| `gitlab-pipelines` | `kind:pipeline project:… status:failed ref:main` | `kind:pipeline` requires a `project:` — GitLab has no instance-wide pipelines endpoint |
+
 ## Plugin starters
 
 Plugins are **compile-time linked** into the mino binary (ADR-7). Runtime

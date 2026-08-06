@@ -12,7 +12,8 @@
 | `mino formatter [name]` | List the formatters the active role can see; with a name, show its definition. |
 | `mino formatter show <name>` / `render <name> [flight]` | Print a formatter's YAML / run a flight and render it (`--stdin` renders a `-o json` section array instead). |
 | `mino <signal> query` | Ad-hoc one-off query against a single signal. |
-| `mino <signal> show <url>` | Detail for one item, for signals that support it (`github`, `gitea`). Name the signal: a bare `mino show` assumes github, and a forge URL parses the same either way. |
+| `mino <signal> show <url>` | Detail page for one item, on signals that support it (`github`, `gitlab`, `gitea`). |
+| `mino show <url>` | Same, with the signal inferred from the URL's host (github and gitlab, including configured self-managed endpoints). Name the signal for gitea. |
 | `mino notes …` / `notes ui` | Notes/Tasks/Reminders CLI and TUI (`ntr` is an alias). |
 | `mino version` | Print brand glyph + `MINO` + build version (git describe / tag). |
 | `mino history` / `history show <id>` | List past runs / recall a run's results. |
@@ -28,7 +29,7 @@
 | `mino clean` | Archive the config file, `logs/`, and every directive file into `.archive/<timestamp>/`. |
 | `mino nuke [--yes]` | Delete the config directory and DuckDB (run `mino install` to recreate defaults). |
 | `mino role` | Show the active role and defined roles. |
-| `mino login <service>` | Sign in to `github` (device flow) or `gitea`/`forgejo` (paste a personal access token), plus any provider a plugin contributes (google/slack with the overlay). |
+| `mino login <service>` | OAuth/device login for `github` and `gitlab`, or `gitea`/`forgejo` (paste a personal access token), plus any provider a plugin contributes (google/slack with the overlay). |
 | `mino list [queries\|filters\|flights\|roles\|formatters]` | List what the active role can see (`--all` to ignore the role). |
 | `mino filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
 | `mino query build --signal <name>` | Compose and run an ad-hoc query; `--save <name>` keeps it, `--dry-run` just prints it. |
