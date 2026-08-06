@@ -45,6 +45,43 @@ keybinds:
   alt+x: pane.close   # close the most recently opened pane
 ```
 
+### External tools
+
+A `tool:<name>` binding opens another terminal program from the deck. Define the
+program under `tools:` and bind it like any other hotkey target:
+
+```yaml
+tools:
+  k9s:
+    argv: [k9s, "--context={{context.kubectl}}"]
+    title: k9s            # optional; the pane title and footer hint
+  lazygit:
+    argv: [lazygit]
+keybinds:
+  alt+k: tool:k9s
+  alt+g: tool:lazygit
+```
+
+Inside tmux the tool opens in a split pane, so mino stays visible beside it.
+Outside tmux the deck suspends, hands over the terminal, and redraws when the
+tool exits.
+
+A tool whose binary is not on `PATH` leaves its binding **inert** — the key does
+nothing and no footer hint appears — so the same `config.yaml` is portable
+across machines where you have not installed everything.
+
+`{{context.<tool>}}` expands to the context mino currently has selected for that
+context tool, which is what makes `alt+k` open k9s on the same cluster the deck
+is showing (`mino context switch kubectl prod`, or a role's `contexts:`
+binding — see [Data signals](reference/signals.md#kubernetes)). Only the
+`context.` namespace is substitutable. Write an optional flag as a **single**
+`--flag={{…}}` token: if any placeholder in a token resolves to nothing, that
+whole token is dropped, which is what keeps a bare `--context=` off the command
+line when no context is selected.
+
+Note that mino's read-only guarantees cover mino. A tool you launch this way is
+its own program with your own credentials — k9s can delete a pod.
+
 Splits are width-aware: mino splits side-by-side only when both panes would
 still clear the deck's 80-column minimum, otherwise it stacks them. Panes are
 killed when the deck exits, and they exit on their own within ~2s if the deck is

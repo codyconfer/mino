@@ -307,6 +307,9 @@ func (t itemTheme) itemIcon(it signals.Item, frame int) string {
 func ItemInProgress(it signals.Item) bool { return workflowInProgress(it) }
 
 func workflowInProgress(it signals.Item) bool {
+	if it.Meta["in_progress"] == "true" {
+		return true
+	}
 	if !strings.EqualFold(strings.TrimSpace(it.Kind), "workflow") || strings.TrimSpace(it.Meta["conclusion"]) != "" {
 		return false
 	}

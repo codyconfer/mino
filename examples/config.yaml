@@ -25,6 +25,8 @@ cache:
   # "0" turns it off. Signals reading local state (ntr) are never cached.
   # signals:
   #   github: 5m            # slow API, cache harder
+  #   gcx: 5m               # gcx omits `cacheable` (view=status reads local
+  #                         # sealed-token state); set this to cache incidents
 
 # Audit trail: every flight/query run and each applied config is recorded to an
 # embedded DuckDB database (default <home>/audit.duckdb) with timestamps, for
@@ -170,7 +172,45 @@ github:
 #     max: 100
 #   slack:
 #     token_env: SLACK_TOKEN
-#     limit: 50
+#     limit: 50                 # max messages per surface
+#     channel: "eng-standup"    # default channel(s); comma separated for several
+#     mentions: false           # include messages mentioning you (needs search:read)
+#     dms: 0                    # include this many recent DM conversations
+#     mention_query: ""         # extra search terms appended to the mentions query
+#     resolve_names: true       # map U-ids to display names (needs users:read)
+#     workspace: ""             # e.g. myorg.slack.com; skips the auth.test lookup
+#     retry_max: 2              # retries on a 429 before giving up
+#     stream_channels: []       # restrict `serve` streaming to these channels
 #     oauth_client_id: "123.456"
 #     oauth_client_secret: xxxx
-#     user_scopes: channels:history,channels:read,groups:history,groups:read
+#     user_scopes: channels:history,channels:read,groups:history,groups:read,im:history,im:read,mpim:history,mpim:read,search:read,users:read
+#   argocd:
+#     # The ArgoCD UI root. https only — mino refuses to send the API token
+#     # over plain http. For a private CA set ca_file rather than downgrading.
+#     server_url: https://argocd.example.com
+#     ca_file: /etc/ssl/certs/internal-ca.pem
+#     # Token order: the sealed `argocd` credential first, then this env var.
+#     # Mint one with `argocd account generate-token --account mino` and grant
+#     # `p, role:mino, applications, get, */*, allow`.
+#     token_env: ARGOCD_AUTH_TOKEN
+#     projects: [platform, storefront]
+#     selector: env=prod
+#     # app_namespace is where the Application resource lives (sent as
+#     # appNamespace). namespaces filters spec.destination.namespace, where the
+#     # workloads land — the list API cannot filter that, so mino does it
+#     # client-side. They are not interchangeable.
+#     app_namespace: argocd
+#     namespaces: [payments, checkout]
+#     only_unhealthy: false
+#     group_by: none          # none | project | cluster
+#     max: 50
+#   gcx:
+#     stack: myorg.grafana.net   # fallback when no role `contexts: {gcx: …}` is bound
+#     token_env: GCX_TOKEN       # env override for the sealed `gcx` token
+#     view: incidents            # default surface (incidents|status)
+#     status: active             # incidents filter (active|resolved|all)
+#     limit: 20
+#     drills: false
+#     timeout: 20s
+#     allow_write: false         # required before declare-incident / add-activity run
+#     default_severity: minor

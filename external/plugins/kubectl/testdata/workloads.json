@@ -1,0 +1,48 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "kind": "Deployment",
+      "metadata": { "name": "checkout", "namespace": "payments", "creationTimestamp": "2026-06-01T00:00:00Z" },
+      "spec": { "replicas": 4 },
+      "status": { "replicas": 4, "readyReplicas": 0, "updatedReplicas": 4, "availableReplicas": 0 }
+    },
+    {
+      "kind": "Deployment",
+      "metadata": { "name": "api", "namespace": "storefront", "creationTimestamp": "2026-06-02T00:00:00Z" },
+      "spec": { "replicas": 6 },
+      "status": { "replicas": 6, "readyReplicas": 4, "updatedReplicas": 6, "availableReplicas": 4 }
+    },
+    {
+      "kind": "Deployment",
+      "metadata": { "name": "web", "namespace": "storefront", "creationTimestamp": "2026-06-03T00:00:00Z" },
+      "spec": { "replicas": 3 },
+      "status": { "replicas": 3, "readyReplicas": 3, "updatedReplicas": 1, "availableReplicas": 3 }
+    },
+    {
+      "kind": "Deployment",
+      "metadata": { "name": "batch-runner", "namespace": "ops", "creationTimestamp": "2026-06-04T00:00:00Z" },
+      "spec": { "replicas": 0 },
+      "status": { "replicas": 0, "readyReplicas": 0, "updatedReplicas": 0, "availableReplicas": 0 }
+    },
+    {
+      "kind": "StatefulSet",
+      "metadata": { "name": "ledger-db", "namespace": "payments", "creationTimestamp": "2026-05-01T00:00:00Z" },
+      "spec": { "replicas": 3 },
+      "status": { "replicas": 3, "readyReplicas": 3, "updatedReplicas": 3 }
+    },
+    {
+      "kind": "DaemonSet",
+      "metadata": { "name": "node-exporter", "namespace": "monitoring", "creationTimestamp": "2026-05-02T00:00:00Z" },
+      "spec": {},
+      "status": { "desiredNumberScheduled": 3, "numberReady": 2, "updatedNumberScheduled": 3 }
+    },
+    {
+      "kind": "DaemonSet",
+      "metadata": { "name": "fluent-bit", "namespace": "monitoring", "creationTimestamp": "2026-05-03T00:00:00Z" },
+      "spec": {},
+      "status": { "desiredNumberScheduled": 3, "numberReady": 3, "updatedNumberScheduled": 3 }
+    }
+  ]
+}

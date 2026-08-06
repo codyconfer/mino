@@ -1,0 +1,96 @@
+{
+  "metadata": { "resourceVersion": "48211" },
+  "items": [
+    {
+      "metadata": { "name": "payments-api", "namespace": "argocd" },
+      "spec": {
+        "project": "platform",
+        "destination": { "server": "https://kubernetes.default.svc", "name": "in-cluster", "namespace": "payments" },
+        "source": { "repoURL": "https://github.com/acme/deploy", "path": "apps/payments-api", "targetRevision": "main" }
+      },
+      "status": {
+        "sync": { "status": "Synced", "revision": "9f1c2b7ad4e5f60718293a4b5c6d7e8f90123456" },
+        "health": { "status": "Healthy" },
+        "operationState": {
+          "phase": "Succeeded",
+          "startedAt": "2026-08-04T10:00:00Z",
+          "finishedAt": "2026-08-04T10:02:00Z",
+          "operation": { "initiatedBy": { "username": "release-bot" } }
+        },
+        "reconciledAt": "2026-08-04T10:02:30Z"
+      }
+    },
+    {
+      "metadata": { "name": "checkout-web", "namespace": "argocd" },
+      "spec": {
+        "project": "storefront",
+        "destination": { "name": "in-cluster", "namespace": "checkout" },
+        "source": { "repoURL": "https://github.com/acme/deploy", "path": "apps/checkout-web", "targetRevision": "main" }
+      },
+      "status": {
+        "sync": { "status": "Synced", "revision": "abc1234def5678901234567890abcdef12345678" },
+        "health": { "status": "Degraded", "message": "Deployment has 1 unavailable replica" },
+        "operationState": {
+          "phase": "Succeeded",
+          "startedAt": "2026-08-04T11:00:00Z",
+          "finishedAt": "2026-08-04T11:01:00Z",
+          "operation": { "initiatedBy": { "automated": true } }
+        },
+        "reconciledAt": "2026-08-04T11:01:10Z"
+      }
+    },
+    {
+      "metadata": { "name": "search-indexer", "namespace": "team-search" },
+      "spec": {
+        "project": "platform",
+        "destination": { "name": "in-cluster", "namespace": "search" },
+        "sources": [
+          { "repoURL": "https://github.com/acme/deploy", "path": "apps/search", "targetRevision": "main" }
+        ]
+      },
+      "status": {
+        "sync": { "status": "OutOfSync", "revision": "77aa88bb99cc00dd11ee22ff33445566778899aa" },
+        "health": { "status": "Progressing" },
+        "operationState": {
+          "phase": "Running",
+          "startedAt": "2026-08-04T12:00:00Z",
+          "operation": { "initiatedBy": { "username": "cody" } }
+        },
+        "reconciledAt": "2026-08-04T12:00:05Z"
+      }
+    },
+    {
+      "metadata": { "name": "billing-cron", "namespace": "argocd" },
+      "spec": {
+        "project": "platform",
+        "destination": { "name": "in-cluster", "namespace": "billing" },
+        "source": { "repoURL": "https://charts.acme.io", "chart": "billing", "targetRevision": "2.4.1" }
+      },
+      "status": {
+        "sync": { "status": "Synced", "revision": "2.4.1" },
+        "health": { "status": "Healthy" },
+        "operationState": {
+          "phase": "Failed",
+          "message": "one or more objects failed to apply",
+          "startedAt": "2026-08-04T13:00:00Z",
+          "finishedAt": "2026-08-04T13:00:30Z",
+          "operation": { "initiatedBy": { "username": "cody" } }
+        },
+        "reconciledAt": "2026-08-04T13:00:35Z"
+      }
+    },
+    {
+      "metadata": { "name": "legacy-shim", "namespace": "argocd" },
+      "spec": {
+        "project": "storefront",
+        "destination": { "name": "in-cluster", "namespace": "legacy" },
+        "source": { "repoURL": "https://github.com/acme/deploy", "path": "apps/legacy" }
+      },
+      "status": {
+        "sync": { "status": "Unknown" },
+        "health": { "status": "Suspended" },
+        "reconciledAt": "2026-08-01T09:00:00Z"
+      }
+    }
+  ]
+}

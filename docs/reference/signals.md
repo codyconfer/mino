@@ -9,7 +9,9 @@
 | Google Docs | overlay | `docs query` | Read-only | — |
 | Google Drive | overlay | `drive query`, `drive add` | **Read + write** | Creates a file **only** in the configured `plugins.drive.dir`; a write to any other folder is rejected *before* the API call. Reads any folder. Uses the full `drive` OAuth scope (folder discovery + create). |
 | Google Tasks | overlay | `tasks query`, `tasks add` | **Read + write** | Creates a task **only** in the configured `plugins.tasks.list`; a write to any other list is rejected *before* the API call. Reads any list. |
-| Slack | overlay | `slack query --channel <name>` | Read-only | — |
+| Slack | overlay | `slack query` (`--channel`, `--mentions`, `--dms`, `--search`), `slack show <permalink>` | Read-only | — |
+| Kubernetes | overlay | `kubectl query` (`k8s`) | Read-only | Shells out to `kubectl get … -o json` only. Registers no actions, and never writes to your kubeconfig — see [Kubernetes](#kubernetes). |
+| ArgoCD | overlay | `argocd query`, `argocd show <url>` | Read-only | Never sends `refresh`, which would force a reconcile against the cluster. |
 | Demo | overlay | `query demo` | Read-only | Synthetic items for smoke-testing notifications. |
 
 The write restriction is Mino policy enforced in `cmd/tasks.go:resolveWriteTarget`
@@ -63,6 +65,73 @@ device-flow scope set: `gh auth refresh -s read:project`, or add it to
 Each item carries the field value in `meta.status`, so filter rules can narrow
 further (`field: meta.status`, `field: meta.labels`, `field: meta.assignees`).
 
+## ArgoCD
+
+Read-only, against the ArgoCD REST API. One item per Application, ordered
+worst-first so a broken deploy sits at the top of the panel.
+
+```yaml
+name: argocd-unhealthy
+type: query
+signal: argocd
+params:
+  only_unhealthy: "true"
+  project: platform
+  max: "25"
+```
+
+Minimum config is the server URL:
+
+```yaml
+plugins:
+  argocd:
+    server_url: https://argocd.example.com
+```
+
+`server_url` must be https — mino refuses to send the API token over plain
+http, the same rule the GitHub signal applies to `github.api_url`. For a private
+or self-signed CA, point `plugins.argocd.ca_file` at the PEM bundle rather than
+disabling verification.
+
+Mint a token and grant it read access:
+
+```sh
+argocd account generate-token --account mino
+export ARGOCD_AUTH_TOKEN=...
+```
+
+```text
+p, role:mino, applications, get, */*, allow
+g, mino, role:mino
+```
+
+A token sealed under the `argocd` credential key takes precedence over the
+environment variable, so a stale `$ARGOCD_AUTH_TOKEN` from the `argocd` CLI
+cannot silently repoint mino at a different server. Change which variable is
+consulted with `plugins.argocd.token_env`.
+
+**The plugin never sends `refresh`.** `GET /applications?refresh=hard` forces a
+reconcile, which is a write-ish side effect against the cluster; a test asserts
+the parameter's absence.
+
+Each item carries the sync/health rollup in `meta.state` (`synced`,
+`out of sync`, `progressing`, `degraded`, `missing`, `failed`, `suspended`,
+`unknown`) plus `meta.sync`, `meta.health`, `meta.phase`, `meta.revision`,
+`meta.project`, `meta.cluster`, and `meta.namespace` — all available to filter
+rules and formatters. An application mid-sync sets `meta.in_progress`, which
+drives the row spinner and the detail view's live re-poll.
+
+`mino argocd show <application-url>` opens the detail panel: resource breakdown
+with per-resource health, the last five sync-history entries, the last
+operation with any failed resources, commit metadata, and the ArgoCD conditions
+that explain a stuck application.
+
+Two namespace settings exist and they are not interchangeable. `app_namespace`
+is where the `Application` resource lives and is sent to the API as
+`appNamespace`; apps outside the default `argocd` namespace need it. `namespaces`
+filters on `spec.destination.namespace`, where the workloads land — the list API
+cannot filter on that, so mino applies it client-side after fetching.
+
 ## Who owes the next reply
 
 For a board column like *Waiting*, the useful question is not who opened an item
@@ -101,3 +170,49 @@ Team membership costs one extra GraphQL call, cached for 24h in
 scope set). Without `team:`, `meta.last_comment_team` is absent and the chip
 renders dim — so a missing key always means "not configured", never "external".
 `meta.last_comment_at` is unaffected by `team:` and present either way.
+
+## Kubernetes
+
+The `kubectl` signal is an **overlay** plugin (`external.kubectl`). It reads a
+cluster by shelling out to the `kubectl` binary already on your `PATH` — there is
+no `client-go` in mino — so your kubeconfig, exec-credential plugins, OIDC, and
+proxies all work exactly as they do in your shell. `kubectl` must be installed;
+point `plugins.kubectl.binary` at it if it lives somewhere unusual.
+
+Four collectors run concurrently, one section each:
+
+| Collector | Reports |
+|---|---|
+| `pods` | Pods that are failed, pending, crash-looping, unready, or above the restart threshold. Succeeded pods and ones still starting up are skipped. |
+| `events` | `type=Warning` events inside the `since` window, newest first. |
+| `nodes` | Nodes that are NotReady, cordoned, or under memory/disk/PID/network pressure. |
+| `workloads` | Deployments, StatefulSets, and DaemonSets with fewer ready replicas than desired, or a rollout still updating. Scaled-to-zero workloads are skipped. |
+
+A fifth collector, `context`, reports the selected context instead of querying
+anything. Pick collectors with `--what`, or the `what:` query param:
+
+```sh
+mino kubectl query                                   # all four, all namespaces
+mino kubectl query -n payments --what pods,events
+mino kubectl query --context prod --since 6h -o json
+```
+
+A healthy cluster produces empty sections rather than noise, and a collector that
+fails — RBAC, an unreachable API server — comes back as a section with an error
+on it, so one broken cluster never aborts a flight.
+
+### The kubeconfig is never modified
+
+`mino context switch kubectl prod` and a role's `contexts: { kubectl: prod }`
+binding record the selection **in mino only**. Mino then passes it as
+`--context prod` on every read. It never runs `kubectl config use-context`, so
+your kubeconfig's current context — and every other shell on the machine — is
+untouched. The precedence for which context gets read is:
+
+1. the `context` query param (`--context`)
+2. the in-process selection from `mino context switch` or a role binding
+3. `plugins.kubectl.context` in config
+4. whatever your kubeconfig already says
+
+The signal is read-only end to end: it registers no actions, and every
+invocation is a `kubectl get`.

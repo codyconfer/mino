@@ -34,11 +34,18 @@ func conversationsServer(t *testing.T, calls *atomic.Int64, cursorFor func(n int
 
 func newTestSignal(t *testing.T, url, token, channel string) *slackSignal {
 	t.Helper()
-	resetChannelCache()
-	t.Cleanup(resetChannelCache)
+	resetCaches()
+	t.Cleanup(resetCaches)
 	s := New(token, channel, 10).(*slackSignal)
 	s.apiURL = url + "/"
 	return s
+}
+
+func (s *slackSignal) onlyChannel() string {
+	if len(s.channels) == 0 {
+		return ""
+	}
+	return s.channels[0]
 }
 
 func TestResolveChannelStopsOnNonAdvancingCursor(t *testing.T) {
@@ -56,7 +63,7 @@ func TestResolveChannelStopsOnNonAdvancingCursor(t *testing.T) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		_, _, err := s.resolveChannel(context.Background(), s.client())
+		_, _, err := s.resolveChannel(context.Background(), s.client(), s.onlyChannel())
 		done <- result{err: err}
 	}()
 
@@ -85,7 +92,7 @@ func TestResolveChannelBoundsPageCount(t *testing.T) {
 	s := newTestSignal(t, srv.URL, "tok-bound", "eng")
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := s.resolveChannel(context.Background(), s.client())
+		_, _, err := s.resolveChannel(context.Background(), s.client(), s.onlyChannel())
 		done <- err
 	}()
 
@@ -122,14 +129,14 @@ func TestResolveChannelMemoizesID(t *testing.T) {
 
 	s := newTestSignal(t, srv.URL, "tok-memo", "#eng")
 	for i := 0; i < 3; i++ {
-		id, name, err := s.resolveChannel(context.Background(), s.client())
+		id, name, err := s.resolveChannel(context.Background(), s.client(), s.onlyChannel())
 		if err != nil || id != "C777" || name != "eng" {
 			t.Fatalf("resolve #%d = (%q, %q, %v)", i, id, name, err)
 		}
 	}
 	next := New("tok-memo", "#eng", 10).(*slackSignal)
 	next.apiURL = srv.URL + "/"
-	if id, _, err := next.resolveChannel(context.Background(), next.client()); err != nil || id != "C777" {
+	if id, _, err := next.resolveChannel(context.Background(), next.client(), next.onlyChannel()); err != nil || id != "C777" {
 		t.Fatalf("fresh signal resolve = (%q, %v)", id, err)
 	}
 

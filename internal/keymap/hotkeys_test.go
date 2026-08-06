@@ -71,3 +71,24 @@ func TestFlightTargetRejectsTheBucketsTarget(t *testing.T) {
 			TargetBuckets, name)
 	}
 }
+
+func TestToolTarget(t *testing.T) {
+	if name, ok := ToolTarget("tool:k9s"); !ok || name != "k9s" {
+		t.Errorf("tool:k9s = %q,%v", name, ok)
+	}
+	if name, ok := ToolTarget("  tool: k9s  "); !ok || name != "k9s" {
+		t.Errorf("padded = %q,%v", name, ok)
+	}
+	for _, in := range []string{"tool:", "tool:  ", "k9s", "flight:morning", TargetPaneShell, ""} {
+		if _, ok := ToolTarget(in); ok {
+			t.Errorf("ToolTarget(%q) must not resolve", in)
+		}
+	}
+}
+
+func TestFlightTargetRejectsToolTargets(t *testing.T) {
+	if name, ok := FlightTarget("tool:k9s"); ok {
+		t.Fatalf("FlightTarget(%q) = %q, true; a tool binding must never be read as a flight name",
+			"tool:k9s", name)
+	}
+}

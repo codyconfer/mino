@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	slackapi "github.com/slack-go/slack"
@@ -11,18 +12,54 @@ import (
 	"github.com/codyconfer/mino/plugin"
 )
 
+type ActiveOptions struct {
+	Channels  []string
+	Workspace string
+}
+
 type activeSlack struct {
 	botToken string
 	appToken string
+	channels map[string]bool
+	host     string
 }
 
-func NewActive(botToken, appToken string) plugin.Stream {
-	return &activeSlack{botToken: botToken, appToken: appToken}
+func NewActive(botToken, appToken string, opts ...ActiveOptions) plugin.Stream {
+	a := &activeSlack{botToken: botToken, appToken: appToken}
+	for _, o := range opts {
+		a.host = o.Workspace
+		a.channels = channelSet(o.Channels)
+	}
+	return a
 }
 
-func (h *activeSlack) Name() string { return "slack" }
+func channelSet(list []string) map[string]bool {
+	if len(list) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(list))
+	for _, v := range list {
+		v = strings.TrimPrefix(strings.TrimSpace(v), "#")
+		if v != "" {
+			out[v] = true
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func (h *activeSlack) Name() string { return SignalName }
 
 func (h *activeSlack) LatencyFloor() time.Duration { return 0 }
+
+func (h *activeSlack) allows(channel string) bool {
+	if len(h.channels) == 0 {
+		return true
+	}
+	return h.channels[channel]
+}
 
 func (h *activeSlack) Stream(ctx context.Context) (<-chan plugin.Event, error) {
 	api := slackapi.New(h.botToken, slackapi.OptionAppLevelToken(h.appToken))
@@ -58,16 +95,19 @@ func (h *activeSlack) Stream(ctx context.Context) (<-chan plugin.Event, error) {
 				if !ok {
 					continue
 				}
-				it, ok := activeItem(me)
+				if !h.allows(me.Channel) {
+					continue
+				}
+				it, ok := activeItem(me, itemCtx{channelID: me.Channel, host: h.host})
 				if !ok {
 					continue
 				}
 				ev := plugin.Event{
-					Source: "slack",
+					Source: SignalName,
 					At:     time.Now(),
 					Section: plugin.Section{
-						Signal: "slack",
-						Title:  "slack",
+						Signal: SignalName,
+						Title:  SignalName,
 						Items:  []plugin.Item{it},
 					},
 				}
@@ -83,45 +123,41 @@ func (h *activeSlack) Stream(ctx context.Context) (<-chan plugin.Event, error) {
 	return out, nil
 }
 
-func activeItem(me *slackevents.MessageEvent) (plugin.Item, bool) {
+func activeItem(me *slackevents.MessageEvent, c itemCtx) (plugin.Item, bool) {
+	if c.channelID == "" {
+		c.channelID = me.Channel
+	}
 	switch me.SubType {
 	case "", "thread_broadcast":
-		it := messageToItem(slackapi.Message{Msg: slackapi.Msg{
-			Text:      me.Text,
-			User:      me.User,
-			Timestamp: me.TimeStamp,
-		}}, me.Channel)
-		it.Subtitle = me.Channel
-		return it, true
+		return messageToItem(slackapi.Message{Msg: slackapi.Msg{
+			Text:            me.Text,
+			User:            me.User,
+			Timestamp:       me.TimeStamp,
+			ThreadTimestamp: me.ThreadTimeStamp,
+			SubType:         me.SubType,
+		}}, c), true
 	case "message_changed":
 		if me.Message == nil {
 			return plugin.Item{}, false
 		}
-		it := messageToItem(slackapi.Message{Msg: *me.Message}, me.Channel)
-		it.Kind = "edited"
-		it.Subtitle = me.Channel
-		return it, true
+		c.kind = "edited"
+		return messageToItem(slackapi.Message{Msg: *me.Message}, c), true
 	case "message_deleted":
-		it := messageToItem(slackapi.Message{Msg: slackapi.Msg{
+		c.kind = "deleted"
+		return messageToItem(slackapi.Message{Msg: slackapi.Msg{
 			Text:      "(message deleted)",
 			Timestamp: me.DeletedTimeStamp,
-		}}, me.Channel)
-		it.Kind = "deleted"
-		it.Subtitle = me.Channel
-		return it, true
+			SubType:   me.SubType,
+		}}, c), true
 	case "bot_message":
-		user := me.Username
-		if user == "" {
-			user = me.BotID
-		}
-		it := messageToItem(slackapi.Message{Msg: slackapi.Msg{
+		c.kind = "bot"
+		return messageToItem(slackapi.Message{Msg: slackapi.Msg{
 			Text:      me.Text,
-			User:      user,
+			Username:  me.Username,
+			BotID:     me.BotID,
 			Timestamp: me.TimeStamp,
-		}}, me.Channel)
-		it.Kind = "bot"
-		it.Subtitle = me.Channel
-		return it, true
+			SubType:   me.SubType,
+		}}, c), true
 	default:
 		return plugin.Item{}, false
 	}

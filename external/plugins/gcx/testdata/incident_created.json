@@ -1,0 +1,10 @@
+{
+  "incident": {
+    "incidentID": "incident-300",
+    "title": "API latency elevated",
+    "status": "active",
+    "severityLabel": "major",
+    "createdTime": "2026-08-05T09:30:00Z",
+    "isDrill": false
+  }
+}

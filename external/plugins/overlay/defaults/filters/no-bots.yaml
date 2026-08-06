@@ -1,4 +1,5 @@
 name: no-bots
+type: filter
 rules:
   - field: meta.author
     exclude: "(?i)bot$"

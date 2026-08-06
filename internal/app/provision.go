@@ -32,6 +32,16 @@ output: terminal
 
 audit:
   enabled: true
+
+# External TUIs, opened from the deck by hotkey. A tool whose binary is not on
+# PATH leaves its binding inert. {{context.<tool>}} expands to the context mino
+# has selected for that tool; write it inside a single --flag={{…}} token so the
+# whole flag drops when nothing is selected.
+# tools:
+#   k9s:
+#     argv: [k9s, "--context={{context.kubectl}}"]
+# keybinds:
+#   alt+k: tool:k9s
 `
 	sampleQueryYAML = `name: my-open-prs
 type: query

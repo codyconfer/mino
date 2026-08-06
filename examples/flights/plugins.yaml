@@ -1,8 +1,12 @@
-# Smoke flight for external stub plugins + gcx (offline). Enable plugins as needed.
+# Smoke flight for external stub plugins + gcx. Everything here is offline
+# except kubectl-health, which reads a live cluster and comes back as an error
+# section when there isn't one. gcx-status pins view=status, so it needs no
+# credentials and no stack; add gcx-incidents only where a token and stack are
+# configured.
 name: plugins
 type: flight
 queries:
   - gcx-status
   - kubectl-context
+  - kubectl-health
   - ollama-context
-  - argocd-context

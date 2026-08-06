@@ -59,6 +59,11 @@ contexts:
   gcx: myorg.example.net
 ```
 
+A bound context **narrows what mino reads**; it never writes to the tool's own
+config. `kubectl: prod` makes every mino cluster read run against `prod` (as
+`kubectl --context prod …`) while your kubeconfig's current context, and every
+other shell on the box, stay exactly as they were.
+
 Optional `hooks:` run shell scripts when entering or leaving a role. On a role
 switch mino runs the previous role’s **exit** hooks, then the new role’s
 **enter** hooks, then applies `contexts:`. Bash is preferred on Unix;
@@ -110,9 +115,12 @@ seeds.
 | `today` / `unread-mail` / `recent-docs` | calendar/gmail/docs | `external.*` | Moved to [`external/plugins/examples`](../external/plugins/examples/) with their signals |
 | `slack-standup` | `slack` | `external.slack` | Moved to `external/plugins/examples` |
 | `notify-smoke` | `demo` | `external.demo` | Moved to `external/plugins/examples`; synthetic notify toasts |
-| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`external/plugins`); C-0 offline auth/context |
-| `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; current kube context |
-| `*-context` | ollama/argocd | `external.*` | Overlay-only Lane C2 stubs |
+| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`external/plugins`); offline auth/context, pins `view: status` |
+| `gcx-incidents` | `gcx` | `external.gcx` | Overlay-only; live Grafana IRM incidents (needs `mino login gcx` and a stack) |
+| `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; the selected kube context |
+| `kubectl-health` | `kubectl` | `external.kubectl` | Overlay-only; unhealthy pods, warning events, node health, rollouts. Needs the `kubectl` binary |
+| `argocd-apps` / `argocd-unhealthy` | `argocd` | `external.argocd` | Overlay-only; ArgoCD application health, read-only (needs `plugins.argocd.server_url` + a token) |
+| `*-context` | `ollama` | `external.*` | Overlay-only Lane C2 stubs |
 | `scaffold-ping` | `scaffold` | `scaffold.example` | ADR-14 template; generate with `mino plugins scaffold` (not linked into the default binary) |
 
 External plugin YAML under `examples/` is reference material for an overlay

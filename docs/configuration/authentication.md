@@ -28,6 +28,17 @@ auto-refresh.
 - **Google scopes** — a plain `gcloud auth application-default login` does *not*
   grant the read scopes. Mino preflight-checks them and reprints the exact
   `gcloud … --scopes=…` command to run if any are missing.
+- **Slack scopes** — `mino login slack` now requests `im:history`, `im:read`,
+  `mpim:history`, `mpim:read`, `search:read` and `users:read` on top of the original
+  channel scopes. Only the new read surfaces need them: `slack query --channel`
+  keeps working on a token minted before they existed. `--mentions`, `--search` and
+  `--dms` need `search:read` / the `im`+`mpim` scopes, and display-name resolution
+  needs `users:read` — without it items fall back to raw `U…` ids rather than
+  failing. Re-run `mino login slack` to pick the new scopes up, or pin your own set
+  with `plugins.slack.user_scopes`.
+- **Slack streaming** — `serve` needs an app-level token (`$SLACK_APP_TOKEN`,
+  `xapp-…`, with `connections:write`) *and* a bot token (`$SLACK_BOT_TOKEN`,
+  `xoxb-…`) for Socket Mode; the user token alone only covers queries.
 
 ## Git providers
 

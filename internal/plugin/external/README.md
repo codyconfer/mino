@@ -3,8 +3,9 @@
 Nothing here ships in the stock mino binary.
 
 **In-repo overlay module** — the Google (Calendar, Gmail, Docs, Drive, Tasks),
-Slack, and demo signals, plus the Lane C / C2 packages (`gcx`, `kubectl`,
-`ollama`, `argocd`, the shared `stub` helper, and the `example` overlay sample):
+Slack, ArgoCD, and demo signals, plus the Lane C / C2 packages (`gcx`,
+`kubectl`, `ollama`, the shared `stub` helper, and the `example` overlay
+sample):
 
 ```text
 external/plugins/            public-SDK plugin packages + tests

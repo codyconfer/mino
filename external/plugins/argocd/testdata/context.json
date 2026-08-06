@@ -1,6 +1,0 @@
-{
-  "context": "fixture-argocd-server",
-  "signal": "argocd",
-  "title": "argocd",
-  "kind": "context"
-}

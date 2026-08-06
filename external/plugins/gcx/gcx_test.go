@@ -114,7 +114,7 @@ func TestMapIncidentsJSONFixture(t *testing.T) {
 	}
 }
 
-func TestStubActions(t *testing.T) {
+func TestKnownActionNames(t *testing.T) {
 	acts := KnownActions()
 	if len(acts) != 2 {
 		t.Fatalf("KnownActions = %d", len(acts))
@@ -122,17 +122,40 @@ func TestStubActions(t *testing.T) {
 	if acts[0].Name() != "declare-incident" || acts[1].Name() != "add-activity" {
 		t.Fatalf("action names = %q %q", acts[0].Name(), acts[1].Name())
 	}
-	if err := acts[0].Run(context.Background(), nil); err == nil {
-		t.Fatal("expected stub error")
+	for _, name := range []string{"declare-incident", "add-activity"} {
+		if _, ok := plugin.LookupAction(SignalName, name); !ok {
+			t.Fatalf("action %q not registered", name)
+		}
 	}
-	if err := acts[1].Run(context.Background(), nil); err == nil {
-		t.Fatal("expected stub error for add-activity")
+}
+
+func TestQueryParamsRegistered(t *testing.T) {
+	specs := plugin.QueryParams(SignalName)
+	if len(specs) == 0 {
+		t.Fatal("expected registered query params")
 	}
-	if err := plugin.RunAction(context.Background(), SignalName, "declare-incident", nil); err == nil {
-		t.Fatal("expected registered stub to error")
+	var view *plugin.ParamSpec
+	for i := range specs {
+		if specs[i].Key == "view" {
+			view = &specs[i]
+		}
 	}
-	if err := plugin.RunAction(context.Background(), SignalName, "add-activity", nil); err == nil {
-		t.Fatal("expected registered stub to error")
+	if view == nil {
+		t.Fatalf("no view param in %#v", specs)
+	}
+	if len(view.Values) != 2 || view.Values[0] != ViewIncidents || view.Values[1] != ViewStatus {
+		t.Fatalf("view values = %v", view.Values)
+	}
+}
+
+func TestExampleDirectives(t *testing.T) {
+	wantStatus := "name: gcx-status\ntype: query\nsignal: gcx\nparams:\n  view: status\n"
+	if ExampleDirective != wantStatus {
+		t.Fatalf("ExampleDirective = %q", ExampleDirective)
+	}
+	wantIncidents := "name: gcx-incidents\ntype: query\nsignal: gcx\nparams:\n  view: incidents\n  status: active\n  limit: \"20\"\n"
+	if IncidentsDirective != wantIncidents {
+		t.Fatalf("IncidentsDirective = %q", IncidentsDirective)
 	}
 }
 

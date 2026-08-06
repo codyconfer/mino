@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codyconfer/mino/external/plugins/argocd"
 	"github.com/codyconfer/mino/external/plugins/calendar"
 	"github.com/codyconfer/mino/external/plugins/tasks"
 	"github.com/codyconfer/mino/plugin"
@@ -26,6 +27,7 @@ func TestStreamBuildersRefuseAHotPollRate(t *testing.T) {
 		name  string
 		build func(plugin.BuildContext) (plugin.Stream, error)
 	}{
+		{"argocd", argocd.BuildStream},
 		{"calendar", calendar.BuildStream},
 		{"tasks", tasks.BuildStream},
 	}

@@ -1,0 +1,10 @@
+name: slack-catchup
+type: query
+signal: slack
+params:
+  channel: eng-standup,incidents
+  mentions: "true"
+  dms: "5"
+  limit: "25"
+filters:
+  - no-bots

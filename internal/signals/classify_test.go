@@ -22,6 +22,15 @@ func TestClassifyItemUsesState(t *testing.T) {
 		{"workflow success", Item{Kind: "workflow", Meta: map[string]string{"status": "completed", "conclusion": "success"}}, glyph.SeverityPositive},
 		{"workflow failure", Item{Kind: "workflow", Meta: map[string]string{"status": "completed", "conclusion": "failure"}}, glyph.SeverityNegative},
 		{"workflow running", Item{Kind: "workflow", Meta: map[string]string{"status": "in_progress"}}, glyph.SeverityWarning},
+		{"argocd synced", Item{Kind: "application", Meta: map[string]string{"state": "synced"}}, glyph.SeverityPositive},
+		{"argocd degraded", Item{Kind: "application", Meta: map[string]string{"state": "degraded"}}, glyph.SeverityNegative},
+		{"argocd missing", Item{Kind: "application", Meta: map[string]string{"state": "missing"}}, glyph.SeverityNegative},
+		{"argocd failed", Item{Kind: "application", Meta: map[string]string{"state": "failed"}}, glyph.SeverityNegative},
+		{"argocd progressing", Item{Kind: "application", Meta: map[string]string{"state": "progressing"}}, glyph.SeverityWarning},
+		{"argocd in progress", Item{Kind: "application", Meta: map[string]string{"state": "in progress"}}, glyph.SeverityWarning},
+		{"argocd out of sync", Item{Kind: "application", Meta: map[string]string{"state": "out of sync"}}, glyph.SeverityWarning},
+		{"argocd suspended", Item{Kind: "application", Meta: map[string]string{"state": "suspended"}}, glyph.SeverityNeutral},
+		{"argocd unknown", Item{Kind: "application", Meta: map[string]string{"state": "unknown"}}, glyph.SeverityNeutral},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -43,11 +52,46 @@ func TestClassifyItemFallsBackToKind(t *testing.T) {
 		{"mention kind", Item{Kind: "mention"}, glyph.SeverityWarning},
 		{"failed kind", Item{Kind: "failed"}, glyph.SeverityNegative},
 		{"approved kind", Item{Kind: "approved"}, glyph.SeverityPositive},
+		{"unrecognized state keeps the kind", Item{Kind: "failed", Meta: map[string]string{"state": "weird"}}, glyph.SeverityNegative},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			if got := ClassifyItem(c.item); got != c.want {
 				t.Errorf("ClassifyItem = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestClassifyStateCoversDeployVocabulary(t *testing.T) {
+	cases := []struct {
+		state string
+		want  glyph.Severity
+	}{
+		{"SUCCESS", glyph.SeverityPositive},
+		{"Succeeded", glyph.SeverityPositive},
+		{"Synced", glyph.SeverityPositive},
+		{"Healthy", glyph.SeverityPositive},
+		{"Failure", glyph.SeverityNegative},
+		{"Failed", glyph.SeverityNegative},
+		{"Error", glyph.SeverityNegative},
+		{"Degraded", glyph.SeverityNegative},
+		{"Missing", glyph.SeverityNegative},
+		{"in progress", glyph.SeverityWarning},
+		{"Progressing", glyph.SeverityWarning},
+		{"Running", glyph.SeverityWarning},
+		{"Terminating", glyph.SeverityWarning},
+		{"out of sync", glyph.SeverityWarning},
+		{"OUT_OF_SYNC", glyph.SeverityWarning},
+		{"Suspended", glyph.SeverityNeutral},
+		{"Unknown", glyph.SeverityNeutral},
+		{"", glyph.SeverityNeutral},
+	}
+	for _, c := range cases {
+		t.Run(c.state, func(t *testing.T) {
+			if got := ClassifyState(c.state); got != c.want {
+				t.Errorf("ClassifyState(%q) = %v, want %v; a deploy panel that cannot colour its own "+
+					"states tells an on-call engineer nothing at a glance", c.state, got, c.want)
 			}
 		})
 	}

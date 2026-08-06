@@ -1,0 +1,6 @@
+name: slack-mentions
+type: query
+signal: slack
+params:
+  mentions: "true"
+  limit: "20"

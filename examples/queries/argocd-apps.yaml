@@ -1,4 +1,4 @@
-name: argocd-context
+name: argocd-apps
 type: query
 signal: argocd
 params: {}

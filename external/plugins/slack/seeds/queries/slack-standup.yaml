@@ -1,0 +1,9 @@
+name: slack-standup
+type: query
+signal: slack
+params:
+  channel: eng-standup
+  limit: "100"
+filters:
+  - no-bots
+  - exclude: "^:tada:|has joined the channel"

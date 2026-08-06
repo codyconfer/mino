@@ -61,6 +61,9 @@ func QueryCmd(name, short string, bind func(*cobra.Command, *map[string]string))
 	}
 	ff.bind(query)
 	parent.AddCommand(query)
+	if plugin.HasCapability(name, plugin.CapDetail) {
+		parent.AddCommand(sourceShowCmd(name))
+	}
 	return parent
 }
 

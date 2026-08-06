@@ -1,0 +1,54 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "metadata": { "name": "checkout.185f0a", "namespace": "payments", "creationTimestamp": "2026-08-05T11:50:00Z" },
+      "type": "Warning",
+      "reason": "BackOff",
+      "message": "Back-off restarting failed container checkout in pod checkout-7d9f8b6c4-2xk9p",
+      "count": 47,
+      "firstTimestamp": "2026-08-05T09:05:00Z",
+      "lastTimestamp": "2026-08-05T11:50:00Z",
+      "involvedObject": { "kind": "Pod", "name": "checkout-7d9f8b6c4-2xk9p", "namespace": "payments" }
+    },
+    {
+      "metadata": { "name": "ledger.185f0b", "namespace": "payments", "creationTimestamp": "2026-08-05T11:30:00Z" },
+      "type": "Warning",
+      "reason": "Failed",
+      "message": "Failed to pull image \"registry.example.com/ledger:v2\": not found",
+      "count": 3,
+      "firstTimestamp": "2026-08-05T10:16:00Z",
+      "lastTimestamp": "2026-08-05T11:30:00Z",
+      "involvedObject": { "kind": "Pod", "name": "ledger-5c4d8f7b9-qq4mt", "namespace": "payments" }
+    },
+    {
+      "metadata": { "name": "node.185f0c", "namespace": "", "creationTimestamp": "2026-08-05T11:05:00Z" },
+      "type": "Warning",
+      "reason": "NodeNotReady",
+      "message": "Node ip-10-0-3-77 status is now: NodeNotReady",
+      "count": 1,
+      "eventTime": "2026-08-05T11:05:00Z",
+      "involvedObject": { "kind": "Node", "name": "ip-10-0-3-77", "namespace": "" }
+    },
+    {
+      "metadata": { "name": "stale.185f0d", "namespace": "storefront", "creationTimestamp": "2026-08-05T04:00:00Z" },
+      "type": "Warning",
+      "reason": "Unhealthy",
+      "message": "Readiness probe failed: connection refused",
+      "count": 2,
+      "firstTimestamp": "2026-08-05T03:55:00Z",
+      "lastTimestamp": "2026-08-05T04:00:00Z",
+      "involvedObject": { "kind": "Pod", "name": "web-849cbb7f56-lp2vd", "namespace": "storefront" }
+    },
+    {
+      "metadata": { "name": "normal.185f0e", "namespace": "storefront", "creationTimestamp": "2026-08-05T11:55:00Z" },
+      "type": "Normal",
+      "reason": "Scheduled",
+      "message": "Successfully assigned storefront/web-849cbb7f56-lp2vd to ip-10-0-2-31",
+      "count": 1,
+      "lastTimestamp": "2026-08-05T11:55:00Z",
+      "involvedObject": { "kind": "Pod", "name": "web-849cbb7f56-lp2vd", "namespace": "storefront" }
+    }
+  ]
+}
