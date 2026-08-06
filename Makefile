@@ -25,9 +25,36 @@ ARGS ?=
 RACE ?=
 SHUFFLE ?=
 TAGS ?=
-GOFLAGS_TAGS = $(if $(TAGS),-tags "$(TAGS)",)
+
+# BASE_TAGS are always on, in every build and every test — they are part of the
+# shipped configuration, not a knob. TAGS is appended to them.
+#
+# nomsgpack is gin's own tag for dropping MsgPack rendering. It drops
+# github.com/ugorji/go/codec, which gin/binding pulls in and mino never uses,
+# and which costs ~6.5MB of binary (3.2MB of code plus its pclntab and
+# reflect metadata).
+BASE_TAGS := nomsgpack
+
+comma := ,
+space := $(subst ,, )
+ALL_TAGS = $(strip $(BASE_TAGS) $(TAGS))
+GOFLAGS_TAGS = -tags "$(subst $(space),$(comma),$(ALL_TAGS))"
 GOFLAGS_DEV = $(if $(RACE),-race,) $(GOFLAGS_TAGS)
 GOFLAGS_TEST = $(if $(RACE),-race,) $(if $(SHUFFLE),-shuffle=on,) $(GOFLAGS_TAGS)
+
+# mino links DuckDB's static archives, whose ~50k mangled C++ symbols land in
+# .dynsym/.dynstr — ~5.9MB that `-s -w` cannot touch, since those sections are
+# needed for dynamic linking. --exclude-libs,ALL hides the static archives'
+# symbols instead (exports drop from ~53700 to ~450).
+#
+# ELF/GNU-ld only, so this is gated to the platforms it is known to work on
+# rather than applied blind: verified on linux/amd64, and Mach-O has no
+# equivalent flag. Cross-builds set this per-target in `package`; this exported
+# default covers the host builds (dev/install/build/test).
+EXCLUDE_LIBS := -Wl,--exclude-libs,ALL
+ifeq ($(shell go env GOOS),linux)
+export CGO_LDFLAGS := $(strip $(CGO_LDFLAGS) $(EXCLUDE_LIBS))
+endif
 
 # EMAIL_DOMAIN, when set, compiles a locked-down build that only completes
 # onboarding (and thus unlocks mino) if the git signing key has a GitHub-verified
@@ -97,18 +124,20 @@ build:
 # Build the experimental configurations so they cannot rot. `build` already
 # compiles the daemon package itself (and `test` tests it); this covers the one
 # thing it does not: the root binary with the daemon linked in.
+build-experimental: TAGS += daemon
 build-experimental:
-	go build -tags daemon -o /dev/null .
-	go vet -tags daemon ./...
+	go build $(GOFLAGS_TAGS) -o /dev/null .
+	go vet $(GOFLAGS_TAGS) ./...
 
 # Build the `nodaemon` configuration so it cannot rot. TAGS=nodaemon is a
 # sisyphus-supported build that compiles out serve/daemon mode entirely (see
 # sisyphus/mode.DaemonSupported), and with it kardianos/service and systray.
 # Everything under ./daemon is constrained to !nodaemon, so this is the build
 # that catches a daemon-only file that forgot its build tag.
+build-nodaemon: TAGS += nodaemon
 build-nodaemon:
-	go build -tags nodaemon ./...
-	go vet -tags nodaemon ./...
+	go build $(GOFLAGS_TAGS) ./...
+	go vet $(GOFLAGS_TAGS) ./...
 
 # Build and vet the external plugin overlay module (external/plugins): the Google,
 # Slack, and demo signals, built only against the public SDK. Stock mino does not
@@ -197,12 +226,16 @@ package:
 	      continue; \
 	    fi; \
 	  fi; \
+	  case "$$os" in \
+	    linux) cgo_ld="$(EXCLUDE_LIBS)" ;; \
+	    *)     cgo_ld="" ;; \
+	  esac; \
 	  echo "build $$p -> $$out"; \
 	  if [ -n "$$cc" ]; then \
-	    CGO_ENABLED=1 GOOS=$$os GOARCH=$$arch CC="$$cc" \
+	    CGO_ENABLED=1 GOOS=$$os GOARCH=$$arch CC="$$cc" CGO_LDFLAGS="$$cgo_ld" \
 	      go build -trimpath $(GOFLAGS_TAGS) -ldflags "$(LDFLAGS)" -o "$$out" . || exit 1; \
 	  else \
-	    CGO_ENABLED=1 GOOS=$$os GOARCH=$$arch \
+	    CGO_ENABLED=1 GOOS=$$os GOARCH=$$arch CGO_LDFLAGS="$$cgo_ld" \
 	      go build -trimpath $(GOFLAGS_TAGS) -ldflags "$(LDFLAGS)" -o "$$out" . || exit 1; \
 	  fi; \
 	done; \
