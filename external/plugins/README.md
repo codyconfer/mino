@@ -1,7 +1,7 @@
 # external/plugins
 
-The Google (Calendar, Gmail, Docs, Drive, Tasks), Slack, and demo signals, plus
-the Lane C / C2 packages (`gcx`, `kubectl`, `ollama`, `argocd`, the shared
+The Google (Calendar, Gmail, Docs, Drive, Tasks), Slack, ArgoCD, and demo
+signals, plus the Lane C / C2 packages (`gcx`, `kubectl`, `ollama`, the shared
 `stub` helper, and the `example` overlay sample). They are a **separate Go
 module**
 (`github.com/codyconfer/mino/external/plugins`) built only against mino's
@@ -36,12 +36,48 @@ go run ./overlay calendar query     # the same CLI, plus these signals
 | `gcx` | `gcx` | offline Grafana Cloud status (sealed token key `gcx`), `declare-incident` / `add-activity` action stubs, seed query |
 | `kubectl` | `kubectl` | in-process context + read-only `kubectl config current-context` probe, seed query |
 | `ollama` | `ollama` | Lane C2 context stub via `stub`, seed query |
-| `argocd` | `argocd` | Lane C2 context stub via `stub`, seed query |
+| `argocd` | `argocd` | query + stream + detail against the ArgoCD REST API (sealed token key `argocd`), query params, `mino argocd query\|show`, two seed queries |
 | `example` | `example` | sample team-overlay signal (`overlay.example`) |
 
 `stub/` is the shared helper for new context-tool stubs: `stub.Register(Spec)`
 installs the signal, glyph, in-memory context provider, and status chip in one
-call. `gcx/SPIKE.md` documents the Grafana Cloud auth matrix and deferrals.
+call. `gcx/SPIKE.md` documents the Grafana Cloud auth matrix and deferrals;
+`argocd/SPIKE.md` does the same for ArgoCD, including what the plugin
+deliberately does not do.
+
+### argocd
+
+Read-only. It lists Applications with a sync/health rollup, streams state
+transitions, and renders a detail panel with the resource breakdown, sync
+history, last operation, commit metadata, and conditions. It never sends
+`refresh`, which would force a reconcile against your cluster.
+
+Mint a token and grant it read access:
+
+```sh
+argocd account generate-token --account mino
+```
+
+```text
+p, role:mino, applications, get, */*, allow
+g, mino, role:mino
+```
+
+Supply it through `$ARGOCD_AUTH_TOKEN`, or whatever `plugins.argocd.token_env`
+names. A token sealed under the `argocd` credential key wins over the
+environment, so a stale `$ARGOCD_AUTH_TOKEN` left behind by the `argocd` CLI
+cannot silently repoint mino at another server.
+
+**`app_namespace` and `namespaces` are different things.** ArgoCD has two
+namespace concepts and only one is filterable server-side:
+
+- `app_namespace` — where the `Application` resource itself lives, sent to the
+  API as `appNamespace`. Apps outside the default `argocd` namespace need it or
+  every per-app call 404s.
+- `namespaces` — where the workloads land (`spec.destination.namespace`). The
+  list API cannot filter on this, so mino applies it client-side after fetching.
+
+Confusing the two produces a filter that silently returns nothing.
 
 ## Team overlay pattern
 
@@ -74,6 +110,13 @@ plugins:
   slack:
     token_env: SLACK_TOKEN
     limit: 50
+  argocd:
+    server_url: https://argocd.example.com
+    token_env: ARGOCD_AUTH_TOKEN
+    projects: [platform, storefront]
+    only_unhealthy: false
+    group_by: none
+    max: 50
 ```
 
 `mino login google` and `mino login slack` come back with these plugins

@@ -267,7 +267,7 @@ func spinnerFrame(g glyph.Set, frame int) string {
 }
 
 func workflowSection(s signals.DetailSection) bool {
-	return s.Meta["run_id"] != "" || strings.HasPrefix(s.Title, "workflow")
+	return s.Meta["run_id"] != "" || s.Meta["state_rows"] == "true" || strings.HasPrefix(s.Title, "workflow")
 }
 
 const stepRowPrefix = "  ↳ "

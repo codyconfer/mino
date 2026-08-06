@@ -5,4 +5,3 @@ queries:
   - gcx-status
   - kubectl-context
   - ollama-context
-  - argocd-context

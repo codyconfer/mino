@@ -10,6 +10,7 @@
 | Google Drive | overlay | `drive query`, `drive add` | **Read + write** | Creates a file **only** in the configured `plugins.drive.dir`; a write to any other folder is rejected *before* the API call. Reads any folder. Uses the full `drive` OAuth scope (folder discovery + create). |
 | Google Tasks | overlay | `tasks query`, `tasks add` | **Read + write** | Creates a task **only** in the configured `plugins.tasks.list`; a write to any other list is rejected *before* the API call. Reads any list. |
 | Slack | overlay | `slack query --channel <name>` | Read-only | — |
+| ArgoCD | overlay | `argocd query`, `argocd show <url>` | Read-only | Never sends `refresh`, which would force a reconcile against the cluster. |
 | Demo | overlay | `query demo` | Read-only | Synthetic items for smoke-testing notifications. |
 
 The write restriction is Mino policy enforced in `cmd/tasks.go:resolveWriteTarget`
@@ -62,6 +63,73 @@ device-flow scope set: `gh auth refresh -s read:project`, or add it to
 
 Each item carries the field value in `meta.status`, so filter rules can narrow
 further (`field: meta.status`, `field: meta.labels`, `field: meta.assignees`).
+
+## ArgoCD
+
+Read-only, against the ArgoCD REST API. One item per Application, ordered
+worst-first so a broken deploy sits at the top of the panel.
+
+```yaml
+name: argocd-unhealthy
+type: query
+signal: argocd
+params:
+  only_unhealthy: "true"
+  project: platform
+  max: "25"
+```
+
+Minimum config is the server URL:
+
+```yaml
+plugins:
+  argocd:
+    server_url: https://argocd.example.com
+```
+
+`server_url` must be https — mino refuses to send the API token over plain
+http, the same rule the GitHub signal applies to `github.api_url`. For a private
+or self-signed CA, point `plugins.argocd.ca_file` at the PEM bundle rather than
+disabling verification.
+
+Mint a token and grant it read access:
+
+```sh
+argocd account generate-token --account mino
+export ARGOCD_AUTH_TOKEN=...
+```
+
+```text
+p, role:mino, applications, get, */*, allow
+g, mino, role:mino
+```
+
+A token sealed under the `argocd` credential key takes precedence over the
+environment variable, so a stale `$ARGOCD_AUTH_TOKEN` from the `argocd` CLI
+cannot silently repoint mino at a different server. Change which variable is
+consulted with `plugins.argocd.token_env`.
+
+**The plugin never sends `refresh`.** `GET /applications?refresh=hard` forces a
+reconcile, which is a write-ish side effect against the cluster; a test asserts
+the parameter's absence.
+
+Each item carries the sync/health rollup in `meta.state` (`synced`,
+`out of sync`, `progressing`, `degraded`, `missing`, `failed`, `suspended`,
+`unknown`) plus `meta.sync`, `meta.health`, `meta.phase`, `meta.revision`,
+`meta.project`, `meta.cluster`, and `meta.namespace` — all available to filter
+rules and formatters. An application mid-sync sets `meta.in_progress`, which
+drives the row spinner and the detail view's live re-poll.
+
+`mino argocd show <application-url>` opens the detail panel: resource breakdown
+with per-resource health, the last five sync-history entries, the last
+operation with any failed resources, commit metadata, and the ArgoCD conditions
+that explain a stuck application.
+
+Two namespace settings exist and they are not interchangeable. `app_namespace`
+is where the `Application` resource lives and is sent to the API as
+`appNamespace`; apps outside the default `argocd` namespace need it. `namespaces`
+filters on `spec.destination.namespace`, where the workloads land — the list API
+cannot filter on that, so mino applies it client-side after fetching.
 
 ## Who owes the next reply
 

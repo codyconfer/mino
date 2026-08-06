@@ -112,7 +112,8 @@ seeds.
 | `notify-smoke` | `demo` | `external.demo` | Moved to `external/plugins/examples`; synthetic notify toasts |
 | `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`external/plugins`); C-0 offline auth/context |
 | `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; current kube context |
-| `*-context` | ollama/argocd | `external.*` | Overlay-only Lane C2 stubs |
+| `argocd-apps` / `argocd-unhealthy` | `argocd` | `external.argocd` | Overlay-only; ArgoCD application health, read-only (needs `plugins.argocd.server_url` + a token) |
+| `*-context` | `ollama` | `external.*` | Overlay-only Lane C2 stubs |
 | `scaffold-ping` | `scaffold` | `scaffold.example` | ADR-14 template; generate with `mino plugins scaffold` (not linked into the default binary) |
 
 External plugin YAML under `examples/` is reference material for an overlay

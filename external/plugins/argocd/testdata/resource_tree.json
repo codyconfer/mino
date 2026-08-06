@@ -1,0 +1,7 @@
+{
+  "nodes": [
+    { "kind": "Deployment", "namespace": "search", "name": "indexer", "health": { "status": "Progressing" } },
+    { "kind": "Service", "namespace": "search", "name": "indexer", "health": { "status": "Healthy" } },
+    { "kind": "Job", "namespace": "search", "name": "reindex", "health": { "status": "Degraded", "message": "BackoffLimitExceeded" } }
+  ]
+}

@@ -174,3 +174,23 @@ github:
 #     oauth_client_id: "123.456"
 #     oauth_client_secret: xxxx
 #     user_scopes: channels:history,channels:read,groups:history,groups:read
+#   argocd:
+#     # The ArgoCD UI root. https only — mino refuses to send the API token
+#     # over plain http. For a private CA set ca_file rather than downgrading.
+#     server_url: https://argocd.example.com
+#     ca_file: /etc/ssl/certs/internal-ca.pem
+#     # Token order: the sealed `argocd` credential first, then this env var.
+#     # Mint one with `argocd account generate-token --account mino` and grant
+#     # `p, role:mino, applications, get, */*, allow`.
+#     token_env: ARGOCD_AUTH_TOKEN
+#     projects: [platform, storefront]
+#     selector: env=prod
+#     # app_namespace is where the Application resource lives (sent as
+#     # appNamespace). namespaces filters spec.destination.namespace, where the
+#     # workloads land — the list API cannot filter that, so mino does it
+#     # client-side. They are not interchangeable.
+#     app_namespace: argocd
+#     namespaces: [payments, checkout]
+#     only_unhealthy: false
+#     group_by: none          # none | project | cluster
+#     max: 50

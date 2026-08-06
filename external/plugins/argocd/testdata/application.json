@@ -1,0 +1,39 @@
+{
+  "metadata": { "name": "search-indexer", "namespace": "team-search" },
+  "spec": {
+    "project": "platform",
+    "destination": { "name": "in-cluster", "namespace": "search" },
+    "source": { "repoURL": "https://github.com/acme/deploy", "path": "apps/search", "targetRevision": "main" }
+  },
+  "status": {
+    "sync": { "status": "OutOfSync", "revision": "77aa88bb99cc00dd11ee22ff33445566778899aa" },
+    "health": { "status": "Progressing", "message": "waiting for rollout to finish" },
+    "operationState": {
+      "phase": "Running",
+      "message": "syncing 3 resources",
+      "startedAt": "2026-08-04T12:00:00Z",
+      "retryCount": 1,
+      "operation": { "initiatedBy": { "username": "cody" } },
+      "syncResult": {
+        "revision": "77aa88bb99cc00dd11ee22ff33445566778899aa",
+        "resources": [
+          { "kind": "Deployment", "namespace": "search", "name": "indexer", "status": "Synced" },
+          { "kind": "Job", "namespace": "search", "name": "reindex", "status": "SyncFailed", "message": "BackoffLimitExceeded" }
+        ]
+      }
+    },
+    "resources": [
+      { "kind": "Deployment", "namespace": "search", "name": "indexer", "status": "Synced", "health": { "status": "Progressing" } },
+      { "kind": "Service", "namespace": "search", "name": "indexer", "status": "Synced", "health": { "status": "Healthy" } },
+      { "kind": "Job", "namespace": "search", "name": "reindex", "status": "OutOfSync" }
+    ],
+    "history": [
+      { "revision": "1111111111111111111111111111111111111111", "deployedAt": "2026-08-01T08:00:00Z" },
+      { "revision": "2222222222222222222222222222222222222222", "deployedAt": "2026-08-03T08:00:00Z" }
+    ],
+    "conditions": [
+      { "type": "SyncError", "message": "Job/reindex failed: BackoffLimitExceeded" }
+    ],
+    "reconciledAt": "2026-08-04T12:00:05Z"
+  }
+}

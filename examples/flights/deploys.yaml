@@ -1,0 +1,5 @@
+# Deploy health at a glance. Needs plugins.argocd.server_url and a token.
+name: deploys
+type: flight
+queries:
+  - argocd-unhealthy

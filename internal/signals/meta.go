@@ -1,8 +1,10 @@
 package signals
 
+import "github.com/codyconfer/mino/plugin"
+
 const (
-	MetaTruncated     = "truncated"
-	MetaMore          = "more"
+	MetaTruncated     = plugin.MetaTruncated
+	MetaMore          = plugin.MetaMore
 	MetaWireTruncated = "mino.truncated"
 	MetaFiled         = "mino.filed"
 )

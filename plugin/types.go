@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	MetaTruncated = "truncated"
+	MetaMore      = "more"
+)
+
 type Item struct {
 	Kind      string            `json:"kind"`
 	Title     string            `json:"title"`

@@ -1,0 +1,5 @@
+name: argocd-unhealthy
+type: query
+signal: argocd
+params:
+  only_unhealthy: "true"
