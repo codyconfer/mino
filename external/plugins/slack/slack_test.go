@@ -31,7 +31,7 @@ func TestMessageToItem(t *testing.T) {
 	msg.User = "U12345"
 	msg.Timestamp = "1700000000.000200"
 
-	item := messageToItem(msg, "eng-standup")
+	item := messageToItem(msg, itemCtx{channelName: "eng-standup"})
 
 	if item.Kind != "message" {
 		t.Errorf("Kind = %q, want message", item.Kind)
@@ -59,7 +59,7 @@ func TestMessageToItem(t *testing.T) {
 func TestMessageToItemEmptyText(t *testing.T) {
 	var msg slackapi.Message
 	msg.Text = ""
-	item := messageToItem(msg, "")
+	item := messageToItem(msg, itemCtx{})
 	if item.Title != "(no text)" {
 		t.Errorf("Title = %q, want (no text)", item.Title)
 	}
@@ -75,7 +75,7 @@ func TestMessageToItemTitleCapped(t *testing.T) {
 	}
 	var msg slackapi.Message
 	msg.Text = long
-	item := messageToItem(msg, "c")
+	item := messageToItem(msg, itemCtx{channelName: "c"})
 	if got := len([]rune(item.Title)); got != 120 {
 		t.Errorf("Title rune length = %d, want 120", got)
 	}

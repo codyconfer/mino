@@ -172,10 +172,18 @@ github:
 #     max: 100
 #   slack:
 #     token_env: SLACK_TOKEN
-#     limit: 50
+#     limit: 50                 # max messages per surface
+#     channel: "eng-standup"    # default channel(s); comma separated for several
+#     mentions: false           # include messages mentioning you (needs search:read)
+#     dms: 0                    # include this many recent DM conversations
+#     mention_query: ""         # extra search terms appended to the mentions query
+#     resolve_names: true       # map U-ids to display names (needs users:read)
+#     workspace: ""             # e.g. myorg.slack.com; skips the auth.test lookup
+#     retry_max: 2              # retries on a 429 before giving up
+#     stream_channels: []       # restrict `serve` streaming to these channels
 #     oauth_client_id: "123.456"
 #     oauth_client_secret: xxxx
-#     user_scopes: channels:history,channels:read,groups:history,groups:read
+#     user_scopes: channels:history,channels:read,groups:history,groups:read,im:history,im:read,mpim:history,mpim:read,search:read,users:read
 #   argocd:
 #     # The ArgoCD UI root. https only — mino refuses to send the API token
 #     # over plain http. For a private CA set ca_file rather than downgrading.

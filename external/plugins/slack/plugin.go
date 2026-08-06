@@ -1,6 +1,9 @@
 package slack
 
 import (
+	"strconv"
+
+	"github.com/codyconfer/viewkit/glyph"
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/mino/cmd"
@@ -23,7 +26,7 @@ func Register() {
 		ID:                 PluginID,
 		Kind:               plugin.KindSignal,
 		Signal:             SignalName,
-		Capabilities:       []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapCacheable},
+		Capabilities:       []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapCacheable, plugin.CapDetail},
 		Credentials:        []string{"slack", "slack-app", "slack-bot"},
 		SettingsNamespaces: []string{SignalName},
 	}, plugin.Builders{
@@ -31,8 +34,12 @@ func Register() {
 		Stream: BuildStream,
 	})
 	plugin.RegisterQueryParams(SignalName,
-		plugin.ParamSpec{Key: "channel", Desc: "channel to read (required)", Example: "eng-standup"},
-		plugin.ParamSpec{Key: "limit", Desc: "maximum messages to return", Example: "50", Values: []string{"10", "20", "50", "100"}},
+		plugin.ParamSpec{Key: "channel", Desc: "channel(s) to read", Example: "eng-standup,#alerts", Delim: ","},
+		plugin.ParamSpec{Key: "mentions", Desc: "messages that mention you (needs search:read)", Example: "true", Values: []string{"true", "false"}},
+		plugin.ParamSpec{Key: "dms", Desc: "recent direct-message conversations to include", Example: "5", Values: []string{"3", "5", "10"}},
+		plugin.ParamSpec{Key: "search", Desc: "Slack search expression (needs search:read)", Example: "in:#eng deploy"},
+		plugin.ParamSpec{Key: "mention_query", Desc: "extra search terms for mentions", Example: "in:#eng"},
+		plugin.ParamSpec{Key: "limit", Desc: "maximum messages per surface", Example: "50", Values: []string{"10", "20", "50", "100"}},
 	)
 	plugin.RegisterLoginProvider(plugin.LoginProvider{
 		PluginID: PluginID,
@@ -48,6 +55,10 @@ func Register() {
 		},
 		Login: login,
 	})
+	plugin.RegisterStatusContribution(PluginID, func(_, _ string) glyph.StatusContribution {
+		return StatusContribution()
+	})
+	plugin.RegisterSeeds(PluginID, seedFiles())
 	cmd.RegisterCommand(newSlackCmd)
 }
 
@@ -65,16 +76,36 @@ func BuildQuery(bc plugin.BuildContext) (plugin.Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := bc.Params()
-	channel := p["channel"]
-	if channel == "" {
-		return nil, errx.New("slack: a channel is required").WithHint("use --channel or a query param")
-	}
 	token, err := slackauth.UserToken(cfg.Store, cfg.TokenEnv)
 	if err != nil {
 		return nil, errx.Wrap(err, "slack authentication").WithHint("set %s", cfg.TokenEnv)
 	}
-	return New(token, channel, params.Int(p, "limit", cfg.Limit)), nil
+	p := bc.Params()
+	s := plugin.SettingsOf(bc, SignalName)
+
+	return NewSpec(Spec{
+		Token:        token,
+		Channels:     ChannelList(params.Str(p, "channel", plugin.Setting(s, "channel", ""))),
+		Mentions:     boolParam(p, "mentions", plugin.SettingBool(s, "mentions", false)),
+		MentionQuery: params.Str(p, "mention_query", plugin.Setting(s, "mention_query", "")),
+		DMs:          params.Int(p, "dms", plugin.SettingInt(s, "dms", 0)),
+		Search:       params.Str(p, "search", ""),
+		Limit:        params.Int(p, "limit", cfg.Limit),
+		ResolveNames: plugin.SettingBool(s, "resolve_names", true),
+		Workspace:    plugin.Setting(s, "workspace", ""),
+		RetryMax:     plugin.SettingInt(s, "retry_max", retryMaxDefault),
+	}), nil
+}
+
+func boolParam(p map[string]string, key string, def bool) bool {
+	switch params.Str(p, key, "") {
+	case "":
+		return def
+	case "false", "0", "no":
+		return false
+	default:
+		return true
+	}
 }
 
 func BuildStream(bc plugin.BuildContext) (plugin.Stream, error) {
@@ -84,22 +115,45 @@ func BuildStream(bc plugin.BuildContext) (plugin.Stream, error) {
 	}
 	appToken, err := slackauth.AppToken(cfg.Store, cfg.AppTokenEnv)
 	if err != nil || appToken == "" {
-		return nil, errx.New("slack: no app-level token available for streaming")
+		return nil, errx.New("slack: no app-level token available for streaming").
+			WithHint("export an app-level token ($%s=xapp-…) with connections:write", cfg.AppTokenEnv)
 	}
 	botToken, err := slackauth.BotToken(cfg.Store, cfg.BotTokenEnv)
 	if err != nil || botToken == "" {
-		return nil, errx.New("slack: no bot token available for streaming")
+		return nil, errx.New("slack: no bot token available for streaming").
+			WithHint("export a bot token ($%s=xoxb-…)", cfg.BotTokenEnv)
 	}
-	return NewActive(botToken, appToken), nil
+	s := plugin.SettingsOf(bc, SignalName)
+	return NewActive(botToken, appToken, ActiveOptions{
+		Channels:  plugin.SettingList(s, "stream_channels"),
+		Workspace: plugin.Setting(s, "workspace", ""),
+	}), nil
 }
 
 func newSlackCmd() *cobra.Command {
-	return cmd.QueryCmd(SignalName, "Slack channel activity", func(c *cobra.Command, params *map[string]string) {
-		var channel string
-		c.Flags().StringVar(&channel, "channel", "", "channel to read (name or ID)")
+	return cmd.QueryCmd(SignalName, "Slack channel activity, mentions, DMs and search", func(c *cobra.Command, p *map[string]string) {
+		var (
+			channel  string
+			search   string
+			mentions bool
+			dms      int
+		)
+		c.Flags().StringVar(&channel, "channel", "", "channel(s) to read, comma separated (name or ID)")
+		c.Flags().StringVar(&search, "search", "", "Slack search expression")
+		c.Flags().BoolVar(&mentions, "mentions", false, "include messages that mention you")
+		c.Flags().IntVar(&dms, "dms", 0, "include this many recent DM conversations")
 		c.PreRun = func(*cobra.Command, []string) {
 			if channel != "" {
-				(*params)["channel"] = channel
+				(*p)["channel"] = channel
+			}
+			if search != "" {
+				(*p)["search"] = search
+			}
+			if mentions {
+				(*p)["mentions"] = "true"
+			}
+			if dms > 0 {
+				(*p)["dms"] = strconv.Itoa(dms)
 			}
 		}
 	})

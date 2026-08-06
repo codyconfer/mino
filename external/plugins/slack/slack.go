@@ -2,11 +2,8 @@ package slack
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	slackapi "github.com/slack-go/slack"
 
@@ -15,80 +12,178 @@ import (
 )
 
 const (
-	defaultLimit  = 50
-	listPageSize  = 200
-	maxListPages  = 50
-	chanCacheTTL  = 10 * time.Minute
-	chanCacheKeep = 256
+	defaultLimit = 50
+	listPageSize = 200
+	maxListPages = 50
+	maxChannels  = 8
 )
 
-type resolved struct {
-	id   string
-	name string
-	at   time.Time
-}
-
-var chanCache struct {
-	mu sync.Mutex
-	m  map[string]resolved
-}
-
-func cacheKey(token, want string) string { return token + "\x00" + want }
-
-func cachedChannel(token, want string) (resolved, bool) {
-	chanCache.mu.Lock()
-	defer chanCache.mu.Unlock()
-	r, ok := chanCache.m[cacheKey(token, want)]
-	if !ok || time.Since(r.at) > chanCacheTTL {
-		return resolved{}, false
-	}
-	return r, true
-}
-
-func cacheChannel(token, want, id, name string) {
-	chanCache.mu.Lock()
-	defer chanCache.mu.Unlock()
-	if chanCache.m == nil || len(chanCache.m) > chanCacheKeep {
-		chanCache.m = map[string]resolved{}
-	}
-	chanCache.m[cacheKey(token, want)] = resolved{id: id, name: name, at: time.Now()}
-}
-
-func resetChannelCache() {
-	chanCache.mu.Lock()
-	chanCache.m = nil
-	chanCache.mu.Unlock()
+type Spec struct {
+	Token        string
+	APIURL       string
+	Channels     []string
+	Mentions     bool
+	MentionQuery string
+	DMs          int
+	Search       string
+	Limit        int
+	ResolveNames bool
+	Workspace    string
+	RetryMax     int
 }
 
 type slackSignal struct {
-	token   string
-	channel string
-	limit   int
-	apiURL  string
+	token        string
+	apiURL       string
+	limit        int
+	retryMax     int
+	resolveNames bool
+	workspace    string
+	channels     []string
+	mentions     bool
+	mentionQuery string
+	dms          int
+	search       string
 }
 
-func New(token, channel string, limit int) plugin.Query {
+type itemCtx struct {
+	channelID   string
+	channelName string
+	host        string
+	names       map[string]string
+	kind        string
+}
+
+type surface struct {
+	title string
+	fetch func(ctx context.Context, api *slackapi.Client, who whoami) (plugin.Section, error)
+}
+
+func NewSpec(sp Spec) plugin.Query {
+	limit := sp.Limit
 	if limit <= 0 {
 		limit = defaultLimit
 	}
-	return &slackSignal{token: token, channel: channel, limit: limit}
+	channels := sp.Channels
+	if len(channels) > maxChannels {
+		channels = channels[:maxChannels]
+	}
+	return &slackSignal{
+		token:        sp.Token,
+		apiURL:       sp.APIURL,
+		limit:        limit,
+		retryMax:     sp.RetryMax,
+		resolveNames: sp.ResolveNames,
+		workspace:    sp.Workspace,
+		channels:     channels,
+		mentions:     sp.Mentions,
+		mentionQuery: sp.MentionQuery,
+		dms:          sp.DMs,
+		search:       sp.Search,
+	}
 }
 
-func (s *slackSignal) Name() string { return "slack" }
+func New(token, channel string, limit int) plugin.Query {
+	return NewSpec(Spec{
+		Token:        token,
+		Channels:     ChannelList(channel),
+		Limit:        limit,
+		ResolveNames: true,
+		RetryMax:     retryMaxDefault,
+	})
+}
+
+func ChannelList(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		v := strings.TrimSpace(part)
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func (s *slackSignal) Name() string { return SignalName }
 
 func (s *slackSignal) client() *slackapi.Client {
-	if s.apiURL == "" {
-		return slackapi.New(s.token)
+	return clientFor(s.token, s.apiURL, s.retryMax)
+}
+
+func (s *slackSignal) surfaces() []surface {
+	var out []surface
+	for _, ch := range s.channels {
+		channel := ch
+		title := channel
+		if !isChannelID(channel) {
+			title = "#" + strings.TrimPrefix(channel, "#")
+		}
+		out = append(out, surface{
+			title: title,
+			fetch: func(ctx context.Context, api *slackapi.Client, who whoami) (plugin.Section, error) {
+				return s.fetchChannel(ctx, api, who, channel)
+			},
+		})
 	}
-	return slackapi.New(s.token, slackapi.OptionAPIURL(s.apiURL))
+	if s.mentions {
+		out = append(out, surface{title: "mentions", fetch: s.fetchMentions})
+	}
+	if s.dms > 0 {
+		out = append(out, surface{title: "dms", fetch: s.fetchDMs})
+	}
+	if s.search != "" {
+		out = append(out, surface{
+			title: "search: " + capRunes(s.search, 60),
+			fetch: s.fetchSearch,
+		})
+	}
+	return out
 }
 
 func (s *slackSignal) Fetch(ctx context.Context) ([]plugin.Section, error) {
+	surfaces := s.surfaces()
+	if len(surfaces) == 0 {
+		return nil, errx.New("slack: nothing to read").
+			WithHint("pass --channel, --mentions, --dms or --search, or set `plugins.slack.channel`")
+	}
 	api := s.client()
+	who := s.identify(ctx, api)
 
-	id, name, err := s.resolveChannel(ctx, api)
+	out := make([]plugin.Section, 0, len(surfaces))
+	for _, sf := range surfaces {
+		sec, err := sf.fetch(ctx, api, who)
+		if err != nil {
+			if len(surfaces) == 1 {
+				return nil, err
+			}
+			out = append(out, plugin.Section{Signal: SignalName, Title: sf.title, Err: err})
+			continue
+		}
+		out = append(out, sec)
+	}
+	return out, nil
+}
+
+func (s *slackSignal) identify(ctx context.Context, api *slackapi.Client) whoami {
+	who := whoami{host: s.workspace}
+	if who.host != "" && !s.mentions {
+		return who
+	}
+	got, err := s.me(ctx, api)
 	if err != nil {
-		return nil, err
+		return who
+	}
+	who.userID = got.userID
+	if who.host == "" {
+		who.host = got.host
+	}
+	return who
+}
+
+func (s *slackSignal) fetchChannel(ctx context.Context, api *slackapi.Client, who whoami, channel string) (plugin.Section, error) {
+	id, name, err := s.resolveChannel(ctx, api, channel)
+	if err != nil {
+		return plugin.Section{}, err
 	}
 
 	resp, err := api.GetConversationHistoryContext(ctx, &slackapi.GetConversationHistoryParameters{
@@ -96,7 +191,7 @@ func (s *slackSignal) Fetch(ctx context.Context) ([]plugin.Section, error) {
 		Limit:     s.limit,
 	})
 	if err != nil {
-		return nil, errx.Wrapf(err, "slack: fetching history for %s", id)
+		return plugin.Section{}, errx.Wrapf(scopeError(err, "reading channel history"), "slack: fetching history for %s", id)
 	}
 
 	title := "#" + name
@@ -104,129 +199,109 @@ func (s *slackSignal) Fetch(ctx context.Context) ([]plugin.Section, error) {
 		title = id
 	}
 
+	c := itemCtx{
+		channelID:   id,
+		channelName: name,
+		host:        who.host,
+		names:       s.resolveUsers(ctx, api, messageUserIDs(resp.Messages)),
+	}
 	items := make([]plugin.Item, 0, len(resp.Messages))
 	for _, msg := range resp.Messages {
-		items = append(items, messageToItem(msg, name))
+		items = append(items, messageToItem(msg, c))
 	}
-
-	return []plugin.Section{{
-		Signal: "slack",
-		Title:  title,
-		Items:  items,
-	}}, nil
+	return plugin.Section{Signal: SignalName, Title: title, Items: items}, nil
 }
 
-func (s *slackSignal) resolveChannel(ctx context.Context, api *slackapi.Client) (id, name string, err error) {
-	if isChannelID(s.channel) {
-		return s.channel, "", nil
+func messageUserIDs(msgs []slackapi.Message) []string {
+	seen := map[string]bool{}
+	for _, m := range msgs {
+		if m.User != "" {
+			seen[m.User] = true
+		}
+		mentionIDs(m.Text, seen)
 	}
-
-	want := strings.TrimPrefix(s.channel, "#")
-	if hit, ok := cachedChannel(s.token, want); ok {
-		return hit.id, hit.name, nil
+	out := make([]string, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
 	}
-
-	cursor := ""
-	giveUp := ""
-	for page := 0; ; page++ {
-		if page >= maxListPages {
-			giveUp = fmt.Sprintf("stopped after %d pages", maxListPages)
-			break
-		}
-		channels, next, listErr := api.GetConversationsContext(ctx, &slackapi.GetConversationsParameters{
-			Types:  []string{"public_channel", "private_channel"},
-			Cursor: cursor,
-			Limit:  listPageSize,
-		})
-		if listErr != nil {
-			return "", "", errx.Wrapf(listErr, "slack: listing conversations (page %d)", page+1).
-				WithHint("retry in a moment, or set the channel by ID (C.../G.../D...) to skip the channel walk")
-		}
-		for _, ch := range channels {
-			if ch.Name == want {
-				cacheChannel(s.token, want, ch.ID, ch.Name)
-				return ch.ID, ch.Name, nil
-			}
-		}
-		if next == "" {
-			break
-		}
-		if next == cursor {
-			giveUp = "conversations.list returned the same pagination cursor twice"
-			break
-		}
-		cursor = next
-	}
-
-	if giveUp != "" {
-		return "", "", errx.Newf("slack: gave up resolving channel %q: %s", s.channel, giveUp).
-			WithHint("use the channel ID (C.../G.../D...) instead of its name to skip the channel walk")
-	}
-	return "", "", errx.Newf("slack: channel %q not found", s.channel).
-		WithHint("check the channel name, or use its ID (C.../G.../D...)")
+	return out
 }
 
-func isChannelID(v string) bool {
-	if v == "" {
-		return false
-	}
-	switch v[0] {
-	case 'C', 'G', 'D':
-		return true
-	default:
-		return false
-	}
-}
+func messageToItem(msg slackapi.Message, c itemCtx) plugin.Item {
+	ref := msgRef{ChannelID: c.channelID, TS: msg.Timestamp, ThreadTS: msg.ThreadTimestamp}
 
-func messageToItem(msg slackapi.Message, channelName string) plugin.Item {
-	title := firstLine(msg.Text)
+	text := unfurl(msg.Text, c.names)
+	title := firstLine(text)
 	if title == "" {
 		title = "(no text)"
 	}
-	title = capRunes(title, 120)
+	title = capRunes(title, titleCap)
 
 	subtitle := ""
-	if channelName != "" {
-		subtitle = "#" + channelName
+	if c.channelName != "" {
+		subtitle = "#" + c.channelName
+	} else if c.channelID != "" {
+		subtitle = c.channelID
 	}
+
+	kind := c.kind
+	if kind == "" {
+		kind = "message"
+	}
+
+	meta := map[string]string{}
+	putMeta(meta, "channel_id", c.channelID)
+	putMeta(meta, "channel_name", c.channelName)
+	putMeta(meta, "ts", msg.Timestamp)
+	putMeta(meta, "thread_ts", msg.ThreadTimestamp)
+	putMeta(meta, "user", msg.User)
+	putMeta(meta, "author", authorOf(msg, c.names))
+	putMeta(meta, "subtype", msg.SubType)
+	if msg.ReplyCount > 0 {
+		putMeta(meta, "reply_count", strconv.Itoa(msg.ReplyCount))
+	}
+	putMeta(meta, "reactions", reactionLine(msg.Reactions))
 
 	return plugin.Item{
-		Kind:      "message",
+		Kind:      kind,
 		Title:     title,
 		Subtitle:  subtitle,
-		Body:      msg.Text,
-		URL:       "",
+		Body:      text,
+		URL:       permalink(c.host, ref),
 		Timestamp: parseSlackTS(msg.Timestamp),
-		Meta:      map[string]string{"user": msg.User},
+		Meta:      meta,
 	}
 }
 
-func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		s = s[:i]
+func authorOf(msg slackapi.Message, names map[string]string) string {
+	if name, ok := names[msg.User]; ok && name != "" {
+		return name
 	}
-	return strings.TrimSpace(s)
+	if msg.User != "" {
+		return msg.User
+	}
+	if msg.Username != "" {
+		return msg.Username
+	}
+	return msg.BotID
 }
 
-func capRunes(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
+func putMeta(m map[string]string, key, value string) {
+	if value != "" {
+		m[key] = value
 	}
-	return string(r[:n])
 }
 
-func parseSlackTS(ts string) time.Time {
-	if ts == "" {
-		return time.Time{}
+func reactionLine(rs []slackapi.ItemReaction) string {
+	if len(rs) == 0 {
+		return ""
 	}
-	secPart := ts
-	if i := strings.IndexByte(ts, '.'); i >= 0 {
-		secPart = ts[:i]
+	parts := make([]string, 0, len(rs))
+	for _, r := range rs {
+		if r.Name == "" {
+			continue
+		}
+		parts = append(parts, r.Name+":"+strconv.Itoa(r.Count))
 	}
-	sec, err := strconv.ParseInt(secPart, 10, 64)
-	if err != nil {
-		return time.Time{}
-	}
-	return time.Unix(sec, 0)
+	return strings.Join(parts, ", ")
 }

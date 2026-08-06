@@ -30,7 +30,7 @@ go run ./overlay calendar query     # the same CLI, plus these signals
 | `docs` | `docs` | query, query params, `mino docs query` |
 | `drive` | `drive` | query, `mino drive query|add`, the `gdrive` backup destination |
 | `tasks` | `tasks` | query + stream, `mino tasks query|add` |
-| `slack` | `slack` | query + stream, query params, `mino slack query`, the `slack` login provider |
+| `slack` | `slack` | query + stream + detail, query params, `mino slack query` / `mino slack show`, a status chip, installable query seeds, the `slack` login provider |
 | `google` | — | the shared `google` login provider for the five Google signals |
 | `demo` | `demo` | query + stream, the `demo-no-lorem` filter engine |
 | `gcx` | `gcx` | live Grafana IRM incidents (`view=incidents`) + offline status (`view=status`), query params, the `gcx` login provider (sealed key `gcx` or `$GCX_TOKEN`), `declare-incident` / `add-activity` actions, `mino gcx query\|declare\|activity\|login`, two seed queries |
@@ -136,9 +136,12 @@ Google signal aliases (`mino login calendar`, …) keep working too.
 ## Example directives
 
 `examples/` holds the directives that reference these signals: `today`
-(calendar), `unread-mail` (gmail), `recent-docs` (docs), `slack-standup`
-(slack), `notify-smoke` (demo), and the `morning` flight. Copy them into
-`~/.mino` when running the overlay.
+(calendar), `unread-mail` (gmail), `recent-docs` (docs), `notify-smoke` (demo),
+and the `morning` flight. Copy them into `~/.mino` when running the overlay.
+
+The Slack directives are installable rather than copy-paste: they are embedded in
+`slack/seeds/queries/` and `mino plugins install external.slack` writes
+`slack-standup`, `slack-mentions` and `slack-catchup` into `~/.mino/queries`.
 
 ## Module wiring
 

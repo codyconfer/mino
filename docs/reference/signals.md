@@ -9,7 +9,7 @@
 | Google Docs | overlay | `docs query` | Read-only | — |
 | Google Drive | overlay | `drive query`, `drive add` | **Read + write** | Creates a file **only** in the configured `plugins.drive.dir`; a write to any other folder is rejected *before* the API call. Reads any folder. Uses the full `drive` OAuth scope (folder discovery + create). |
 | Google Tasks | overlay | `tasks query`, `tasks add` | **Read + write** | Creates a task **only** in the configured `plugins.tasks.list`; a write to any other list is rejected *before* the API call. Reads any list. |
-| Slack | overlay | `slack query --channel <name>` | Read-only | — |
+| Slack | overlay | `slack query` (`--channel`, `--mentions`, `--dms`, `--search`), `slack show <permalink>` | Read-only | — |
 | Kubernetes | overlay | `kubectl query` (`k8s`) | Read-only | Shells out to `kubectl get … -o json` only. Registers no actions, and never writes to your kubeconfig — see [Kubernetes](#kubernetes). |
 | ArgoCD | overlay | `argocd query`, `argocd show <url>` | Read-only | Never sends `refresh`, which would force a reconcile against the cluster. |
 | Demo | overlay | `query demo` | Read-only | Synthetic items for smoke-testing notifications. |

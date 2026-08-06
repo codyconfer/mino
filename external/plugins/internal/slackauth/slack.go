@@ -15,7 +15,10 @@ import (
 	"github.com/codyconfer/mino/plugin"
 )
 
-const DefaultUserScopes = "channels:history,channels:read,groups:history,groups:read"
+const BaseUserScopes = "channels:history,channels:read,groups:history,groups:read"
+
+const DefaultUserScopes = BaseUserScopes +
+	",im:history,im:read,mpim:history,mpim:read,search:read,users:read"
 
 var (
 	authorizeURL = "https://slack.com/oauth/v2/authorize"
