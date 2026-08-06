@@ -46,7 +46,7 @@ func enforceOnboarding(cmd *cobra.Command) error {
 	if onboard.IsOnboarded() {
 		return nil
 	}
-	return errs.New(errs.KindOnboarding, "mino is not onboarded yet").WithHint("%s", onboard.Hint())
+	return errs.New(errs.KindOnboarding, "mino is not onboarded yet").WithHint("%s", onboard.Hint(gitProviderLabel()))
 }
 
 func requireOnboarding(cmd *cobra.Command) error {
@@ -63,16 +63,27 @@ func onboardHint() string {
 			return h
 		}
 	}
-	return onboard.Hint()
+	return onboard.Hint(gitProviderLabel())
+}
+
+func gitProviderLabel() string {
+	if shared == nil {
+		return ""
+	}
+	if p, err := shared.GitProvider(); err == nil && p != nil {
+		return p.Label()
+	}
+	return ""
 }
 
 func newOnboardCmd() *cobra.Command {
 	var reset, statusOnly bool
 	c := &cobra.Command{
 		Use:   "onboard",
-		Short: "Guided setup: GitHub auth + a GitHub-verified GPG signing key",
-		Long: "Walks through the checks mino requires before it will run: GitHub\n" +
-			"authentication and a GPG signing key that git uses and GitHub has verified.\n" +
+		Short: "Guided setup: git provider auth + a provider-verified GPG signing key",
+		Long: "Walks through the checks mino requires before it will run: authentication to\n" +
+			"the configured git provider and a GPG signing key that git uses and the\n" +
+			"provider has verified.\n" +
 			"mino only inspects your setup and prints the commands to fix any gaps.",
 		Args:         cobra.NoArgs,
 		Annotations:  map[string]string{annoSkipOnboarding: "true"},

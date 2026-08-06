@@ -501,7 +501,7 @@ func TestPluginsInstallOpensPickerAndInstallAddsRow(t *testing.T) {
 	}
 }
 
-func TestPluginsListSpacesOnlyTheCursorRow(t *testing.T) {
+func TestPluginsListRendersOneTightRowPerPlugin(t *testing.T) {
 	kit := testKit(t)
 	page, ok := kit.Plugins().(*pluginsPage)
 	if !ok {
@@ -525,9 +525,14 @@ func TestPluginsListSpacesOnlyTheCursorRow(t *testing.T) {
 		t.Fatalf("rows missing from render:\n%s", strings.Join(lines, "\n"))
 	}
 	if second-first != 2 {
-		t.Errorf("cursor row should be followed by a blank line, gap = %d:\n%s", second-first, strings.Join(lines, "\n"))
+		t.Errorf("the cursor row should be followed by exactly one spacer, gap = %d:\n%s",
+			second-first, strings.Join(lines, "\n"))
 	}
 	if third-second != 1 {
-		t.Errorf("rows away from the cursor should stay tight, gap = %d:\n%s", third-second, strings.Join(lines, "\n"))
+		t.Errorf("rows away from the cursor should render one per line, gap = %d:\n%s",
+			third-second, strings.Join(lines, "\n"))
+	}
+	if !strings.Contains(lines[first], page.rows[0].id) || strings.Contains(lines[second], "▸") {
+		t.Errorf("the cursor marks a row other than the first:\n%s", strings.Join(lines, "\n"))
 	}
 }

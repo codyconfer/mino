@@ -18,6 +18,7 @@ import (
 	"github.com/codyconfer/sisyphus/secret"
 
 	"github.com/codyconfer/mino/internal/app/onboard"
+	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
 	"github.com/codyconfer/mino/internal/filter"
@@ -157,6 +158,14 @@ func Config(cfg *config.Config, directives *config.Directives, role string) []Fi
 	if cfg.GitHub.APIURL != "" {
 		_, err := gh.NormalizeAPIURL(cfg.GitHub.APIURL)
 		check("github.api_url", err == nil, fmt.Sprintf("api_url=%q must be an https URL", cfg.GitHub.APIURL), "github:\n  api_url: "+cfg.GitHub.APIURL)
+	}
+	if cfg.Gitea.URL != "" {
+		_, err := auth.NormalizeGiteaURL(cfg.Gitea.URL)
+		check("gitea.url", err == nil, fmt.Sprintf("url=%q must be an https URL (http is allowed for localhost only)", cfg.Gitea.URL), "gitea:\n  url: "+cfg.Gitea.URL)
+	}
+	if cfg.Gitea.APIURL != "" {
+		_, err := auth.NormalizeGiteaAPIURL(cfg.Gitea.APIURL)
+		check("gitea.api_url", err == nil, fmt.Sprintf("api_url=%q must be an https URL (http is allowed for localhost only)", cfg.Gitea.APIURL), "gitea:\n  api_url: "+cfg.Gitea.APIURL)
 	}
 
 	_, validBackend := secret.ParseBackend(cfg.Backup.SecretBackend)

@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/codyconfer/mino/internal/plugin"
+	gl "github.com/codyconfer/mino/internal/signals/gitlab"
 )
 
 type ParamSpec = plugin.ParamSpec
@@ -14,7 +15,17 @@ var githubSearchTerms = []string{
 	"archived:false", "sort:updated-desc",
 }
 
+var giteaQueryTerms = []string{
+	"type:pulls", "type:issues", "state:open", "state:closed", "state:all",
+	"created:@me", "assigned:@me", "review_requested:@me", "mentioned:@me", "reviewed:@me",
+	"repo:", "owner:", "labels:", "milestone:", "since:7d",
+}
+
 func registerStockQueryParams() {
+	plugin.RegisterQueryParams("gitea",
+		ParamSpec{Key: "query", Desc: "Gitea issue/PR expression", Example: "type:pulls state:open review_requested:@me", Values: giteaQueryTerms, Delim: " "},
+		ParamSpec{Key: "title", Desc: "section title for this query", Example: "git.acme · review requests"},
+	)
 	plugin.RegisterQueryParams("github",
 		ParamSpec{Key: "query", Desc: "GitHub search expression", Example: "is:open is:pr author:@me", Values: githubSearchTerms, Delim: " "},
 		ParamSpec{Key: "actions", Desc: "repository whose latest Actions run to fetch", Example: "codyconfer/mino"},
@@ -23,6 +34,14 @@ func registerStockQueryParams() {
 		ParamSpec{Key: "title", Desc: "project board section title (needs project)", Example: "Sprint board"},
 		ParamSpec{Key: "field", Desc: "project board field to group by (needs project)", Example: "Status"},
 		ParamSpec{Key: "team", Desc: "org team whose members count as ours (needs project)", Example: "acme/platform"},
+	)
+	plugin.RegisterQueryParams("gitlab",
+		ParamSpec{
+			Key: "query", Desc: "GitLab selector", Example: "kind:mr scope:assigned state:opened",
+			Values: gl.SelectorTerms(), Delim: " ",
+		},
+		ParamSpec{Key: "title", Desc: "section title", Example: "My merge requests"},
+		ParamSpec{Key: "interval", Desc: "stream poll interval", Example: "60s"},
 	)
 }
 

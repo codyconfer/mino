@@ -18,7 +18,6 @@ import (
 	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/role"
 	"github.com/codyconfer/mino/internal/signals/cache"
-	gh "github.com/codyconfer/mino/internal/signals/github"
 	"github.com/codyconfer/mino/internal/state"
 	"github.com/codyconfer/mino/internal/token"
 
@@ -171,20 +170,14 @@ func (a *App) resolveGitAuth() (gitauth.Provider, gitauth.Identity, error) {
 	if name == "" {
 		name = gitauth.Default
 	}
-	base, err := gh.NormalizeAPIURL(a.Cfg.GitHub.APIURL)
-	if err != nil {
-		return nil, nil, err
+	if !gitauth.Known(name) {
+		return nil, nil, errs.Newf(errs.KindConfig, "unknown git.provider %q", name).
+			WithHint("known providers: %v", gitauth.Names())
 	}
-	setting := a.Cfg.GitSettings(name)
 	p, err := gitauth.New(name, gitauth.Env{
-		Store: a.Tokens,
-		Role:  a.Role(),
-		Setting: func(key string) string {
-			if key == "api_url" {
-				return base
-			}
-			return setting(key)
-		},
+		Store:   a.Tokens,
+		Role:    a.Role(),
+		Setting: a.Cfg.GitSettings(name),
 	})
 	if err != nil {
 		return nil, nil, errs.Wrapf(errs.KindConfig, err, "git.provider %q", name).

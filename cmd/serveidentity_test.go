@@ -7,6 +7,7 @@ import (
 
 	"github.com/codyconfer/mino/internal/app"
 	"github.com/codyconfer/mino/internal/config"
+	"github.com/codyconfer/mino/internal/gitauth"
 )
 
 func useIdentityTestApp(t *testing.T, mut func(*config.Config)) {
@@ -105,7 +106,7 @@ func TestIdentityLoginFallsBackToTheGitHubClientID(t *testing.T) {
 
 func TestServeRefusesAnUnknownIdentityProvider(t *testing.T) {
 	useIdentityTestApp(t, func(c *config.Config) {
-		c.Daemon.HTTP.Identity.Provider = "gitlab"
+		c.Daemon.HTTP.Identity.Provider = "bitbucket"
 	})
 	err := runServe(t)
 	if err == nil {
@@ -113,6 +114,19 @@ func TestServeRefusesAnUnknownIdentityProvider(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "daemon.http.identity.provider") {
 		t.Errorf("error = %q; want daemon.http.identity.provider named", err)
+	}
+}
+
+func TestServeIdentityStaysGitHubOnlyEvenThoughGitLabIsAGitProvider(t *testing.T) {
+	if !gitauth.Known("gitlab") {
+		t.Fatal("precondition: gitlab is a registered git provider")
+	}
+	useIdentityTestApp(t, func(c *config.Config) {
+		c.Daemon.HTTP.Identity.Provider = "gitlab"
+	})
+	if err := runServe(t); err == nil {
+		t.Fatal("serve accepted gitlab for daemon.http.identity; sign-in would be wired against a " +
+			"forge whose allowed_logins are validated with GitHub's username rules")
 	}
 }
 

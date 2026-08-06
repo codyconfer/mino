@@ -211,6 +211,9 @@ func (s *Server) apiConfig() any {
 	if c.GitHub.ServiceToken != "" {
 		c.GitHub.ServiceToken = "<set>"
 	}
+	if c.Gitea.ServiceToken != "" {
+		c.Gitea.ServiceToken = "<set>"
+	}
 	return c
 }
 

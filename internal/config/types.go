@@ -16,6 +16,8 @@ type Config struct {
 	Backup      BackupConfig      `koanf:"backup"`
 	Git         GitConfig         `koanf:"git"`
 	GitHub      GitHubConfig      `koanf:"github"`
+	Gitea       GiteaConfig       `koanf:"gitea"`
+	GitLab      GitLabConfig      `koanf:"gitlab"`
 	Daemon      DaemonConfig      `koanf:"daemon"`
 	Cache       CacheConfig       `koanf:"cache"`
 
@@ -141,6 +143,25 @@ type GitHubAppConfig struct {
 }
 
 func (g GitHubAppConfig) Requested() bool { return g != GitHubAppConfig{} }
+
+type GiteaConfig struct {
+	URL          string   `koanf:"url"`
+	APIURL       string   `koanf:"api_url"`
+	Queries      []string `koanf:"queries"`
+	Max          int      `koanf:"max"`
+	Viewer       string   `koanf:"viewer"`
+	ServiceToken string   `koanf:"service_token"`
+}
+
+type GitLabConfig struct {
+	Queries       []string `koanf:"queries"`
+	OAuthClientID string   `koanf:"oauth_client_id"`
+	OAuthScopes   string   `koanf:"oauth_scopes"`
+	APIURL        string   `koanf:"api_url"`
+	Max           int      `koanf:"max"`
+	Viewer        string   `koanf:"viewer"`
+	ServiceToken  string   `koanf:"service_token"`
+}
 
 type RoleDef struct {
 	Name       string            `yaml:"name,omitempty" json:"name,omitempty"`

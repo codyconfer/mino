@@ -13,6 +13,8 @@ func TestForTool(t *testing.T) {
 	}{
 		{"github", GitHub()},
 		{"GitHub", GitHub()},
+		{"gitlab", GitLab()},
+		{"GitLab", GitLab()},
 		{"slack", Slack()},
 		{"google", Google()},
 		{"Google", Google()},
@@ -37,5 +39,24 @@ func TestForToolResolvesRegistryID(t *testing.T) {
 	}
 	if got := ForTool("totally-unknown-glyph-xyz"); got != "" {
 		t.Fatalf("unknown = %q, want empty (plain-text fallback)", got)
+	}
+}
+
+func TestGitLabHasItsOwnMark(t *testing.T) {
+	if GitLab() == "" {
+		t.Fatal("GitLab() is empty; viewkit ships no gitlab mark, so mino must register one")
+	}
+	if GitLab() == GitHub() {
+		t.Error("GitLab() and GitHub() render the same glyph; the status strip could not tell the " +
+			"two forges apart")
+	}
+	prev := vk.CurrentMode()
+	t.Cleanup(func() { SetMode(prev) })
+	for _, mode := range []Mode{ModeNerd, ModeUnicode, ModeNone} {
+		SetMode(mode)
+		if ForTool("gitlab") == "" {
+			t.Errorf("ForTool(gitlab) is empty in mode %v; every mode needs a fallback or the "+
+				"status strip renders a hole", mode)
+		}
 	}
 }

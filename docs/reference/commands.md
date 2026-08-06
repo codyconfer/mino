@@ -12,13 +12,15 @@
 | `mino formatter [name]` | List the formatters the active role can see; with a name, show its definition. |
 | `mino formatter show <name>` / `render <name> [flight]` | Print a formatter's YAML / run a flight and render it (`--stdin` renders a `-o json` section array instead). |
 | `mino <signal> query` | Ad-hoc one-off query against a single signal. |
+| `mino <signal> show <url>` | Detail page for one item, on signals that support it (`github`, `gitlab`, `gitea`). |
+| `mino show <url>` | Same, with the signal inferred from the URL's host (github and gitlab, including configured self-managed endpoints). Name the signal for gitea. |
 | `mino notes …` / `notes ui` | Notes/Tasks/Reminders CLI and TUI (`ntr` is an alias). |
 | `mino version` | Print brand glyph + `MINO` + build version (git describe / tag). |
 | `mino history` / `history show <id>` | List past runs / recall a run's results. |
 | `mino config` / `config history` | Show the active (DB-backed) config / prior versions. |
 | `mino backup` / `restore <file>` | Write / restore an encrypted backup of the DuckDB databases. |
 | `mino verify [target]` | Validate config/roles/flights/queries/formatters/onboarding (colorized, masks secrets). |
-| `mino onboard [--status\|--reset]` | One-time setup gate: GitHub auth + a GitHub-verified GPG signing key. |
+| `mino onboard [--status\|--reset]` | One-time setup gate: git provider auth + a provider-verified GPG signing key. |
 | `mino install` | Create the config directory and initialize it with defaults. |
 | `mino plugins list` | List compile-time registered plugins and enablement state. |
 | `mino plugins enable/disable <id>` | Runtime activation only (`disabled_plugins` in settings). |
@@ -27,7 +29,7 @@
 | `mino clean` | Archive the config file, `logs/`, and every directive file into `.archive/<timestamp>/`. |
 | `mino nuke [--yes]` | Delete the config directory and DuckDB (run `mino install` to recreate defaults). |
 | `mino role` | Show the active role and defined roles. |
-| `mino login <service>` | OAuth login for github, plus any provider a plugin contributes (google/slack with the overlay). |
+| `mino login <service>` | OAuth/device login for `github` and `gitlab`, or `gitea`/`forgejo` (paste a personal access token), plus any provider a plugin contributes (google/slack with the overlay). |
 | `mino list [queries\|filters\|flights\|roles\|formatters]` | List what the active role can see (`--all` to ignore the role). |
 | `mino filter list` / `filter show <name>` | Inspect saved filters and plugin filter engines. |
 | `mino query build --signal <name>` | Compose and run an ad-hoc query; `--save <name>` keeps it, `--dry-run` just prints it. |

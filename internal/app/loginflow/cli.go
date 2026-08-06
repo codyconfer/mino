@@ -29,7 +29,7 @@ func RunCLI(ctx context.Context, a *app.App, scope *ui.Scope, p Provider, in io.
 	creds := map[string]string{}
 	if missing := p.Missing(a); len(missing) > 0 && stdinIsTTY() {
 		reader := bufio.NewReader(in)
-		fmt.Fprintf(errOut, "%s needs OAuth client credentials — enter them to continue.\n", p.Label)
+		fmt.Fprintf(errOut, "%s needs credentials — enter them to continue.\n", p.Label)
 		for _, f := range missing {
 			fmt.Fprintf(errOut, "  %s: ", f.Label)
 			val, err := readCredential(reader, errOut, f.Secret)
@@ -41,7 +41,7 @@ func RunCLI(ctx context.Context, a *app.App, scope *ui.Scope, p Provider, in io.
 			}
 			creds[f.Key] = val
 		}
-		if err := PersistCredentials(a, creds); err != nil {
+		if err := PersistCredentials(a, p.Persistable(creds)); err != nil {
 			return err
 		}
 	}

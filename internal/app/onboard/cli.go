@@ -30,11 +30,15 @@ func ServiceHint(id gitauth.Identity) string {
 	return ""
 }
 
-func Hint() string {
-	if RequiredEmailDomain != "" {
-		return "run `mino onboard` to finish setup (GitHub auth + a GitHub-verified GPG or SSH signing key with a verified @" + RequiredEmailDomain + " identity)"
+func Hint(label string) string {
+	if label == "" {
+		label = "your git provider"
 	}
-	return "run `mino onboard` to finish setup (GitHub auth + a GitHub-verified GPG or SSH signing key)"
+	if RequiredEmailDomain != "" {
+		return "run `mino onboard` to finish setup (" + label + " auth + a " + label +
+			"-verified GPG or SSH signing key with a verified @" + RequiredEmailDomain + " identity)"
+	}
+	return "run `mino onboard` to finish setup (" + label + " auth + a " + label + "-verified GPG or SSH signing key)"
 }
 
 func Reset(w io.Writer) error {

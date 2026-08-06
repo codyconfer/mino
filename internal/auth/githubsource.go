@@ -44,9 +44,11 @@ func (m GitHubMechanism) String() string {
 	return "none"
 }
 
-type GitHubSource interface {
+type TokenSource interface {
 	Token(ctx context.Context) (string, error)
 }
+
+type GitHubSource = TokenSource
 
 type GitHubAppSpec struct {
 	ID             string

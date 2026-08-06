@@ -1,0 +1,4 @@
+# Realtime gitea notifications need the read:notification token scope.
+name: gitea
+type: flight
+queries: [gitea-my-open-prs, gitea-review-requests]

@@ -1,0 +1,6 @@
+name: gitlab-pipelines
+type: query
+signal: gitlab
+params:
+  query: "kind:pipeline project:acme/platform/api status:failed ref:main"
+  title: "Failed pipelines on main"

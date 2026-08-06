@@ -2,7 +2,9 @@
 
 | Signal | Ships in | Command(s) | Access | Write restrictions |
 |---|---|---|---|---|
-| GitHub | stock | `github query` | Read-only | — |
+| GitHub | stock | `github query`, `github show` | Read-only | — |
+| GitLab | stock | `gitlab query`, `gitlab show` | Read-only | — |
+| Gitea / Forgejo | stock | `gitea query`, `gitea show` (`forgejo`) | Read-only | — |
 | Notes / Tasks / Reminders / Buckets | stock | `mino notes` | **Read + write** | Local DuckDB store under `<home>/.data`: `notes`, `tasks`, `reminders`, plus `buckets` and `bucket_members`. |
 | Google Calendar | overlay | `calendar query` (`cal`) | Read-only | — |
 | Gmail | overlay | `gmail query` | Read-only | — |
@@ -25,6 +27,68 @@ mino tasks add "oops" --list "Someone Else's List"   # → rejected: read-only
 mino drive add "notes.txt" --content "hello" --mime text/plain
 mino drive add "x" --dir "Some Other Folder"         # → rejected: read-only
 ```
+
+## Gitea and Forgejo queries
+
+Gitea has no search language. Its cross-repository endpoint takes **typed parameters**
+instead, and the actor filters (`created`, `assigned`, `mentioned`, `review_requested`,
+`reviewed`) are resolved against the token's own user rather than a name in the query. So
+`params.query` is a small key:value expression that mino parses into those parameters, and an
+unsupported qualifier is a config error rather than a silently ignored text term:
+
+```yaml
+name: gitea-review-requests
+type: query
+signal: gitea
+params:
+  title: "git.acme · review requests"
+  query: "type:pulls state:open review_requested:@me"
+```
+
+```yaml
+name: tools-bugs
+type: query
+signal: gitea
+params:
+  query: 'repo:acme/tools type:issues state:open labels:bug,regression'
+```
+
+| Qualifier | Effect |
+|---|---|
+| `type:pulls\|issues\|all` | aliases: `pr`, `prs`, `pull`, `issue` |
+| `state:open\|closed\|all` | defaults to `open` |
+| `is:open`, `is:closed`, `is:pr`, `is:issue` | GitHub-shaped shorthands for the two above |
+| `repo:owner/name` | switches to the single-repository endpoint; at most one |
+| `owner:acme` | aliases: `org:`, `user:`; every repository under that owner |
+| `team:platform` | cross-repository only |
+| `labels:a,b`, `milestone:m` | comma-OR'd; quote values with spaces |
+| `created:@me` | alias `author:`; also `assigned:` (`assignee:`), `mentioned:` (`mentions:`), `review_requested:` (`review-requested:`), `reviewed:` |
+| `since:`/`before:` | an RFC3339 timestamp, or a window like `7d` or `24h` |
+| `q:"free text"`, or any bare word | full-text search |
+
+Query expressions are parsed when the signal is built, so a typo fails as soon as the query
+runs rather than returning an empty section.
+
+**`@me` means the token, not a name.** Where GitHub needs `github.viewer` to stand in for
+`@me`, Gitea already scopes those filters to whoever the credential belongs to — there is no
+substitution and no "matches nothing as a service identity" trap. The flip side is that
+Gitea *cannot* express "review requested from someone else" across repositories, so
+`review_requested:alice` is a config error rather than a query that quietly means something
+else. Two places do need a login, and `gitea.viewer` supplies it (otherwise mino asks the
+instance once per run): `owner:@me`, and the per-repository forms of `created`/`assigned`/
+`mentioned`, which Gitea spells `created_by`/`assigned_by`/`mentioned_by` and which take a
+name. Setting `gitea.viewer` to someone other than the token's user does **not** redirect the
+boolean filters.
+
+Two more differences worth knowing:
+
+- Gitea returns a bare array and puts the total in the `X-Total-Count` header. When a
+  response fills the page and carries no such header, the section is marked truncated rather
+  than presented as the whole answer.
+- The realtime stream cursors on the `since` parameter, because Gitea sends no
+  `Last-Modified` for `/notifications`. `since` is inclusive, so the boundary thread is
+  re-read each poll and dropped by the seen set; the notification you already had when
+  `mino serve` started is treated as history, not news.
 
 ## GitHub project boards
 
@@ -64,6 +128,54 @@ device-flow scope set: `gh auth refresh -s read:project`, or add it to
 
 Each item carries the field value in `meta.status`, so filter rules can narrow
 further (`field: meta.status`, `field: meta.labels`, `field: meta.assignees`).
+
+## GitLab selectors
+
+GitLab's REST API has no free-text search DSL, so the `gitlab` signal takes a
+**selector**: space-separated `key:value` terms, each mapping 1:1 onto a
+documented REST parameter or path prefix. It is a parameter spelling, not a
+search language, and an unsupported term is a config error rather than a
+silently-ignored text term.
+
+```yaml
+name: gitlab-my-mrs
+type: query
+signal: gitlab
+params:
+  query: "kind:mr scope:assigned state:opened label:backend"
+```
+
+| Term | Values | Maps to |
+|---|---|---|
+| `kind:` | `mr` (default), `issue`, `pipeline` | the surface and its endpoint |
+| `project:` | `group/sub/project` or a numeric id | `/projects/{id}/…` |
+| `group:` | `group/subgroup` | `/groups/{id}/…` |
+| `state:` | `opened`, `closed`, `merged`, `locked`, `all` | `state` (`merged`/`locked` are MR-only) |
+| `scope:` | `assigned`, `created`, `all` (or GitLab's own literals); for pipelines `running`, `pending`, `finished`, `branches`, `tags` | `scope` |
+| `author:` `assignee:` `reviewer:` | a username or `@me` | `author_username`, `assignee_username`, `reviewer_username` (`reviewer:` is MR-only) |
+| `label:` | repeatable | `labels`, comma-joined (GitLab ANDs them) |
+| `milestone:` | a title; quote to include spaces | `milestone` |
+| `search:` | free text | `search` — the escape hatch |
+| `draft:` | `true`, `false` | `wip` (MR-only) |
+| `since:` | `7d` or `2026-01-02` | `updated_after` |
+| `sort:` | `updated`, `created` | `order_by` + `sort=desc` |
+| `status:` `ref:` `username:` | pipeline-only | `status`, `ref`, `username` |
+
+Two constraints worth knowing:
+
+- **`kind:pipeline` requires a `project:`.** GitLab has no instance-wide
+  pipelines endpoint.
+- **`@me` is resolved by mino, not by GitLab.** GitLab has no server-side alias:
+  `author_username=@me` matches a user literally named `@me` and returns an empty
+  list with a 200. Mino substitutes `gitlab.viewer` if set, otherwise one cached
+  `GET /user`; if neither resolves, the query fails rather than returning
+  nothing. `scope:assigned` and `scope:created` resolve server-side and need no
+  viewer at all — prefer them, especially for a service identity.
+
+`mino gitlab show <url>` renders a merge request, issue or pipeline. `mino show`
+picks the signal from the URL's host, so it works without `--signal` for
+gitlab.com, github.com, and any host matching a configured `gitlab.api_url` or
+`github.api_url`.
 
 ## ArgoCD
 

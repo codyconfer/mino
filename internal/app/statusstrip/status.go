@@ -28,7 +28,7 @@ func Provider(a *app.App) deck.StatusFunc {
 		prov, id, _ := a.GitAuth()
 		var info deck.StatusInfo
 
-		if plugin.SignalEnabled("github") {
+		if prov != nil && plugin.SignalEnabled(gitauth.SignalOf(prov)) {
 			user, rate, ghOK := providerStatus(ctx, prov, id)
 			info.GitHubUser = user
 			info.Services = append(info.Services, rate)

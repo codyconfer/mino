@@ -1,17 +1,23 @@
 package github
 
 import (
-	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/codyconfer/mino/internal/signals"
 )
 
 const (
-	maxRetryAfter  = time.Hour
-	maxPollBackoff = 15 * time.Minute
-	maxBackoffStep = 8
+	maxRetryAfter  = signals.MaxRetryAfter
+	maxPollBackoff = signals.MaxPollBackoff
+)
+
+var (
+	retryAfter      = signals.RetryAfter
+	withJitter      = signals.WithJitter
+	backoffInterval = signals.BackoffInterval
 )
 
 func pollIntervalHint(hdr http.Header) time.Duration {
@@ -23,47 +29,6 @@ func pollIntervalHint(hdr http.Header) time.Duration {
 		return maxRetryAfter
 	}
 	return time.Duration(secs) * time.Second
-}
-
-func retryAfter(hdr http.Header, now time.Time) (time.Duration, bool) {
-	if v := strings.TrimSpace(hdr.Get("Retry-After")); v != "" {
-		if secs, err := strconv.Atoi(v); err == nil {
-			return boundRetry(time.Duration(secs) * time.Second)
-		}
-		if t, err := http.ParseTime(v); err == nil {
-			return boundRetry(t.Sub(now))
-		}
-	}
-	if strings.TrimSpace(hdr.Get("X-RateLimit-Remaining")) == "0" {
-		if epoch, err := strconv.ParseInt(strings.TrimSpace(hdr.Get("X-RateLimit-Reset")), 10, 64); err == nil {
-			return boundRetry(time.Unix(epoch, 0).Sub(now))
-		}
-	}
-	return 0, false
-}
-
-func boundRetry(d time.Duration) (time.Duration, bool) {
-	if d <= 0 {
-		return 0, false
-	}
-	return min(d, maxRetryAfter), true
-}
-
-func withJitter(d time.Duration) time.Duration {
-	if d <= 0 {
-		return d
-	}
-	return d + time.Duration(rand.Int64N(int64(d)/4+1))
-}
-
-func backoffInterval(base time.Duration, fails int) time.Duration {
-	if base <= 0 {
-		base = time.Minute
-	}
-	if fails <= 1 {
-		return base
-	}
-	return min(base*time.Duration(1<<min(fails-1, maxBackoffStep)), maxPollBackoff)
 }
 
 func rateLimited(resp *http.Response, body []byte) bool {

@@ -12,6 +12,7 @@ import (
 	"github.com/codyconfer/mino/internal/signals"
 	"github.com/codyconfer/mino/internal/signals/active"
 	"github.com/codyconfer/mino/internal/signals/cache"
+	gt "github.com/codyconfer/mino/internal/signals/gitea"
 	gh "github.com/codyconfer/mino/internal/signals/github"
 	"github.com/codyconfer/mino/internal/token"
 	pub "github.com/codyconfer/mino/plugin"
@@ -139,25 +140,119 @@ func BuilderSignals() map[string]bool {
 }
 
 func registerStockBuilders() {
-	if _, ok := plugin.LookupBuilders("github"); ok {
+	registerStock("github", buildGithub, buildActiveGithub)
+	registerStock("gitea", buildGitea, buildActiveGitea)
+	registerStock("gitlab", buildGitlab, buildActiveGitlab)
+}
+
+func registerStock(
+	name string,
+	query func(map[string]string, *config.Config, *token.Store, *cache.Store) (signals.Signal, error),
+	stream func(map[string]string, *config.Config, *token.Store, *active.State) (signals.ActiveSignal, error),
+) {
+	if _, ok := plugin.LookupBuilders(name); ok {
 		return
 	}
-	plugin.RegisterBuilders("github", plugin.Builders{
+	plugin.RegisterBuilders(name, plugin.Builders{
 		Query: func(bc plugin.BuildContext) (plugin.Query, error) {
 			h, ok := asHost(bc)
 			if !ok {
-				return nil, errs.New(errs.KindInternal, "github builder requires host build context")
+				return nil, errs.Newf(errs.KindInternal, "%s builder requires host build context", name)
 			}
-			return buildGithub(h.params, h.cfg, h.tokens, h.cache)
+			return query(h.params, h.cfg, h.tokens, h.cache)
 		},
 		Stream: func(bc plugin.BuildContext) (plugin.Stream, error) {
 			h, ok := asHost(bc)
 			if !ok {
-				return nil, errs.New(errs.KindInternal, "github stream builder requires host build context")
+				return nil, errs.Newf(errs.KindInternal, "%s stream builder requires host build context", name)
 			}
-			return buildActiveGithub(h.params, h.cfg, h.tokens, h.state)
+			return stream(h.params, h.cfg, h.tokens, h.state)
 		},
 	})
+}
+
+func buildGitea(params map[string]string, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.Signal, error) {
+	backend, err := giteaBackend(cfg, tokens)
+	if err != nil {
+		return nil, err
+	}
+	var opts []gt.Option
+	if viewer := strings.TrimSpace(cfg.Gitea.Viewer); viewer != "" {
+		opts = append(opts, gt.WithViewer(viewer))
+	}
+	if results != nil {
+		opts = append(opts, gt.WithDetailCache(results,
+			gt.CachePolicy{Read: results.Reads(), Write: results.Writes(), TTL: results.DetailTTL()}))
+	}
+	if title := params["title"]; title != "" {
+		opts = append(opts, gt.WithTitle(title))
+	}
+	queries := cfg.Gitea.Queries
+	if q := params["query"]; q != "" {
+		queries = []string{q}
+	}
+	return gt.New(queries, backend, cfg.Gitea.Max, opts...)
+}
+
+func giteaAuth(cfg *config.Config, tokens *token.Store) (auth.GiteaSelection, error) {
+	spec := cfg.Gitea.AuthSpec(giteaForge(cfg), tokens)
+	if spec.APIBase() == "" {
+		return auth.GiteaSelection{}, errs.New(errs.KindConfig, "gitea: no instance URL configured").
+			WithHint("set gitea.url to your instance root, e.g. https://git.example.com; mino appends /api/v1")
+	}
+	base, err := gt.NormalizeAPIURL(spec.APIBase())
+	if err != nil {
+		return auth.GiteaSelection{}, err
+	}
+	spec.APIURL = base
+	sel, err := auth.SelectGitea(spec)
+	if err != nil {
+		return auth.GiteaSelection{}, err
+	}
+	log.Debugf("%s", sel.Trace())
+	return sel, nil
+}
+
+func giteaForge(cfg *config.Config) string {
+	if cfg != nil && cfg.GitProvider() == "forgejo" {
+		return "forgejo"
+	}
+	return "gitea"
+}
+
+func giteaBackend(cfg *config.Config, tokens *token.Store) (gt.Backend, error) {
+	sel, err := giteaAuth(cfg, tokens)
+	if err != nil {
+		return nil, err
+	}
+	return giteaBackendFor(sel)
+}
+
+func giteaBackendFor(sel auth.GiteaSelection) (gt.Backend, error) {
+	if !sel.Authenticated() {
+		return nil, errs.Newf(errs.KindAuth, "no %s authentication available", sel.Forge()).
+			WithHint("run `mino login %s`, set $GITEA_TOKEN, or configure gitea.service_token for a "+
+				"service identity", sel.Forge())
+	}
+	log.Debugf("gitea: using %s via the REST API", sel.Origin)
+	return gt.APIBackend{Auth: sel, BaseURL: sel.APIURL}, nil
+}
+
+func buildActiveGitea(params map[string]string, cfg *config.Config, tokens *token.Store, state *active.State) (signals.ActiveSignal, error) {
+	sel, err := giteaAuth(cfg, tokens)
+	if err != nil {
+		return nil, err
+	}
+	if !sel.Authenticated() {
+		return nil, errs.Newf(errs.KindAuth, "gitea: realtime needs %s authentication", sel.Forge()).
+			WithHint("run `mino login %s` or set $GITEA_TOKEN; the token needs the read:notification scope",
+				sel.Forge())
+	}
+	interval, err := paramPollInterval(params, "gitea", 60*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	return gt.NewActive(sel, sel.APIURL, interval, state), nil
 }
 
 func buildGithub(params map[string]string, cfg *config.Config, tokens *token.Store, results *cache.Store) (signals.Signal, error) {

@@ -25,6 +25,7 @@ func adapt(p plugin.LoginProvider) Provider {
 			Key:    f.Key,
 			Label:  f.Label,
 			Secret: f.Secret,
+			Sealed: f.Sealed,
 			Cur:    currentValue(p, f),
 		})
 	}

@@ -1,0 +1,6 @@
+# Needs gitea.url (and a token: `mino login gitea`, or $GITEA_TOKEN).
+name: gitea-my-open-prs
+type: query
+signal: gitea
+params:
+  query: "type:pulls state:open created:@me"

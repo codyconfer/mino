@@ -1,0 +1,5 @@
+name: gitea-review-requests
+type: query
+signal: gitea
+params:
+  query: "type:pulls state:open review_requested:@me"

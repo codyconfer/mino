@@ -9,7 +9,7 @@ import (
 	"github.com/codyconfer/mino/internal/errs"
 )
 
-const maxGitHubRetryAfter = time.Hour
+const maxRetryAfterHeader = time.Hour
 
 const githubScopeHint = "your GitHub credential may lack the required scopes; run `mino login github`, set $GITHUB_TOKEN, or check the GitHub App's installation permissions"
 
@@ -22,7 +22,7 @@ func classifyGitHubStatus(resp *http.Response, msg string) error {
 		return statusErr(errs.KindAuth).WithHint("%s", githubScopeHint)
 	case githubRateLimited(resp, msg):
 		e := statusErr(errs.KindSignal)
-		if d, ok := githubRetryAfter(resp.Header, time.Now()); ok {
+		if d, ok := retryAfterHeader(resp.Header, time.Now()); ok {
 			return e.WithHint("github rate limit reached; retry after %s", d.Round(time.Second))
 		}
 		return e.WithHint("github rate limit reached; retry in a few minutes")
@@ -63,26 +63,26 @@ func githubRestrictionHint(msg string) string {
 	return ""
 }
 
-func githubRetryAfter(hdr http.Header, now time.Time) (time.Duration, bool) {
+func retryAfterHeader(hdr http.Header, now time.Time) (time.Duration, bool) {
 	if v := strings.TrimSpace(hdr.Get("Retry-After")); v != "" {
 		if secs, err := strconv.Atoi(v); err == nil {
-			return boundGitHubRetry(time.Duration(secs) * time.Second)
+			return boundRetryAfterHeader(time.Duration(secs) * time.Second)
 		}
 		if t, err := http.ParseTime(v); err == nil {
-			return boundGitHubRetry(t.Sub(now))
+			return boundRetryAfterHeader(t.Sub(now))
 		}
 	}
 	if strings.TrimSpace(hdr.Get("X-RateLimit-Remaining")) == "0" {
 		if epoch, err := strconv.ParseInt(strings.TrimSpace(hdr.Get("X-RateLimit-Reset")), 10, 64); err == nil {
-			return boundGitHubRetry(time.Unix(epoch, 0).Sub(now))
+			return boundRetryAfterHeader(time.Unix(epoch, 0).Sub(now))
 		}
 	}
 	return 0, false
 }
 
-func boundGitHubRetry(d time.Duration) (time.Duration, bool) {
+func boundRetryAfterHeader(d time.Duration) (time.Duration, bool) {
 	if d <= 0 {
 		return 0, false
 	}
-	return min(d, maxGitHubRetryAfter), true
+	return min(d, maxRetryAfterHeader), true
 }
