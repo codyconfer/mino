@@ -1,0 +1,20 @@
+{
+  "incidentPreviews": [
+    {
+      "incidentID": "incident-200",
+      "title": "Checkout error rate spike",
+      "status": "active",
+      "severityLabel": "critical",
+      "createdTime": "2026-07-24T15:04:05Z",
+      "isDrill": false
+    },
+    {
+      "incidentID": "incident-201",
+      "title": "Ingest lag on us-central",
+      "status": "active",
+      "severityLabel": "minor",
+      "createdTime": "2026-07-24T14:00:00Z",
+      "isDrill": true
+    }
+  ]
+}

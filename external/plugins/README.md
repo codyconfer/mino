@@ -33,7 +33,7 @@ go run ./overlay calendar query     # the same CLI, plus these signals
 | `slack` | `slack` | query + stream, query params, `mino slack query`, the `slack` login provider |
 | `google` | — | the shared `google` login provider for the five Google signals |
 | `demo` | `demo` | query + stream, the `demo-no-lorem` filter engine |
-| `gcx` | `gcx` | offline Grafana Cloud status (sealed token key `gcx`), `declare-incident` / `add-activity` action stubs, seed query |
+| `gcx` | `gcx` | live Grafana IRM incidents (`view=incidents`) + offline status (`view=status`), query params, the `gcx` login provider (sealed key `gcx` or `$GCX_TOKEN`), `declare-incident` / `add-activity` actions, `mino gcx query\|declare\|activity\|login`, two seed queries |
 | `kubectl` | `kubectl` | in-process context + read-only `kubectl config current-context` probe, seed query |
 | `ollama` | `ollama` | Lane C2 context stub via `stub`, seed query |
 | `argocd` | `argocd` | query + stream + detail against the ArgoCD REST API (sealed token key `argocd`), query params, `mino argocd query\|show`, two seed queries |
@@ -41,9 +41,11 @@ go run ./overlay calendar query     # the same CLI, plus these signals
 
 `stub/` is the shared helper for new context-tool stubs: `stub.Register(Spec)`
 installs the signal, glyph, in-memory context provider, and status chip in one
-call. `gcx/SPIKE.md` documents the Grafana Cloud auth matrix and deferrals;
-`argocd/SPIKE.md` does the same for ArgoCD, including what the plugin
-deliberately does not do.
+call. `gcx/SPIKE.md` documents the Grafana Cloud auth matrix, the deferrals, and
+— in §6 — the design notes for the gcx package, which carries no code comments.
+Read §6.1 before touching `gcx/irm.go`: the IRM RPC paths and wire shapes have
+not been verified against a real stack. `argocd/SPIKE.md` does the same for
+ArgoCD, including what the plugin deliberately does not do.
 
 ### argocd
 

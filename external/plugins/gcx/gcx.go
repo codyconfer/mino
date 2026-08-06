@@ -1,15 +1,13 @@
 // Package gcx is Lane C (Grafana Cloud). There is no gcx binary — HTTP APIs only.
 //
-// Auth assumption (C-0): sealed token store key TokenKey holds a Grafana stack
-// service-account token (Bearer glsa_…) for IRM. Context name is the stack host
-// (e.g. myorg.grafana.net). See SPIKE.md for the full auth matrix and deferrals.
+// Auth: sealed token store key TokenKey holds a Grafana stack service-account
+// token (Bearer glsa_…) for IRM. Context name is the stack host (e.g.
+// myorg.grafana.net). See SPIKE.md for the auth matrix, the unverified IRM wire
+// contract, and the implementation notes.
 package gcx
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 
 	"github.com/codyconfer/viewkit/glyph"
 
@@ -25,37 +23,8 @@ const (
 	TokenKey = "gcx"
 )
 
-// Vertical is the C-0 locked first query surface (fixture-mappable offline).
+// Vertical is the locked first query surface.
 const Vertical = "irm-incidents"
-
-func Register() {
-	if _, ok := plugin.Lookup(PluginID); ok {
-		return
-	}
-	plugin.RegisterSignal(plugin.Descriptor{
-		ID:           PluginID,
-		Kind:         plugin.KindSignal,
-		Signal:       SignalName,
-		Capabilities: []plugin.Capability{plugin.CapQuery, plugin.CapAction},
-		Credentials:  []string{TokenKey},
-	}, plugin.Builders{
-		Query: func(bc plugin.BuildContext) (plugin.Query, error) {
-			return NewSignal(tokenLookupFrom(bc)), nil
-		},
-	})
-	glyph.Register(GlyphID, glyph.Variants{Nerd: "󰡉", Uni: "☁", ASCII: "gx"})
-	plugin.RegisterContext(PluginID, shared)
-	plugin.RegisterStatusContribution(PluginID, func(_, _ string) glyph.StatusContribution {
-		return StatusContribution()
-	})
-	for _, a := range KnownActions() {
-		name := a.Name()
-		plugin.RegisterAction(SignalName, name, a.Run)
-	}
-	plugin.RegisterSeeds(PluginID, []plugin.FileSeed{
-		{RelPath: "queries/gcx-status.yaml", Content: []byte(ExampleDirective)},
-	})
-}
 
 type tokenSourceLookup struct{ src plugin.TokenSource }
 
@@ -96,7 +65,7 @@ type TokenLookup interface {
 	Get(ctx context.Context, service string) (accessToken, scope string, ok bool, err error)
 }
 
-// Signal is the offline-safe status query. Live IRM HTTP is Lane C follow-up.
+// Signal is the offline-safe status query (view=status).
 type Signal struct {
 	Tokens TokenLookup
 }
@@ -128,7 +97,7 @@ func (s Signal) Fetch(ctx context.Context) ([]plugin.Section, error) {
 		Items: []plugin.Item{
 			{Kind: "auth", Title: "auth", Body: authBody},
 			{Kind: "context", Title: "stack", Body: stack},
-			{Kind: "info", Title: "vertical", Body: Vertical + " (fixture mapper ready; no live HTTP)"},
+			{Kind: "info", Title: "vertical", Body: Vertical + " (live via view=incidents)"},
 		},
 	}}, nil
 }
@@ -147,71 +116,3 @@ func StatusContribution() glyph.StatusContribution {
 		},
 	}
 }
-
-// StubAction reserves CapAction names without a live Grafana client.
-type StubAction struct{ NameStr string }
-
-func (a StubAction) Name() string { return a.NameStr }
-
-func (a StubAction) Run(context.Context, map[string]string) error {
-	return errors.New("gcx action stub: no live Grafana Cloud client (Lane C write path deferred; see SPIKE.md)")
-}
-
-// KnownActions are the reserved write-side names for Lane C (host CapAction registry).
-func KnownActions() []plugin.Action {
-	return []plugin.Action{
-		StubAction{NameStr: "declare-incident"},
-		StubAction{NameStr: "add-activity"},
-	}
-}
-
-type incidentWire struct {
-	IncidentID  string `json:"incidentID"`
-	Title       string `json:"title"`
-	Status      string `json:"status"`
-	Severity    string `json:"severity"`
-	IncidentURL string `json:"incidentURL"`
-}
-
-type incidentsEnvelope struct {
-	Incidents []incidentWire `json:"incidents"`
-}
-
-// MapIncidentsJSON maps a recorded IRM-ish incident list into a mino section.
-// Offline-testable query surface for vertical irm-incidents (no network).
-func MapIncidentsJSON(raw []byte) (plugin.Section, error) {
-	var env incidentsEnvelope
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return plugin.Section{}, fmt.Errorf("gcx incidents fixture: %w", err)
-	}
-	items := make([]plugin.Item, 0, len(env.Incidents))
-	for _, inc := range env.Incidents {
-		title := inc.Title
-		if title == "" {
-			title = inc.IncidentID
-		}
-		items = append(items, plugin.Item{
-			Kind:     "incident",
-			Title:    title,
-			Subtitle: inc.Status,
-			Body:     inc.Severity,
-			URL:      inc.IncidentURL,
-			Meta: map[string]string{
-				"id":       inc.IncidentID,
-				"status":   inc.Status,
-				"severity": inc.Severity,
-			},
-		})
-	}
-	return plugin.Section{
-		Signal: SignalName,
-		Title:  "incidents",
-		Items:  items,
-	}, nil
-}
-
-// ExampleDirective for Lane D / verify.
-const ExampleDirective = `name: gcx-status
-signal: gcx
-params: {}
-`

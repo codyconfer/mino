@@ -1,4 +1,5 @@
 name: gcx-status
 type: query
 signal: gcx
-params: {}
+params:
+  view: status

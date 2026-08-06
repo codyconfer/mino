@@ -3,6 +3,7 @@ module github.com/codyconfer/mino/external/plugins
 go 1.26.5
 
 require (
+	github.com/charmbracelet/x/term v0.2.2
 	github.com/codyconfer/mino v0.0.0
 	github.com/codyconfer/sisyphus v0.2.5
 	github.com/codyconfer/viewkit v0.2.4
@@ -31,7 +32,6 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
-	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect

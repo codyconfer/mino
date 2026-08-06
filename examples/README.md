@@ -110,7 +110,8 @@ seeds.
 | `today` / `unread-mail` / `recent-docs` | calendar/gmail/docs | `external.*` | Moved to [`external/plugins/examples`](../external/plugins/examples/) with their signals |
 | `slack-standup` | `slack` | `external.slack` | Moved to `external/plugins/examples` |
 | `notify-smoke` | `demo` | `external.demo` | Moved to `external/plugins/examples`; synthetic notify toasts |
-| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`external/plugins`); C-0 offline auth/context |
+| `gcx-status` | `gcx` | `external.gcx` | Overlay-only (`external/plugins`); offline auth/context, pins `view: status` |
+| `gcx-incidents` | `gcx` | `external.gcx` | Overlay-only; live Grafana IRM incidents (needs `mino login gcx` and a stack) |
 | `kubectl-context` | `kubectl` | `external.kubectl` | Overlay-only; current kube context |
 | `argocd-apps` / `argocd-unhealthy` | `argocd` | `external.argocd` | Overlay-only; ArgoCD application health, read-only (needs `plugins.argocd.server_url` + a token) |
 | `*-context` | `ollama` | `external.*` | Overlay-only Lane C2 stubs |

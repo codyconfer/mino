@@ -1,0 +1,7 @@
+name: gcx-incidents
+type: query
+signal: gcx
+params:
+  view: incidents
+  status: active
+  limit: "20"
