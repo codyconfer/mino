@@ -120,6 +120,7 @@ func (s *Server) httpAPI(ctx context.Context, ln net.Listener, subj *stream.Subj
 			log.Debugf("serve: http api shutdown timed out; closing: %v", err)
 			_ = srv.Close()
 		}
+		_ = ln.Close()
 	}
 }
 

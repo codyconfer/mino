@@ -225,6 +225,35 @@ func TestHTTPAPIServesAndShutsDown(t *testing.T) {
 	_ = reln.Close()
 }
 
+func TestHTTPAPIStopFreesThePortWhenServeNeverRan(t *testing.T) {
+	s, _ := testServer(t, t.TempDir())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	port := freePort(t)
+	ln, err := s.apiListener(RunOptions{HTTP: true, HTTPPort: port})
+	if err != nil {
+		t.Fatalf("apiListener: %v", err)
+	}
+	addr := ln.Addr().String()
+	subj := stream.NewSubject[signals.Event]()
+	defer subj.Close()
+
+	stop := s.httpAPI(ctx, ln, subj, nil, RunOptions{
+		Flight: "default", HTTP: true, HTTPPort: port,
+		HTTPToken: "token-long-enough-here", HTTPTokenSource: "test",
+	}, nil)
+	cancel()
+	stop()
+
+	reln, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatalf("the port is still held: %v — Shutdown closes only the listeners Serve registered, "+
+			"so a session that ends before the serve goroutine is scheduled cannot rebind on restart", err)
+	}
+	_ = reln.Close()
+}
+
 func TestHTTPAPIWithNoListenerIsANoOp(t *testing.T) {
 	s, _ := testServer(t, t.TempDir())
 	subj := stream.NewSubject[signals.Event]()

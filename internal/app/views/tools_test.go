@@ -16,16 +16,25 @@ import (
 
 func fakeToolOnPath(t *testing.T, name string) string {
 	t.Helper()
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
+	return fakeToolsOnPath(t, name)[0]
+}
+
+func fakeToolsOnPath(t *testing.T, names ...string) []string {
+	t.Helper()
 	dir := t.TempDir()
-	bin := filepath.Join(dir, name)
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatal(err)
+	bins := make([]string, 0, len(names))
+	for _, name := range names {
+		if runtime.GOOS == "windows" {
+			name += ".exe"
+		}
+		bin := filepath.Join(dir, name)
+		if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		bins = append(bins, bin)
 	}
 	t.Setenv("PATH", dir)
-	return bin
+	return bins
 }
 
 func kitWith(cfg *config.Config) *Kit {
@@ -171,13 +180,7 @@ func TestToolHintsListOnlyBoundAndInstalledTools(t *testing.T) {
 }
 
 func TestToolHintsAreOrderedDeterministically(t *testing.T) {
-	dir := t.TempDir()
-	for _, name := range []string{"aaa", "bbb", "ccc"} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv("PATH", dir)
+	fakeToolsOnPath(t, "aaa", "bbb", "ccc")
 	cfg := &config.Config{
 		Tools: map[string]config.Tool{
 			"aaa": {Argv: []string{"aaa"}},
