@@ -234,6 +234,11 @@ func registerStockSeeds() {
 		{RelPath: seedRel(config.DirQueries, "ntr-list.yaml"), Content: []byte(seedNTRListYAML)},
 		{RelPath: seedRel(config.DirFlights, "ntr.yaml"), Content: []byte(seedNTRFlightYAML)},
 	})
+	RegisterSeeds("mino.gitea", []FileSeed{
+		{RelPath: seedRel(config.DirQueries, "gitea-my-open-prs.yaml"), Content: []byte(seedGiteaOpenPRsYAML)},
+		{RelPath: seedRel(config.DirQueries, "gitea-review-requests.yaml"), Content: []byte(seedGiteaReviewRequestsYAML)},
+		{RelPath: seedRel(config.DirFlights, "gitea.yaml"), Content: []byte(seedGiteaFlightYAML)},
+	})
 }
 
 const (
@@ -241,6 +246,24 @@ const (
 type: query
 signal: ntr
 params: {}
+`
+	seedGiteaOpenPRsYAML = `# Needs gitea.url (and a token: ` + "`mino login gitea`" + `, or $GITEA_TOKEN).
+name: gitea-my-open-prs
+type: query
+signal: gitea
+params:
+  query: "type:pulls state:open created:@me"
+`
+	seedGiteaReviewRequestsYAML = `name: gitea-review-requests
+type: query
+signal: gitea
+params:
+  query: "type:pulls state:open review_requested:@me"
+`
+	seedGiteaFlightYAML = `# Realtime gitea notifications need the read:notification token scope.
+name: gitea
+type: flight
+queries: [gitea-my-open-prs, gitea-review-requests]
 `
 	seedNTRFlightYAML = `# Scheduled reminders fire when this flight is served (` + "`mino serve ntr`" + `).
 # NTR ReminderJob shares the daemon/serve notify sink (tray on daemon; desktop/terminal on serve).

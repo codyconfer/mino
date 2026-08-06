@@ -15,6 +15,7 @@ type CredField struct {
 	Label  string
 	Cur    func(*app.App) string
 	Secret bool
+	Sealed bool
 }
 
 type Provider struct {
@@ -32,6 +33,26 @@ func (p Provider) Missing(a *app.App) []CredField {
 		if f.Cur(a) == "" {
 			out = append(out, f)
 		}
+	}
+	return out
+}
+
+func (p Provider) Persistable(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	sealed := make(map[string]bool, len(p.Fields))
+	for _, f := range p.Fields {
+		if f.Sealed {
+			sealed[f.Key] = true
+		}
+	}
+	out := make(map[string]string, len(values))
+	for k, v := range values {
+		if sealed[k] {
+			continue
+		}
+		out[k] = v
 	}
 	return out
 }
@@ -54,7 +75,34 @@ func coreProviders() []Provider {
 				return auth.LoginGitHub(ctx, a.Tokens, id, a.Cfg.GitHub.OAuthScopes, w)
 			},
 		},
+		{
+			Key:     "gitea",
+			Label:   "Gitea",
+			Signals: []string{"forgejo", "gitea"},
+			Fields: []CredField{{
+				Key:    "gitea.token",
+				Label:  "Personal access token (scopes: read:user, read:repository)",
+				Secret: true,
+				Sealed: true,
+				Cur:    func(a *app.App) string { return auth.GiteaTokenOrigin(a.Tokens) },
+			}},
+			Authed: func(a *app.App) bool { return auth.GiteaAuthed(giteaSpec(a)) },
+			Login: func(ctx context.Context, a *app.App, creds map[string]string, w io.Writer) error {
+				return auth.LoginGitea(ctx, a.Tokens, giteaSpec(a), creds["gitea.token"], w)
+			},
+		},
 	}
+}
+
+func giteaSpec(a *app.App) auth.GiteaSpec {
+	if a == nil || a.Cfg == nil {
+		return auth.GiteaSpec{}
+	}
+	forge := a.Cfg.GitProvider()
+	if forge != "forgejo" {
+		forge = "gitea"
+	}
+	return a.Cfg.Gitea.AuthSpec(forge, a.Tokens)
 }
 
 func Resolve(name string) (Provider, bool) {

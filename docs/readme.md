@@ -1,7 +1,8 @@
 # Mino
 
 Mino is a command-line assistant for the signals you check at the start of —
-and throughout — an SRE shift. It pulls **GitHub** PRs and review requests,
+and throughout — an SRE shift. It pulls **GitHub** and **Gitea/Forgejo** PRs and
+review requests,
 **Google** Calendar / Gmail / Docs / Drive / Tasks, and **Slack** activity into
 one consistently formatted view. Query a single signal ad-hoc, save reusable
 **queries** and **filters** and recall them by name, or send Mino on a named
@@ -52,7 +53,7 @@ existing credentials and prints as terminal panels or JSON — or through a
 
 - [Configuration](configuration/readme.md) — the config directory layout, the
   DuckDB store as source of truth, staged changes, plugin settings, and logs.
-- [Onboarding](configuration/onboarding.md) — the GitHub auth + verified signing
+- [Onboarding](configuration/onboarding.md) — the git provider auth + verified signing
   key gate, how each mode enforces it, and the build-time policy switches.
 - [Authentication](configuration/authentication.md) — per-signal resolution
   order and scopes, git providers, and service (App / machine-user) auth.
@@ -67,8 +68,8 @@ existing credentials and prints as terminal panels or JSON — or through a
 
 - [Command reference](reference/commands.md) — every command, and the flags
   common to all of them.
-- [Data signals](reference/signals.md) — what each signal reads and writes,
-  GitHub project boards, and who owes the next reply.
+- [Data signals](reference/signals.md) — what each signal reads and writes, the
+  Gitea query language, GitHub project boards, and who owes the next reply.
 
 **Extending**
 

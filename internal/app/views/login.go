@@ -16,6 +16,7 @@ import (
 	vkdeck "github.com/codyconfer/viewkit/deck"
 
 	"github.com/codyconfer/mino/internal/app/loginflow"
+	"github.com/codyconfer/mino/internal/gitauth"
 	"github.com/codyconfer/mino/internal/keymap"
 	mnotify "github.com/codyconfer/mino/internal/notify"
 	"github.com/codyconfer/mino/internal/render"
@@ -214,7 +215,7 @@ func (v *loginFlowView) Update(a *vkdeck.Model, msg tea.Msg) tea.Cmd {
 		v.stop()
 		v.err = m.err
 		v.step = loginStepDone
-		if m.err == nil && v.prov.Key == "github" {
+		if m.err == nil && gitauth.Known(v.prov.Key) {
 			v.kit.d.App.ResetGitAuth()
 		}
 		return nil
@@ -273,7 +274,7 @@ func (v *loginFlowView) submit(a *vkdeck.Model) tea.Cmd {
 		}
 		v.creds[key] = s
 	}
-	if err := loginflow.PersistCredentials(v.kit.d.App, v.creds); err != nil {
+	if err := loginflow.PersistCredentials(v.kit.d.App, v.prov.Persistable(v.creds)); err != nil {
 		return a.Push(vkdeck.NewMessage("accounts", modelScope(a).Theme.Cant.Render(err.Error()), v.kit.menuCtx()))
 	}
 	v.step = loginStepRun
@@ -292,7 +293,7 @@ func (v *loginFlowView) Body(frame layout.Frame) string {
 
 	switch v.step {
 	case loginStepForm:
-		intro := th.Dim.Render("OAuth client credentials not found — enter them to continue.")
+		intro := th.Dim.Render("credentials not found — enter them to continue.")
 		return intro + "\n\n" + v.form.Render(frame.WithWidth(width), title)
 	case loginStepDone:
 		var rows []string

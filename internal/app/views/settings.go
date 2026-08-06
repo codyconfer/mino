@@ -98,6 +98,7 @@ type statusBarEntry struct{ id, label string }
 
 var statusBarBuiltinEntries = []statusBarEntry{
 	{"github", "github"},
+	{"gitea", "gitea"},
 	{"slack", "slack"},
 	{"google", "google"},
 }

@@ -13,8 +13,11 @@ func (c *Config) GitSettings(provider string) func(string) string {
 	if c == nil {
 		return func(string) string { return "" }
 	}
-	if provider == "github" {
+	switch provider {
+	case "github":
 		return c.githubSetting
+	case "gitea", "forgejo":
+		return c.giteaSetting
 	}
 	section := c.PluginSettings(provider)
 	return func(key string) string {
@@ -25,6 +28,20 @@ func (c *Config) GitSettings(provider string) func(string) string {
 		s, _ := v.(string)
 		return s
 	}
+}
+
+func (c *Config) giteaSetting(key string) string {
+	switch key {
+	case "url":
+		return c.Gitea.URL
+	case "api_url":
+		return c.Gitea.APIURL
+	case "service_token":
+		return c.Gitea.ServiceToken
+	case "viewer":
+		return c.Gitea.Viewer
+	}
+	return ""
 }
 
 func (c *Config) githubSetting(key string) string {

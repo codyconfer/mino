@@ -53,7 +53,7 @@ func treeString(rows []tree.Row) string {
 func sectionGlyph(g glyph.Set, s signals.Section) string {
 	n := strings.ToLower(s.Signal + " " + s.Title)
 	switch {
-	case strings.Contains(n, "github"):
+	case strings.Contains(n, "github"), strings.Contains(n, "gitea"), strings.Contains(n, "forgejo"):
 		return g.GitHub()
 	case strings.Contains(n, "slack"):
 		return g.Slack()

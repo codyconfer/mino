@@ -393,6 +393,9 @@ func (p *pluginsPage) Body(f layout.Frame) string {
 		if row.problem != "" {
 			lines = append(lines, "    "+th.Cant.Render(glyph.Lead(glyph.Warn())+row.problem))
 		}
+		if i == p.cursor && i < len(p.rows)-1 {
+			lines = append(lines, "")
+		}
 	}
 	body := f.TitledBox(strings.ToUpper(p.Title()), lines...)
 	return p.overlay(p.toast.Body(outer, body), width)

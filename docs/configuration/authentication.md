@@ -7,12 +7,14 @@ options instead of failing opaquely.
 | Signal | Primary | Fallbacks |
 |---|---|---|
 | **GitHub** (stock) | `github.app` / `github.service_token` (service identity) | `gh` CLI (`gh auth login`) → `$GITHUB_TOKEN` / `$GH_TOKEN` → `mino login github` (device flow) |
+| **Gitea / Forgejo** (stock) | `gitea.service_token` (service identity) | `$GITEA_TOKEN` / `$FORGEJO_TOKEN` → `mino login gitea` (paste a token) |
 | **Calendar / Gmail / Docs / Drive / Tasks** (overlay) | `gcloud` ADC | `mino login google` (browser OAuth) |
 | **Slack** (overlay) | `$SLACK_TOKEN` (xoxp-…) | `mino login slack` (browser OAuth) |
 
-`mino login <provider>` runs that provider's OAuth flow and caches a token in the
+`mino login <provider>` runs that provider's login flow and caches a token in the
 DuckDB credential store (`.data/tokens.duckdb`, one row per service); later runs
-use the signal's direct API client. Stock mino ships the `github` provider only;
+use the signal's direct API client. Stock mino ships `github` and `gitea` (with
+`forgejo` as a second name for the same implementation);
 `google` and `slack` are contributed by the overlay plugins through
 `plugin.RegisterLoginProvider`, along with the signal aliases (`mino login
 calendar` → Google). Each needs its OAuth app credentials in config — GitHub under
@@ -45,7 +47,8 @@ auto-refresh.
 The auth checks mino performs — is the credential live, is your signing key registered on
 the forge, is your commit email verified, what is the account login and rate limit — go
 through a **provider** interface (`internal/gitauth`), not through GitHub directly. The
-stock binary ships one provider, `github`, and `git.provider` selects it:
+stock binary ships two, `github` and `gitea` (plus `forgejo`, the same implementation
+under a second name), and `git.provider` selects one:
 
 ```yaml
 git:
@@ -59,9 +62,49 @@ typed `github:` section; a provider contributed by a plugin reads the same-shape
 its own `plugins.<provider>:` namespace. `mino verify auth` names the active provider, and
 an unknown `git.provider` fails with the list of registered names.
 
-What is *not* abstracted: the GitHub signal itself. Flights, saved queries, projects,
-Actions and the notification stream are still GitHub-specific, so a second forge needs its
-own signal alongside its provider.
+Each provider brings its own signal: `github query` and `gitea query` are separate
+signals with separate query languages, because the two forges do not search alike.
+GitHub-specific features stay GitHub-specific — project boards and Actions have no Gitea
+equivalent in mino.
+
+### Gitea and Forgejo
+
+```yaml
+git:
+  provider: gitea            # or forgejo; both read the gitea: section below
+gitea:
+  url: https://git.example.com   # required — mino appends /api/v1
+  # api_url: https://git.example.com/gitea/api/v1   # only for an unusual path prefix
+  max: 30
+  queries:
+    - "type:pulls state:open created:@me"
+```
+
+- **`gitea.url` is required.** Gitea is always self-hosted, so there is no endpoint to
+  default to; leaving it unset is a startup error naming the field rather than a quiet
+  failure. Plain `http` is accepted for `localhost` and other loopback addresses, so a
+  throwaway instance works, and refused everywhere else so a token never crosses a network
+  in the clear.
+- **`gitea` and `forgejo` share everything but the label** — one config section, one pair of
+  credential-store keys (`gitea`, `gitea-service`), one set of `MINO_GITEA_*` variables.
+  There are no `MINO_FORGEJO_*` variables.
+- **The auth scheme is `token`, not `Bearer`.** Gitea has accepted `Authorization: token
+  <pat>` on every version and `Bearer` only on recent ones, so mino sends the portable one.
+- **Token scopes** are coarse: `read:user` covers the account, e-mail and key checks,
+  `read:repository` and `read:issue` cover queries and item detail, and `read:notification`
+  covers the realtime stream. Create tokens at `<instance>/user/settings/applications`.
+- **No rate limit is reported.** Gitea exposes no `/rate_limit` endpoint, so the status strip
+  shows the account with no `n/m` counter rather than inventing `0/0`, which would read as
+  throttled.
+- **One key for access and signing.** Gitea verifies commit signatures against the keys at
+  `<instance>/user/settings/keys`; the split GitHub makes between `user/keys` and
+  `user/ssh_signing_keys` does not exist there, so any registered key counts.
+- **Version drift shows up as a 404.** Gitea answers 404 both for an endpoint a version does
+  not have and for a scope a token was not granted, so mino's hint names both and points at
+  `<instance>/api/swagger`.
+- **The `tea` CLI is deliberately not a tier**, unlike `gh` for GitHub: it would make a
+  machine's identity depend on what happens to be on `PATH`, and it holds no notion of the
+  instance mino is configured against.
 
 ## Service authentication
 
@@ -70,6 +113,7 @@ you — either a GitHub App installation or a machine-user PAT. Both outrank eve
 
 ```
 github.app  →  github.service_token  →  gh CLI  →  $GITHUB_TOKEN  →  $GH_TOKEN  →  mino login github
+gitea.service_token  →  sealed store "gitea-service"  →  $GITEA_TOKEN  →  $FORGEJO_TOKEN  →  mino login gitea
 ```
 
 ```yaml
@@ -85,8 +129,17 @@ github:
 
 Exact env var names: `MINO_GITHUB_SERVICE_TOKEN`, `MINO_GITHUB_VIEWER`,
 `MINO_GITHUB_APP_ID`, `MINO_GITHUB_APP_INSTALLATION_ID`, `MINO_GITHUB_APP_PRIVATE_KEY_PATH`,
-and `MINO_GITHUB_APP_PRIVATE_KEY` for an inline PEM (raw or base64). Anything else — say
-`MINO_GITHUB_APPID` — resolves to nothing and is silently ignored.
+and `MINO_GITHUB_APP_PRIVATE_KEY` for an inline PEM (raw or base64). For Gitea:
+`MINO_GITEA_URL`, `MINO_GITEA_API_URL`, `MINO_GITEA_SERVICE_TOKEN`, `MINO_GITEA_VIEWER`.
+Anything else — say `MINO_GITHUB_APPID`, or `MINO_GITEA_TOKEN` — resolves to nothing and is
+silently ignored.
+
+**There is no `gitea.token` config key either**, for the same reason as
+`github.app.private_key` below: `mino login gitea` prompts for a personal access token and
+seals it in the credential store, and with no config field to bind to, the token cannot be
+reflected back out through `/api/v1/config` or `mino config export`. mino proves a pasted
+token with one `GET /user` before sealing it, so a typo fails immediately instead of
+becoming the top-ranked credential.
 
 **Configuring a service identity is a commitment, not a preference.** Once `github.app` or
 `github.service_token` is set, mino will not fall back to your personal credential: a

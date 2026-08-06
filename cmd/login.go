@@ -1,24 +1,28 @@
 package cmd
 
 import (
+	"slices"
+
 	"github.com/spf13/cobra"
 
 	"github.com/codyconfer/mino/internal/app/loginflow"
 	"github.com/codyconfer/mino/internal/auth"
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/errs"
+	"github.com/codyconfer/mino/internal/gitauth"
 )
 
 func newLoginCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "login <provider|signal>",
 		Short: "Authenticate a signal provider via OAuth (guided)",
-		Long: "Sign in to a signal provider. Accepts a provider (`github`, `google`,\n" +
-			"`slack`) or any signal name — Google signals (`calendar`, `gmail`, `docs`,\n" +
-			"`drive`, `tasks`) all resolve to the shared Google login. When run\n" +
-			"interactively, mino prompts for any missing OAuth client credentials and\n" +
-			"saves them to config before starting the browser/device flow. Tokens are\n" +
-			"cached (encrypted) under <home> and used by the signal's direct API client.",
+		Long: "Sign in to a signal provider. Accepts a provider (`github`, `gitea`,\n" +
+			"`forgejo`, `google`, `slack`) or any signal name — Google signals\n" +
+			"(`calendar`, `gmail`, `docs`, `drive`, `tasks`) all resolve to the shared\n" +
+			"Google login. When run interactively, mino prompts for whatever the provider\n" +
+			"needs: OAuth client credentials are saved to config, while a pasted Gitea\n" +
+			"access token is only ever sealed in the credential store. Tokens are cached\n" +
+			"(encrypted) under <home> and used by the signal's direct API client.",
 		Args:        cobra.ExactArgs(1),
 		ValidArgs:   loginflow.Names(),
 		Annotations: map[string]string{annoSkipOnboarding: "true"},
@@ -39,15 +43,30 @@ func newLoginCmd() *cobra.Command {
 }
 
 func refuseWhenServiceAuthWins(p loginflow.Provider) error {
-	if p.Key != "github" || shared == nil {
+	if shared == nil || !gitauth.Known(p.Key) {
 		return nil
 	}
-	_, id, err := shared.GitAuth()
-	if err != nil || id == nil || !id.ServiceIdentity() {
+	prov, id, err := shared.GitAuth()
+	if err != nil || prov == nil || id == nil || !id.ServiceIdentity() {
+		return nil
+	}
+	if prov.Name() != p.Key && !slices.Contains(p.Signals, prov.Name()) {
 		return nil
 	}
 	return errs.Newf(errs.KindUsage, "git service auth is configured (%s), so a personal login would never be used", id.Origin()).
-		WithHint("unset github.app / github.service_token (and the matching MINO_GITHUB_* vars) to log in as yourself, or run `mino verify auth` to check the service credential")
+		WithHint("%s", serviceAuthHint(prov.Name()))
+}
+
+func serviceAuthHint(provider string) string {
+	switch provider {
+	case "gitea", "forgejo":
+		return "unset gitea.service_token (and MINO_GITEA_SERVICE_TOKEN) to log in as yourself, or run " +
+			"`mino verify auth` to check the service credential"
+	case "github":
+		return "unset github.app / github.service_token (and the matching MINO_GITHUB_* vars) to log in as " +
+			"yourself, or run `mino verify auth` to check the service credential"
+	}
+	return "unset the service credential for " + provider + " to log in as yourself, or run `mino verify auth` to check it"
 }
 
 func refuseUnreadableStore(p loginflow.Provider) error {

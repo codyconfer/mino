@@ -27,22 +27,7 @@ type ActionsBackend interface {
 }
 
 func NormalizeAPIURL(raw string) (string, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return "", nil
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return "", errs.Wrapf(errs.KindConfig, err, "github: invalid api_url %q", raw)
-	}
-	if u.Scheme != "https" {
-		return "", errs.Newf(errs.KindConfig, "github: api_url must use https (refusing to send token over %q)", raw).
-			WithHint("set github.api_url to an https:// endpoint, e.g. https://api.github.com or your enterprise host")
-	}
-	if u.Host == "" {
-		return "", errs.Newf(errs.KindConfig, "github: api_url has no host: %q", raw)
-	}
-	return strings.TrimRight(raw, "/"), nil
+	return auth.NormalizeGitHubAPIURL(raw)
 }
 
 type CLIBackend struct {

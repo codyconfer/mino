@@ -47,12 +47,12 @@ func TestRunCLIKeepsCredentialPromptsOffStdout(t *testing.T) {
 	if loginWriter != io.Writer(&errOut) {
 		t.Error("Login should receive the error writer")
 	}
-	for _, unwanted := range []string{"needs OAuth client credentials", "OAuth client id"} {
+	for _, unwanted := range []string{"needs credentials", "OAuth client id"} {
 		if strings.Contains(out.String(), unwanted) {
 			t.Errorf("prompt %q went to stdout (would land in a redirected results file); stdout = %q", unwanted, out.String())
 		}
 	}
-	for _, want := range []string{"needs OAuth client credentials", "OAuth client id"} {
+	for _, want := range []string{"needs credentials", "OAuth client id"} {
 		if !strings.Contains(errOut.String(), want) {
 			t.Errorf("stderr = %q, want it to carry %q", errOut.String(), want)
 		}

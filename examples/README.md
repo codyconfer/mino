@@ -112,6 +112,7 @@ seeds.
 | Query | Signal | Plugin id | Notes |
 |---|---|---|---|
 | `ntr-list` | `ntr` | `mino.ntr` | Notes/tasks; reminders are service-only (UI + Scheduled delivery via `mino serve ntr` / daemon) |
+| `gitea-my-open-prs` / `gitea-review-requests` | `gitea` | `mino.gitea` | Needs `gitea.url`; realtime notifications need the `read:notification` token scope |
 | `today` / `unread-mail` / `recent-docs` | calendar/gmail/docs | `external.*` | Moved to [`external/plugins/examples`](../external/plugins/examples/) with their signals |
 | `slack-standup` | `slack` | `external.slack` | Moved to `external/plugins/examples` |
 | `notify-smoke` | `demo` | `external.demo` | Moved to `external/plugins/examples`; synthetic notify toasts |
@@ -132,6 +133,7 @@ directives live beside their plugins in
 ```sh
 mino plugins scaffold team.example --dir ./plugins/example
 mino plugins install mino.ntr          # enable + seed queries/ntr-list + flights/ntr
+mino plugins install mino.gitea        # enable + seed the gitea queries + flights/gitea
 mino notes ui                           # Notes/Tasks TUI; Reminders when serve/daemon attached
 
 # With externals overlay binary:

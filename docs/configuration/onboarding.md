@@ -1,9 +1,10 @@
 # Onboarding
 
-Onboarding requires GitHub authenticated **and** a GPG (or SSH) signing key that git
-uses and GitHub has verified. Mino classifies you as **unauthenticated** (no GitHub
-auth at all), **unauthorized** (authed but a signing/scope/verification gap), or
-**authorized**, and gates each mode differently:
+Onboarding requires your git provider authenticated **and** a GPG (or SSH) signing key
+that git uses and the provider has verified. Every check runs against whichever forge
+`git.provider` selects — GitHub by default, or Gitea/Forgejo. Mino classifies you as
+**unauthenticated** (no forge auth at all), **unauthorized** (authed but a
+signing/scope/verification gap), or **authorized**, and gates each mode differently:
 
 | Mode | unauthenticated | unauthorized | authorized |
 |---|---|---|---|
@@ -19,15 +20,18 @@ mino onboard --reset    # clear the marker (re-onboard on the next run)
 ```
 
 `onboard` checks four things and, for any gap, prints the exact commands to fix it
-(it never generates keys or edits your git config): (1) GitHub auth — `gh` CLI or a
-cached token; (2) `git config user.signingkey` is set; (3) that secret key is in
-your local GPG keyring; (4) the key's public half is registered on your GitHub
-account, so signed commits show **Verified**. `mino verify onboarding` reports the
+(it never generates keys or edits your git config): (1) provider auth — for GitHub the
+`gh` CLI or a cached token, for Gitea a personal access token; (2) `git config
+user.signingkey` is set; (3) that secret key is in your local GPG keyring; (4) the key's
+public half is registered on your provider account, so signed commits show **Verified**.
+Gitea has one key list for both access and signing, at
+`<instance>/user/settings/keys`; GitHub keeps signing keys separate, and mino's fix
+instructions name whichever page applies. `mino verify onboarding` reports the
 same checklist. `login`, `verify`, `install`/`clean`/`nuke`, and `--help` skip the
 gate entirely. The onboarded state lives in `settings.yaml`.
 
 **Domain-locked builds.** A distribution can be compiled to onboard *only* when the
-signing key has a GitHub-verified identity in a specific email domain:
+signing key has a provider-verified identity in a specific email domain:
 
 ```sh
 make package EMAIL_DOMAIN=example.com   # only unlocks for @example.com identities

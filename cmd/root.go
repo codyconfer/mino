@@ -163,6 +163,7 @@ func newRootCmd() *cobra.Command {
 		newNotesCmd(),
 		newVersionCmd(),
 		newGithubCmd(),
+		newGiteaCmd(),
 		newServeCmd(),
 		newPaneCmd(),
 	)

@@ -3,8 +3,8 @@
 [![CI](https://github.com/codyconfer/mino/actions/workflows/ci.yml/badge.svg)](https://github.com/codyconfer/mino/actions/workflows/ci.yml)
 
 Mino is a command-line assistant for the signals you check at the start of — and
-throughout — an SRE shift. Stock Mino ships **GitHub** plus **notes / tasks /
-reminders**; **Google** (Calendar / Gmail / Docs / Drive / Tasks), **Slack**, and the
+throughout — an SRE shift. Stock Mino ships **GitHub**, **Gitea/Forgejo**, and
+**notes / tasks / reminders**; **Google** (Calendar / Gmail / Docs / Drive / Tasks), **Slack**, and the
 demo signal live in [`external/plugins`](external/plugins/) and are linked by an
 overlay binary. Query a single signal ad-hoc, save reusable **queries** and
 **filters** and recall them by name, or send Mino on a named **flight** that fetches
@@ -27,7 +27,7 @@ Bootstrap a config directory (with a sample query, filter, and flight), then run
 
 ```sh
 mino install                 # create ~/.mino with defaults
-mino onboard                 # one-time: GitHub auth + a GitHub-verified GPG key
+mino onboard                 # one-time: git provider auth + a provider-verified GPG key
 mino fly                     # run the default flight
 mino github query            # ad-hoc: your open PRs + review requests
 mino fly default -o json | jq .
@@ -48,7 +48,7 @@ flights and plugin actions.
 mino can also authenticate to GitHub as a service rather than as you: see
 [Service authentication](docs/configuration/authentication.md#service-authentication).
 
-On first use Mino guides you through onboarding — GitHub auth plus a GitHub-verified
+On first use Mino guides you through onboarding — git provider auth plus a provider-verified
 signing key — and how strictly it gates depends on the mode; see
 [Onboarding](docs/configuration/onboarding.md). Authentication reuses tools you already have
 (the `gh` CLI, `gcloud` ADC, `$SLACK_TOKEN`) and falls back to `mino login <service>`

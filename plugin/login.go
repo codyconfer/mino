@@ -13,6 +13,7 @@ type LoginField struct {
 	Key    string
 	Label  string
 	Secret bool
+	Sealed bool
 	Value  func(Host) string
 }
 

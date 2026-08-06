@@ -93,6 +93,7 @@ func Defaults() *Config {
 		Audit:    AuditConfig{Enabled: true},
 		Backup:   BackupConfig{SecretBackend: "auto", SecretName: "mino-backup-key", Destination: "local"},
 		GitHub:   GitHubConfig{OAuthScopes: "repo read:org", Max: 30},
+		Gitea:    GiteaConfig{Max: 30},
 		Daemon: DaemonConfig{
 			Interval: "60s", Bell: true, Theme: "dark",
 			HTTP: HTTPConfig{

@@ -2,6 +2,7 @@ package gitauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -28,6 +29,8 @@ type Identity interface {
 	Trace() string
 	Invalidate()
 }
+
+var ErrRateLimitUnreported = errors.New("this provider does not report a rate limit")
 
 type Account struct {
 	Login string
@@ -118,6 +121,18 @@ func New(name string, env Env) (Provider, error) {
 		return nil, fmt.Errorf("unknown git provider %q (known: %v)", name, Names())
 	}
 	return f(env)
+}
+
+func SignalOf(p Provider) string {
+	if p == nil {
+		return ""
+	}
+	if s, ok := p.(interface{ Signal() string }); ok {
+		if name := s.Signal(); name != "" {
+			return name
+		}
+	}
+	return p.Name()
 }
 
 func Known(name string) bool {
