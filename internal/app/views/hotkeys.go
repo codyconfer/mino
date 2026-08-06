@@ -1,6 +1,9 @@
 package views
 
 import (
+	"context"
+	"os/exec"
+	"sort"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,7 +15,10 @@ import (
 	"github.com/codyconfer/mino/internal/config"
 	"github.com/codyconfer/mino/internal/keymap"
 	"github.com/codyconfer/mino/internal/log"
+	"github.com/codyconfer/mino/internal/plugin"
 	"github.com/codyconfer/mino/internal/plugin/ntr"
+	"github.com/codyconfer/mino/internal/tmux"
+	"github.com/codyconfer/mino/internal/tool"
 )
 
 type roleLifecycleSettleMsg struct{ gen uint64 }
@@ -129,6 +135,9 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 	case keymap.TargetPaneInbox, keymap.TargetPanePop, keymap.TargetPaneShell, keymap.TargetPaneClose:
 		return k.paneCmd(m, target)
 	}
+	if name, ok := keymap.ToolTarget(target); ok {
+		return k.toolCmd(name)
+	}
 	name, ok := keymap.FlightTarget(target)
 	if !ok || k.d.App == nil {
 		return nil
@@ -141,6 +150,50 @@ func (k *Kit) openHotkeyTarget(m *vkdeck.Model, target string) tea.Cmd {
 		return nil
 	}
 	return m.Push(k.FlightResults(name))
+}
+
+func (k *Kit) toolArgv(name string) ([]string, string, bool) {
+	if k.d.App == nil || k.d.App.Cfg == nil {
+		return nil, "", false
+	}
+	spec, ok := k.d.App.Cfg.Tools[name]
+	if !ok {
+		return nil, "", false
+	}
+	argv := tool.Expand(spec.Argv, currentContextName)
+	if !tool.Available(argv) {
+		return nil, "", false
+	}
+	title := spec.Title
+	if title == "" {
+		title = name
+	}
+	return argv, title, true
+}
+
+func currentContextName(contextTool string) string {
+	c, ok := plugin.CurrentContext(context.Background(), contextTool)
+	if !ok {
+		return ""
+	}
+	return c.Name
+}
+
+func (k *Kit) toolCmd(name string) tea.Cmd {
+	argv, title, ok := k.toolArgv(name)
+	if !ok {
+		return nil
+	}
+	if k.d.Panes != nil && tmux.Inside() {
+		return paneAction(func() error { return k.d.Panes.OpenTool(title, argv) })
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		if err != nil {
+			log.Warnf("tool %s: %v", name, err)
+		}
+		return vkdeck.ReloadMsg{}
+	})
 }
 
 func (k *Kit) paneCmd(m *vkdeck.Model, target string) tea.Cmd {
@@ -236,6 +289,31 @@ func (k *Kit) hotkeyHints() []keys.Hint {
 				break
 			}
 		}
+	}
+	return append(out, k.toolHints(binds)...)
+}
+
+func (k *Kit) toolHints(binds map[string]string) []keys.Hint {
+	type bound struct{ key, name string }
+	var found []bound
+	for key, target := range binds {
+		if name, ok := keymap.ToolTarget(target); ok {
+			found = append(found, bound{key: key, name: name})
+		}
+	}
+	sort.Slice(found, func(i, j int) bool {
+		if found[i].name != found[j].name {
+			return found[i].name < found[j].name
+		}
+		return found[i].key < found[j].key
+	})
+	var out []keys.Hint
+	for _, b := range found {
+		_, title, ok := k.toolArgv(b.name)
+		if !ok {
+			continue
+		}
+		out = append(out, keys.Hint{Key: keys.Normalize(b.key), Label: title})
 	}
 	return out
 }

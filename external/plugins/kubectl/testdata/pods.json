@@ -1,0 +1,120 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "metadata": {
+        "name": "checkout-7d9f8b6c4-2xk9p",
+        "namespace": "payments",
+        "creationTimestamp": "2026-08-05T09:00:00Z"
+      },
+      "spec": { "nodeName": "ip-10-0-1-14" },
+      "status": {
+        "phase": "Running",
+        "conditions": [{ "type": "Ready", "status": "False" }],
+        "containerStatuses": [
+          {
+            "name": "checkout",
+            "ready": false,
+            "restartCount": 12,
+            "state": { "waiting": { "reason": "CrashLoopBackOff", "message": "back-off 5m0s restarting failed container" } }
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "ledger-5c4d8f7b9-qq4mt",
+        "namespace": "payments",
+        "creationTimestamp": "2026-08-05T10:15:00Z"
+      },
+      "spec": { "nodeName": "ip-10-0-2-31" },
+      "status": {
+        "phase": "Pending",
+        "conditions": [{ "type": "Ready", "status": "False" }],
+        "containerStatuses": [
+          {
+            "name": "ledger",
+            "ready": false,
+            "restartCount": 0,
+            "state": { "waiting": { "reason": "ImagePullBackOff", "message": "Back-off pulling image" } }
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "api-6b7c9d5f4-hh8rn",
+        "namespace": "storefront",
+        "creationTimestamp": "2026-08-05T08:30:00Z"
+      },
+      "spec": { "nodeName": "ip-10-0-1-14" },
+      "status": {
+        "phase": "Running",
+        "conditions": [{ "type": "Ready", "status": "True" }],
+        "containerStatuses": [
+          { "name": "api", "ready": true, "restartCount": 7, "state": {} }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "web-849cbb7f56-lp2vd",
+        "namespace": "storefront",
+        "creationTimestamp": "2026-08-04T22:00:00Z"
+      },
+      "spec": { "nodeName": "ip-10-0-2-31" },
+      "status": {
+        "phase": "Running",
+        "conditions": [{ "type": "Ready", "status": "True" }],
+        "containerStatuses": [
+          { "name": "web", "ready": true, "restartCount": 0, "state": {} }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "nightly-backup-29011500-fj7cz",
+        "namespace": "ops",
+        "creationTimestamp": "2026-08-05T02:00:00Z"
+      },
+      "spec": { "nodeName": "ip-10-0-2-31" },
+      "status": {
+        "phase": "Succeeded",
+        "conditions": [{ "type": "Ready", "status": "False" }],
+        "containerStatuses": [
+          { "name": "backup", "ready": false, "restartCount": 0, "state": { "terminated": { "reason": "Completed", "exitCode": 0 } } }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "migrate-once-8kkm2",
+        "namespace": "ops",
+        "creationTimestamp": "2026-08-05T11:45:00Z"
+      },
+      "spec": { "nodeName": "ip-10-0-1-14" },
+      "status": {
+        "phase": "Running",
+        "conditions": [{ "type": "Ready", "status": "False" }],
+        "containerStatuses": [
+          { "name": "migrate", "ready": false, "restartCount": 0, "state": { "waiting": { "reason": "ContainerCreating", "message": "" } } }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "evicted-worker-2ttlx",
+        "namespace": "ops",
+        "creationTimestamp": "2026-08-05T07:10:00Z"
+      },
+      "spec": { "nodeName": "ip-10-0-2-31" },
+      "status": {
+        "phase": "Failed",
+        "reason": "Evicted",
+        "conditions": [{ "type": "Ready", "status": "False" }],
+        "containerStatuses": []
+      }
+    }
+  ]
+}

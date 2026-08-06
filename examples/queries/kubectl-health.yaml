@@ -1,0 +1,7 @@
+name: kubectl-health
+type: query
+signal: kubectl
+params:
+  what: pods,events,nodes,workloads
+  since: 1h
+  limit: 25

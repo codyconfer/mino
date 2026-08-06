@@ -11,6 +11,7 @@ type Config struct {
 	Timeout     string            `koanf:"timeout"`
 	DefaultRole string            `koanf:"role"`
 	Keybinds    map[string]string `koanf:"keybinds"`
+	Tools       map[string]Tool   `koanf:"tools"`
 	Audit       AuditConfig       `koanf:"audit"`
 	Backup      BackupConfig      `koanf:"backup"`
 	Git         GitConfig         `koanf:"git"`
@@ -51,6 +52,11 @@ func overlayPluginEnv(namespace string, out map[string]any) {
 		}
 		out[key] = value
 	}
+}
+
+type Tool struct {
+	Argv  []string `koanf:"argv"`
+	Title string   `koanf:"title"`
 }
 
 type CacheConfig struct {

@@ -34,7 +34,7 @@ go run ./overlay calendar query     # the same CLI, plus these signals
 | `google` | — | the shared `google` login provider for the five Google signals |
 | `demo` | `demo` | query + stream, the `demo-no-lorem` filter engine |
 | `gcx` | `gcx` | live Grafana IRM incidents (`view=incidents`) + offline status (`view=status`), query params, the `gcx` login provider (sealed key `gcx` or `$GCX_TOKEN`), `declare-incident` / `add-activity` actions, `mino gcx query\|declare\|activity\|login`, two seed queries |
-| `kubectl` | `kubectl` | in-process context + read-only `kubectl config current-context` probe, seed query |
+| `kubectl` | `kubectl` | query + stream over `kubectl -o json` (unhealthy pods, warning events, node health, rollouts), query params, `mino kubectl query` (alias `k8s`), in-process context provider, two seed queries |
 | `ollama` | `ollama` | Lane C2 context stub via `stub`, seed query |
 | `argocd` | `argocd` | query + stream + detail against the ArgoCD REST API (sealed token key `argocd`), query params, `mino argocd query\|show`, two seed queries |
 | `example` | `example` | sample team-overlay signal (`overlay.example`) |
@@ -119,6 +119,14 @@ plugins:
     only_unhealthy: false
     group_by: none
     max: 50
+  kubectl:
+    binary: kubectl
+    namespace: ""          # empty reads every namespace
+    kinds: pods,events,nodes,workloads
+    since: 1h
+    limit: 25
+    restart_threshold: 5
+    timeout: 10s
 ```
 
 `mino login google` and `mino login slack` come back with these plugins

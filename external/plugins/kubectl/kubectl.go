@@ -1,13 +1,9 @@
-// Package kubectl is a Lane C2 stub (template instantiation).
-// Context writes are in-process only — role activation must not mutate the
-// real kubeconfig. Optional Current() may probe `kubectl config current-context`
-// read-only when no in-process selection exists.
 package kubectl
 
 import (
 	"context"
-	"os/exec"
-	"strings"
+	"sync"
+	"time"
 
 	"github.com/codyconfer/viewkit/glyph"
 
@@ -21,7 +17,8 @@ const (
 	ContextTool = "kubectl"
 )
 
-// shared is the single context provider instance used by Switch, Fetch, and status.
+const probeTTL = 30 * time.Second
+
 var shared = &provider{}
 
 func Register() {
@@ -29,75 +26,92 @@ func Register() {
 		return
 	}
 	plugin.RegisterSignal(plugin.Descriptor{
-		ID:           PluginID,
-		Kind:         plugin.KindSignal,
-		Signal:       SignalName,
-		Capabilities: []plugin.Capability{plugin.CapQuery},
+		ID:                 PluginID,
+		Kind:               plugin.KindSignal,
+		Signal:             SignalName,
+		Capabilities:       []plugin.Capability{plugin.CapQuery, plugin.CapStream, plugin.CapCacheable},
+		SettingsNamespaces: []string{SignalName},
 	}, plugin.Builders{
-		Query: func(plugin.BuildContext) (plugin.Query, error) {
-			return Signal{}, nil
-		},
+		Query:  BuildQuery,
+		Stream: BuildStream,
 	})
 	glyph.Register(GlyphID, glyph.Variants{Nerd: "󱃾", Uni: "⎈", ASCII: "k8"})
 	plugin.RegisterContext(PluginID, shared)
 	plugin.RegisterStatusContribution(PluginID, func(_, _ string) glyph.StatusContribution {
 		return StatusContribution()
 	})
+	registerParams()
+	registerCommand()
 	plugin.RegisterSeeds(PluginID, []plugin.FileSeed{
 		{RelPath: "queries/kubectl-context.yaml", Content: []byte(ExampleDirective)},
+		{RelPath: "queries/kubectl-health.yaml", Content: []byte(HealthDirective)},
 	})
 }
 
-// Signal returns a canned cluster context snapshot.
-type Signal struct{}
+type provider struct {
+	mu   sync.Mutex
+	last string
 
-func (Signal) Name() string { return SignalName }
+	probed   string
+	probedOK bool
+	probedAt time.Time
 
-func (Signal) Fetch(ctx context.Context) ([]plugin.Section, error) {
-	cur, _, _ := shared.Current(ctx)
-	if cur == "" {
-		cur = "(no context)"
-	}
-	return []plugin.Section{{
-		Signal: SignalName,
-		Title:  "kubectl",
-		Items: []plugin.Item{{
-			Kind:  "context",
-			Title: "current context",
-			Body:  cur,
-		}},
-	}}, nil
+	unhealthy int
+	graded    bool
 }
-
-type provider struct{ last string }
 
 func (p *provider) Tool() string { return ContextTool }
 
-// Switch records the selection in-process only (Lane C2 stub discipline).
 func (p *provider) Switch(_ context.Context, name string) error {
+	p.mu.Lock()
 	p.last = name
+	p.mu.Unlock()
 	return nil
 }
 
 func (p *provider) Current(ctx context.Context) (string, bool, error) {
-	if p.last != "" {
-		return p.last, true, nil
+	if name := p.selected(); name != "" {
+		return name, true, nil
 	}
-	if _, err := exec.LookPath("kubectl"); err != nil {
-		return "", false, nil
-	}
-	out, err := exec.CommandContext(ctx, "kubectl", "config", "current-context").Output()
-	if err != nil {
-		return "", false, nil
-	}
-	cur := strings.TrimSpace(string(out))
-	if cur == "" {
-		return "", false, nil
-	}
-	return cur, true, nil
+	name, ok := p.currentFromKubeconfig(ctx)
+	return name, ok, nil
 }
 
-// StatusContribution exposes the current context chip.
+func (p *provider) selected() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.last
+}
+
+func (p *provider) currentFromKubeconfig(ctx context.Context) (string, bool) {
+	p.mu.Lock()
+	if !p.probedAt.IsZero() && time.Since(p.probedAt) < probeTTL {
+		name, ok := p.probed, p.probedOK
+		p.mu.Unlock()
+		return name, ok
+	}
+	p.mu.Unlock()
+
+	name, ok := probeContext(ctx, DefaultBinary)
+
+	p.mu.Lock()
+	p.probed, p.probedOK, p.probedAt = name, ok, time.Now()
+	p.mu.Unlock()
+	return name, ok
+}
+
+func (p *provider) grade(unhealthy int) {
+	p.mu.Lock()
+	p.unhealthy, p.graded = unhealthy, true
+	p.mu.Unlock()
+}
+
+func (p *provider) verdict() (unhealthy int, graded bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.unhealthy, p.graded
+}
+
 func StatusContribution() glyph.StatusContribution {
 	return glyph.StatusContribution{
 		BrandGlyph: glyph.ResolveID(GlyphID),
@@ -107,13 +121,26 @@ func StatusContribution() glyph.StatusContribution {
 			if !ok || name == "" {
 				return glyph.StatusMuted(), glyph.SeverityNeutral
 			}
+			if unhealthy, graded := shared.verdict(); graded && unhealthy > 0 {
+				return glyph.StatusWarn(), glyph.SeverityNegative
+			}
 			return glyph.StatusOK(), glyph.SeverityPositive
 		},
 	}
 }
 
-// ExampleDirective for Lane D.
 const ExampleDirective = `name: kubectl-context
+type: query
 signal: kubectl
-params: {}
+params:
+  what: context
+`
+
+const HealthDirective = `name: kubectl-health
+type: query
+signal: kubectl
+params:
+  what: pods,events,nodes,workloads
+  since: 1h
+  limit: 25
 `

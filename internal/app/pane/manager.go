@@ -18,6 +18,7 @@ const (
 	inboxPercent  = 40
 	detailPercent = 50
 	shellPercent  = 30
+	toolPercent   = 50
 	splitDivider  = 1
 )
 
@@ -140,6 +141,23 @@ func (m *Manager) OpenShell() error {
 		Size:       size,
 		Title:      "shell",
 		Argv:       []string{sh},
+	}, "")
+}
+
+func (m *Manager) OpenTool(title string, argv []string) error {
+	if len(argv) == 0 {
+		return errs.Newf(errs.KindInternal, "tool %q has no argv", title)
+	}
+	if title == "" {
+		title = argv[0]
+	}
+	horizontal, size := m.layoutFor(toolPercent)
+	return m.split(tmux.SplitOpts{
+		Target:     m.own,
+		Horizontal: horizontal,
+		Size:       size,
+		Title:      title,
+		Argv:       argv,
 	}, "")
 }
 
